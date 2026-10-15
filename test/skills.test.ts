@@ -24,3 +24,8 @@ test('worker.ps1 keeps its UTF-8 BOM (Windows PowerShell 5.1 misreads the CJK qu
   const buf = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'));
   assert.deepEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
 });
+
+test('worker.ps1 isolates worker transcripts in worker-config', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  assert.match(ps, /\$env:CLAUDE_CONFIG_DIR\s*=\s*Join-Path \$hubHome "worker-config"/);
+});

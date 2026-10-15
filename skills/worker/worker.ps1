@@ -67,6 +67,9 @@ $env:ANTHROPIC_BASE_URL = if ($env:CONGNHAN_BASE_URL) { $env:CONGNHAN_BASE_URL }
 $env:ANTHROPIC_API_KEY = $key
 Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+# Worker transcripts go to the hub's worker-config dir, not ~/.claude/projects/<repo> (they flooded each repo's chat list).
+$env:CLAUDE_CONFIG_DIR = Join-Path $hubHome "worker-config"
+New-Item -ItemType Directory -Force $env:CLAUDE_CONFIG_DIR | Out-Null
 Set-Location $Dir
 $quotaRx = '429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|额度|墨点'
 
