@@ -282,7 +282,7 @@ header .spacer{flex:1}
     <div id="rooms"></div>
     <div class="sec">Claude đang chạy</div>
     <div id="sessions"></div>
-    <div class="sec">Công nhân <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy">0/4</span></div>
+    <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy">0/4</span></div>
     <div id="workers"></div>
   </div>
   <div class="themes" id="themes" role="radiogroup" aria-label="Giao diện">
@@ -596,14 +596,14 @@ function renderSessions() {
   }
 }
 
-/* ---------- workers (congnhan / congnhanvesinh on the Intern API) ---------- */
-const KIND = { congnhan: ['🛠', 'công nhân'], vesinh: ['🧹', 'công nhân vệ sinh'] };
+/* ---------- workers (worker / osin on the Intern API) ---------- */
+const KIND = { worker: ['🛠', 'worker'], osin: ['🧹', 'osin'] };
 const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'p' + String(s % 60).padStart(2, '0') : Math.floor(s / 3600) + 'g' + String(Math.floor(s % 3600 / 60)).padStart(2, '0'); };
 const hirer = (by) => by ? (S.sessions[by]?.name ?? by.slice(0, 12)) : '';
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 function workerRow(w, live) {
   const d = document.createElement('div'); d.className = 'wk';
-  const [icon, label] = KIND[w.kind] || KIND.congnhan;
+  const [icon, label] = KIND[w.kind] || KIND.worker;
   const st = live ? 'busy' : w.status === 'done' ? 'idle' : 'waiting';
   const title = w.task || label;
   const meta = live
@@ -611,7 +611,7 @@ function workerRow(w, live) {
     : [w.status === 'done' ? 'xong' : 'lỗi', w.model, w.durationMs != null ? dur(w.durationMs) : '', w.cost ? '$' + Number(w.cost).toFixed(3) : ''];
   const by = hirer(w.by);
   const line3 = !live && w.error ? w.error : [by && 'thuê bởi ' + by, base(w.dir)].filter(Boolean).join(' · ');
-  d.innerHTML = `<span class="ic" title="${esc(label)}">${icon}<span class="led ${st}"></span></span><div class="who"><div class="nm" title="${esc(title)}">${esc(title)}</div><div class="sub" title="${esc(w.dir)}">${esc(meta.filter(Boolean).join(' · '))}</div><div class="sub${!live && w.error ? ' err' : ''}" title="${esc(!live && (w.error || w.result) || '')}">${esc(line3)}</div></div>${live ? '<button class="kill" title="Dừng công nhân này" aria-label="Dừng">✕</button>' : ''}`;
+  d.innerHTML = `<span class="ic" title="${esc(label)}">${icon}<span class="led ${st}"></span></span><div class="who"><div class="nm" title="${esc(title)}">${esc(title)}</div><div class="sub" title="${esc(w.dir)}">${esc(meta.filter(Boolean).join(' · '))}</div><div class="sub${!live && w.error ? ' err' : ''}" title="${esc(!live && (w.error || w.result) || '')}">${esc(line3)}</div></div>${live ? '<button class="kill" title="Dừng worker này" aria-label="Dừng">✕</button>' : ''}`;
   // Two clicks instead of a confirm dialog: dialogs do not work inside VS Code webviews.
   d.querySelector('.kill')?.addEventListener('click', (e) => {
     const b = e.currentTarget;
@@ -620,7 +620,7 @@ function workerRow(w, live) {
       setTimeout(() => { if (b.isConnected) { b.classList.remove('armed'); b.textContent = '✕'; } }, 4000);
       return;
     }
-    api(`/api/workers/${w.pid}/kill`, {}).then(() => toast('Đã dừng công nhân'), (err) => toast(err.message));
+    api(`/api/workers/${w.pid}/kill`, {}).then(() => toast('Đã dừng worker'), (err) => toast(err.message));
   });
   return d;
 }
@@ -628,7 +628,7 @@ function renderWorkers() {
   const el = $('workers'); if (!el) return; el.innerHTML = '';
   const { running, recent, cap } = S.workers;
   $('wkCap').textContent = `${running.length}/${cap}`; $('wkCap').classList.toggle('full', running.length >= cap);
-  if (!running.length) el.innerHTML = '<div class="side-empty">Không có công nhân nào đang chạy.</div>';
+  if (!running.length) el.innerHTML = '<div class="side-empty">Không có worker nào đang chạy.</div>';
   for (const w of running) el.append(workerRow(w, true));
   if (recent.length) {
     const t = document.createElement('button'); t.className = 'toggle-off';

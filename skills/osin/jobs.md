@@ -1,4 +1,4 @@
-# congnhanvesinh job prompts
+# osin job prompts
 
 Copy one block into the task file, fill the `<…>` slots. Every block fixes the output shape: the worker
 answers in exactly that shape, nothing else.

@@ -7,7 +7,7 @@ param(
     [string]$Model = "auto",
     [string]$Dir = (Get-Location).Path,
     [string]$Tools = "Read,Grep,Glob,Bash",
-    [ValidateSet("congnhan", "vesinh")][string]$Kind = "congnhan",
+    [ValidateSet("worker", "osin", "congnhan", "vesinh")][string]$Kind = "worker",
     [string]$Task = "",                                  # <=100-char summary for the board; default: first line of the prompt file
     [string]$By = $env:CLAUDE_CODE_SESSION_ID            # who hired the worker (chat name or session id)
 )
@@ -21,7 +21,8 @@ $hubHome = if ($env:BEAR_AGENT_HOME) { $env:BEAR_AGENT_HOME } else { Join-Path $
 $hubPort = if ($env:BEAR_AGENT_PORT) { $env:BEAR_AGENT_PORT } else { 7788 }
 $logFile = Join-Path $hubHome "workers.jsonl"
 $runId = [guid]::NewGuid().ToString("N").Substring(0, 12)
-$skill = if ($Kind -eq "vesinh") { "congnhanvesinh" } else { "congnhan" }
+$Kind = if ($Kind -in "osin", "vesinh") { "osin" } else { "worker" }
+$skill = $Kind
 function Log-Line($obj) {
     try {
         if (-not (Test-Path $hubHome)) { return }
@@ -47,7 +48,7 @@ if (Test-Path $tokFile) {
             $s = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/api/workers/slot?self=$PID" -Headers @{ "x-room-token" = $tok } -TimeoutSec 20
         } catch { break }
         if ($s.ok) { break }
-        Write-Output "[congnhan] waiting for a slot ($($s.running)/$($s.cap) workers running)"
+        Write-Output "[worker] waiting for a slot ($($s.running)/$($s.cap) workers running)"
         Start-Sleep 15
     }
 }
@@ -77,12 +78,12 @@ foreach ($m in $chain) {
         $out = $prompt | claude -p --bare --model $m --tools $Tools --allowedTools $Tools --strict-mcp-config --output-format json 2>&1 | Out-String
         $last = ($out.Trim() -split "`r?`n")[-1]
         try { $j = $last | ConvertFrom-Json } catch { $j = $null }
-        if ($j -and -not $j.is_error) { Write-Output "[congnhan] model=$m"; Write-Output $last; Finish 0 $m $j "" }
+        if ($j -and -not $j.is_error) { Write-Output "[worker] model=$m"; Write-Output $last; Finish 0 $m $j "" }
         $err = if ($j) { "$($j.api_error_status) $($j.result)" } else { $out }
         if ($err -notmatch $quotaRx) { break }          # not a limit problem -> try next model
         if ($try -eq 1 -and $err -match '429|rate.?limit') { Start-Sleep 65; continue }  # RPM window, retry once
-        Write-Output "[congnhan] QUOTA model=$m :: $err"; Finish 3 $m $j "QUOTA $err"   # 墨点 shared by all models: switching won't help
+        Write-Output "[worker] QUOTA model=$m :: $err"; Finish 3 $m $j "QUOTA $err"   # 墨点 shared by all models: switching won't help
     }
-    Write-Output "[congnhan] model=$m failed :: $err"
+    Write-Output "[worker] model=$m failed :: $err"
 }
 Finish 1 $m $j $err

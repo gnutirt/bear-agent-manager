@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Breaking: skills renamed congnhan → worker, congnhanvesinh → osin (old triggers still listed).
 - Chore: `todoplan*` / `todobug*` are git-ignored; this changelog is tracked.
 
 ## 0.2.0

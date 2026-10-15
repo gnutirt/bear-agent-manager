@@ -7,7 +7,7 @@ const SKILLS = path.join(import.meta.dirname, '..', 'skills');
 
 test('bundled skills: name matches folder, files referenced via ${CLAUDE_SKILL_DIR} exist, no personal paths', () => {
   const dirs = fs.readdirSync(SKILLS);
-  assert.deepEqual(dirs.sort(), ['congnhan', 'congnhanvesinh']);
+  assert.deepEqual(dirs.sort(), ['osin', 'worker']);
   for (const d of dirs) {
     const md = fs.readFileSync(path.join(SKILLS, d, 'SKILL.md'), 'utf8');
     assert.equal(md.match(/^name: (.+)$/m)?.[1], d);
@@ -20,7 +20,7 @@ test('bundled skills: name matches folder, files referenced via ${CLAUDE_SKILL_D
   }
 });
 
-test('congnhan.ps1 keeps its UTF-8 BOM (Windows PowerShell 5.1 misreads the CJK quota regex without it)', () => {
-  const buf = fs.readFileSync(path.join(SKILLS, 'congnhan', 'congnhan.ps1'));
+test('worker.ps1 keeps its UTF-8 BOM (Windows PowerShell 5.1 misreads the CJK quota regex without it)', () => {
+  const buf = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'));
   assert.deepEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
 });

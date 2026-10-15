@@ -78,7 +78,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   };
   const emitSession = (s: Session) => broadcast('session', publicSession(s));
 
-  // ---- workers (congnhan / congnhanvesinh runs): process scan + status log ----
+  // ---- workers (worker / osin runs): process scan + status log ----
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
   const workerCap = opts.workerCap ?? Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
@@ -278,10 +278,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (Date.now() - scannedAt > 2000) await scanWorkers();
       return json(res, 200, workersSnapshot());
     }
-    // congnhan.ps1 asks before starting a worker; it waits while the machine-wide cap is reached.
+    // worker.ps1 asks before starting a worker; it waits while the machine-wide cap is reached.
     if (m === 'GET' && p === '/api/workers/slot') {
       await scanWorkers();
-      // The asking congnhan.ps1 is already in the process table; ?self=<its pid> leaves it out.
+      // The asking worker.ps1 is already in the process table; ?self=<its pid> leaves it out.
       const self = Number(url.searchParams.get('self'));
       const running = live.filter((w) => w.pid !== self).length;
       return json(res, 200, { ok: running < workerCap, running, cap: workerCap });

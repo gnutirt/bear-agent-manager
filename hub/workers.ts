@@ -1,14 +1,15 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 
-// Workers are headless Claude Code runs on a cheap API started by the congnhan skill:
-//   powershell … congnhan.ps1 -PromptFile <task> -Dir <dir> [-Tools …] [-Kind vesinh]   (parent)
+// Workers are headless Claude Code runs on a cheap API started by the worker skill:
+//   powershell … worker.ps1 -PromptFile <task> -Dir <dir> [-Tools …] [-Kind osin]   (parent)
 //   claude -p --bare --model <model> --allowedTools <tools> …                           (child)
 // The hub finds them in the process table (no cooperation needed) and merges the optional
-// status log that congnhan.ps1 appends to (<hub data>/workers.jsonl).
+// status log that worker.ps1 appends to (<hub data>/workers.jsonl).
 
 export type Proc = { pid: number; ppid: number; name: string; cmd: string; started: number };
-export type Kind = 'congnhan' | 'vesinh';
+export type Kind = 'worker' | 'osin';
+const normKind = (k: unknown): Kind => (/^(osin|vesinh)$/i.test(String(k ?? '')) ? 'osin' : 'worker');
 export type LiveWorker = {
   pid: number; childPid: number | null; kind: Kind; model: string; tools: string; canEdit: boolean;
   dir: string; promptFile: string; startedAt: number;
@@ -29,13 +30,13 @@ function arg(cmd: string, name: string): string {
 export function parseWorkers(procs: Proc[]): LiveWorker[] {
   const out: LiveWorker[] = [];
   for (const p of procs) {
-    if (!/congnhan\.ps1/i.test(p.cmd)) continue;
+    if (!/(worker|congnhan)\.ps1/i.test(p.cmd)) continue;
     const child = procs.find((c) => c.ppid === p.pid && /(^|[\\/"\s])claude(\.exe)?"?\s/i.test(c.cmd) && /\s--bare\b/.test(c.cmd));
     const tools = (child && arg(child.cmd, 'allowedTools')) || arg(p.cmd, 'Tools') || 'Read,Grep,Glob,Bash';
     out.push({
       pid: p.pid,
       childPid: child?.pid ?? null,
-      kind: /^vesinh$/i.test(arg(p.cmd, 'Kind')) ? 'vesinh' : 'congnhan',
+      kind: normKind(arg(p.cmd, 'Kind')),
       model: child ? arg(child.cmd, 'model') : '',
       tools,
       canEdit: /Edit|Write/.test(tools),
@@ -55,7 +56,7 @@ export function mergeWorkerLog(lines: LogLine[]): WorkerRun[] {
   for (const l of lines) {
     if (l.event === 'start') {
       runs.set(l.id, {
-        id: l.id, pid: Number(l.pid) || null, kind: l.kind === 'vesinh' ? 'vesinh' : 'congnhan', dir: String(l.dir ?? ''),
+        id: l.id, pid: Number(l.pid) || null, kind: normKind(l.kind), dir: String(l.dir ?? ''),
         task: String(l.task ?? ''), tools: String(l.tools ?? ''), status: 'running', startedAt: Number(l.ts), durationMs: null,
         model: '', cost: null, error: '', result: '', by: String(l.by ?? ''), skill: String(l.skill ?? ''),
       });

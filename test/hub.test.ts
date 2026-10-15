@@ -336,7 +336,7 @@ test('workers: live processes + log history, slot gate against the cap, kill onl
       JSON.stringify({ event: 'end', id: 'w1', exit: 3, model: 'kimi-k2.6', error: 'QUOTA 429', ts: Date.now() - 1000 }),
     ].join('\n') + '\n');
     const w = await h.call<any>('/api/workers');
-    assert.deepEqual(w.running.map((x: any) => [x.pid, x.kind, x.model, x.canEdit]), [[20020, 'vesinh', 'kimi-k2.6', false]]);
+    assert.deepEqual(w.running.map((x: any) => [x.pid, x.kind, x.model, x.canEdit]), [[20020, 'osin', 'kimi-k2.6', false]]);
     assert.deepEqual(w.recent.map((x: any) => [x.id, x.status, x.error]), [['w1', 'failed', 'QUOTA 429']]);
     assert.equal(w.recent[0].by, 'cli-ai-dung');
     assert.deepEqual(await h.call<any>('/api/workers/slot'), { ok: false, running: 1, cap: 1 });

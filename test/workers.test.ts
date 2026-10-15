@@ -17,10 +17,29 @@ test('parseWorkers finds congnhan runs with their model, tools, dir, kind; ignor
   assert.equal(ws.length, 2);
   const v = ws.find((w) => w.pid === 20020)!;
   assert.deepEqual([v.kind, v.model, v.canEdit, v.dir, v.promptFile, v.childPid, v.startedAt],
-    ['vesinh', 'deepseek-v4-flash-0731', false, 'C:\\Temp\\vesinh-test', 'C:\\Temp\\vesinh-test\\vesinh-task.txt', 62200, 1000]);
+    ['osin', 'deepseek-v4-flash-0731', false, 'C:\\Temp\\vesinh-test', 'C:\\Temp\\vesinh-test\\vesinh-task.txt', 62200, 1000]);
   const c = ws.find((w) => w.pid === 31000)!;
   assert.deepEqual([c.kind, c.model, c.canEdit, c.dir, c.promptFile, c.childPid],
-    ['congnhan', '', true, 'D:\\repo x', 'C:\\T\\task two.txt', null]);
+    ['worker', '', true, 'D:\\repo x', 'C:\\T\\task two.txt', null]);
+});
+
+test('parseWorkers: new worker.ps1 and legacy congnhan.ps1 both found; osin and legacy vesinh map to osin', () => {
+  const NEW = String.raw`powershell -NoProfile -File C:\p\skills\worker\worker.ps1 -PromptFile C:\T\a.txt -Dir D:\r -Kind osin`;
+  const OLD = String.raw`powershell -NoProfile -File C:\p\skills\congnhan\congnhan.ps1 -PromptFile C:\T\b.txt -Dir D:\r -Kind vesinh`;
+  const PLAIN = String.raw`powershell -NoProfile -File C:\p\skills\worker\worker.ps1 -PromptFile C:\T\c.txt -Dir D:\r`;
+  const ws = parseWorkers([
+    { pid: 1, ppid: 0, name: 'powershell.exe', cmd: NEW, started: 1 },
+    { pid: 2, ppid: 0, name: 'powershell.exe', cmd: OLD, started: 2 },
+    { pid: 3, ppid: 0, name: 'powershell.exe', cmd: PLAIN, started: 3 },
+  ]);
+  assert.deepEqual(ws.map((w) => [w.pid, w.kind]), [[1, 'osin'], [2, 'osin'], [3, 'worker']]);
+});
+
+test('mergeWorkerLog maps legacy kinds', () => {
+  const h = mergeWorkerLog([
+    { event: 'start', id: 'a', kind: 'vesinh', ts: 1 }, { event: 'start', id: 'b', kind: 'congnhan', ts: 2 }, { event: 'start', id: 'c', kind: 'osin', ts: 3 },
+  ]);
+  assert.deepEqual(h.map((r) => [r.id, r.kind]), [['c', 'osin'], ['b', 'worker'], ['a', 'osin']]);
 });
 
 test('mergeWorkerLog pairs start/end lines into history with result, cost and error', () => {
