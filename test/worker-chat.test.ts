@@ -16,11 +16,15 @@ test('classifyTranscript: worker = some assistant turn from a non-Claude model',
 test('classifyTranscript: real chats stay, even with <synthetic> turns', () => {
   assert.equal(classifyTranscript([u, a('claude-opus-5-5')], 'D:\r'), null);
   assert.equal(classifyTranscript([u, a('<synthetic>'), a('claude-sonnet-5-5')], 'D:\r'), null);
+  assert.equal(classifyTranscript([u, a('us.anthropic.claude-sonnet-5-5-v1:0')], 'D:\r'), null);
+  assert.equal(classifyTranscript([u, a('anthropic.claude-opus-5-5')], 'D:\r'), null);
 });
 
 test('classifyTranscript: empty (no user/assistant turn) and test/temp projects', () => {
   assert.equal(classifyTranscript([meta, ''], 'D:\r'), 'empty');
   assert.equal(classifyTranscript(['{torn'], 'D:\r'), 'empty');
+  const snap = JSON.stringify({ type: 'file-history-snapshot', snapshot: {} });
+  assert.equal(classifyTranscript([...Array(50).fill(snap), u, a('claude-opus-5-5')], 'D:\r'), null);
   assert.equal(classifyTranscript([u, a('claude-opus-5-5')], 'C--Users-me-AppData-Local-Temp-ar-slow-probe'), 'test');
 });
 

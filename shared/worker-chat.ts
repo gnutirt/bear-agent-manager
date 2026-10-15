@@ -27,7 +27,8 @@ export function classifyTranscript(lines: string[], project: string): RoomChatKi
     try { o = JSON.parse(l); } catch { continue; }
     if (o?.type === 'user' || o?.type === 'assistant') turns++;
     const m = o?.type === 'assistant' ? o?.message?.model : undefined;
-    if (typeof m === 'string' && m !== '<synthetic>' && !m.startsWith('claude-')) return 'worker';
+    // Bedrock/Vertex ids (us.anthropic.claude-…, claude-…@date) are real chats too.
+    if (typeof m === 'string' && m !== '<synthetic>' && !/claude/i.test(m)) return 'worker';
   }
   if (!turns) return 'empty';
   if (TEMP_PROJECT.test(path.basename(project))) return 'test';
