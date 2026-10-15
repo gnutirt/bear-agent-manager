@@ -1,3 +1,8 @@
 node_modules/
 *.log
 *.vsix
+# personal backlogs (never committed)
+todoplan*
+todobug*
+TODOPLAN*
+TODOBUG*
