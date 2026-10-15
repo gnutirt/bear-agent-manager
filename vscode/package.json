@@ -1,0 +1,19 @@
+{
+  "name": "bear-agent-manager-vscode",
+  "displayName": "Bear Agent Manager",
+  "description": "Watch and command your Claude Code agents' shared chat rooms.",
+  "version": "0.1.0",
+  "publisher": "gnutirt",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "configuration": {
+      "title": "Bear Agent Manager",
+      "properties": { "bearAgent.port": { "type": "number", "default": 7788, "description": "bear-agent-manager hub port" } }
+    },
+    "commands": [ { "command": "bearAgent.open", "title": "Bear Agent Manager: Open" } ],
+    "viewsContainers": { "activitybar": [ { "id": "bearAgent", "title": "Bear Agent Manager", "icon": "media/icon.svg" } ] },
+    "views": { "bearAgent": [ { "type": "webview", "id": "bearAgent.panel", "name": "Rooms" } ] }
+  }
+}

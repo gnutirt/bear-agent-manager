@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="vi" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bear Agent Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --side:#E9EDF4; --side-2:#DCE2EC; --side-line:#D2D9E5; --side-text:#2A3247; --side-mute:#6B7590; --side-strong:#121826;
+  --bg:#F3F5F9; --panel:#FFFFFF; --text:#1B2233; --mute:#647089; --line:#E2E6EE; --hover:#EEF1F7;
+  --accent:#4C6FFF; --accent-soft:#E6ECFF; --me:#FFF6E0; --me-line:#F5A524;
+  --busy:#F5A524; --idle:#22C55E; --waiting:#EF4444; --offline:#94A3B8;
+  --code:#EEF1F7; --shadow:0 12px 32px rgba(17,24,39,.18);
+  --font:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+:root[data-theme=dark]{
+  --side:#141B2D; --side-2:#1C2540; --side-line:#26304D; --side-text:#C9D3EA; --side-mute:#8391B3; --side-strong:#FFFFFF;
+  --bg:#171C28; --panel:#1C2230; --text:#E4E8F1; --mute:#8D97AE; --line:#2A3244; --hover:#232B3D;
+  --accent:#7B93FF; --accent-soft:#26305A; --me:#33291A; --code:#232B3D; --shadow:0 12px 32px rgba(0,0,0,.45);
+}
+:root[data-theme=gray]{
+  --side:#C9CDD5; --side-2:#BCC1CB; --side-line:#B0B6C1; --side-text:#262B34; --side-mute:#545C6A; --side-strong:#12161D;
+  --bg:#D9DCE1; --panel:#E7E9ED; --text:#23272F; --mute:#5D6573; --line:#C5C9D1; --hover:#DDE0E5;
+  --accent:#4B63C9; --accent-soft:#D3D9F2; --me:#F2E6CB; --code:#D3D7DE; --shadow:0 12px 32px rgba(30,34,42,.22);
+}
+@media (prefers-color-scheme:dark){:root[data-theme=auto]{
+  --side:#141B2D; --side-2:#1C2540; --side-line:#26304D; --side-text:#C9D3EA; --side-mute:#8391B3; --side-strong:#FFFFFF;
+  --bg:#171C28; --panel:#1C2230; --text:#E4E8F1; --mute:#8D97AE; --line:#2A3244; --hover:#232B3D;
+  --accent:#7B93FF; --accent-soft:#26305A; --me:#33291A; --code:#232B3D; --shadow:0 12px 32px rgba(0,0,0,.45);
+}}
+.themes{display:flex;gap:2px;margin:8px 12px 14px;padding:3px;background:var(--side-2);border-radius:10px}
+.themes button{flex:1;padding:5px 0;border-radius:8px;font-size:12px;font-weight:600;color:var(--side-mute)}
+.themes button.on{background:var(--side);color:var(--side-strong);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.rcpt{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.rc{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel);border:1px solid var(--line);color:var(--mute)}
+.rc.got{color:#16A34A;border-color:color-mix(in srgb,#16A34A 35%,var(--line))}
+.rc.replied{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.rc.dead{color:#E5484D;border-color:color-mix(in srgb,#E5484D 40%,var(--line))}
+.rc.wait{border-style:dashed}
+button.rc.dead{cursor:pointer}
+button.rc.dead:hover{background:color-mix(in srgb,#E5484D 10%,var(--panel))}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:14.5px/1.5 var(--font);color:var(--text);background:var(--bg);display:grid;grid-template-columns:304px minmax(0,1fr);overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea{font:inherit;color:inherit}
+
+/* ---------- sidebar ---------- */
+#side{background:var(--side);color:var(--side-text);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--side-line)}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;color:var(--side-strong);font-weight:700;font-size:16px}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.brand .logo svg{width:16px;height:16px}
+.hub-state{margin-left:auto;font-weight:500;font-size:12px;color:var(--side-mute);display:flex;align-items:center;gap:6px}
+.side-scroll{flex:1;overflow-y:auto;padding:4px 8px 16px}
+.sec{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 6px;color:var(--side-mute);font-size:12.5px;font-weight:600}
+.sec button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
+.sec button:hover{background:var(--side-2);color:var(--side-strong)}
+.room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text)}
+.room:hover{background:var(--side-2)}
+.room.active{background:var(--accent);color:#fff}
+.room .hash{opacity:.6;font-weight:600}
+.room .rname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.room .badge{background:#EF4444;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:0 7px;line-height:18px}
+.room .more{opacity:0;width:22px;height:22px;border-radius:6px;display:grid;place-items:center}
+.room:hover .more,.room.active .more,.room .more:focus-visible{opacity:1}
+.room .more:hover{background:color-mix(in srgb,currentColor 18%,transparent)}
+.new-room{display:none;padding:4px 8px}
+.new-room.open{display:flex;gap:6px}
+.new-room input{flex:1;min-width:0;background:var(--side-2);border:1px solid var(--side-line);border-radius:8px;padding:6px 10px;color:var(--side-strong)}
+.sess{display:flex;gap:10px;padding:7px 8px;border-radius:8px;align-items:flex-start}
+.sess:hover{background:var(--side-2)}
+.sess .who{flex:1;min-width:0}
+.sess .nm{display:flex;align-items:center;gap:6px;color:var(--side-strong);font-weight:600;font-size:13.5px}
+.sess .nm span.n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .sub{font-size:12px;color:var(--side-mute);display:flex;align-items:center;gap:5px;min-width:0;margin-top:1px}
+.sess .sub>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .acts{display:flex;gap:2px;align-items:center}
+.sess .acts [data-a=rename],.sess .acts [data-a=lead]{opacity:0}
+.sess:hover .acts [data-a=lead],.sess:hover .acts [data-a=rename],.sess .acts [data-a=rename]:focus-visible{opacity:1}
+.sess .acts button.add{width:auto;height:24px;padding:0 8px 0 6px;gap:3px;display:flex;align-items:center;background:var(--accent);color:#fff;font-size:12px;font-weight:600}
+.sess .acts button.add:hover{background:var(--accent);color:#fff;filter:brightness(1.12)}
+.sess .acts button.add.wake{background:var(--side-2);color:var(--side-strong);border:1px solid var(--side-line)}
+.sess .ttl{font-size:12.5px;color:var(--side-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx{font-size:10.5px;font-weight:700;border-radius:5px;padding:0 5px;line-height:16px;flex:none;font-variant-numeric:tabular-nums}
+.ctx.lo{background:color-mix(in srgb,#22C55E 22%,transparent);color:#15803D}
+.ctx.mid{background:color-mix(in srgb,#F5A524 25%,transparent);color:#A16207}
+.ctx.hi{background:color-mix(in srgb,#EF4444 22%,transparent);color:#B91C1C}
+:root[data-theme=dark] .ctx.lo{color:#4ADE80}:root[data-theme=dark] .ctx.mid{color:#FBBF24}:root[data-theme=dark] .ctx.hi{color:#F87171}
+.sess .acts button.add.icon{width:26px;height:26px;padding:0;border-radius:50%;justify-content:center}
+.sess .in{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:var(--idle)}
+.sess .acts button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
+.sess .acts button:hover{background:var(--side-line);color:var(--side-strong)}
+.sess input{width:100%;background:var(--side);border:1px solid var(--accent);border-radius:6px;padding:2px 6px;color:var(--side-strong);font-weight:600;font-size:13.5px}
+.star{color:#F5A524;font-size:14px;line-height:1;text-shadow:0 0 1px rgba(0,0,0,.25)}
+.sess .lead-btn{font-size:15px;color:var(--side-mute)}
+.sess .lead-btn.on{color:#F5A524;opacity:1!important}
+.chip.lead{border-color:#F5A524;box-shadow:inset 0 0 0 1px #F5A524}
+.ide{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 5px;line-height:16px;background:var(--side-line);color:var(--side-text);flex:none}
+.ide.antigravity{background:#5B3FD6;color:#fff}.ide.vscode{background:#1F6FD1;color:#fff}.ide.cursor{background:#3A3A3A;color:#fff}
+.toggle-off{width:100%;text-align:left;padding:6px 8px;color:var(--side-mute);font-size:12.5px;border-radius:8px}
+.toggle-off:hover{background:var(--side-2)}
+.side-empty{padding:6px 8px;color:var(--side-mute);font-size:12.5px}
+.sec .cap{font-weight:500;font-size:11.5px;padding:0 7px;border-radius:9px;background:var(--side-2);line-height:18px}
+.sec .cap.full{background:#B45309;color:#fff}
+.wk{display:flex;gap:9px;padding:6px 8px;border-radius:8px;align-items:flex-start}
+.wk:hover{background:var(--side-2)}
+.wk .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:14px;flex:none;background:var(--side-2);position:relative}
+.wk .ic .led{position:absolute;right:-3px;bottom:-3px;border:2px solid var(--side)}
+.wk .who{flex:1;min-width:0}
+.wk .nm{color:var(--side-strong);font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk .sub{font-size:11.5px;color:var(--side-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk .sub.err{color:#E5484D}
+.wk .kill{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute);flex:none}
+.wk .kill:hover,.wk .kill.armed{background:#E5484D;color:#fff}
+.wk .kill.armed{width:auto;padding:0 7px;font-size:12px;font-weight:600}
+
+/* ---------- avatars + leds ---------- */
+.av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none;position:relative}
+.av.sm{width:30px;height:30px;border-radius:9px;font-size:11.5px}
+.av.bot svg{width:84%;height:84%;margin-top:4%}
+.av .led{position:absolute;right:-3px;bottom:-3px;border:2px solid var(--side)}
+.led{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block;background:var(--offline)}
+.led.busy{background:var(--busy);box-shadow:0 0 0 0 rgba(245,165,36,.7);animation:pulse 1.6s infinite}
+.led.idle{background:var(--idle)}
+.led.waiting{background:var(--waiting);animation:pulse-r 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.65)}70%{box-shadow:0 0 0 7px rgba(245,165,36,0)}100%{box-shadow:0 0 0 0 rgba(245,165,36,0)}}
+@keyframes pulse-r{0%{box-shadow:0 0 0 0 rgba(239,68,68,.65)}70%{box-shadow:0 0 0 7px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+@media (prefers-reduced-motion:reduce){.led{animation:none!important}}
+
+/* ---------- main ---------- */
+main{display:flex;flex-direction:column;min-height:0;min-width:0}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);min-height:62px}
+#menuBtn{display:none;width:34px;height:34px;border-radius:8px;place-items:center}
+header h1{margin:0;font-size:17px;font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
+header h1 .h{color:var(--mute)}
+header .meta{color:var(--mute);font-size:13px;white-space:nowrap}
+header .spacer{flex:1}
+.stack{display:flex}
+.stack .av{border:2px solid var(--panel);margin-left:-8px}
+.stack .av:first-child{margin-left:0}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 12px;font-weight:600;font-size:13px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn svg{width:15px;height:15px}
+#banner{display:none;align-items:center;gap:12px;margin:12px 20px 0;padding:10px 14px;border-radius:10px;background:var(--me);border:1px solid var(--me-line);font-size:13.5px}
+#banner.show{display:flex}
+#banner span{flex:1}
+
+#log{flex:1;overflow-y:auto;padding:18px 20px 8px}
+.group{--c:var(--accent);display:flex;gap:12px;padding:10px 14px 10px 12px;margin:0 0 10px;border-radius:12px;max-width:920px;
+  background:color-mix(in srgb,var(--c) 7%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 22%,var(--line));border-left:4px solid var(--c)}
+.group.you{flex-direction:row-reverse;margin-left:auto;max-width:720px;border-left-width:1px;border-right:4px solid var(--c);background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+.group.you .head{flex-direction:row-reverse}
+.group.tome .head::after{content:"gọi bạn";margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
+.group .body{flex:1;min-width:0}
+.group .head{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
+.group .head b{font-size:14.5px}
+.group .head time{color:var(--mute);font-size:12px}
+.donebadge{font-size:11.5px;font-weight:700;color:#16A34A;background:color-mix(in srgb,#16A34A 14%,var(--panel));border-radius:6px;padding:0 7px}
+.sysline{text-align:center;color:var(--mute);font-size:13px;font-weight:600;margin:10px 0 14px}
+.sysline p{margin:0}
+.group .rn{width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center;color:var(--mute);opacity:.55;align-self:center}
+.group .rn svg{width:13px;height:13px}
+.group:hover .rn{opacity:1}
+.group .rn:hover{background:var(--hover);color:var(--text)}
+.msg{overflow-wrap:anywhere;padding:1px 0}
+.msg p{margin:0 0 6px}.msg>:last-child{margin-bottom:0}
+.msg ul,.msg ol{margin:2px 0 6px;padding-left:22px}
+.msg li{margin:2px 0}
+.msg li::marker{color:var(--mute)}
+.msg .mh{font-weight:700;margin:8px 0 4px}.msg .mh1{font-size:17px}.msg .mh2{font-size:15.5px}
+.msg blockquote{margin:4px 0;padding:2px 12px;border-left:3px solid var(--line);color:var(--mute)}
+.msg a{color:var(--accent);text-decoration:none}.msg a:hover{text-decoration:underline}
+.msg code{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:5px;padding:1px 5px}
+.msg pre{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;margin:6px 0;white-space:pre}
+.msg pre code{background:none;padding:0}
+.mention{background:var(--accent-soft);color:var(--accent);font-weight:600;border-radius:5px;padding:0 4px}
+.mention.me{background:var(--me-line);color:#1B2233}
+.day{display:flex;align-items:center;gap:12px;color:var(--mute);font-size:12px;font-weight:600;margin:14px 0 8px}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--line)}
+.empty{margin:auto;max-width:420px;text-align:center;color:var(--mute);padding:40px 20px}
+.empty h2{color:var(--text);font-size:18px;margin:0 0 6px}
+.empty .btn{margin-top:14px}
+
+/* ---------- presence + composer ---------- */
+#presence{display:flex;flex-wrap:wrap;gap:6px;padding:8px 20px 0}
+.chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 11px 4px 9px;font-size:12.5px}
+.chip:hover{border-color:var(--accent)}
+.chip b{font-weight:600}
+.chip .act{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.compose-wrap{position:relative;padding:8px 20px 18px}
+#composer{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;box-shadow:0 1px 2px rgba(17,24,39,.05)}
+#composer:focus-within{border-color:var(--accent)}
+#text{flex:1;border:0;outline:0;background:none;resize:none;max-height:180px;min-height:24px;line-height:1.5;padding:4px 0}
+#send{width:36px;height:36px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
+#send:disabled{opacity:.4;cursor:default}
+#send svg{width:17px;height:17px}
+.hint{color:var(--mute);font-size:12px;padding:6px 4px 0}
+.hint kbd{font-family:var(--font);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
+#mentionMenu{position:absolute;left:20px;bottom:100%;margin-bottom:-6px;min-width:260px;max-width:calc(100% - 40px);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none;z-index:20}
+#mentionMenu.open{display:block}
+#mentionMenu .opt{display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border-radius:8px;text-align:left}
+#mentionMenu .opt.on{background:var(--accent-soft)}
+#mentionMenu .opt small{color:var(--mute);margin-left:auto}
+
+/* ---------- popover menu + toast ---------- */
+#menu{position:fixed;z-index:50;min-width:230px;max-width:320px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none}
+#menu.open{display:block}
+#menu .item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border-radius:8px;font-size:13.5px}
+#menu .item:hover{background:var(--hover)}
+#menu .item.danger{color:#E5484D}
+#menu .item svg{width:16px;height:16px;flex:none}
+#menu .sep{height:1px;background:var(--line);margin:5px 4px}
+#menu .label{padding:6px 10px 2px;font-size:12px;color:var(--mute)}
+#menu .idbox{margin:4px 6px 6px;padding:8px 10px;background:var(--code);border-radius:8px;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+#menu input{width:calc(100% - 12px);margin:4px 6px;padding:7px 10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg)}
+#menu .row{display:flex;gap:6px;justify-content:flex-end;padding:4px 6px}
+#notesPanel{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:45;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .2s}
+#notesPanel.open{transform:none}
+#notesPanel .np-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+#notesPanel .np-head h2{margin:0;font-size:16px;flex:1}
+#notesPanel .np-head small{display:block;font-weight:400;color:var(--mute);font-size:12.5px;margin-top:2px}
+#notesPanel .np-x{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--mute)}
+#notesPanel .np-x:hover{background:var(--hover);color:var(--text)}
+#notesList{flex:1;overflow-y:auto;padding:12px 14px}
+.note{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--bg)}
+.note .num{font-weight:700;color:var(--accent);min-width:22px}
+.note .nt{flex:1;min-width:0}
+.note .nt .meta{color:var(--mute);font-size:12px;margin-top:3px}
+.note .na{display:flex;flex-direction:column;gap:2px;opacity:.5}
+.note:hover .na{opacity:1}
+.note .na button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--mute)}
+.note .na button:hover{background:var(--hover);color:var(--text)}
+.note .na svg{width:14px;height:14px}
+.note textarea,#noteNew textarea{width:100%;border:1px solid var(--accent);border-radius:8px;padding:6px 8px;background:var(--panel);resize:vertical;min-height:60px}
+#noteManual{padding:10px 14px 14px;border-top:1px solid var(--line)}
+#noteNew{padding:12px 14px 16px;border-top:1px solid var(--line)}
+#noteNew[hidden],#noteManual[hidden]{display:none}
+#noteNew textarea{border-color:var(--line)}
+#noteNew textarea:focus{border-color:var(--accent);outline:0}
+#noteNew .row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;color:var(--mute);font-size:12px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1B2233;color:#fff;padding:9px 16px;border-radius:10px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:60}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#notice{color:#E5484D;font-size:12.5px;padding:4px 4px 0;min-height:0}
+#cost{font-size:12.5px;padding:6px 4px 0;color:var(--mute);display:none}
+#cost.show{display:block}
+#cost.warn{color:#B45309}
+:root[data-theme=dark] #cost.warn{color:#FBBF24}
+.msg.clamp{max-height:230px;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.more-btn{margin-top:4px;font-size:12.5px;font-weight:600;color:var(--accent)}
+.group.you .av{display:none}
+.group.you{padding-right:14px}
+
+/* ---------- narrow panels (VS Code sidebar) ---------- */
+@media (max-width:760px){
+  body{grid-template-columns:minmax(0,1fr)}
+  #side{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);z-index:40;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow)}
+  body.side-open #side{transform:none}
+  #menuBtn{display:grid}
+  header{padding:10px 12px}
+  #log,.compose-wrap,#presence{padding-left:12px;padding-right:12px}
+  header .meta,.stack{display:none}
+  #banner{margin:10px 12px 0}
+}
+</style>
+</head>
+<body>
+<aside id="side">
+  <div class="brand">
+    <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M17 9h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-3"/></svg></span>
+    Bear Agent Manager
+    <span class="hub-state" id="hubState"><span class="led idle"></span>đã kết nối</span>
+  </div>
+  <div class="side-scroll">
+    <div class="sec">Phòng <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới"></form>
+    <div id="rooms"></div>
+    <div class="sec">Claude đang chạy</div>
+    <div id="sessions"></div>
+    <div class="sec">Công nhân <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy">0/4</span></div>
+    <div id="workers"></div>
+  </div>
+  <div class="themes" id="themes" role="radiogroup" aria-label="Giao diện">
+    <button data-t="auto" role="radio">Tự động</button><button data-t="light" role="radio">Sáng</button><button data-t="gray" role="radio">Xám</button><button data-t="dark" role="radio">Tối</button>
+  </div>
+</aside>
+
+<main>
+  <header>
+    <button id="menuBtn" aria-label="Mở danh sách"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <h1 id="title"><span class="h">#</span><span id="titleName">Bear Agent Manager</span></h1>
+    <span class="meta" id="meta"></span>
+    <span class="spacer"></span>
+    <div class="stack" id="stack"></div>
+    <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>Biên bản <span id="notesCount">0</span></button>
+    <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
+    <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Mời Claude</button>
+  </header>
+  <div id="banner"><span>Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume">Tiếp tục</button></div>
+  <div id="log"></div>
+  <div id="presence"></div>
+  <div class="compose-wrap">
+    <div id="mentionMenu" role="listbox"></div>
+    <form id="composer"><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude"></textarea><button id="send" aria-label="Gửi" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
+    <div id="cost"></div>
+    <div id="notice"></div>
+    <div class="hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
+  </div>
+</main>
+
+<aside id="notesPanel" aria-label="Biên bản phòng">
+  <div class="np-head"><h2>Biên bản #<span id="npRoom"></span><small>Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.</small></h2><button class="np-x" id="npClose" aria-label="Đóng">✕</button></div>
+  <div id="notesList"></div>
+  <div id="noteManual"><button class="btn" id="noteToggle" type="button">+ Thêm tay</button></div>
+  <form id="noteNew" hidden><textarea id="noteText" placeholder="Ghi một điều đã chốt, ví dụ: giao thức HLP/1 qua /hlp cổng 8765"></textarea><div class="row"><button class="btn" type="button" id="noteCancel">Hủy</button><button class="btn primary">Thêm</button></div></form>
+</aside>
+<div id="menu" role="menu"></div>
+<div id="toast" role="status"></div>
+
+<script>
+const TOKEN = '__BEAR_AGENT_TOKEN__';
+const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null };
+const $ = (id) => document.getElementById(id);
+const enc = encodeURIComponent;
+const LABEL = { busy: 'đang làm', idle: 'rảnh', waiting: 'chờ bạn duyệt quyền', offline: 'đã tắt' };
+const IDE = { vscode: 'VS Code', antigravity: 'Antigravity', cursor: 'Cursor', cli: 'Terminal' };
+const PALETTE = ['#4C6FFF', '#0EA5A4', '#E8853D', '#D946A8', '#7C5CFA', '#2E9E5B', '#0B8BD9', '#C2410C'];
+const I = {
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4M8 8l-4 4 4 4M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/></svg>',
+  dots: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+};
+
+async function api(p, body) {
+  const r = await fetch(p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-room-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const color = (name) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
+const initials = (name) => name === 'you' ? 'Bạn' : name.split(/[-_]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const FACES = ['#FFE7A8', '#CDEBFF', '#D3F4E0', '#FFD6E7', '#E5DEFF', '#FFE0CC', '#E6ECF5', '#FDF2B3'];
+/* Deterministic little robot per seed (session id): head shade, eyes, mouth and antenna vary. */
+function botSvg(seed) {
+  let h = 2166136261; for (const c of String(seed)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const r = (n) => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return (h >>> 0) % n; };
+  const face = FACES[r(FACES.length)], ink = '#1B2233';
+  const antenna = [
+    `<line x1='18' y1='3.5' x2='18' y2='9' stroke='${face}' stroke-width='2.4'/><circle cx='18' cy='3.5' r='2.6' fill='${face}'/>`,
+    `<rect x='6' y='5' width='5' height='7' rx='2.5' fill='${face}'/><rect x='25' y='5' width='5' height='7' rx='2.5' fill='${face}'/>`,
+    `<path d='M13 9 L15 3 L18 7 L21 3 L23 9 Z' fill='${face}'/>`,
+    `<circle cx='10' cy='8' r='3' fill='${face}'/><circle cx='26' cy='8' r='3' fill='${face}'/>`,
+    '',
+  ][r(5)];
+  const eyes = [
+    `<circle cx='13' cy='18' r='2.6' fill='${ink}'/><circle cx='23' cy='18' r='2.6' fill='${ink}'/>`,
+    `<rect x='9.5' y='16.5' width='7' height='3.2' rx='1.6' fill='${ink}'/><rect x='19.5' y='16.5' width='7' height='3.2' rx='1.6' fill='${ink}'/>`,
+    `<rect x='8.5' y='15' width='19' height='6.5' rx='3.2' fill='${ink}'/><rect x='11' y='17' width='6' height='2.4' rx='1.2' fill='#7CF5FF'/>`,
+    `<circle cx='13' cy='18' r='3.6' fill='#fff' stroke='${ink}' stroke-width='1.2'/><circle cx='13.6' cy='18.3' r='1.6' fill='${ink}'/><circle cx='23' cy='18' r='3.6' fill='#fff' stroke='${ink}' stroke-width='1.2'/><circle cx='23.6' cy='18.3' r='1.6' fill='${ink}'/>`,
+    `<path d='M10 19 Q13 15 16 19 M20 19 Q23 15 26 19' stroke='${ink}' stroke-width='2' fill='none' stroke-linecap='round'/>`,
+    `<circle cx='13' cy='18' r='2.6' fill='${ink}'/><path d='M20 18 h6' stroke='${ink}' stroke-width='2.4' stroke-linecap='round'/>`,
+  ][r(6)];
+  const mouth = [
+    `<path d='M13.5 24.5 Q18 28 22.5 24.5' stroke='${ink}' stroke-width='2' fill='none' stroke-linecap='round'/>`,
+    `<path d='M14 25.5 h8' stroke='${ink}' stroke-width='2' stroke-linecap='round'/>`,
+    `<circle cx='18' cy='25.5' r='2' fill='${ink}'/>`,
+    `<rect x='12.5' y='23.5' width='11' height='4' rx='1.2' fill='${ink}'/><path d='M15.3 23.5 v4 M18 23.5 v4 M20.7 23.5 v4' stroke='${face}' stroke-width='1'/>`,
+    `<path d='M13.5 25 l1.8 1.6 l1.8 -1.6 l1.8 1.6 l1.8 -1.6 l1.8 1.6' stroke='${ink}' stroke-width='1.6' fill='none' stroke-linejoin='round'/>`,
+  ][r(5)];
+  const cheeks = r(3) === 0 ? `<circle cx='9.5' cy='23' r='1.8' fill='#FF8FA3' opacity='.7'/><circle cx='26.5' cy='23' r='1.8' fill='#FF8FA3' opacity='.7'/>` : '';
+  return `<svg viewBox='0 0 36 36' aria-hidden='true'>${antenna}<rect x='5' y='9' width='26' height='23' rx='8' fill='${face}'/>${eyes}${cheeks}${mouth}</svg>`;
+}
+const led = (status) => status ? `<span class="led ${status}"></span>` : '';
+const avatar = (seed, status, cls = '') => seed === 'you'
+  ? `<span class="av ${cls}" style="background:var(--accent)">Bạn${led(status)}</span>`
+  : `<span class="av bot ${cls}" style="background:${color(seed)}">${botSvg(seed)}${led(status)}</span>`;
+const room = (n) => S.rooms.find((r) => r.name === n);
+const fmtK = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1000) + 'k';
+const ctxBadge = (s) => s?.ctx ? `<span class="ctx ${s.ctx < 100e3 ? 'lo' : s.ctx < 300e3 ? 'mid' : 'hi'}" title="Ngữ cảnh ~${fmtK(s.ctx)} token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)">${fmtK(s.ctx)}</span>` : '';
+const isLead = (id, r = S.current) => !!id && room(r)?.lead === id;
+const STAR = '<span class="star" title="Trưởng phòng" aria-label="Trưởng phòng">★</span>';
+function reviveSession(id) {
+  const s = S.sessions[id];
+  api(`/api/sessions/${enc(id)}/revive`, {}).then((r) => toast(r.started ? `Đang gọi dậy ${s?.name} ở chế độ nền${s?.ctx ? ` (nạp lại ~${fmtK(s.ctx)} token)` : ''}…` : `${s?.name} đang được gọi dậy rồi`), (e) => toast(e.message));
+}
+function setLead(id) {
+  const on = !isLead(id);
+  api(`/api/rooms/${enc(S.current)}/lead`, { sessionId: on ? id : null }).then(() => toast(on ? `${S.sessions[id]?.name} là trưởng phòng #${S.current}` : 'Đã bỏ trưởng phòng'), (e) => toast(e.message));
+}
+const members = (n) => (room(n)?.members || []).map((id) => S.sessions[id]).filter(Boolean);
+const repo = (cwd) => (cwd || '').split(/[\\/]/).filter(Boolean).pop() || cwd;
+const time = (ts) => new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+const dayOf = (ts) => new Date(ts).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' });
+
+/* Small markdown renderer: fenced code, headings, lists, quotes, bold/italic, inline code, links, @mentions. */
+function inline(s) {
+  const codes = [];
+  s = esc(s).replace(/`([^`]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/__([^_]+)__/g, '<b>$1</b>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+    .replace(/(^|[\s(,;])@([A-Za-z0-9_-]+)/g, (m, p, n) => `${p}<span class="mention${n.toLowerCase() === 'you' ? ' me' : ''}">@${n}</span>`);
+  return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[+i]}</code>`);
+}
+function md(t) {
+  const lines = String(t).replace(/\r/g, '').split('\n');
+  let out = '', list = null, para = [];
+  const flushPara = () => { if (para.length) { out += `<p>${para.map(inline).join('<br>')}</p>`; para = []; } };
+  const closeList = () => { if (list) { out += `</${list}>`; list = null; } };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const fence = l.match(/^\s*```/);
+    if (fence) {
+      flushPara(); closeList();
+      const code = [];
+      while (++i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i]);
+      out += `<pre><code>${esc(code.join('\n'))}</code></pre>`;
+      continue;
+    }
+    let m;
+    if ((m = l.match(/^\s*([-*+•])\s+(.*)$/)) || (m = l.match(/^\s*(\d+)[.)]\s+(.*)$/))) {
+      flushPara();
+      const kind = /\d/.test(m[1]) ? 'ol' : 'ul';
+      if (list !== kind) { closeList(); out += `<${kind}>`; list = kind; }
+      out += `<li>${inline(m[2])}</li>`;
+      continue;
+    }
+    if ((m = l.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); closeList(); out += `<div class="mh mh${m[1].length}">${inline(m[2])}</div>`; continue; }
+    if ((m = l.match(/^>\s?(.*)$/))) { flushPara(); closeList(); out += `<blockquote>${inline(m[1])}</blockquote>`; continue; }
+    if (!l.trim()) { flushPara(); closeList(); continue; }
+    if (list && /^\s{2,}\S/.test(l)) { out = out.replace(/<\/li>$/, `<br>${inline(l.trim())}</li>`); continue; }
+    closeList(); para.push(l);
+  }
+  flushPara(); closeList();
+  return out;
+}
+
+let toastTimer;
+function toast(text) {
+  const t = $('toast'); t.textContent = text; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function note(e) { $('notice').textContent = e ? (e.message || String(e)) : ''; }
+async function copy(text, done) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = text; document.body.append(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  toast(done);
+}
+const inviteText = (name) => `Vào phòng bear-agent-manager "${name}": gọi room_join với room "${name}", chào mọi người bằng room_send (nói ngắn bạn là ai, đang làm gì), rồi chờ tin nhắn trong phòng.`;
+
+/* ---------- popover menu ---------- */
+function openMenu(anchor, html, wire) {
+  const m = $('menu'); m.innerHTML = html; m.classList.add('open');
+  const r = anchor.getBoundingClientRect();
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  m.style.top = (r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+  wire?.(m);
+  m.querySelector('input, button')?.focus();
+}
+function closeMenu() { $('menu').classList.remove('open'); }
+document.addEventListener('mousedown', (e) => { if (!$('menu').contains(e.target)) closeMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeMenu(); closeMention(); } });
+
+function roomMenu(anchor, name) {
+  openMenu(anchor, `
+    <div class="label">ID phòng (dùng để mời Claude)</div>
+    <div class="idbox">${esc(name)}</div>
+    <button class="item" data-a="invite">${I.copy}Copy lệnh mời Claude</button>
+    <button class="item" data-a="id">${I.copy}Copy ID phòng</button>
+    <div class="sep"></div>
+    <button class="item" data-a="rename">${I.edit}Đổi tên phòng</button>
+    <button class="item danger" data-a="delete">${I.trash}Xóa phòng</button>`, (m) => {
+    m.querySelector('[data-a=invite]').onclick = () => { closeMenu(); copy(inviteText(name), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); };
+    m.querySelector('[data-a=id]').onclick = () => { closeMenu(); copy(name, 'Đã copy ID phòng'); };
+    m.querySelector('[data-a=rename]').onclick = () => renameRoomForm(anchor, name);
+    m.querySelector('[data-a=delete]').onclick = () => deleteRoomForm(anchor, name);
+  });
+}
+function renameRoomForm(anchor, name) {
+  openMenu(anchor, `<div class="label">Tên mới cho #${esc(name)}</div><input id="rnRoom" value="${esc(name)}" autocomplete="off"><div class="row"><button class="btn" data-a="x">Hủy</button><button class="btn primary" data-a="ok">Đổi tên</button></div>`, (m) => {
+    const inp = m.querySelector('input');
+    const go = () => {
+      const to = inp.value.trim().toLowerCase();
+      if (!to || to === name) return closeMenu();
+      api(`/api/rooms/${enc(name)}/rename`, { name: to }).then(() => { closeMenu(); if (S.current === name) S.current = to; toast(`Đã đổi tên thành #${to}`); }, (e) => toast(e.message));
+    };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    m.querySelector('[data-a=ok]').onclick = go;
+    m.querySelector('[data-a=x]').onclick = closeMenu;
+    setTimeout(() => inp.select());
+  });
+}
+function renameSessionForm(anchor, id) {
+  const s = S.sessions[id]; if (!s) return;
+  openMenu(anchor, `<div class="label">Nickname mới cho ${esc(s.name)}</div><input value="${esc(s.name)}" maxlength="32" autocomplete="off"><div class="row"><button class="btn" data-a="x">Hủy</button><button class="btn primary" data-a="ok">Đổi tên</button></div>`, (m) => {
+    const inp = m.querySelector('input');
+    const go = () => {
+      const v = inp.value.trim();
+      if (!v || v === s.name) return closeMenu();
+      api(`/api/sessions/${enc(id)}/rename`, { name: v }).then(() => { closeMenu(); toast(`Đã đổi tên thành ${v}`); }, (e) => toast(e.message));
+    };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    m.querySelector('[data-a=ok]').onclick = go;
+    m.querySelector('[data-a=x]').onclick = closeMenu;
+    setTimeout(() => inp.select());
+  });
+}
+function deleteRoomForm(anchor, name) {
+  const n = members(name).length;
+  openMenu(anchor, `<div class="label">Xóa #${esc(name)}? ${n} Claude sẽ rời phòng, lịch sử chat được chuyển vào thùng rác của hub.</div><div class="row"><button class="btn" data-a="x">Giữ lại</button><button class="btn primary" data-a="ok" style="background:#E5484D;border-color:#E5484D">Xóa phòng</button></div>`, (m) => {
+    m.querySelector('[data-a=x]').onclick = closeMenu;
+    m.querySelector('[data-a=ok]').onclick = () => api(`/api/rooms/${enc(name)}/delete`, {}).then(() => { closeMenu(); toast(`Đã xóa #${name}`); }, (e) => toast(e.message));
+  });
+}
+function membersMenu(anchor) {
+  const ms = members(S.current);
+  openMenu(anchor, `<div class="label">Thành viên #${esc(S.current)}</div>` + (ms.length ? ms.map((s) => `
+    <div class="item">${avatar(s.id, s.status, 'sm')}<span style="flex:1;min-width:0"><b>${esc(s.name)}</b><br><small style="color:var(--mute)">${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><button class="btn" data-lead="${esc(s.id)}" title="${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Đặt làm trưởng phòng'}">${isLead(s.id) ? '★' : '☆'}</button><button class="btn" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out}</button></div>`).join('')
+    : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>'), (m) => {
+    m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
+    m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast('Đã cho rời phòng'); }, (e) => toast(e.message)));
+  });
+}
+
+/* ---------- rendering ---------- */
+function renderRooms() {
+  const el = $('rooms'); el.innerHTML = '';
+  if (!S.rooms.length) el.innerHTML = '<div class="side-empty">Chưa có phòng nào.</div>';
+  for (const r of S.rooms) {
+    const b = document.createElement('div');
+    b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
+    const un = S.unread[r.name] || 0;
+    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="Tùy chọn phòng">${I.dots}</button>`;
+    b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
+    b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
+    b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
+    el.append(b);
+  }
+}
+
+function sessionRow(s) {
+  const inRoom = S.current && room(S.current)?.members.includes(s.id);
+  const d = document.createElement('div'); d.className = 'sess';
+  const rooms = s.rooms.length ? ' · ' + s.rooms.map((r) => '#' + r).join(' ') : '';
+  const nameHtml = S.renaming === s.id
+    ? `<input value="${esc(s.name)}" aria-label="Tên mới" maxlength="32">`
+    : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
+  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
+    <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Đặt làm trưởng phòng'}" aria-label="Trưởng phòng">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="Đổi tên" aria-label="Đổi tên">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="Mở lại session này ở chế độ nền để nó đọc và trả lời phòng">⏻ Gọi dậy</button><button data-a="forget" title="Xóa khỏi danh sách" aria-label="Xóa khỏi danh sách">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="Đã ở trong #${esc(S.current)}" aria-label="Đã ở trong phòng">✓</span>` : `<button class="add icon" data-a="add" title="Thêm vào #${esc(S.current)}" aria-label="Thêm vào #${esc(S.current)}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
+  d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
+  d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
+  d.querySelector('[data-a=wake]')?.addEventListener('click', () => reviveSession(s.id));
+  d.querySelector('[data-a=forget]')?.addEventListener('click', () => api(`/api/sessions/${enc(s.id)}/forget`, {}).then(() => toast(`Đã xóa ${s.name} khỏi danh sách`), (e) => toast(e.message)));
+  d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(`Đã thêm ${s.name} vào #${S.current}`), (e) => toast(e.message)));
+  const inp = d.querySelector('input');
+  if (inp) {
+    setTimeout(() => { inp.focus(); inp.select(); });
+    const finish = (save) => {
+      const v = inp.value.trim(); S.renaming = null;
+      if (save && v && v !== s.name) api(`/api/sessions/${enc(s.id)}/rename`, { name: v }).then(() => toast(`Đã đổi tên thành ${v}`), (e) => { toast(e.message); renderSessions(); });
+      else renderSessions();
+    };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+    inp.onblur = () => finish(true);
+  }
+  return d;
+}
+
+function renderSessions() {
+  const el = $('sessions'); el.innerHTML = '';
+  const order = { busy: 0, waiting: 1, idle: 2, offline: 3 };
+  const all = Object.values(S.sessions).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
+  const live = all.filter((s) => s.status !== 'offline'), off = all.filter((s) => s.status === 'offline');
+  if (!live.length) el.innerHTML = '<div class="side-empty">Chưa có Claude nào chạy. Mở một tab Claude Code là nó tự hiện ở đây.</div>';
+  for (const s of live) el.append(sessionRow(s));
+  if (off.length) {
+    const t = document.createElement('button'); t.className = 'toggle-off';
+    t.textContent = `${S.showOffline ? '▾' : '▸'} Đã tắt (${off.length})`;
+    t.onclick = () => { S.showOffline = !S.showOffline; renderSessions(); };
+    el.append(t);
+    if (S.showOffline) for (const s of off) el.append(sessionRow(s));
+  }
+}
+
+/* ---------- workers (congnhan / congnhanvesinh on the Intern API) ---------- */
+const KIND = { congnhan: ['🛠', 'công nhân'], vesinh: ['🧹', 'công nhân vệ sinh'] };
+const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'p' + String(s % 60).padStart(2, '0') : Math.floor(s / 3600) + 'g' + String(Math.floor(s % 3600 / 60)).padStart(2, '0'); };
+const hirer = (by) => by ? (S.sessions[by]?.name ?? by.slice(0, 12)) : '';
+const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
+function workerRow(w, live) {
+  const d = document.createElement('div'); d.className = 'wk';
+  const [icon, label] = KIND[w.kind] || KIND.congnhan;
+  const st = live ? 'busy' : w.status === 'done' ? 'idle' : 'waiting';
+  const title = w.task || label;
+  const meta = live
+    ? [label, w.model || 'đang khởi động', w.canEdit ? 'được sửa file' : 'chỉ đọc', dur(Date.now() - w.startedAt)]
+    : [w.status === 'done' ? 'xong' : 'lỗi', w.model, w.durationMs != null ? dur(w.durationMs) : '', w.cost ? '$' + Number(w.cost).toFixed(3) : ''];
+  const by = hirer(w.by);
+  const line3 = !live && w.error ? w.error : [by && 'thuê bởi ' + by, base(w.dir)].filter(Boolean).join(' · ');
+  d.innerHTML = `<span class="ic" title="${esc(label)}">${icon}<span class="led ${st}"></span></span><div class="who"><div class="nm" title="${esc(title)}">${esc(title)}</div><div class="sub" title="${esc(w.dir)}">${esc(meta.filter(Boolean).join(' · '))}</div><div class="sub${!live && w.error ? ' err' : ''}" title="${esc(!live && (w.error || w.result) || '')}">${esc(line3)}</div></div>${live ? '<button class="kill" title="Dừng công nhân này" aria-label="Dừng">✕</button>' : ''}`;
+  // Two clicks instead of a confirm dialog: dialogs do not work inside VS Code webviews.
+  d.querySelector('.kill')?.addEventListener('click', (e) => {
+    const b = e.currentTarget;
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed'); b.textContent = 'Dừng?'; b.title = `Bấm lần nữa để dừng ${label} (pid ${w.pid})`;
+      setTimeout(() => { if (b.isConnected) { b.classList.remove('armed'); b.textContent = '✕'; } }, 4000);
+      return;
+    }
+    api(`/api/workers/${w.pid}/kill`, {}).then(() => toast('Đã dừng công nhân'), (err) => toast(err.message));
+  });
+  return d;
+}
+function renderWorkers() {
+  const el = $('workers'); if (!el) return; el.innerHTML = '';
+  const { running, recent, cap } = S.workers;
+  $('wkCap').textContent = `${running.length}/${cap}`; $('wkCap').classList.toggle('full', running.length >= cap);
+  if (!running.length) el.innerHTML = '<div class="side-empty">Không có công nhân nào đang chạy.</div>';
+  for (const w of running) el.append(workerRow(w, true));
+  if (recent.length) {
+    const t = document.createElement('button'); t.className = 'toggle-off';
+    const fail = recent.filter((r) => r.status === 'failed').length;
+    t.textContent = `${S.showRecent ? '▾' : '▸'} Gần đây (${recent.length}${fail ? ', ' + fail + ' lỗi' : ''})`;
+    t.onclick = () => { S.showRecent = !S.showRecent; renderWorkers(); };
+    el.append(t);
+    if (S.showRecent) for (const r of recent.slice(0, 15)) el.append(workerRow(r, false));
+  }
+}
+function loadWorkers() { api('/api/workers').then((w) => { S.workers = w; renderWorkers(); }, () => {}); }
+setInterval(() => { if (S.workers.running.length) renderWorkers(); }, 5000);
+
+function renderHeader() {
+  const r = room(S.current);
+  $('titleName').textContent = r ? r.name : 'Bear Agent Manager';
+  document.querySelector('#title .h').style.display = r ? '' : 'none';
+  const ms = r ? members(r.name) : [];
+  const busy = ms.filter((s) => s.status === 'busy').length;
+  const lead = r?.lead ? S.sessions[r.lead] : null;
+  $('meta').textContent = r ? `${ms.length} Claude${busy ? ` · ${busy} đang làm` : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
+  $('stack').innerHTML = ms.slice(0, 5).map((s) => avatar(s.id, null, 'sm')).join('');
+  $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
+  $('membersCount').textContent = ms.length;
+  $('banner').classList.toggle('show', !!r?.paused);
+  $('text').disabled = !r;
+}
+
+/* Read receipts for the members a message woke: waiting → received → replied (or offline). */
+function receipts(m, list) {
+  if (!m.wake?.length) return '';
+  const chips = m.wake.map((id) => {
+    const s = S.sessions[id];
+    if (!s) return '';
+    const replied = list.some((x) => x.id > m.id && x.fromId === id);
+    const [cls, txt] = replied ? ['replied', '↩ đã trả lời']
+      : (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? '✓ đã nhận · đang làm' : '✓ đã nhận']
+      : s.status === 'offline' ? ['dead', '✕ đã tắt · bấm để gọi dậy']
+      : ['wait', '… chưa nhận'];
+    return cls === 'dead'
+      ? `<button class="rc ${cls}" data-wake="${esc(id)}" title="Mở lại ${esc(s.name)} ở chế độ nền">${esc(s.name)} ${txt}</button>`
+      : `<span class="rc ${cls}" title="${esc(s.name)}">${esc(s.name)} ${txt}</span>`;
+  }).join('');
+  return chips ? `<div class="rcpt">${chips}</div>` : '';
+}
+
+function renderLog() {
+  const el = $('log');
+  if (!S.rooms.length) {
+    el.innerHTML = `<div class="empty"><h2>Tạo phòng đầu tiên</h2>Phòng là nơi các Claude nói chuyện với nhau và với bạn. Tạo một phòng, rồi thêm các Claude đang chạy ở cột trái vào.<br><button class="btn primary" id="emptyNew">${I.plus} Tạo phòng</button></div>`;
+    $('emptyNew').onclick = () => showNewRoom(); return;
+  }
+  const ms = S.messages[S.current] || [];
+  if (!ms.length) {
+    const n = members(S.current).length;
+    el.innerHTML = `<div class="empty"><h2>#${esc(S.current)} chưa có tin nhắn</h2>${n ? 'Gõ @tên bên dưới để giao việc cho một Claude, hoặc nhắn không tag để cả phòng cùng nghe.' : 'Thêm Claude vào phòng bằng nút + ở cột trái, hoặc copy lệnh mời rồi dán vào tab Claude.'}<br><button class="btn primary" id="emptyInvite">${I.copy} Copy lệnh mời Claude</button></div>`;
+    $('emptyInvite').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); return;
+  }
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  let html = '', prev = null, prevDay = '';
+  for (const m of ms) {
+    const day = dayOf(m.ts);
+    if (day !== prevDay) { html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
+    if (m.kind === 'system') { html += `<div class="sysline">${md(m.text)}</div>`; prev = null; continue; }
+    const tome = m.fromId && m.mentions.includes('you');
+    const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
+    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg">${md(m.text)}</div>${receipts(m, ms)}</div></div>`);
+    else {
+      const s = m.fromId ? S.sessions[m.fromId] : null;
+      const who = s ? s.name : m.from;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg">${md(m.text)}</div>${receipts(m, ms)}</div></div>`;
+    }
+    prev = m;
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('.msg').forEach((m) => {
+    if (m.scrollHeight > 260 && !m.dataset.open) {
+      m.classList.add('clamp');
+      const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = 'Xem thêm';
+      b.onclick = () => { const open = m.classList.toggle('clamp'); b.textContent = open ? 'Xem thêm' : 'Thu gọn'; };
+      m.after(b);
+    }
+  });
+  el.querySelectorAll('[data-wake]').forEach((b) => b.onclick = () => reviveSession(b.dataset.wake));
+  el.querySelectorAll('[data-rename]').forEach((b) => b.onclick = () => renameSessionForm(b, b.dataset.rename));
+  if (atBottom || !el.dataset.room || el.dataset.room !== S.current) el.scrollTop = el.scrollHeight;
+  el.dataset.room = S.current;
+}
+
+function renderPresence() {
+  const el = $('presence');
+  const ms = S.current ? members(S.current) : [];
+  const order = { busy: 0, waiting: 1, idle: 2, offline: 3 };
+  el.innerHTML = '';
+  for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
+    const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = `Gọi @${s.name}`;
+    const act = s.status === 'busy' ? (s.activity || 'đang làm') : LABEL[s.status];
+    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b><span class="act">${esc(act)}</span>`;
+    c.onclick = () => insertMention(s.name);
+    el.append(c);
+  }
+}
+
+function renderNotes() {
+  const list = S.notes[S.current] || [];
+  $('notesCount').textContent = list.length;
+  $('npRoom').textContent = S.current || '';
+  const el = $('notesList');
+  if (!list.length) { el.innerHTML = '<div class="empty" style="padding:24px 8px"><h2 style="font-size:15px">Chưa có gì được chốt</h2>Khi các Claude thống nhất giao thức, cổng, ai sửa file nào… chúng sẽ tự ghi vào đây. Tab Claude mở trước khi cập nhật plugin cần reload để có tool room_note.</div>'; return; }
+  el.innerHTML = list.map((n) => S.editingNote === n.id
+    ? `<div class="note"><span class="num">${n.id}</span><div class="nt"><textarea data-edit="${n.id}">${esc(n.text)}</textarea><div class="row" style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px"><button class="btn" data-cancel>Hủy</button><button class="btn primary" data-save="${n.id}">Lưu</button></div></div></div>`
+    : `<div class="note"><span class="num">${n.id}</span><div class="nt"><div class="msg">${md(n.text)}</div><div class="meta">${n.byId ? esc(S.sessions[n.byId]?.name || n.by) : 'Bạn'} · ${time(n.ts)}</div></div><div class="na"><button data-ed="${n.id}" title="Sửa" aria-label="Sửa mục ${n.id}">${I.edit}</button><button data-del="${n.id}" title="Xóa" aria-label="Xóa mục ${n.id}">${I.trash}</button></div></div>`).join('');
+  el.querySelectorAll('[data-ed]').forEach((b) => b.onclick = () => { S.editingNote = +b.dataset.ed; renderNotes(); el.querySelector('textarea')?.focus(); });
+  el.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/notes/${b.dataset.del}/delete`, {}).then(() => toast('Đã xóa mục ' + b.dataset.del), (e) => toast(e.message)));
+  el.querySelector('[data-cancel]')?.addEventListener('click', () => { S.editingNote = null; renderNotes(); });
+  el.querySelector('[data-save]')?.addEventListener('click', (e) => {
+    const id = e.currentTarget.dataset.save, text = el.querySelector('[data-edit]').value.trim();
+    api(`/api/rooms/${enc(S.current)}/notes/${id}/edit`, { text }).then(() => { S.editingNote = null; toast('Đã lưu mục ' + id); }, (err) => toast(err.message));
+  });
+}
+
+async function loadNotes(room) {
+  if (!room) return;
+  S.notes[room] = await api(`/api/rooms/${enc(room)}/notes`).catch(() => []);
+  if (room === S.current) renderNotes();
+}
+
+function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderPresence(); renderNotes(); }
+
+async function select(name) {
+  S.current = name; S.unread[name] = 0;
+  try { localStorage.setItem('bear-agent-manager:room', name); } catch {}
+  if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
+  if (name && !S.notes[name]) await loadNotes(name);
+  note(); renderAll();
+  if (name) $('text').focus();
+}
+
+function setRooms(rooms) {
+  S.rooms = rooms.sort((a, b) => a.name.localeCompare(b.name));
+  for (const k of Object.keys(S.messages)) if (!room(k)) delete S.messages[k];
+  if (!room(S.current)) { S.current = null; return select(S.rooms[0]?.name ?? null); }
+  renderAll();
+}
+
+/* ---------- live updates ---------- */
+function connect() {
+  const es = new EventSource('/api/events?token=' + TOKEN);
+  es.addEventListener('snapshot', (e) => {
+    const snap = JSON.parse(e.data);
+    S.sessions = Object.fromEntries(snap.sessions.map((s) => [s.id, s]));
+    S.messages = {};
+    let saved = null; try { saved = localStorage.getItem('bear-agent-manager:room'); } catch {}
+    S.rooms = snap.rooms;
+    S.current = room(S.current) ? S.current : room(saved) ? saved : (S.rooms[0]?.name ?? null);
+    select(S.current);
+    loadWorkers();
+  });
+  es.addEventListener('msg', (e) => {
+    const m = JSON.parse(e.data);
+    const list = S.messages[m.room];
+    if (list && !list.some((x) => x.id === m.id)) list.push(m);
+    if (m.room === S.current) renderLog();
+    else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
+  });
+  es.addEventListener('session', (e) => {
+    const s = JSON.parse(e.data); S.sessions[s.id] = s;
+    if (S.renaming !== s.id) renderSessions();
+    renderHeader(); renderPresence(); renderLog();
+  });
+  es.addEventListener('room', (e) => {
+    const r = JSON.parse(e.data);
+    const i = S.rooms.findIndex((x) => x.name === r.name);
+    if (i >= 0) S.rooms[i] = r; else S.rooms.push(r);
+    setRooms(S.rooms);
+  });
+  es.addEventListener('rooms', (e) => setRooms(JSON.parse(e.data)));
+  es.addEventListener('forget', (e) => { delete S.sessions[JSON.parse(e.data).id]; renderAll(); });
+  es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); });
+  es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
+  es.onerror = () => { $('hubState').innerHTML = '<span class="led waiting"></span>mất kết nối'; };
+  es.onopen = () => { $('hubState').innerHTML = '<span class="led idle"></span>đã kết nối'; };
+}
+
+/* ---------- composer + @mentions ---------- */
+const mention = { open: false, items: [], i: 0, start: 0 };
+function closeMention() { mention.open = false; $('mentionMenu').classList.remove('open'); }
+function updateMention() {
+  const t = $('text'), before = t.value.slice(0, t.selectionStart);
+  const m = before.match(/(?:^|[\s(,;])@([A-Za-z0-9_-]*)$/);
+  if (!m || !S.current) return closeMention();
+  const q = m[1].toLowerCase();
+  const opts = [...members(S.current).map((s) => ({ name: s.name, sub: LABEL[s.status], s })), { name: 'all', sub: 'cả phòng' }, { name: 'you', sub: 'bạn' }]
+    .filter((o) => o.name.toLowerCase().startsWith(q) && o.name !== 'you');
+  if (!opts.length) return closeMention();
+  Object.assign(mention, { open: true, items: opts, i: Math.min(mention.i, opts.length - 1), start: before.length - m[1].length - 1 });
+  $('mentionMenu').innerHTML = opts.map((o, k) => `<button type="button" class="opt${k === mention.i ? ' on' : ''}" data-k="${k}">${o.s ? avatar(o.s.id, o.s.status, 'sm') : avatar(o.name, null, 'sm')}<b>@${esc(o.name)}</b><small>${esc(o.sub)}</small></button>`).join('');
+  $('mentionMenu').querySelectorAll('.opt').forEach((b) => b.onmousedown = (e) => { e.preventDefault(); pickMention(+b.dataset.k); });
+  $('mentionMenu').classList.add('open');
+}
+function pickMention(k) {
+  const t = $('text'), o = mention.items[k];
+  t.value = t.value.slice(0, mention.start) + '@' + o.name + ' ' + t.value.slice(t.selectionStart);
+  const pos = mention.start + o.name.length + 2; t.setSelectionRange(pos, pos);
+  closeMention(); autosize(); t.focus();
+}
+function insertMention(name) {
+  const t = $('text'); const sep = t.value && !/\s$/.test(t.value) ? ' ' : '';
+  t.value += sep + '@' + name + ' '; autosize(); t.focus();
+}
+function autosize() { const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 180) + 'px'; $('send').disabled = !t.value.trim(); }
+
+function wakeTargets(text) {
+  const ms = members(S.current);
+  const tags = [...text.matchAll(/(?:^|[\s(,;])@([A-Za-z0-9_-]+)/g)].map((m) => m[1].toLowerCase());
+  if (tags.includes('all')) return ms;
+  if (tags.length) return ms.filter((s) => tags.includes(s.name.toLowerCase()));
+  const r = room(S.current); const lead = r?.lead && S.sessions[r.lead];
+  return lead && lead.status !== 'offline' ? [lead] : ms;
+}
+function updateCost() {
+  const el = $('cost'), text = $('text').value.trim();
+  const targets = text && S.current ? wakeTargets(text).filter((s) => s.status !== 'offline') : [];
+  const total = targets.reduce((a, s) => a + (s.ctx || 0), 0);
+  if (!targets.length || !total) { el.className = ''; el.textContent = ''; return; }
+  el.className = 'show' + (total >= 300e3 ? ' warn' : '');
+  el.textContent = `Đánh thức ${targets.map((s) => s.name + (s.ctx ? ' (' + fmtK(s.ctx) + ')' : '')).join(', ')} · đọc lại ~${fmtK(total)} ngữ cảnh: ≈${fmtK(total * 0.1)} token nếu cache còn ấm, tới ~${fmtK(total * 1.25)} nếu đã nguội.`;
+}
+$('text').addEventListener('input', () => { autosize(); updateMention(); updateCost(); });
+$('text').addEventListener('click', updateMention);
+$('text').addEventListener('keydown', (e) => {
+  if (mention.open) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); mention.i = (mention.i + (e.key === 'ArrowDown' ? 1 : mention.items.length - 1)) % mention.items.length; updateMention(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(mention.i); return; }
+  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); }
+});
+$('composer').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('text').value.trim();
+  if (!text || !S.current) return;
+  try {
+    const r = await api(`/api/rooms/${enc(S.current)}/messages`, { text });
+    $('text').value = ''; autosize(); updateCost();
+    const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
+    if (r.unknownMentions.length) note(new Error(`Không có Claude nào tên ${r.unknownMentions.map((n) => '@' + n).join(', ')} trong phòng nên tin này không đánh thức ai.`));
+    else if (dead.length) note(new Error(`${dead.join(', ')} đã tắt. Tab đã đóng hẳn thì hub tự gọi dậy ở chế độ nền; nếu không, bấm "Gọi dậy" ở cột trái hoặc dưới tin nhắn.`));
+    else if (!members(S.current).length) note(new Error('Phòng chưa có Claude nào: bấm + cạnh một Claude ở cột trái để thêm.'));
+    else note();
+  } catch (err) { note(err); }
+};
+
+/* ---------- chrome ---------- */
+function showNewRoom() { $('newRoom').classList.add('open'); $('roomName').focus(); document.body.classList.add('side-open'); }
+$('addRoomBtn').onclick = () => { $('newRoom').classList.toggle('open'); $('roomName').focus(); };
+$('newRoom').onsubmit = (e) => {
+  e.preventDefault();
+  const name = $('roomName').value.trim().toLowerCase().replace(/\s+/g, '-');
+  if (!name) return;
+  api('/api/rooms', { name }).then(() => { $('roomName').value = ''; $('newRoom').classList.remove('open'); select(name); toast(`Đã tạo #${name}`); }, (err) => toast(err.message));
+};
+$('roomName').onkeydown = (e) => { if (e.key === 'Escape') $('newRoom').classList.remove('open'); };
+$('inviteBtn').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.');
+$('membersBtn').onclick = (e) => membersMenu(e.currentTarget);
+$('notesBtn').onclick = () => { $('notesPanel').classList.toggle('open'); renderNotes(); };
+$('npClose').onclick = () => $('notesPanel').classList.remove('open');
+if (new URLSearchParams(location.search).get('notes') === '1') $('notesPanel').classList.add('open');
+$('noteNew').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('noteText').value.trim();
+  if (!text || !S.current) return;
+  api(`/api/rooms/${enc(S.current)}/notes`, { text }).then(() => { $('noteText').value = ''; $('noteNew').hidden = true; $('noteManual').hidden = false; toast('Đã ghi vào biên bản'); }, (err) => toast(err.message));
+};
+$('noteToggle').onclick = () => { $('noteManual').hidden = true; $('noteNew').hidden = false; $('noteText').focus(); };
+$('noteCancel').onclick = () => { $('noteNew').hidden = true; $('noteManual').hidden = false; };
+$('noteText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('noteNew').requestSubmit(); });
+$('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch((e) => toast(e.message));
+$('menuBtn').onclick = () => document.body.classList.toggle('side-open');
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('#themes button').forEach((b) => { b.classList.toggle('on', b.dataset.t === t); b.setAttribute('aria-checked', String(b.dataset.t === t)); });
+  try { localStorage.setItem('bear-agent-manager:theme', t); } catch {}
+}
+document.querySelectorAll('#themes button').forEach((b) => b.onclick = () => setTheme(b.dataset.t));
+let savedTheme = 'auto'; try { savedTheme = localStorage.getItem('bear-agent-manager:theme') || 'auto'; } catch {}
+const urlTheme = new URLSearchParams(location.search).get('theme');
+if (['auto', 'light', 'gray', 'dark'].includes(urlTheme)) savedTheme = urlTheme;
+setTheme(savedTheme);
+renderAll();
+connect();
+</script>
+</body>
+</html>

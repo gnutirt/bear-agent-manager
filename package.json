@@ -1,0 +1,11 @@
+{
+  "name": "bear-agent-manager",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --no-warnings --test \"test/**/*.test.ts\"",
+    "hub": "node --no-warnings hub/main.ts"
+  }
+}

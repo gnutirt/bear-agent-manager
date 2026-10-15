@@ -1,0 +1,8 @@
+{
+  "name": "bear-agent-manager-local",
+  "owner": { "name": "gnutirt" },
+  "description": "Local marketplace for the bear-agent-manager plugin.",
+  "plugins": [
+    { "name": "bear-agent-manager", "source": "./", "description": "Shared chat rooms for Claude Code sessions." }
+  ]
+}
