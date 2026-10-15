@@ -371,6 +371,14 @@ test('POST /api/sessions/:id/ide records the editor and exposes it publicly', as
   } finally { await hub.close(); }
 });
 
+test('GET /api/room-chat returns an array', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    const list = await call<any[]>('/api/room-chat');
+    assert.ok(Array.isArray(list));
+  } finally { await hub.close(); }
+});
+
 test('post-tool hook route returns waking messages as additionalContext once, else empty body', async () => {
   const { hub, call } = await makeHub();
   const post = async () => (await fetch(`${hub.url}/hooks/post-tool`, { method: 'POST', headers: { 'content-type': 'application/json' },

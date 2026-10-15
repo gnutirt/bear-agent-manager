@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken } from '../shared/config.ts';
@@ -10,6 +11,8 @@ import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { spawnRevive, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
+import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
+import { workerConfigDir } from '../shared/worker-chat.ts';
 
 export type { ReviveJob };
 
@@ -252,6 +255,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     res.end();
   }
 
+  const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  function sweepAll(apply: boolean) {
+    const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
+    const revive = new Set<string>();
+    const out: Swept[] = [];
+    for (const cfg of configDirs()) {
+      const projects = path.join(cfg, 'projects');
+      if (cfg === path.join(os.homedir(), '.claude')) out.push(...adoptWorkerTranscripts(path.join(workerConfigDir(opts.dir), 'projects'), projects, apply));
+      for (const p of fs.existsSync(projects) ? fs.readdirSync(projects) : []) {
+        const d = path.join(projects, p);
+        if (fs.statSync(d).isDirectory()) out.push(...sweepProject(d, { apply, reviveIds: revive, activeIds: active }));
+      }
+    }
+    return out;
+  }
+
   async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? '/', 'http://hub');
     const p = url.pathname;
@@ -285,6 +304,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const self = Number(url.searchParams.get('self'));
       const running = live.filter((w) => w.pid !== self).length;
       return json(res, 200, { ok: running < workerCap, running, cap: workerCap });
+    }
+    if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
+    if (m === 'POST' && p === '/api/room-chat/sweep') {
+      const b = await readBody(req);
+      const swept = sweepAll(!!b.apply);
+      broadcast('roomchat', swept);
+      return json(res, 200, swept);
     }
     const wk = m === 'POST' && p.match(/^\/api\/workers\/(\d+)\/kill$/);
     if (wk) {
