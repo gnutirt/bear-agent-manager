@@ -81,3 +81,11 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
     assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
   } finally { await hub.close(); }
 });
+
+test('a view whose data fails to load says why instead of loading forever', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['function viewFail', "viewFail('tokens', e)", "viewFail('settings', e)", "viewFail('workers', e)", 'role="alert"']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
