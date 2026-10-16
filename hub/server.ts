@@ -219,11 +219,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript));
     let compacted = false;
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir };
+    const tools = loadSettings(opts.dir, envCap).reviveTools[normAgent(s.name)];
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
     emitSession(store.setStatus(s.id, 'busy', compactFirst ? 'đang compact' : 'đang hồi sinh'));
-    const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so only read files and reply.`;
+    const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so ${tools ? `use only read tools and ${tools.join(', ')}` : 'only read files'} and reply.`;
     Promise.resolve()
       .then(async () => {
         if (!compactFirst) return;
@@ -232,7 +233,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!compacted) tellRooms(`${s.name}: compact trước khi gọi dậy bị lỗi, gọi dậy bình thường.`);
         emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
       })
-      .then(() => runRevive({ ...job, text }))
+      .then(() => runRevive({ ...job, text, ...(tools ? { tools } : {}) }))
       .catch(() => {})
       .finally(() => {
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
@@ -397,7 +398,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (a === b) return;
     const s = loadSettings(opts.dir, envCap);
     let moved = false;
-    for (const map of [s.agentSkills, s.agentCompact] as Record<string, unknown>[]) {
+    for (const map of [s.agentSkills, s.agentCompact, s.reviveTools] as Record<string, unknown>[]) {
       if (!map[a] || map[b]) continue;   // never overwrite rules the new name already has
       map[b] = map[a];
       delete map[a];

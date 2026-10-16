@@ -1392,15 +1392,17 @@ function compactBlock() {
     return `<tr data-cagent="${esc(n)}"><td>${esc(n)}</td>
       <td><select data-cmode aria-label="Tự compact của ${esc(n)}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
       <td><input type="number" class="numin" data-cpct min="10" max="85" value="${r.pct ?? ''}" placeholder="${r.mode === 'hold' ? '70' : 'mặc định'}" aria-label="Ngưỡng % của ${esc(n)}"></td>
-      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="Compact trước khi gọi dậy ${esc(n)}"></td></tr>`;
+      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="Compact trước khi gọi dậy ${esc(n)}"></td>
+      <td><input type="text" data-rtools value="${esc((S.settings.reviveTools?.[n] || []).join(', '))}" placeholder="chỉ đọc" aria-label="Tool ghi thêm khi gọi dậy ${esc(n)}"></td></tr>`;
   }).join('');
-  return `<div class="setbox"><p class="small muted note">Giữ tới ngưỡng: chặn auto-compact tới khi ngữ cảnh đạt % của context window (tối đa 85%; /compact gõ tay không bao giờ bị chặn). Compact + chèn hồ sơ: sau compact, agent nhận lại hồ sơ bàn giao và biên bản phòng. Compact khi gọi dậy: agent đã tắt được compact trước khi đọc tin mới (từ ngưỡng %, hoặc 150k nếu để trống). Chat đang mở cần Reload Window để có hook mới.</p>
-    ${table(['Agent', 'Tự compact', 'Ngưỡng %', 'Compact khi gọi dậy'], rows)}</div>`;
+  return `<div class="setbox"><p class="small muted note">Giữ tới ngưỡng: chặn auto-compact tới khi ngữ cảnh đạt % của context window (tối đa 85%; /compact gõ tay không bao giờ bị chặn). Compact + chèn hồ sơ: sau compact, agent nhận lại hồ sơ bàn giao và biên bản phòng. Compact khi gọi dậy: agent đã tắt được compact trước khi đọc tin mới (từ ngưỡng %, hoặc 150k nếu để trống). Tool thêm khi gọi dậy: mặc định agent bị gọi dậy chỉ đọc file và dùng room; điền tên tool (vd Edit, Write) để cho ghi file. Chat đang mở cần Reload Window để có hook mới.</p>
+    ${table(['Agent', 'Tự compact', 'Ngưỡng %', 'Compact khi gọi dậy', 'Tool thêm khi gọi dậy'], rows)}</div>`;
 }
 async function saveCompact(tr) {
   const pct = tr.querySelector('[data-cpct]').value.trim();
   const rule = { mode: tr.querySelector('[data-cmode]').value, wakeCompact: tr.querySelector('[data-cwake]').checked, ...(pct ? { pct: Number(pct) } : {}) };
-  try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule } }, 'PUT'); toast('Đã lưu'); }
+  const tools = tr.querySelector('[data-rtools]').value.split(/[\s,]+/).filter(Boolean);
+  try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule }, reviveTools: { [tr.dataset.cagent]: tools } }, 'PUT'); toast('Đã lưu'); }
   catch (e) { toast(e.message); }
   renderSettingsView();
 }

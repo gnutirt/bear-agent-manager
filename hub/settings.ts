@@ -16,6 +16,7 @@ export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
   agentSkills: Record<string, Record<string, SkillRule>>;
   agentCompact: Record<string, AgentCompact>;   // empty = Claude Code's own behavior for everyone
+  reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
 
@@ -26,7 +27,7 @@ export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {},
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {},
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -72,6 +73,15 @@ export function patchSettings(s: Settings, p: any): Settings {
       compact[k] = { mode, ...(pct != null ? { pct } : {}), ...(wake ? { wakeCompact: true } : {}) };
     }
   }
+  const rt = { ...s.reviveTools };
+  if (p?.reviveTools && typeof p.reviveTools === 'object') {
+    for (const [name, v] of Object.entries<any>(p.reviveTools)) {
+      const k = normAgent(name);
+      if (!k) continue;
+      const list = [...new Set((Array.isArray(v) ? v : []).map((t) => String(t).trim()).filter((t) => /^[A-Za-z]\w{0,39}$/.test(t)))].slice(0, 20);   // whole tool names only, no Bash(...) patterns
+      if (list.length) rt[k] = list; else delete rt[k];
+    }
+  }
   const aj = p?.autoJobs ?? {};
   return {
     skills: {
@@ -80,6 +90,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     },
     agentSkills: agents,
     agentCompact: compact,
+    reviveTools: rt,
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },
       digest: { enabled: bool(aj.digest?.enabled, s.autoJobs.digest.enabled), minChars: int(aj.digest?.minChars, s.autoJobs.digest.minChars, 1000, 100_000) },

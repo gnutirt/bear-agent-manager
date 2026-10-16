@@ -30,6 +30,13 @@ test('patch validates and merges deeply', () => {
   assert.equal(normAgent('  Quan-Ly-Cong-Nhan '), 'quan-ly-cong-nhan');
 });
 
+test('reviveTools: whole tool names only, per agent, empty clears', () => {
+  let s = patchSettings(defaultSettings(4), { reviveTools: { ' Boss ': ['Edit', 'Write', 'Edit', 'Bash(rm *)', ' ', 'x y'] } });
+  assert.deepEqual(s.reviveTools, { boss: ['Edit', 'Write'] });
+  s = patchSettings(s, { reviveTools: { boss: [] } });
+  assert.deepEqual(s.reviveTools, {});
+});
+
 test('broken file falls back to defaults; round trip', () => {
   const h = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-set-'));
   fs.writeFileSync(path.join(h, 'settings.json'), 'nope');
