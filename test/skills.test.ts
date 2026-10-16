@@ -48,3 +48,9 @@ test('worker.ps1 pipes the prompt as UTF-8 (PowerShell 5.1 defaults to us-ascii 
   assert.ok(enc > 0 && enc < pipe, 'UTF-8 $OutputEncoding must be set before the prompt is piped');
   assert.ok(out > 0 && out < pipe, "claude's stdout must be read as UTF-8 too (the hub starts worker.ps1 without a console)");
 });
+
+test('worker.ps1 prints its JSON result as pure ASCII, readable by any caller code page', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  assert.ok(ps.includes("[regex]::Replace($last, '[^\x00-\x7F]'"), 'non-ASCII escaped as \uXXXX');
+  assert.ok(ps.includes('Write-Output $ascii'), 'the escaped line is the one printed');
+});

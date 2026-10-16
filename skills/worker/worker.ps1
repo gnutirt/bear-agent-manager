@@ -125,7 +125,10 @@ foreach ($prov in $plan) {
             $out = $prompt | claude -p --bare --model $m @toolArgs --strict-mcp-config --output-format json 2>&1 | Out-String
             $last = ($out.Trim() -split "`r?`n")[-1]
             try { $j = $last | ConvertFrom-Json } catch { $j = $null }
-            if ($j -and -not $j.is_error) { Write-Output "[worker] provider=$($prov.id) model=$m"; Write-Output $last; Finish 0 $m $j "" }
+            # The JSON line goes out as pure ASCII (\uXXXX escapes): a caller reading our stdout with an OEM code page
+            # (a plain PowerShell 5.1 console, Start-Job) would otherwise turn Vietnamese into mojibake.
+            $ascii = [regex]::Replace($last, '[^\x00-\x7F]', { param($c) '\u{0:x4}' -f [int][char]$c.Value })
+            if ($j -and -not $j.is_error) { Write-Output "[worker] provider=$($prov.id) model=$m"; Write-Output $ascii; Finish 0 $m $j "" }
             $err = if ($j) { "$($j.api_error_status) $($j.result)" } else { $out }
             if ($err -notmatch $quotaRx) { break }          # not a limit problem -> try next model
             if ($try -eq 1 -and $err -match '429|rate.?limit') { Start-Sleep 65; continue }  # RPM window, retry once
