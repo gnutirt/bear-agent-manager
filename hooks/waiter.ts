@@ -58,7 +58,7 @@ while (Date.now() - started < LIFETIME_MS) {
   if (r.superseded) process.exit(0);
   if (r.messages?.length) {
     await api(`/api/sessions/${id}/status`, { body: { status: 'busy', activity: 'reading room' } }).catch(() => {});
-    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? []));
+    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? [], input.session_id));
     process.exit(2);
   }
 }

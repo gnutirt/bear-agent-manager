@@ -238,3 +238,15 @@ test('session-start tells even a brand-new chat which workers are on', async () 
     assert.match(r.stdout, /skill `worker`/);
   } finally { await hub.close(); }
 });
+
+test('formatDelivery with a recipient: chatter that did not wake it is one line, the rest in full', () => {
+  const m = (id: number, from: string, fromId: string | null, wake: string[], text: string, room = 'proj') => ({ id, room, from, fromId, mentions: wake.map((w) => ({ b1: 'bob', c1: 'carol' } as Record<string, string>)[w]), text, ts: 0, wake });
+  const long = 'x'.repeat(300);
+  const text = formatDelivery([m(1, 'alice', 'a1', ['b1'], 'for bob ' + long), m(2, 'alice', 'a1', ['c1'], 'for carol ' + long), m(3, 'you', null, [], 'from the user ' + long)], {}, [], 'b1');
+  assert.ok(text.includes('for bob ' + long), 'a message that woke the recipient stays whole');
+  assert.ok(text.includes('alice #2 → @carol: for carol x') && !text.includes('for carol ' + long), 'chatter is one line');
+  assert.ok(text.includes('from the user ' + long), 'the user is never shortened');
+  assert.ok(text.includes('did not mention you'));
+  assert.ok(formatDelivery([m(2, 'alice', 'a1', ['c1'], 'for carol ' + long)], {}, ['proj'], 'b1').includes('for carol ' + long), 'the lead of the room reads everything');
+  assert.ok(formatDelivery([m(2, 'alice', 'a1', ['c1'], 'for carol ' + long)]).includes('for carol ' + long), 'no recipient: unchanged');
+});

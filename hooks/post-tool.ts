@@ -9,7 +9,7 @@ try {
     api<{ wake: boolean; messages: Message[] }>(`/api/sessions/${encodeURIComponent(input.session_id)}/pending?consume=1`, { timeoutMs: 1500 }));
   if (p.wake && p.messages.length) {
     process.stdout.write(JSON.stringify({
-      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(p.messages) },
+      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(p.messages, {}, [], input.session_id) },
     }));
   }
 } catch {
