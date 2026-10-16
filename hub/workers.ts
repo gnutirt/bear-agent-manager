@@ -14,10 +14,15 @@ export type LiveWorker = {
   pid: number; childPid: number | null; kind: Kind; model: string; tools: string; canEdit: boolean;
   dir: string; promptFile: string; startedAt: number;
 };
+export type Usage = { in: number; out: number; cacheRead: number; cacheWrite: number };
+export const ZERO_USAGE: Usage = Object.freeze({ in: 0, out: 0, cacheRead: 0, cacheWrite: 0 }) as Usage;
+const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const toUsage = (u: any): Usage => ({ in: n(u?.in), out: n(u?.out), cacheRead: n(u?.cacheRead), cacheWrite: n(u?.cacheWrite) });
 export type WorkerRun = {
   id: string; pid: number | null; kind: Kind; dir: string; task: string; tools: string;
   status: 'running' | 'done' | 'failed'; startedAt: number; durationMs: number | null;
   model: string; cost: number | null; error: string; result: string;
+  provider: string; tier: 'free' | 'paid' | ''; usage: Usage;
   by: string; skill: string; // which chat hired it and through which skill (audit of the room's worker rules)
 };
 
@@ -58,7 +63,7 @@ export function mergeWorkerLog(lines: LogLine[]): WorkerRun[] {
       runs.set(l.id, {
         id: l.id, pid: Number(l.pid) || null, kind: normKind(l.kind), dir: String(l.dir ?? ''),
         task: String(l.task ?? ''), tools: String(l.tools ?? ''), status: 'running', startedAt: Number(l.ts), durationMs: null,
-        model: '', cost: null, error: '', result: '', by: String(l.by ?? ''), skill: String(l.skill ?? ''),
+        model: '', cost: null, error: '', result: '', provider: '', tier: '', usage: { ...ZERO_USAGE }, by: String(l.by ?? ''), skill: String(l.skill ?? ''),
       });
     } else if (l.event === 'end' && runs.has(l.id)) {
       const r = runs.get(l.id)!;
@@ -68,6 +73,9 @@ export function mergeWorkerLog(lines: LogLine[]): WorkerRun[] {
       r.cost = l.cost == null ? null : Number(l.cost);
       r.error = String(l.error ?? '');
       r.result = String(l.result ?? '');
+      r.provider = String(l.provider ?? '');
+      r.tier = l.tier === 'free' || l.tier === 'paid' ? l.tier : '';
+      r.usage = toUsage(l.usage);
     }
   }
   return [...runs.values()].sort((a, b) => b.startedAt - a.startedAt);

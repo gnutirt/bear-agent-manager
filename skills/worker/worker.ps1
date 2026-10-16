@@ -98,12 +98,14 @@ $quotaRx = '429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|
 
 $j = $null; $err = ""; $m = ""; $quota = $false
 foreach ($prov in $plan) {
-    # Env set here lives only in this process. auth-token providers (OpenRouter) need ANTHROPIC_API_KEY empty,
-    # or Claude Code also sends x-api-key and may authenticate against Anthropic itself.
+    # Env set here lives only in this process. auth-token providers (OpenRouter) must not also send x-api-key:
+    # assigning "" removes ANTHROPIC_API_KEY in PowerShell 5.1, which is what we want (--bare + own config dir: no OAuth to fall back to).
     $env:ANTHROPIC_BASE_URL = $prov.baseUrl
     if ($prov.auth -eq "auth-token") { $env:ANTHROPIC_AUTH_TOKEN = $prov.key; $env:ANTHROPIC_API_KEY = "" }
     else { $env:ANTHROPIC_API_KEY = $prov.key; Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue }
-    $models = if ($prov.models -and (@($prov.models.read).Count -or @($prov.models.edit).Count)) { $prov.models } else { $defaultModels }
+    $models = if ($prov.models -and (@($prov.models.read).Count -or @($prov.models.edit).Count)) { $prov.models }
+              elseif ($prov.baseUrl -match 'intern-ai\.org\.cn') { $defaultModels }   # the built-in chains are Intern model ids
+              else { Write-Output "[worker] provider=$($prov.id) has no models configured: skipped"; continue }
     $chain = if ($Model -ne "auto") { @($Model) } elseif ($edits) { @($models.edit) } else { @($models.read) }
     $quota = $false
     foreach ($m in $chain) {

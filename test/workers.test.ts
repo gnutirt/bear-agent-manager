@@ -55,3 +55,15 @@ test('mergeWorkerLog pairs start/end lines into history with result, cost and er
   assert.equal(h.find((x) => x.id === 'b')!.error, 'QUOTA 429');
   assert.equal(h.find((x) => x.id === 'a')!.result, '# Hồ sơ…');
 });
+
+test('mergeWorkerLog reads provider, tier and usage; missing usage is zero', () => {
+  const h = mergeWorkerLog([
+    { event: 'start', id: 'a', kind: 'worker', ts: 1 },
+    { event: 'end', id: 'a', exit: 0, provider: 'intern', tier: 'free', usage: { in: 1200, out: 300, cacheRead: 50, cacheWrite: 0 }, ts: 5 },
+    { event: 'start', id: 'b', kind: 'worker', ts: 2 },
+    { event: 'end', id: 'b', exit: 1, ts: 3 },
+  ]);
+  const a = h.find((r) => r.id === 'a')!, b = h.find((r) => r.id === 'b')!;
+  assert.deepEqual([a.provider, a.tier, a.usage], ['intern', 'free', { in: 1200, out: 300, cacheRead: 50, cacheWrite: 0 }]);
+  assert.deepEqual([b.provider, b.tier, b.usage], ['', '', { in: 0, out: 0, cacheRead: 0, cacheWrite: 0 }]);
+});
