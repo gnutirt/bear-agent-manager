@@ -83,3 +83,10 @@ test('workerRoutes: unknown kinds dropped, bad values keep the old ones, a provi
   s = patchSettings(s, { workerRoutes: { read: { provider: 'auto', model: 'x' } } });
   assert.equal(s.workerRoutes.read.model, 'auto');
 });
+
+test('agentModel: per agent, trimmed, bad ids ignored, empty clears', () => {
+  let s = patchSettings(defaultSettings(4), { agentModel: { ' Bob ': ' sonnet ', amy: 'bad id!', cy: 'claude-opus-5-5' } });
+  assert.deepEqual(s.agentModel, { bob: 'sonnet', cy: 'claude-opus-5-5' });
+  s = patchSettings(s, { agentModel: { bob: '' } });
+  assert.deepEqual(s.agentModel, { cy: 'claude-opus-5-5' });
+});

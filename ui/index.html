@@ -1636,7 +1636,7 @@ function renderSettingsView() {
 }
 async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
-  try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast('Đã lưu'); }
+  try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
   renderSettingsView();
 }

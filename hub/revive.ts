@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[] };
+export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string };
 export type CompactJob = Omit<ReviveJob, 'text'>;
 
 const MAX_RUN_MS = 15 * 60_000;
@@ -11,14 +11,14 @@ const MAX_COMPACT_MS = 10 * 60_000;
 const TOOLS = ['mcp__plugin_bear-agent-manager_room', 'Read', 'Grep', 'Glob', 'LS'];
 
 /** `claude --resume <id> -p` with `text` on stdin, output appended to <logDir>/revive.log; resolves the exit code. */
-function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, extraTools: string[] = []): Promise<number> {
+function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, extraTools: string[] = [], model?: string): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
   delete env.BEAR_AGENT_HEADLESS;
   fs.mkdirSync(job.logDir, { recursive: true });
   const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
   fs.writeSync(log, `\n${new Date().toISOString()} ${label} ${job.id} in ${job.cwd}\n`);
-  const child = spawn('claude', ['--resume', job.id, '-p', '--output-format', 'text', '--allowedTools', ...TOOLS, ...extraTools], {
+  const child = spawn('claude', ['--resume', job.id, '-p', '--output-format', 'text', '--allowedTools', ...TOOLS, ...extraTools, ...(model ? ['--model', model] : [])], {
     cwd: fs.existsSync(job.cwd) ? job.cwd : undefined,
     env,
     shell: process.platform === 'win32', // resolves claude.cmd / claude.exe on PATH; args contain no user text
@@ -39,7 +39,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
  * room messages. The prompt goes through stdin, so no message text is ever on a command line.
  */
 export function spawnRevive(job: ReviveJob): Promise<number> {
-  return resumeTurn(job, job.text, 'revive', MAX_RUN_MS, job.tools);
+  return resumeTurn(job, job.text, 'revive', MAX_RUN_MS, job.tools, job.model);
 }
 
 /**
@@ -47,5 +47,5 @@ export function spawnRevive(job: ReviveJob): Promise<number> {
  * session id (Claude Code 2.1.300, tested on a throwaway session: 54k -> 3.7k, ~1 min).
  */
 export function spawnCompact(job: CompactJob): Promise<number> {
-  return resumeTurn(job, '/compact', 'compact', MAX_COMPACT_MS);
+  return resumeTurn(job, '/compact', 'compact', MAX_COMPACT_MS, [], job.model);
 }

@@ -475,3 +475,16 @@ test('archive rounds never overlap and never make a hook wait', async () => {
     release();
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });
+
+test('POST /api/sessions/:id/model stores the agent model for the next background turn', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'm1', cwd: 'C:\fw' });
+    const name = (await call<any>('/api/sessions/m1')).session.name;
+    assert.deepEqual(await call('/api/sessions/m1/model', { model: 'sonnet' }), { model: 'sonnet' });
+    assert.equal((await call<any>('/api/settings')).agentModel[name], 'sonnet');
+    await assert.rejects(call('/api/sessions/m1/model', { model: 'no good!' }), /400|invalid/);
+    assert.deepEqual(await call('/api/sessions/m1/model', { model: '' }), { model: '' });
+    assert.deepEqual((await call<any>('/api/settings')).agentModel, {});
+  } finally { await hub.close(); }
+});

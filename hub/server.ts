@@ -221,8 +221,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const before = readContextTokens(s.transcript);
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript));
     let compacted = false;
-    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir };
-    const tools = loadSettings(opts.dir, envCap).reviveTools[normAgent(s.name)];
+    const cfg = loadSettings(opts.dir, envCap), tools = cfg.reviveTools[normAgent(s.name)], model = cfg.agentModel[normAgent(s.name)];
+    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
@@ -428,7 +428,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (a === b) return;
     const s = loadSettings(opts.dir, envCap);
     let moved = false;
-    for (const map of [s.agentSkills, s.agentCompact, s.reviveTools] as Record<string, unknown>[]) {
+    for (const map of [s.agentSkills, s.agentCompact, s.reviveTools, s.agentModel] as Record<string, unknown>[]) {
       if (!map[a] || map[b]) continue;   // never overwrite rules the new name already has
       map[b] = map[a];
       delete map[a];
@@ -682,7 +682,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -702,6 +702,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         for (const r of rooms) emitRoom(r);
         for (const r of led) maybeAutoLead(r, s.cwd);
         return json(res, 200, { ok: true });
+      }
+      if (m === 'POST' && action === 'model') {
+        // Applies to the next background turn (wake or compact); a running tab keeps the model it started with.
+        const b = await readBody(req);
+        const s = store.session(id), cur = loadSettings(opts.dir, envCap);
+        const next = patchSettings(cur, { agentModel: { [s.name]: String(b.model ?? '') } });
+        if (String(b.model ?? '').trim() && next.agentModel[normAgent(s.name)] !== String(b.model).trim()) return json(res, 400, { error: 'invalid model id' });
+        saveSettings(opts.dir, next);
+        broadcast('settings', next);
+        return json(res, 200, { model: next.agentModel[normAgent(s.name)] ?? '' });
       }
       if (m === 'POST' && action === 'status') {
         const b = await readBody(req);
