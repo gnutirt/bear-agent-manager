@@ -44,3 +44,15 @@ test('inline script never calls $() before declaring it (a TDZ error blanks the 
     assert.ok(!script.slice(0, script.indexOf('const $ =')).includes('$('));
   } finally { await hub.close(); }
 });
+
+test('UI has four tabs with their views', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const t of ['rooms', 'workers', 'tokens', 'settings']) {
+      assert.ok(html.includes(`data-tab="${t}"`), `missing tab ${t}`);
+      assert.ok(html.includes(`id="view-${t}"`), `missing view ${t}`);
+    }
+    assert.ok(html.includes('.view[hidden]{display:none!important}'), 'a hidden flex <main> must really hide');
+  } finally { await hub.close(); }
+});
