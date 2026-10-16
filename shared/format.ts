@@ -41,7 +41,7 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     lines.push(`  ${m.from}: ${body.replace(/\n/g, '\n    ')}`);
   }
   for (const [r, list] of Object.entries(notes)) {
-    lines.push(`Room notes #${r} (agreements everyone in the room relies on):`);
+    lines.push(`Room notes #${r}, new or changed (agreements everyone in the room relies on; room_notes lists all):`);
     for (const n of list) lines.push(`  [${n.id}] ${n.text.replace(/\n/g, ' ')} (${n.by})`);
   }
   for (const r of leadOf) {

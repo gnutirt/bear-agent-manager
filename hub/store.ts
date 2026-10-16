@@ -443,13 +443,16 @@ export class Store {
     this.save();
   }
 
-  /** Notes of the session's rooms that changed since they were last delivered to it. */
+  /** Notes of the session's rooms added or edited since notes were last delivered to it (all of them the first time). */
   unseenNotes(id: string): Record<string, Note[]> {
     const s = this.session(id);
     const out: Record<string, Note[]> = {};
     for (const room of Object.keys(s.rooms)) {
-      const r = this.state.rooms[room];
-      if (r?.notes?.length && (r.notesAt ?? 0) > (s.notesSeen?.[room] ?? 0)) out[room] = r.notes;
+      const r = this.state.rooms[room], seen = s.notesSeen?.[room] ?? 0;
+      if (!r?.notes?.length || (r.notesAt ?? 0) <= seen) continue;
+      // shortcut: a deleted note is not announced (room_notes shows the current list); announce removals if agents act on stale notes.
+      const fresh = seen ? r.notes.filter((n) => n.ts > seen) : r.notes;
+      if (fresh.length) out[room] = fresh;
     }
     return out;
   }

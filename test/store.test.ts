@@ -253,7 +253,8 @@ test('room notes: add, edit, delete, persist; members see them once per change',
   assert.deepEqual(st.unseenNotes(web.id), {});
   t += 10;
   st.editNote('proj', a.id, 'HLP/1 over /hlp on port 8765, beacon UDP 8766');
-  assert.equal(st.unseenNotes(web.id).proj[0].text, 'HLP/1 over /hlp on port 8765, beacon UDP 8766');
+  assert.deepEqual(st.unseenNotes(web.id).proj.map((n) => n.text), ['HLP/1 over /hlp on port 8765, beacon UDP 8766'], 'only the edited note, not the whole list');
+  st.markNotesSeen(web.id, ['proj']);
   st.deleteNote('proj', 2);
   assert.equal(st.notes('proj').length, 1);
   assert.equal(new Store(dir).notes('proj')[0].text, 'HLP/1 over /hlp on port 8765, beacon UDP 8766');
