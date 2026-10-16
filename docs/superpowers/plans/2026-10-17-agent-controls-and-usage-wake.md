@@ -34,6 +34,15 @@ Hub (hub/server.ts, `pollUsage` đã chạy mỗi 15 phút và đã có `resetsA
 Chưa đo: `claude -p` trả gì khi tài khoản đang bị rate limit; T-C phải xử lý exit khác 0 của `spawnRevive` bằng một dòng báo trong phòng, không loop.
 Test: stub `usageFetch` (có trong `startHub`) và đồng hồ; kiểm tra lưu `wakeAt`, đặt lại sau restart, chỉ mention thành viên đúng tài khoản, hẹn quá giờ chạy ngay, chưa reset thì dời.
 
+## T-C2: phát hiện hết hạn mức từng session (bổ sung theo đo của core-improve, 2026-10-17)
+
+Đo: khi gặp lỗi API (kể cả 429 hết hạn mức) hook `Stop` KHÔNG chạy, chỉ `StopFailure` chạy (input: `session_id`, `transcript_path`, `error` ∈ rate_limit/overloaded/billing_error/server_error/authentication_failed…, `last_assistant_message`). Agent bị limit vì vậy không vào waiter: @mention không đánh thức được nó. Dòng cuối transcript có `quotaLimits: { status: "rejected", resetsAt: <epoch giây>, rateLimitType }`. `claude -p` bị 429 thoát với exit 1, `is_error: true`, `api_error_status: 429` (đừng tin `subtype: "success"`).
+- Thêm hook `StopFailure` (cùng dạng `command: "node"` + `args` như các hook khác, KHÔNG dạng chuỗi) vào hooks/hooks.json, gửi hub `session_id`, `error`, `transcript_path`.
+- Hub: `error === 'rate_limit'` thì đọc dòng cuối transcript lấy `quotaLimits.resetsAt`, đặt `Session.limited = { until, type }`, trạng thái hiện "hết hạn mức tới HH:MM", đăng một dòng hệ thống trong phòng, và dùng `until + afterResetMin` làm `wakeAt` của session đó (chính xác hơn poll 15 phút, không cần ngưỡng). Lỗi khác (overloaded, server_error) chỉ đăng một dòng, không hẹn giờ.
+- Đến giờ: session đã đóng (`ended`) thì `spawnRevive` như hiện nay; exit 1 kèm 429 coi là "chưa tới giờ", dời 5 phút (tối đa 6 lần) rồi báo @you, không loop. Tab còn mở: mặc định chỉ báo @you; nếu `settings.lead.wake.closeLimitedTab` bật thì dùng T-B terminate rồi revive. Mặc định tắt vì làm tab chết.
+- T-C (theo poll usage) vẫn giữ làm lưới an toàn cho tài khoản không có StopFailure (ví dụ phiên VS Code chưa xác nhận).
+- Chưa kiểm: StopFailure có chạy trong VS Code không (mới đo bằng CLI -p). Làm bước đầu tiên của T-C2: bật hook, ép một lỗi trong VS Code, xem hub nhận được gì; nếu không chạy thì T-C2 chỉ áp cho CLI và ghi rõ giới hạn.
+
 ## Thứ tự
 
-T-A → T-B (terminate trước, rồi compact, rồi model) → T-C. Làm sau P1b và các việc todoplan hiện có của @coder.
+T-A → T-B (terminate trước, rồi compact, rồi model) → T-C → T-C2. Làm sau P1b và các việc todoplan hiện có của @coder.
