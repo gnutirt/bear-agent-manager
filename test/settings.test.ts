@@ -46,3 +46,19 @@ test('slot is refused for a disabled skill', async () => {
     assert.equal((await call('/api/workers/slot?self=1&kind=osin')).ok, true);
   } finally { await hub.close(); }
 });
+
+test('archive switch pauses archiving without forgetting the folder', async () => {
+  let s = patchSettings(defaultSettings(4), { archive: { dir: 'X:\mem' } });
+  assert.equal(s.archive.enabled, undefined, 'unset = on whenever a folder is set');
+  s = patchSettings(s, { archive: { enabled: false } });
+  assert.deepEqual(s.archive, { dir: 'X:\mem', enabled: false });
+  s = patchSettings(s, { workerCap: 3 });
+  assert.equal(s.archive.enabled, false, 'other patches keep the switch');
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/settings', { archive: { dir: 'X:\mem', enabled: false } }, { method: 'PUT' });
+    assert.equal((await call<any>('/api/archive')).dir, '', 'paused: the hub archives nowhere');
+    await call('/api/settings', { archive: { enabled: true } }, { method: 'PUT' });
+    assert.equal((await call<any>('/api/archive')).dir, 'X:\mem');
+  } finally { await hub.close(); }
+});

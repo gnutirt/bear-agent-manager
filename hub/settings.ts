@@ -10,7 +10,7 @@ export type AutoJobs = {
 export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
   agentSkills: Record<string, Record<string, SkillRule>>;
-  autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string };
+  autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
 
 const FILE = 'settings.json';
@@ -65,7 +65,10 @@ export function patchSettings(s: Settings, p: any): Settings {
     allowPaidFallback: bool(p?.allowPaidFallback, s.allowPaidFallback),
     workerCap: int(p?.workerCap, s.workerCap, 1, 16),
     roomChat: { autoSweep: bool(p?.roomChat?.autoSweep, s.roomChat.autoSweep) },
-    archive: { dir: typeof p?.archive?.dir === 'string' ? p.archive.dir.trim() : s.archive.dir },
+    archive: {
+      dir: typeof p?.archive?.dir === 'string' ? p.archive.dir.trim() : s.archive.dir,
+      ...(typeof p?.archive?.enabled === 'boolean' ? { enabled: p.archive.enabled } : s.archive.enabled === undefined ? {} : { enabled: s.archive.enabled }),
+    },
   };
 }
 

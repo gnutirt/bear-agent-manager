@@ -386,7 +386,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
-  const archiveDir = () => loadSettings(opts.dir, envCap).archive.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || '';
+  // The switch can pause archiving without forgetting the folder.
+  const archiveDir = () => { const a = loadSettings(opts.dir, envCap).archive; return a.enabled === false ? '' : a.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || ''; };
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
   function runArchive(onlySession?: string) {
     const dir = archiveDir();
