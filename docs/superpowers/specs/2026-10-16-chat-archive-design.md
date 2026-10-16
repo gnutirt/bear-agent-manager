@@ -13,9 +13,8 @@ checkpoint, and let a chat continue from that checkpoint instead of re-reading i
   Claude Code deletes it (30 days of inactivity by default). A 10-minute sweep is far inside that.
 - Archive location: `X:\Coding\claude-mem` (setting `archive.dir`).
 - Three phases, in this order: 1 file archive, 2 SQLite + checkpoints, 3 light wake.
-- **Assumed, to confirm:** a job is closed when the agent calls `room_done`, or else by the worker
-  after 30 minutes idle following a Stop (option "c" proposed in the room; Boss agreed, the user
-  has not answered this point explicitly).
+- A job is closed when the agent calls `room_done`, or else by the worker after 30 minutes idle
+  following a Stop (option "c", confirmed by the user).
 - Mongo: out of scope. The phase-2 store is a small module, so a Mongo version can replace it
   later without touching callers.
 

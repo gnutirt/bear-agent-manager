@@ -28,7 +28,7 @@
 - **A2 (mục 3):** hook `SessionStart` nhắc mỗi chat worker/osin đang bật; hub kiểm tra key khi khởi động. **Hub được tự chạy worker cho một số việc nếu Cài đặt cho phép** (Task 9b): hồ sơ bàn giao khi chat vượt ngưỡng context, rút gọn tin nhắn dài trong phòng, dọn biên bản phòng. Mặc định tắt từng việc.
 - **A3 (mục 4b):** tầng trả tiền mặc định **tắt**; chỉ dùng khi gọi `-Tier paid` hoặc bật "tự chuyển sang trả tiền khi free hết quota". (đã đồng ý)
 - **A4 (mục 6, nhiều acc Claude Pro) — chuyển acc bằng cách tráo file login** (đề xuất của `chuyen-doi-tai`, chủ repo đồng ý). Extension VS Code/Antigravity luôn đọc `~/.claude`, nên `CLAUDE_CONFIG_DIR` riêng không chuyển được acc ở đó. Hub lưu từng acc thành profile, chuyển acc bằng cách chép file login, đọc mức dùng 5h/tuần của từng acc. Chi tiết ở Task 10.
-- **A5 (bật/tắt skill) = ép Claude dùng skill trong hội thoại.** Mỗi skill (của bất kỳ plugin nào hoặc `~/.claude/skills`) có 3 chế độ: **Ép dùng** / **Tự quyết** (mặc định) / **Cấm**, thực hiện bằng lời nhắc qua hook `UserPromptSubmit` + `SessionStart`. Mặc định (chờ chủ repo chốt lại): phạm vi toàn máy, repo ghi đè được; thời điểm ép chọn theo từng skill (`every` = mỗi tin, `first` = tin đầu phiên). Riêng `worker`/`osin` còn có công tắc chặn cứng (hub từ chối slot). Chi tiết ở Task 8b.
+- **A5 (bật/tắt skill) = ép Claude dùng skill trong hội thoại, gán theo TỪNG AGENT** (chủ repo chốt 2026-10-16, biên bản phòng [3]). Mỗi agent (member của hub, theo tên) có danh sách skill riêng, mỗi skill 3 chế độ **Ép dùng** / **Tự quyết** (mặc định) / **Cấm**; skill nào cũng được (plugin nào hoặc `~/.claude/skills`). Ví dụ: `Boss` luôn bị ép dùng `superpowers:*`. Không có rule toàn máy hay theo repo. Thời điểm ép do từng skill chọn: `every` = mỗi tin, `first` = tin đầu phiên. Thực hiện bằng lời nhắc qua hook `UserPromptSubmit` + `SessionStart`, tra theo `session_id` → tên agent. Riêng `worker`/`osin` còn có công tắc chặn cứng (hub từ chối slot). Chi tiết ở Task 8b.
 
 ## Global Constraints
 
@@ -140,7 +140,7 @@ Tạo `todoplan.md`:
 
 - [ ] Worker tầng 3 "nhiều chiện" qua MCP: Muse → Task 16 của plan workforce-v2; các nguồn khác cần thiết kế riêng.
 - [ ] Ẩn hẳn một skill khỏi Claude Code (không nạp) — khác "Cấm" ở Task 8b (chỉ là lời nhắc). Nghiên cứu cơ chế của Claude Code trước.
-- [ ] Refresh token cho acc Claude đang nằm chờ, nếu nghiencuu Task 10 chưa xác nhận được endpoint.
+- [ ] (đã có endpoint refresh — xem Task 10 Step 1; mục này chỉ còn nếu endpoint đổi ở bản Claude Code sau).
 ```
 
 Tạo `todobug.md` với dòng `# todobug`.
@@ -554,7 +554,7 @@ export function listRoomChat(claudeProjects: string): RoomChatEntry[] {
 }
 ```
 
-Lưu ý: nếu nghiencuu Task 3 chọn đích `~/.bear-agent-manager/room_chat/<repo>/`, `listRoomChat` đổi cách duyệt cho khớp (`roomChatDir` vẫn là nguồn duy nhất). Một chat VS Code có nhiều config dir (Antigravity dùng `CLAUDE_CONFIG_DIR=~/.claude-antigravity`): hub quét mọi config dir đã thấy trong `store.state.sessions[*].configDir` + `~/.claude`.
+**Đã chốt khi thực thi (2026-10-16):** docs không trả lời (d) → phương án dự phòng (quan-ly-cong-nhan); chủ repo chốt KHÔNG cần tầng config: đích = `~/.bear-agent-manager/room_chat/<project>/`. Session id là UUID nên chat của `.claude` và `.claude-antigravity` không trùng tên; nếu trùng thì `moveSafe` thêm hậu tố, không ghi đè. Vì vậy: `roomChatDir(projectDir)` = `path.join(HOME, 'room_chat', path.basename(projectDir))`; `listRoomChat` duyệt `<HOME>/room_chat/*/`; test đặt `BEAR_AGENT_HOME` về thư mục tạm. Archive (Task 3c) chép trước khi chuyển nên file đã chuyển vẫn có bản sao. Nếu sau này thử thực tế thấy extension bỏ qua thư mục con thì đổi lại thân `roomChatDir` là xong.
 
 Trong `hub/server.ts`:
 
@@ -863,7 +863,7 @@ test('API: GET masks keys, PUT stores them', async () => {
 ```
 
 - [ ] **Step 2: Chạy** → FAIL (module không có).
-- [ ] **Step 3: nghiencuu** — OpenRouter docs "Claude Code integration" / "Anthropic-compatible API": base URL chính xác (dự kiến `https://openrouter.ai/api`), header nhận key (`x-api-key` hay `Authorization: Bearer`) → quyết định `auth` mặc định của `openrouter`; ID model rẻ có tool calling cho `read`/`edit`. Lưu ý: `--bare` chỉ nhận `ANTHROPIC_API_KEY` hoặc apiKeyHelper (xác nhận trên docs Claude Code) → nếu OpenRouter chỉ nhận Bearer thì `worker.ps1` phải bỏ `--bare` cho provider đó và dùng `--strict-mcp-config --setting-sources ""` (ghi rõ trong prompt subagent).
+- [ ] **Step 3: nghiencuu — ĐÃ XONG (research-museAI, đối chiếu https://openrouter.ai/docs/guides/coding-agents/claude-code-integration):** `ANTHROPIC_BASE_URL=https://openrouter.ai/api`; key vào `ANTHROPIC_AUTH_TOKEN` (Bearer) và BẮT BUỘC `ANTHROPIC_API_KEY=""` (nếu không Claude Code gửi x-api-key, có thể xác thực sang Anthropic thật) → mặc định `auth: 'auth-token'` của `openrouter` là đúng, `worker.ps1` (Task 5) đã đặt `ANTHROPIC_API_KEY=""`. Không có tài liệu về `-p --bare` với OpenRouter → Task 5 Step 5 phải chạy thử một lần với `-Tier paid`; nếu `--bare` từ chối auth-token thì bỏ `--bare` cho provider `auth-token`. Ghi chú gốc của bước này: OpenRouter docs "Claude Code integration" / "Anthropic-compatible API": base URL chính xác (dự kiến `https://openrouter.ai/api`), header nhận key (`x-api-key` hay `Authorization: Bearer`) → quyết định `auth` mặc định của `openrouter`; ID model rẻ có tool calling cho `read`/`edit`. Lưu ý: `--bare` chỉ nhận `ANTHROPIC_API_KEY` hoặc apiKeyHelper (xác nhận trên docs Claude Code) → nếu OpenRouter chỉ nhận Bearer thì `worker.ps1` phải bỏ `--bare` cho provider đó và dùng `--strict-mcp-config --setting-sources ""` (ghi rõ trong prompt subagent).
 - [ ] **Step 4: Cài đặt `hub/providers.ts`**:
 
 ```ts
@@ -1311,8 +1311,7 @@ export type AutoJobs = {
 };
 export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };  // chặn cứng (slot)
-  skillModes: Record<string, SkillRule>;               // key = tên skill đầy đủ, vd "ponytail:ponytail", "superpowers:brainstorming"
-  repoSkillModes: Record<string, Record<string, SkillRule>>;  // key = cwd chuẩn hoá (lowercase, "/"), ghi đè skillModes
+  agentSkills: Record<string, Record<string, SkillRule>>;  // key ngoài = tên agent chuẩn hoá (normAgent); key trong = tên skill đầy đủ, vd "superpowers:brainstorming"; "superpowers:*" = mọi skill của plugin
   autoJobs: AutoJobs;
   allowPaidFallback: boolean;
   workerCap: number;                                   // 1..16
@@ -1322,8 +1321,8 @@ export type Settings = {
 export function defaultSettings(envCap?: number): Settings;
 export function loadSettings(home: string, envCap?: number): Settings;
 export function saveSettings(home: string, s: Settings): void;
-export function patchSettings(s: Settings, patch: any): Settings;   // validate + merge sâu; skillModes[name] = null → xoá rule
-export const normRepo: (cwd: string) => string;
+export function patchSettings(s: Settings, patch: any): Settings;   // validate + merge sâu; agentSkills[agent][skill] = null → xoá rule; agentSkills[agent] = null → xoá cả agent
+export const normAgent: (name: string) => string;                   // trim + lowercase (mention trong hub không phân biệt hoa thường)
 ```
 
 - Routes: `GET /api/settings`, `PUT /api/settings`. `/api/workers/slot?self=&kind=worker|osin` → `{ ok:false, disabled:true, running:0, cap }` khi skill tắt.
@@ -1336,29 +1335,31 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultSettings, loadSettings, normRepo, patchSettings, saveSettings } from '../hub/settings.ts';
+import { defaultSettings, loadSettings, normAgent, patchSettings, saveSettings } from '../hub/settings.ts';
 import { makeHub } from './helpers.ts';
 
 test('defaults: workers on, everything automatic off, no skill rules', () => {
   const d = defaultSettings(4);
   assert.deepEqual([d.skills.worker.enabled, d.skills.osin.enabled, d.allowPaidFallback, d.workerCap, d.roomChat.autoSweep], [true, true, false, 4, false]);
   assert.deepEqual([d.autoJobs.handoff.enabled, d.autoJobs.digest.enabled, d.autoJobs.notes.enabled, d.autoJobs.maxRunsPerDay], [false, false, false, 10]);
-  assert.deepEqual(d.skillModes, {});
+  assert.deepEqual(d.agentSkills, {});
 });
 
 test('patch validates and merges deeply', () => {
   let s = patchSettings(defaultSettings(4), {
     skills: { osin: { enabled: false } }, workerCap: 99,
-    skillModes: { 'ponytail:ponytail': { mode: 'force', when: 'every' }, bad: { mode: 'weird' } },
+    agentSkills: { ' Boss ': { 'superpowers:*': { mode: 'force', when: 'first' }, bad: { mode: 'weird' }, 'x y': { mode: 'ban' } } },
     autoJobs: { handoff: { enabled: true } },
   });
   assert.deepEqual([s.skills.worker.enabled, s.skills.osin.enabled, s.workerCap], [true, false, 16]);
-  assert.deepEqual(s.skillModes, { 'ponytail:ponytail': { mode: 'force', when: 'every' } });
+  assert.deepEqual(s.agentSkills, { boss: { 'superpowers:*': { mode: 'force', when: 'first' } } });
   assert.deepEqual(s.autoJobs.handoff, { enabled: true, thresholdK: 300 });
-  s = patchSettings(s, { skillModes: { 'ponytail:ponytail': null }, repoSkillModes: { 'D:\\Antigravity\\X': { 'superpowers:brainstorming': { mode: 'force', when: 'first' } } } });
-  assert.deepEqual(s.skillModes, {});
-  assert.deepEqual(Object.keys(s.repoSkillModes), ['d:/antigravity/x']);
-  assert.equal(normRepo('D:\\Antigravity\\X\\'), 'd:/antigravity/x');
+  s = patchSettings(s, { agentSkills: { Planner: { 'ponytail:ponytail': { mode: 'force' } } } });
+  assert.deepEqual(Object.keys(s.agentSkills).sort(), ['boss', 'planner']);
+  assert.deepEqual(s.agentSkills.planner, { 'ponytail:ponytail': { mode: 'force', when: 'every' } });
+  s = patchSettings(s, { agentSkills: { boss: { 'superpowers:*': null }, planner: null } });
+  assert.deepEqual(s.agentSkills, {});
+  assert.equal(normAgent('  Quan-Ly-Cong-Nhan '), 'quan-ly-cong-nhan');
 });
 
 test('broken file falls back to defaults; round trip', () => {
@@ -1394,18 +1395,18 @@ export type AutoJobs = {
 };
 export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
-  skillModes: Record<string, SkillRule>; repoSkillModes: Record<string, Record<string, SkillRule>>;
+  agentSkills: Record<string, Record<string, SkillRule>>;
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string };
 };
 
 const FILE = 'settings.json';
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, lo: number, hi: number) => (v == null || !Number.isFinite(Number(v)) ? d : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
-export const normRepo = (cwd: string) => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase();
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, skillModes: {}, repoSkillModes: {},
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {},
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -1415,7 +1416,7 @@ function rules(cur: Record<string, SkillRule>, patch: any): Record<string, Skill
   if (!patch || typeof patch !== 'object') return cur;
   const out = { ...cur };
   for (const [name, r] of Object.entries<any>(patch)) {
-    if (!/^[\w.-]+(:[\w.-]+)?$/.test(name)) continue;
+    if (!/^[\w.-]+(:([\w.-]+|\*))?$/.test(name)) continue;   // "plugin:skill", "plugin:*" or a user skill
     if (r === null) { delete out[name]; continue; }
     if (!['force', 'auto', 'ban'].includes(r?.mode)) continue;
     out[name] = { mode: r.mode, when: r.when === 'first' ? 'first' : 'every' };
@@ -1424,11 +1425,14 @@ function rules(cur: Record<string, SkillRule>, patch: any): Record<string, Skill
 }
 
 export function patchSettings(s: Settings, p: any): Settings {
-  const repo = { ...s.repoSkillModes };
-  if (p?.repoSkillModes && typeof p.repoSkillModes === 'object') {
-    for (const [cwd, r] of Object.entries<any>(p.repoSkillModes)) {
-      const k = normRepo(cwd);
-      if (r === null) delete repo[k]; else repo[k] = rules(repo[k] ?? {}, r);
+  const agents = { ...s.agentSkills };
+  if (p?.agentSkills && typeof p.agentSkills === 'object') {
+    for (const [name, r] of Object.entries<any>(p.agentSkills)) {
+      const k = normAgent(name);
+      if (!k) continue;
+      if (r === null) { delete agents[k]; continue; }
+      agents[k] = rules(agents[k] ?? {}, r);
+      if (!Object.keys(agents[k]).length) delete agents[k];
     }
   }
   const aj = p?.autoJobs ?? {};
@@ -1437,8 +1441,7 @@ export function patchSettings(s: Settings, p: any): Settings {
       worker: { enabled: bool(p?.skills?.worker?.enabled, s.skills.worker.enabled) },
       osin: { enabled: bool(p?.skills?.osin?.enabled, s.skills.osin.enabled) },
     },
-    skillModes: rules(s.skillModes, p?.skillModes),
-    repoSkillModes: repo,
+    agentSkills: agents,
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },
       digest: { enabled: bool(aj.digest?.enabled, s.autoJobs.digest.enabled), minChars: int(aj.digest?.minChars, s.autoJobs.digest.minChars, 1000, 100_000) },
@@ -1490,7 +1493,7 @@ Trong `/api/workers/slot`, trước khi tính `running`:
 
 ---
 
-### Task 8b: Ép / tự quyết / cấm skill trong hội thoại (A5)
+### Task 8b: Ép / tự quyết / cấm skill trong hội thoại, theo từng agent (A5)
 
 **Files:**
 - Create: `hub/skillmodes.ts`
@@ -1498,21 +1501,22 @@ Trong `/api/workers/slot`, trước khi tính `running`:
 - Test: `test/skillmodes.test.ts`, `test/hooks.test.ts`
 
 **Interfaces:**
-- Consumes: `Settings.skillModes`, `Settings.repoSkillModes`, `normRepo` (Task 8).
+- Consumes: `Settings.agentSkills`, `normAgent` (Task 8); `store.session(id).name` (tên agent hiện tại của phiên).
 - Produces:
 
 ```ts
 export type SkillInfo = { name: string; source: 'user' | 'plugin'; plugin: string; description: string };
 /** Skills Claude Code would load: <cfg>/skills/<x>/SKILL.md and every installed plugin's skills/<x>/SKILL.md. */
 export function listSkills(configDir: string): SkillInfo[];
-/** Rules for this repo: global rules, then repo overrides. */
-export function effectiveRules(s: Settings, cwd: string): Record<string, SkillRule>;
+/** Rules of one agent (by its hub name); "plugin:*" expands to every installed skill of that plugin. */
+export function effectiveRules(s: Settings, agentName: string, installed?: SkillInfo[]): Record<string, SkillRule>;
 /** Context text for one prompt; '' when nothing applies. firstTurn = first prompt of the session. */
 export function skillReminder(rules: Record<string, SkillRule>, firstTurn: boolean): string;
 ```
 
 - Hook `UserPromptSubmit` (`/hooks/prompt`, http hook đã có, timeout 3s): trả `{ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext } }` khi `skillReminder` khác rỗng. Hook `SessionStart` (Task 9) in thêm cùng nội dung với `firstTurn=true`.
-- Route `GET /api/skills` → `{ skills: SkillInfo[], rules: Settings['skillModes'], repo: Settings['repoSkillModes'] }`.
+- Route `GET /api/skills` → `{ skills: SkillInfo[], agents: Settings['agentSkills'], members: { id, name }[] }` (members = mọi phiên hub đang biết, để UI chọn agent).
+- Agent đổi tên (`room_set_name` / UI rename): hub chuyển rule từ tên cũ sang tên mới trong cùng thao tác rename (sửa route rename sẵn có).
 
 - [ ] **Step 1: nghiencuu** — docs Claude Code "Hooks": (a) http hook `UserPromptSubmit` trả `hookSpecificOutput.additionalContext` có được chèn vào ngữ cảnh không (giống `PostToolUse` hub đang dùng); (b) cấu trúc `~/.claude/plugins/installed_plugins.json` (trường `installPath`) và tên đầy đủ của plugin skill (`<plugin>:<skill>`); (c) skill trong `.claude/skills` của project có cần liệt kê không. Ghi kết quả vào prompt subagent.
 - [ ] **Step 2: Test hỏng** — `test/skillmodes.test.ts`:
@@ -1536,13 +1540,14 @@ test('reminder: force every / force first / ban; auto says nothing', () => {
   assert.equal(skillReminder({}, true), '');
 });
 
-test('repo rules override global ones', () => {
-  const s = patchSettings(defaultSettings(4), {
-    skillModes: { 'ponytail:ponytail': { mode: 'force' } },
-    repoSkillModes: { 'D:\\work\\big': { 'ponytail:ponytail': { mode: 'ban' } } },
-  });
-  assert.equal(effectiveRules(s, 'D:\\work\\big')['ponytail:ponytail'].mode, 'ban');
-  assert.equal(effectiveRules(s, 'D:\\other')['ponytail:ponytail'].mode, 'force');
+test('rules belong to one agent; plugin:* expands; an exact rule beats the wildcard', () => {
+  const s = patchSettings(defaultSettings(4), { agentSkills: { Boss: { 'superpowers:*': { mode: 'force', when: 'first' }, 'superpowers:brainstorming': { mode: 'ban' } } } });
+  const installed = [{ name: 'superpowers:writing-plans' }, { name: 'superpowers:brainstorming' }, { name: 'ponytail:ponytail' }] as any;
+  const r = effectiveRules(s, 'boss', installed);
+  assert.deepEqual(Object.keys(r).sort(), ['superpowers:brainstorming', 'superpowers:writing-plans']);
+  assert.equal(r['superpowers:writing-plans'].mode, 'force');
+  assert.equal(r['superpowers:brainstorming'].mode, 'ban');
+  assert.deepEqual(effectiveRules(s, 'Planner', installed), {}, 'other agents get nothing');
 });
 
 test('listSkills reads user skills and installed plugin skills', () => {
@@ -1558,14 +1563,14 @@ test('listSkills reads user skills and installed plugin skills', () => {
 });
 ```
 
-Trong `test/hooks.test.ts` thêm test API: PUT settings `skillModes: {'ponytail:ponytail': {mode:'force'}}` → POST `/hooks/prompt` với `{session_id, cwd, prompt:'x'}` → JSON có `hookSpecificOutput.additionalContext` chứa `ponytail:ponytail`; không có rule → body rỗng (200).
+Trong `test/hooks.test.ts` thêm test API: đăng ký 2 phiên tên `Boss` và `Planner`; PUT settings `agentSkills: { Boss: {'ponytail:ponytail': {mode:'force'}} }` → POST `/hooks/prompt` với `session_id` của Boss → `additionalContext` chứa `ponytail:ponytail`; với `session_id` của Planner → body rỗng (200). Đổi tên Boss → `Sep` qua route rename → rule đi theo (prompt của phiên đó vẫn có lời nhắc).
 - [ ] **Step 3: Chạy** → FAIL.
 - [ ] **Step 4: Cài đặt `hub/skillmodes.ts`**:
 
 ```ts
 import fs from 'node:fs';
 import path from 'node:path';
-import { normRepo, type Settings, type SkillRule } from './settings.ts';
+import { normAgent, type Settings, type SkillRule } from './settings.ts';
 
 export type SkillInfo = { name: string; source: 'user' | 'plugin'; plugin: string; description: string };
 
@@ -1595,8 +1600,16 @@ export function listSkills(configDir: string): SkillInfo[] {
   return out.filter((s) => !seen.has(s.name) && seen.add(s.name)).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function effectiveRules(s: Settings, cwd: string): Record<string, SkillRule> {
-  return { ...s.skillModes, ...(s.repoSkillModes[normRepo(cwd)] ?? {}) };
+export function effectiveRules(s: Settings, agentName: string, installed: SkillInfo[] = []): Record<string, SkillRule> {
+  const mine = s.agentSkills[normAgent(agentName)] ?? {};
+  const out: Record<string, SkillRule> = {};
+  for (const [name, r] of Object.entries(mine)) {          // wildcards first, exact names override them
+    if (!name.endsWith(':*')) continue;
+    const plugin = name.slice(0, -2);
+    for (const sk of installed) if (sk.name.startsWith(plugin + ':')) out[sk.name] = r;
+  }
+  for (const [name, r] of Object.entries(mine)) if (!name.endsWith(':*')) out[name] = r;
+  return out;
 }
 
 export function skillReminder(rules: Record<string, SkillRule>, firstTurn: boolean): string {
@@ -1617,15 +1630,15 @@ Trong `hookRoute` của `hub/server.ts`, thay `case 'prompt': status('busy', 'th
         const sess = store.session(id);
         const firstTurn = !sess.prompts;                       // Session.prompts: number, thêm vào store (mặc định 0)
         store.bumpPrompts(sess.id);
-        const text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), String(b.cwd ?? sess.cwd ?? '')), firstTurn);
+        const text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), sess.name, skillCache()), firstTurn);
         if (text) return json(res, 200, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } });
         break;
       }
 ```
 
-`hub/store.ts`: thêm `prompts?: number` vào `Session`, `bumpPrompts(id)` tăng + lưu (theo mẫu các setter sẵn có). Nếu `store.session(id)` ném lỗi với phiên chưa đăng ký thì bọc try/catch và coi `firstTurn = true` — hook không bao giờ được làm hỏng tin nhắn. Route `GET /api/skills` → `{ skills: listSkills(path.join(os.homedir(), '.claude')), rules: s.skillModes, repo: s.repoSkillModes }` (gộp thêm `configDir` của các phiên khác nếu có, loại trùng theo `name`).
-- [ ] **Step 5: Chạy** `npm test` → PASS. Thử tay: đặt `ponytail:ponytail` = Ép dùng → chat mới, gửi "hi" → Claude gọi Skill ponytail trước khi trả lời. Đo thêm: lời nhắc ~40–80 token mỗi tin.
-- [ ] **Step 6: Commit** — CHANGELOG `- Skills can be forced, left to Claude, or banned per machine or per repo (reminder through the UserPromptSubmit hook).` → `git commit -m "feat(hub): force or ban skills in conversations"`.
+`hub/store.ts`: thêm `prompts?: number` vào `Session`, `bumpPrompts(id)` tăng + lưu (theo mẫu các setter sẵn có). Nếu `store.session(id)` ném lỗi với phiên chưa đăng ký thì bọc try/catch và coi `firstTurn = true` — hook không bao giờ được làm hỏng tin nhắn. `skillCache()` = `listSkills(~/.claude)` gộp các `configDir` của phiên khác, loại trùng theo `name`, cache 60s (hook có timeout 3s, không quét đĩa mỗi tin). Route `GET /api/skills` → `{ skills: skillCache(), agents: s.agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) }`. Trong route rename phiên: nếu `agentSkills[normAgent(cũ)]` có thì chuyển sang `normAgent(mới)` rồi `saveSettings`.
+- [ ] **Step 5: Chạy** `npm test` → PASS. Thử tay: gán `Boss` → `superpowers:*` = Ép dùng (tin đầu) → mở lại tab Boss / gửi tin đầu → Boss gọi Skill superpowers trước khi trả lời; các agent khác không bị ảnh hưởng. Đo thêm: lời nhắc ~40–80 token mỗi tin.
+- [ ] **Step 6: Commit** — CHANGELOG `- Skills can be forced, left to Claude, or banned for each agent (reminder through the UserPromptSubmit/SessionStart hooks).` → `git commit -m "feat(hub): force or ban skills in conversations"`.
 
 ---
 
@@ -1638,7 +1651,7 @@ Trong `hookRoute` của `hub/server.ts`, thay `case 'prompt': status('busy', 'th
 
 **Interfaces:**
 - Consumes: `loadProviders`, `publicProvider` (Task 4), `loadSettings` (Task 8), `effectiveRules`, `skillReminder` (Task 8b).
-- Produces: `workerBrief(settings: Settings, providers: PublicProvider[], health: Record<string, 'ok' | 'bad' | 'unknown'>): string` — `''` khi không có skill nào bật hoặc không provider nào dùng được. `probeProvider(p: Provider, fetchImpl?: typeof fetch): Promise<'ok' | 'bad'>`. Route `GET /api/brief?cwd=<cwd>` → `{ text }` (= workerBrief + skillReminder(firstTurn=true)); `GET /api/providers` thêm trường `health`. `HubOptions.probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null`.
+- Produces: `workerBrief(settings: Settings, providers: PublicProvider[], health: Record<string, 'ok' | 'bad' | 'unknown'>): string` — `''` khi không có skill nào bật hoặc không provider nào dùng được. `probeProvider(p: Provider, fetchImpl?: typeof fetch): Promise<'ok' | 'bad'>`. Route `GET /api/brief?session=<session_id>` → `{ text }` (= workerBrief + skillReminder của agent đó, firstTurn=true); `GET /api/providers` thêm trường `health`. `HubOptions.probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null`.
 
 - [ ] **Step 1: Test hỏng** — `test/brief.test.ts`:
 
@@ -1672,7 +1685,7 @@ test('probeProvider: 2xx ok, 401 bad, network error bad', async () => {
 });
 ```
 
-- [ ] **Step 2: nghiencuu** — endpoint nhẹ để kiểm tra key của Intern AI (docs https://discovery.intern-ai.org.cn/ — có `GET /v1/models` cho giao thức Anthropic không? Nếu không, `POST /v1/messages` `max_tokens:1` với model rẻ nhất — tốn 1 request trong 50 RPM). Mặc định code dưới dùng `GET {baseUrl}/v1/models`.
+- [ ] **Step 2: nghiencuu — ĐÃ XONG (research-museAI):** `GET https://discovery-api.intern-ai.org.cn/v1/models` không key → 401 (endpoint có thật, kiểu OpenAI, nhận `Authorization: Bearer <key>`). Vì vậy `probeProvider` luôn gửi cả `x-api-key` lẫn `Authorization: Bearer` (code dưới đã sửa). Ghi chú gốc: endpoint nhẹ để kiểm tra key của Intern AI (docs https://discovery.intern-ai.org.cn/ — có `GET /v1/models` cho giao thức Anthropic không? Nếu không, `POST /v1/messages` `max_tokens:1` với model rẻ nhất — tốn 1 request trong 50 RPM). Mặc định code dưới dùng `GET {baseUrl}/v1/models`.
 - [ ] **Step 3: Cài đặt `hub/brief.ts`**:
 
 ```ts
@@ -1681,7 +1694,8 @@ import type { Settings } from './settings.ts';
 
 export async function probeProvider(p: Provider, fetchImpl: typeof fetch = fetch): Promise<'ok' | 'bad'> {
   try {
-    const headers: Record<string, string> = p.auth === 'auth-token' ? { authorization: `Bearer ${p.key}` } : { 'x-api-key': p.key, 'anthropic-version': '2023-06-01' };
+    // Intern answers /v1/models OpenAI-style (Bearer); Anthropic-style hosts want x-api-key. Send both.
+    const headers: Record<string, string> = { authorization: `Bearer ${p.key}`, 'x-api-key': p.key, 'anthropic-version': '2023-06-01' };
     const r = await fetchImpl(`${p.baseUrl.replace(/\/$/, '')}/v1/models`, { headers, signal: AbortSignal.timeout(8000) });
     return r.ok ? 'ok' : 'bad';
   } catch { return 'bad'; }
@@ -1722,7 +1736,7 @@ Route `GET /api/brief`:
     if (m === 'GET' && p === '/api/brief') {
       const s = loadSettings(opts.dir, envCap);
       const text = [workerBrief(s, loadProviders(opts.dir, legacyKey).map(publicProvider), health),
-        skillReminder(effectiveRules(s, url.searchParams.get('cwd') ?? ''), true)].filter(Boolean).join('\n');
+        skillReminder(effectiveRules(s, store.state.sessions[url.searchParams.get('session') ?? '']?.name ?? '', skillCache()), true)].filter(Boolean).join('\n');
       return json(res, 200, { text });
     }
 ```
@@ -1730,7 +1744,7 @@ Route `GET /api/brief`:
 `test/helpers.ts` truyền `probe: null`. `hooks/session-start.ts`, sau khối in rooms (trong `if (await ensureHub())`):
 
 ```ts
-    const { text } = await api<{ text: string }>(`/api/brief?cwd=${encodeURIComponent(input.cwd ?? '')}`).catch(() => ({ text: '' }));
+    const { text } = await api<{ text: string }>(`/api/brief?session=${encodeURIComponent(input.session_id)}`).catch(() => ({ text: '' }));
     if (text) process.stdout.write(text + '\n');
 ```
 
@@ -1847,6 +1861,100 @@ Lưu ý khi tích hợp vào `hub/server.ts`: handoff cần chạy `node skills/
 
 ---
 
+### Task T-UI: Khung chat luôn tự cuộn xuống tin mới (chạy sau T9b, trước T10)
+
+**Spec:** [docs/superpowers/specs/2026-10-16-chat-autoscroll-design.md](../specs/2026-10-16-chat-autoscroll-design.md) (research-UI, Boss duyệt 2026-10-16). Phạm vi: T-UI1, T-UI2, T-UI3, T-UI5. **T-UI4 (nút "↓ Tin mới") bỏ**, ghi vào `todoplan.md`. Một commit, chỉ đụng `ui/index.html` + `test/ui.test.ts`. Làm trước T11 để khung 4 tab dựng trên log đã sửa.
+
+Nguyên nhân (đọc code): `renderLog()` đo `atBottom` (<80px) trên DOM cũ trước khi render (`ui/index.html` ~dòng 690, cuộn ở ~717). Khi vùng dưới log cao lên (ô soạn tới 180px, `#cost`, `#notice`, chip presence xuống dòng) thì `#log` co lại mà không cuộn bù → khoảng hụt >80px → từ đó log kẹt. Thêm: tin tự gửi không ép cuộn; sự kiện `session` dựng lại cả log và gập lại tin đang "Xem thêm" (`dataset.open` không bao giờ được gán).
+
+**Files:** Modify `ui/index.html`, `test/ui.test.ts`; thêm 1 dòng vào `todoplan.md` (git-ignored).
+
+**Interfaces:**
+- `S.stick: boolean` (mặc định `true`) — người dùng đang "dính đáy"; chỉ đổi bởi sự kiện `scroll` của `#log`, gửi tin, đổi phòng.
+- `S.expanded: Set<string>` — id các tin đang mở "Xem thêm".
+- `#log` có một con cố định `<div id="logBody">`; mọi chỗ trước đây gán `el.innerHTML` trong `renderLog()` (kể cả 2 trạng thái rỗng) giờ gán `logBody.innerHTML`.
+- Mỗi `<div class="msg">` mang `data-mid="${m.id}"` (cả nhánh tin nối tiếp `cont`).
+- `pinBottom()` — `if (S.stick) log.scrollTop = log.scrollHeight`.
+
+- [ ] **Step 1: Test hỏng** — thêm vào `test/ui.test.ts`:
+
+```ts
+test('chat log sticks to the bottom by intent, not by measuring before render', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['S.stick', 'new ResizeObserver(', 'id="logBody"', 'S.expanded', 'data-mid=']) assert.ok(html.includes(s), `missing ${s}`);
+    assert.ok(!html.includes('atBottom'), 'the pre-render atBottom check is gone');
+  } finally { await hub.close(); }
+});
+```
+
+- [ ] **Step 2: Chạy** `node --no-warnings --test test/ui.test.ts` → FAIL.
+- [ ] **Step 3: Cài đặt** — HTML: `<div id="log"><div id="logBody"></div></div>`. Script (đặt cạnh các khai báo `S` khác):
+
+```js
+S.stick = true; S.expanded = new Set();
+const logEl = $('log'), logBody = $('logBody');
+const pinBottom = () => { if (S.stick) logEl.scrollTop = logEl.scrollHeight; };
+logEl.addEventListener('scroll', () => {
+  // A hidden webview reports 0 height and clamps scrollTop: that is not the user scrolling up.
+  if (!logEl.clientHeight) return;
+  S.stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+}, { passive: true });
+// #log shrinks/grows when the composer, #cost, #notice or presence change height;
+// #logBody grows when images/fonts load or a message is expanded. Either way: re-pin.
+const logRO = new ResizeObserver(pinBottom);
+logRO.observe(logEl); logRO.observe(logBody);
+```
+
+Trong `renderLog()`:
+- Xoá dòng `const atBottom = …`.
+- `el.innerHTML = …` → `logBody.innerHTML = …` (cả 2 nhánh rỗng và nhánh chính); `el.querySelectorAll` → `logBody.querySelectorAll`.
+- Hai chỗ sinh `<div class="msg">` → `<div class="msg" data-mid="${m.id}">`.
+- Khối clamp thay bằng:
+
+```js
+  logBody.querySelectorAll('.msg').forEach((m) => {
+    if (m.scrollHeight <= 260) return;
+    const id = m.dataset.mid, open = S.expanded.has(id);
+    if (!open) m.classList.add('clamp');
+    const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = open ? 'Thu gọn' : 'Xem thêm';
+    b.onclick = () => {
+      const clamped = m.classList.toggle('clamp');
+      if (clamped) S.expanded.delete(id); else S.expanded.add(id);
+      b.textContent = clamped ? 'Xem thêm' : 'Thu gọn';
+    };
+    m.after(b);
+  });
+```
+
+- Cuối hàm thay `if (atBottom || …) el.scrollTop = el.scrollHeight;` bằng:
+
+```js
+  if (el.dataset.room !== S.current) S.stick = true;   // switching rooms always lands at the bottom
+  el.dataset.room = S.current;
+  pinBottom();
+```
+
+T-UI3: trong handler submit của `#composer`, ngay sau khi `api(...)` gửi tin thành công: `S.stick = true; pinBottom();`. Trong hàm đổi phòng (`select()` hoặc tên tương đương — tìm nơi gán `S.current`): `S.stick = true;`. Đọc code để đặt đúng chỗ; không đổi hành vi khác.
+
+`todoplan.md`: thêm `- [ ] Khung chat: nút "↓ Tin mới (n)" khi đang cuộn lên đọc (T-UI4 của spec chat-autoscroll, Boss tạm bỏ 2026-10-16).`
+- [ ] **Step 4: Chạy** `npm test` → PASS (cả test "inline script compiles").
+- [ ] **Step 5: Kiểm thủ công qua CDP** (`node scripts/demo-hub.mjs 7797` hoặc hub thật, skill `open-chrome`), chụp ảnh từng case gửi @Boss:
+  - (a) đang ở đáy, gửi 20 tin dài liên tiếp (POST tin qua API) → vẫn ở đáy;
+  - (b) gõ tin 6 dòng (ô soạn cao lên) → tin cuối vẫn thấy được;
+  - (d) mở "Xem thêm" một tin, kích một sự kiện `session` (đổi trạng thái một phiên) → tin đó vẫn mở;
+  - (e) trong panel VS Code (iframe): ẩn panel rồi hiện lại → vẫn ở đáy.
+  - Thêm (c'): cuộn lên đọc, tin mới đến → KHÔNG bị kéo xuống (vì không có T-UI4 nên không có nút).
+- [ ] **Step 6: Commit** — CHANGELOG `- Fix: the chat log stays pinned to the newest message (composer/notice height changes, late images, own messages, room switch); expanded messages stay expanded.` →
+
+```bash
+git add ui/index.html test/ui.test.ts CHANGELOG.md
+git commit -m "fix(ui): chat log sticks to the bottom"
+```
+
+---
+
 ### Task 10: Nhiều acc Claude Pro — lưu, chuyển, xem mức dùng (A4)
 
 Thiết kế theo `chuyen-doi-tai` (đã kiểm thực tế trên máy chủ repo). Extension VS Code/Antigravity luôn đọc `~/.claude` (và Antigravity đọc `CLAUDE_CONFIG_DIR` riêng của nó), nên chuyển acc = tráo file login.
@@ -1876,7 +1984,7 @@ export function fetchUsage(p: Paths, name: string, f?: typeof fetch): Promise<Us
 - Mức dùng: `GET https://api.anthropic.com/api/oauth/usage`, header `Authorization: Bearer <accessToken>` + `anthropic-beta: oauth-2025-04-20` → `five_hour` / `seven_day` `{ utilization, resets_at }` (+ `limits[]`). Acc đang dùng: đọc token từ `cfg/.credentials.json`, KHÔNG tự refresh (Claude Code sở hữu token đó; hết hạn → `usageError: 'hết hạn — mở Claude để làm mới'`). Acc đang nằm chờ: nếu `expiresAt` đã qua thì refresh trước (Step 1), GHI token mới vào profile ngay (file tạm + rename), rồi mới gọi usage. Cache usage 5 phút/acc.
 - Routes: `GET /api/accounts` → `AccountInfo[]` (usage từ cache, kèm `?refresh=1` để lấy mới); `POST /api/accounts` `{name}` → `saveCurrent`; `POST /api/accounts/:name/switch` → `{ from, to, reload: true }`; `DELETE /api/accounts/:name`. Không route nào trả `accessToken`/`refreshToken`.
 
-- [ ] **Step 1: nghiencuu (bắt buộc)** — xác nhận: (a) endpoint refresh token của Claude Code (dự kiến `POST https://console.anthropic.com/v1/oauth/token`, `grant_type=refresh_token`, `client_id` của Claude Code — lấy từ docs/mã nguồn công khai, không đoán); (b) endpoint usage và header beta ở trên còn đúng với bản Claude Code hiện tại; (c) trên macOS/Linux login nằm ở Keychain/`.credentials.json` — task này chỉ hỗ trợ Windows + Linux file-based, macOS báo "chưa hỗ trợ". Đây là API nội bộ, không có cam kết ổn định: mọi lỗi phải hiện thành `usageError`, không làm hỏng hub. Nếu (a) không xác nhận được: bỏ refresh, acc nằm chờ hết hạn hiện "token hết hạn — chuyển sang acc này một lần để làm mới".
+- [ ] **Step 1: nghiencuu — (a) ĐÃ XONG (research-museAI, đối chiếu binary Claude Code 2.1.300 trên máy):** refresh = `POST https://platform.claude.com/v1/oauth/token` (KHÔNG phải console.anthropic.com — host cũ), body `grant_type=refresh_token`, `refresh_token`, `client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e`, không có client_secret; cả access lẫn refresh token đều được đổi mới → ghi cả hai vào profile ngay (chưa tự kiểm chứng phần "cả hai đổi mới": test với `fetch` giả phải xử lý cả trường hợp response thiếu `refresh_token` = giữ cái cũ). Đặt URL + client_id thành hằng số đầu `hub/accounts.ts` kèm comment "from Claude Code 2.1.300; internal API, may change". Còn phải xác nhận: (b) endpoint usage và header beta ở trên còn đúng với bản Claude Code hiện tại; (c) trên macOS/Linux login nằm ở Keychain/`.credentials.json` — task này chỉ hỗ trợ Windows + Linux file-based, macOS báo "chưa hỗ trợ". Đây là API nội bộ, không có cam kết ổn định: mọi lỗi phải hiện thành `usageError`, không làm hỏng hub. Nếu (a) không xác nhận được: bỏ refresh, acc nằm chờ hết hạn hiện "token hết hạn — chuyển sang acc này một lần để làm mới".
 - [ ] **Step 2: Test hỏng** — `test/accounts.test.ts` (không gọi mạng thật, `fetch` giả):
 
 ```ts
@@ -2213,12 +2321,12 @@ Thêm `--c-free` / `--c-paid` vào cả 3 theme (kiểm độ tương phản b�
 Các nhóm:
 1. **Worker** — 2 công tắc chặn cứng `worker`, `osin`; công tắc "Tự chuyển sang tầng trả tiền khi free hết quota"; ô số "Số worker chạy cùng lúc" (1–16); công tắc "Tự dọn transcript vào room_chat" (`roomChat.autoSweep`); ô "Thư mục sao lưu chat" (`archive.dir`, gợi ý `X:\Coding\claude-mem`, để trống = tắt) kèm trạng thái lần sao lưu gần nhất từ `GET /api/archive`.
 1b. **Hub tự chạy worker** (Task 9b) — 3 công tắc + ngưỡng: hồ sơ bàn giao khi chat ≥ N nghìn token, rút gọn tin nhắn ≥ N ký tự, dọn biên bản ≥ N mục; ô "tối đa N lần/ngày". Ghi chú: "Dữ liệu chat được gửi lên API của nhà cung cấp worker."
-1c. **Skill trong hội thoại** (Task 8b) — bảng mọi skill từ `/api/skills` (tên, nguồn user/plugin, mô tả 1 dòng, ô tìm kiếm). Mỗi dòng: chọn 3 nút **Ép dùng / Tự quyết / Cấm** + với Ép dùng chọn "mỗi tin" / "tin đầu phiên". Ô chọn phạm vi: "Toàn máy" hoặc một repo (danh sách `cwd` của các chat đã thấy) → ghi vào `skillModes` hoặc `repoSkillModes[cwd]`; dòng có rule repo hiện nhãn "ghi đè". Đổi là lưu ngay (PUT chỉ gửi rule thay đổi; về Tự quyết = gửi `null`).
+1c. **Skill theo agent** (Task 8b) — chọn agent ở cột trái (danh sách `members` từ `/api/skills`, kèm LED trạng thái; agent đã có rule hiện số rule). Cột phải: bảng mọi skill (tên, nguồn user/plugin, mô tả 1 dòng, ô tìm kiếm), nhóm theo plugin; đầu mỗi nhóm có dòng "cả plugin (`plugin:*`)". Mỗi dòng 3 nút **Ép dùng / Tự quyết / Cấm**; khi Ép dùng có thêm chọn "mỗi tin" / "tin đầu phiên". Đổi là lưu ngay: PUT `{ agentSkills: { <agent>: { <skill>: rule | null } } }` (về Tự quyết = `null`). Cũng mở được từ tab Phòng: menu của một member → "Skill của agent này…" nhảy sang đúng agent ở tab Cài đặt.
 2. **Nhà cung cấp worker** — mỗi provider một thẻ: tên, tầng, bật/tắt, Base URL, kiểu xác thực, ô key `type="password"` placeholder `đã lưu …1234` (để trống = giữ nguyên; nút "Xoá key" gửi `key: null`), model đọc / model sửa (danh sách cách nhau bởi dấu phẩy), LED health. Nút "+ Thêm nhà cung cấp" (form id + base URL). Nút xoá (2 lần bấm, không có cho `intern`).
 3. **Tài khoản Claude** (Task 10) — danh sách acc đã lưu: tên, email, plan, ★ đang dùng. Nút **Lưu acc hiện tại** (ô tên, gợi ý từ email), **Chuyển** (2 lần bấm; xong thì hiện banner cố định "Đã chuyển sang <tên>. Reload Window ngay trong mọi cửa sổ VS Code/Antigravity (Ctrl+Shift+P → Developer: Reload Window), nếu không extension có thể ghi token cũ đè lên."), **Xoá** (2 lần bấm, ẩn với acc đang dùng). Hướng dẫn thêm acc mới: "Lưu acc hiện tại → trong Claude gõ /login bằng acc khác → Lưu acc hiện tại lần nữa." Ghi chú: "Token chỉ nằm trên máy này, hub không bao giờ gửi token ra UI."
 4. **Thông tin** — đường dẫn dữ liệu hub, `room_chat`, phiên bản plugin.
 
-- [ ] **Step 1: Test hỏng** — kiểm `'function renderSettingsView'`, `'type="password"'`, `'key: null'`, `'/switch'`, `'Reload Window'`, `'Ép dùng'`, `'Cấm'`, `'repoSkillModes'`.
+- [ ] **Step 1: Test hỏng** — kiểm `'function renderSettingsView'`, `'type="password"'`, `'key: null'`, `'/switch'`, `'Reload Window'`, `'Ép dùng'`, `'Cấm'`, `'agentSkills'`.
 - [ ] **Step 2: Chạy** → FAIL.
 - [ ] **Step 3: Cài đặt** — mọi PUT gửi chỉ trường thay đổi; ô key chỉ gửi khi người dùng gõ gì đó. Ví dụ lưu key:
 
@@ -2234,7 +2342,7 @@ const splitList = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 ```
 
 Kiểm tra helper `api()` của UI có nhận method; nếu chỉ hỗ trợ GET/POST thì mở rộng `api(path, body, method = body === undefined ? 'GET' : 'POST')`.
-- [ ] **Step 4: Chạy** test + screenshot; thử tay trên hub thật: lưu key → `GET /api/providers` chỉ thấy `…xxxx`; tắt `osin` → chạy `worker.ps1 -Kind osin` thoát mã 4; đặt `ponytail:ponytail` = Ép dùng → chat mới gọi skill đó ngay.
+- [ ] **Step 4: Chạy** test + screenshot; thử tay trên hub thật: lưu key → `GET /api/providers` chỉ thấy `…xxxx`; tắt `osin` → chạy `worker.ps1 -Kind osin` thoát mã 4; gán `Boss` → `superpowers:*` = Ép dùng → tin đầu tiếp theo của Boss gọi superpowers, agent khác không đổi.
 - [ ] **Step 5: Commit** — `git commit -am "feat(ui): settings tab (workers, auto jobs, skill modes, providers, Claude accounts)"`.
 
 ---
@@ -2243,7 +2351,7 @@ Kiểm tra helper `api()` của UI có nhận method; nếu chỉ hỗ trợ GET
 
 **Files:** Modify `README.md`, `CHANGELOG.md`, `.claude-plugin/plugin.json`, `package.json`.
 
-- [ ] **Step 1:** README: đổi mục "Worker skills" → `worker` / `osin`, bảng tầng (free Intern AI / paid OpenRouter / MCP — sắp có), bảng Configuration thêm `WORKER_BASE_URL` (giữ `CONGNHAN_BASE_URL` là tên cũ), mô tả 4 tab, chế độ skill (ép/tự quyết/cấm), hub tự chạy worker, chuyển acc Claude (cảnh báo Reload Window), `room_chat` + `scripts/move-room-chats.mjs`, mã thoát 0/1/2/3/4. Roadmap: bỏ mục đã xong, giữ Task board + MCP worker.
+- [ ] **Step 1:** README: đổi mục "Worker skills" → `worker` / `osin`, bảng tầng (free Intern AI / paid OpenRouter / MCP — sắp có), bảng Configuration thêm `WORKER_BASE_URL` (giữ `CONGNHAN_BASE_URL` là tên cũ), mô tả 4 tab, chế độ skill theo từng agent (ép/tự quyết/cấm), hub tự chạy worker, chuyển acc Claude (cảnh báo Reload Window), `room_chat` + `scripts/move-room-chats.mjs`, mã thoát 0/1/2/3/4. Roadmap: bỏ mục đã xong, giữ Task board + MCP worker.
 - [ ] **Step 2:** version `0.3.0` ở `package.json` và `.claude-plugin/plugin.json`; CHANGELOG: đổi `## Unreleased` → `## 0.3.0 — 2026-10-xx`.
 - [ ] **Step 3:** `npm test` → xanh toàn bộ; `node scripts/screenshot.mjs out` → ảnh 4 tab × 3 theme cho chủ repo duyệt.
 - [ ] **Step 4: Commit** — `git commit -am "docs: worker/osin, tiers, four tabs; v0.3.0"`.
@@ -2252,7 +2360,7 @@ Kiểm tra helper `api()` của UI có nhận method; nếu chỉ hỗ trợ GET
 
 ### Task 16 (tầng 3, làm sau v0.3.0): Worker Muse qua MCP
 
-Nghiên cứu + thử thật bởi agent `mcp-server-muse` (2026-10-16): gửi "Reply with exactly one line: PONG-42" → nhận "PONG-42" sau ~9s. Biên bản phòng [1] giữ các selector. **Rủi ro chủ repo phải chấp nhận trước khi làm:** tự động hoá web UI của Meta có thể vi phạm điều khoản của họ, và selector sẽ vỡ khi Meta đổi giao diện. Muse có cơ chế Approvals cho hành động thật → chỉ dùng cho hỏi đáp/nghiên cứu, KHÔNG giao việc agent (sửa file, chạy lệnh).
+Nghiên cứu + thử thật bởi agent `mcp-server-muse` (2026-10-16): gửi "Reply with exactly one line: PONG-42" → nhận "PONG-42" sau ~9s. Biên bản phòng [1] giữ các selector. **Chủ repo đã chấp nhận rủi ro (2026-10-16, biên bản [3]):** tự động hoá web UI của Meta có thể vi phạm điều khoản của họ, và selector sẽ vỡ khi Meta đổi giao diện. Muse có cơ chế Approvals cho hành động thật → chỉ dùng cho hỏi đáp/nghiên cứu, KHÔNG giao việc agent (sửa file, chạy lệnh).
 
 **Files:**
 - Create: `mcp/muse.ts` (server), `mcp/muse-core.ts` (hàm thuần, test được), `test/muse.test.ts`
@@ -2331,15 +2439,15 @@ export function joinAnswer(items: Item[], sentTurnId: string): string {
 
 ```
 T1 ─ T2 ─ T3 ─ T3b ─ T3c ─┬─ T4 ─ T5 ─ T6 ─ T7 ────────────┐
-                          ├─ T8 ─ T8b ─ T9 ─ T9b ───────────┤
+                          ├─ T8 ─ T8b ─ T9 ─ T9b ─ T-UI ────┤
                           └─ T10 ───────────────────────────┴─ T11 ─ T12 ─ T13 ─ T14 ─ T15 ··· T16 (sau v0.3.0)
 ```
 
-T4, T8, T10 độc lập nhau (có thể song song); T3b dùng `Settings.roomChat` (nếu T8 chưa xong thì tạm đọc `autoSweep=false`); T5 cần T4 (T8 nếu có); T9 cần T4 + T8b; T9b cần T8 + T5; UI (T11–14) cần mọi API trước nó.
+T4, T8, T10 độc lập nhau (có thể song song); T3b dùng `Settings.roomChat` (nếu T8 chưa xong thì tạm đọc `autoSweep=false`); T5 cần T4 (T8 nếu có); T9 cần T4 + T8b; T9b cần T8 + T5; T-UI độc lập (chỉ `ui/index.html`) nhưng chạy sau T9b, trước T10, và phải xong trước T11; UI (T11–14) cần mọi API trước nó.
 
 ## Ngoài phạm vi (đã ghi vào `todoplan.md`)
 
-- Worker tầng 3 qua MCP: Muse đã có Task 16 (chờ chủ repo chấp nhận rủi ro điều khoản); các MCP khác để sau.
+- Worker tầng 3 qua MCP: Muse = Task 16 (đã duyệt, làm sau v0.3.0); các MCP khác để sau.
 - Ẩn hẳn skill khỏi Claude Code (không nạp) — khác với "Cấm" ở Task 8b (chỉ là lời nhắc).
 - Refresh token cho acc Claude đang nằm chờ, nếu nghiencuu ở Task 10 không xác nhận được endpoint.
 - Task board (Roadmap v2 cũ).
