@@ -6,7 +6,7 @@
 <title>Bear Agent Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Noto+Sans:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Lora:wght@400;600&family=Merriweather:wght@400;700&family=Nunito:wght@400;600;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --side:#E9EDF4; --side-2:#DCE2EC; --side-line:#D2D9E5; --side-text:#2A3247; --side-mute:#6B7590; --side-strong:#121826;
@@ -34,9 +34,44 @@
   --bg:#171C28; --panel:#1C2230; --text:#E4E8F1; --mute:#8D97AE; --line:#2A3244; --hover:#232B3D;
   --accent:#7B93FF; --accent-soft:#26305A; --me:#33291A; --code:#232B3D; --shadow:0 12px 32px rgba(0,0,0,.45);
 }}
-.themes{display:flex;gap:2px;margin:8px 12px 14px;padding:3px;background:var(--side-2);border-radius:10px}
-.themes button{flex:1;padding:5px 0;border-radius:8px;font-size:12px;font-weight:600;color:var(--side-mute)}
-.themes button.on{background:var(--side);color:var(--side-strong);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+/* extra themes: each only re-declares the palette; --shadow is dark on dark themes */
+:root[data-theme=nord]{--side:#2B303B;--side-2:#3B4252;--side-line:#434C5E;--side-text:#D8DEE9;--side-mute:#8F9BB3;--side-strong:#ECEFF4;--bg:#272C36;--panel:#2E3440;--text:#ECEFF4;--mute:#8F9BB3;--line:#3B4252;--hover:#353C4A;--accent:#88C0D0;--accent-soft:#34495A;--me:#3D3A2C;--code:#353C4A;--shadow:0 12px 32px rgba(0,0,0,.45)}
+:root[data-theme=dracula]{--side:#21222C;--side-2:#2B2D3A;--side-line:#343746;--side-text:#D6D6E4;--side-mute:#8A8FB5;--side-strong:#FFFFFF;--bg:#282A36;--panel:#2F3142;--text:#F8F8F2;--mute:#9AA0C6;--line:#3C3F54;--hover:#363949;--accent:#BD93F9;--accent-soft:#3F3660;--me:#3E3A2A;--code:#363949;--shadow:0 12px 32px rgba(0,0,0,.5)}
+:root[data-theme=midnight]{--side:#000000;--side-2:#111111;--side-line:#1C1C1C;--side-text:#CFCFCF;--side-mute:#7A7A7A;--side-strong:#FFFFFF;--bg:#000000;--panel:#0D0D0D;--text:#EEEEEE;--mute:#888888;--line:#222222;--hover:#161616;--accent:#5EA2FF;--accent-soft:#12243D;--me:#2A2310;--code:#161616;--shadow:0 12px 32px rgba(0,0,0,.8)}
+:root[data-theme=forest]{--side:#0F1D17;--side-2:#17291F;--side-line:#1F3629;--side-text:#C7DCCF;--side-mute:#7FA08C;--side-strong:#FFFFFF;--bg:#12211A;--panel:#182B21;--text:#E1EFE6;--mute:#86A692;--line:#243D2E;--hover:#1E3427;--accent:#3FCF8E;--accent-soft:#1F4030;--me:#3A3520;--code:#1E3427;--shadow:0 12px 32px rgba(0,0,0,.5)}
+:root[data-theme=sunset]{--side:#21151C;--side-2:#2D1D26;--side-line:#3A2631;--side-text:#EAD3D9;--side-mute:#B08A96;--side-strong:#FFFFFF;--bg:#271A21;--panel:#301F28;--text:#F6E6EA;--mute:#B79099;--line:#432C37;--hover:#3A2630;--accent:#FF8A4C;--accent-soft:#4A2D2A;--me:#44331F;--code:#3A2630;--shadow:0 12px 32px rgba(0,0,0,.5)}
+:root[data-theme=solarized]{--side:#EEE8D5;--side-2:#E4DDC6;--side-line:#D8D0B6;--side-text:#586E75;--side-mute:#7F9094;--side-strong:#073642;--bg:#FDF6E3;--panel:#FFFBEE;--text:#586E75;--mute:#7F9094;--line:#E6DFC6;--hover:#F5EED8;--accent:#268BD2;--accent-soft:#DDEBF3;--me:#F6E7B8;--code:#F5EED8}
+:root[data-theme=rose]{--side:#F8E8EC;--side-2:#F1D6DD;--side-line:#E8C7D0;--side-text:#4A2631;--side-mute:#94616F;--side-strong:#2A0F18;--bg:#FFF5F7;--panel:#FFFFFF;--text:#3A1F28;--mute:#8C6470;--line:#F0D9DF;--hover:#FBEAEE;--accent:#E11D74;--accent-soft:#FCE0EC;--me:#FFF3D6;--code:#FBEAEE}
+:root[data-theme=ocean]{--side:#E0F0F6;--side-2:#CBE5EF;--side-line:#B8D8E6;--side-text:#12384A;--side-mute:#4F7F94;--side-strong:#082633;--bg:#F0F8FB;--panel:#FFFFFF;--text:#0F2F3F;--mute:#5B8497;--line:#D5E8F0;--hover:#E6F3F8;--accent:#0891B2;--accent-soft:#D3F0F8;--me:#FFF6E0;--code:#E6F3F8}
+/* excel: flat, square, black on white, visible grid */
+:root[data-theme=excel]{--side:#F2F2F2;--side-2:#E2E2E2;--side-line:#BFBFBF;--side-text:#000000;--side-mute:#595959;--side-strong:#000000;--bg:#FFFFFF;--panel:#FFFFFF;--text:#000000;--mute:#595959;--line:#BFBFBF;--hover:#E8F1EC;--accent:#217346;--accent-soft:#D9EAD3;--me:#FFF2CC;--code:#F2F2F2;--shadow:0 2px 8px rgba(0,0,0,.25)}
+:root[data-theme=excel] *:not(.led):not(.switch){border-radius:0!important}
+:root[data-theme=excel] .group{background:#fff;border:1px solid #D9D9D9;margin-bottom:-1px}
+:root[data-theme=excel] .group:hover{background:#E8F1EC;border-color:#217346}
+:root[data-theme=excel] .tbl th,:root[data-theme=excel] .tbl td{border:1px solid #D9D9D9}
+:root[data-theme=excel] .tbl th{background:#F2F2F2;color:#000}
+:root[data-theme=excel] .room.active,:root[data-theme=excel] .sess .acts button.add,:root[data-theme=excel] .btn.primary,:root[data-theme=excel] #send{color:#fff}
+/* glass: translucent blurred panels over a gradient */
+:root[data-theme=glass]{--side:rgba(255,255,255,.10);--side-2:rgba(255,255,255,.14);--side-line:rgba(255,255,255,.22);--side-text:#F4F6FF;--side-mute:#C3CBE6;--side-strong:#FFFFFF;--bg:transparent;--panel:rgba(255,255,255,.12);--text:#FFFFFF;--mute:#C9D0EA;--line:rgba(255,255,255,.22);--hover:rgba(255,255,255,.18);--accent:#8FB4FF;--accent-soft:rgba(143,180,255,.28);--me:rgba(255,214,120,.22);--code:rgba(0,0,0,.28);--shadow:0 12px 40px rgba(10,10,40,.45)}
+:root[data-theme=glass] body{background:radial-gradient(1100px 700px at 12% 8%,#7C5CFF 0,transparent 60%),radial-gradient(900px 700px at 90% 15%,#12B8D9 0,transparent 55%),radial-gradient(900px 800px at 55% 105%,#FF6AA8 0,transparent 55%),#1B1740}
+/* glass, bright: no colour wash, just frosted white on a soft light-grey ground */
+:root[data-theme=glasslight]{--side:rgba(255,255,255,.55);--side-2:rgba(255,255,255,.7);--side-line:rgba(0,0,0,.08);--side-text:#1B2233;--side-mute:#5F6B83;--side-strong:#0B1020;--bg:transparent;--panel:rgba(255,255,255,.6);--text:#10162A;--mute:#5F6B83;--line:rgba(0,0,0,.09);--hover:rgba(255,255,255,.85);--accent:#3B63F0;--accent-soft:rgba(59,99,240,.14);--me:rgba(255,224,150,.5);--code:rgba(0,0,0,.05);--shadow:0 12px 36px rgba(20,30,60,.16)}
+:root[data-theme=glasslight] body{background:linear-gradient(160deg,#FFFFFF 0,#EEF0F4 55%,#E6E9EF 100%)}
+:root[data-theme=glasslight] .group:hover{background:rgba(255,255,255,.9)}
+:root:is([data-theme=glass],[data-theme=glasslight]) :is(#side,header,#tabs,.group,#composer,.tblwrap,.chartbox,.pcard,.setbox,#menu,#mentionMenu,.prov,#notesPanel,#zoom .zbox){-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 8px 24px rgba(10,10,40,.25)}
+:root[data-theme=glass] .group:hover{background:rgba(255,255,255,.2)}
+:root[data-theme=glass] select option,:root[data-theme=glass] .vw select option{background:#2A2560;color:#fff}
+.themes{display:block;width:calc(100% - 24px);margin:8px 12px 14px;padding:7px 10px;border:1px solid var(--side-line);border-radius:10px;background:var(--side-2);color:var(--side-strong);font-size:12.5px;font-weight:600}
+.themes option{background:var(--side);color:var(--side-strong)}
+#fonts{margin-top:-6px}
+/* right-click a message group: enlarged reading popup */
+#zoom{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(10,14,25,.55);padding:4vh 4vw}
+#zoom[hidden]{display:none}
+#zoom .zbox{width:min(1100px,100%);max-height:100%;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 28px;font-size:18px;line-height:1.65;position:relative}
+#zoom .zbox .rn,#zoom .zbox .more-btn{display:none}
+#zoom .zbox .msg{max-height:none!important;-webkit-mask-image:none;mask-image:none}
+#zoom .zbox .msg code,#zoom .zbox .msg pre{font-size:15px}
+#zoom .zx{position:sticky;top:0;float:right;width:32px;height:32px;border-radius:50%;background:var(--hover);font-size:16px}
 .rcpt{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .rc{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel);border:1px solid var(--line);color:var(--mute)}
 .rc.got{color:#16A34A;border-color:color-mix(in srgb,#16A34A 35%,var(--line))}
@@ -60,6 +95,7 @@ input,textarea{font:inherit;color:inherit}
 .hub-state{margin-left:auto;display:flex;align-items:center;padding:4px}
 .side-scroll{flex:1;overflow-y:auto;padding:4px 8px 16px}
 .sec{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 6px;color:var(--side-mute);font-size:12.5px;font-weight:600}
+.repo-filter{max-width:55%;font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--side-mute);border-radius:6px;padding:1px 4px}
 .sec button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
 .sec button:hover{background:var(--side-2);color:var(--side-strong)}
 .room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text)}
@@ -127,7 +163,7 @@ input,textarea{font:inherit;color:inherit}
 .wk .kill.armed{width:auto;padding:0 7px;font-size:12px;font-weight:600}
 
 /* ---------- avatars + leds ---------- */
-.av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none;position:relative}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none;position:relative}
 .av.sm{width:30px;height:30px;border-radius:9px;font-size:11.5px}
 .av.bot svg{width:84%;height:84%;margin-top:4%}
 .av .led{position:absolute;right:-3px;bottom:-3px;border:2px solid var(--side)}
@@ -163,11 +199,13 @@ header .spacer{flex:1}
 #newMsgs{position:sticky;bottom:8px;display:block;margin:0 auto;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 #newMsgs[hidden]{display:none}
 /* one reading column: messages, presence and composer share the same centred width */
-#logBody{max-width:820px;margin:0 auto}
-#presence,.compose-wrap{width:100%;max-width:860px;margin-left:auto;margin-right:auto;box-sizing:border-box}
-.group{--c:var(--accent);display:flex;gap:12px;padding:10px 14px 10px 12px;margin:0 0 10px;border-radius:12px;
-  background:color-mix(in srgb,var(--c) 7%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 22%,var(--line));border-left:4px solid var(--c)}
-.group.you{flex-direction:row-reverse;margin-left:auto;max-width:88%;border-left-width:1px;border-right:4px solid var(--c);background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+#logBody{max-width:1480px;margin:0 auto}
+#presence,.compose-wrap{width:100%;max-width:1480px;margin-left:auto;margin-right:auto;box-sizing:border-box}
+/* flat feed: no heavy side bars, a faint tint per agent, wide enough for code and tables */
+.group{--c:var(--accent);display:flex;gap:14px;padding:12px 16px;margin:0 0 6px;border-radius:14px;
+  background:color-mix(in srgb,var(--c) 4%,transparent);border:1px solid transparent;transition:background .15s,border-color .15s}
+.group:hover{background:color-mix(in srgb,var(--c) 8%,var(--panel));border-color:color-mix(in srgb,var(--c) 18%,var(--line))}
+.group.you{flex-direction:row-reverse;margin-left:auto;max-width:78%;background:color-mix(in srgb,var(--accent) 12%,var(--panel));border-color:color-mix(in srgb,var(--accent) 25%,var(--line))}
 .group.you .head{flex-direction:row-reverse}
 .group.tome .head::after{content:"gọi bạn";margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
 .group .body{flex:1;min-width:0}
@@ -207,8 +245,8 @@ header .spacer{flex:1}
 .chip b{font-weight:600}
 .chip .act{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
 .compose-wrap{position:relative;padding:8px 20px 18px}
-#composer{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;box-shadow:0 1px 2px rgba(17,24,39,.05)}
-#composer:focus-within{border-color:var(--accent)}
+#composer{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 10px 10px 18px;box-shadow:0 4px 18px rgba(17,24,39,.08);transition:border-color .15s,box-shadow .15s}
+#composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),0 4px 18px rgba(17,24,39,.08)}
 #text{flex:1;border:0;outline:0;background:none;resize:none;max-height:180px;min-height:24px;line-height:1.5;padding:4px 0}
 #send{width:36px;height:36px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
 #send:disabled{opacity:.4;cursor:default}
@@ -233,6 +271,15 @@ header .spacer{flex:1}
 #menu .idbox{margin:4px 6px 6px;padding:8px 10px;background:var(--code);border-radius:8px;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
 #menu input{width:calc(100% - 12px);margin:4px 6px;padding:7px 10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg)}
 #menu .row{display:flex;gap:6px;justify-content:flex-end;padding:4px 6px}
+/* members list: wide enough for the name, status on its own line, actions as a row underneath */
+#menu:has(.mem){min-width:min(400px,92vw);max-width:min(460px,92vw)}
+#menu .item.mem{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center;padding:10px;border-radius:10px;cursor:default}
+#menu .item.mem+.item.mem{margin-top:2px;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+#menu .mem .mi{min-width:0;display:flex;flex-direction:column}
+#menu .mem .mi small{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#menu .mem .macts{grid-column:2;display:flex;flex-wrap:wrap;gap:6px}
+.btn.sm{padding:4px 10px;font-size:12.5px;gap:5px}
+.btn.sm svg{width:13px;height:13px}
 #notesPanel{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:45;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .2s}
 #notesPanel.open{transform:none}
 #notesPanel .np-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
@@ -280,7 +327,7 @@ header .spacer{flex:1}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
-.vw{max-width:960px}
+.vw{max-width:1600px}
 .vw h1{margin:0 0 4px;font-size:20px;font-weight:700}
 .vw .lede{margin:0 0 20px;color:var(--mute);font-size:13.5px;max-width:72ch}
 .vw h2{font-size:15px;font-weight:700;margin:28px 0 10px;display:flex;align-items:center;gap:10px}
@@ -334,7 +381,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .chartbox details{margin-top:6px;color:var(--mute)}
 .chartbox details .tblwrap{margin-top:8px;max-width:420px}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:0 20px}
-.ubar{display:grid;grid-template-columns:70px 1fr 44px 150px;align-items:center;gap:10px;font-size:12.5px}
+.ubar{display:grid;grid-template-columns:70px 1fr 44px minmax(150px,auto);align-items:center;gap:10px;font-size:12.5px}
 .ubar .ut{height:8px;border-radius:4px;background:var(--hover);overflow:hidden}
 .ubar .uf{display:block;height:100%;border-radius:4px;background:var(--accent)}
 .ubar .uf.mid{background:#F5A524}.ubar .uf.hi{background:#E5484D}
@@ -423,14 +470,19 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec">Phòng <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới"></form>
     <div id="rooms"></div>
-    <div class="sec">Claude đang chạy</div>
+    <div class="sec">Claude đang chạy <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
     <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy">0/4</span></div>
     <div id="workers"></div>
   </div>
-  <div class="themes" id="themes" role="radiogroup" aria-label="Giao diện">
-    <button data-t="auto" role="radio">Tự động</button><button data-t="light" role="radio">Sáng</button><button data-t="gray" role="radio">Xám</button><button data-t="dark" role="radio">Tối</button>
-  </div>
+  <select class="themes" id="themes" aria-label="Giao diện">
+    <option value="auto">Tự động</option><option value="light">Sáng</option><option value="gray">Xám</option><option value="dark">Tối</option>
+    <option value="midnight">Midnight (đen OLED)</option><option value="nord">Nord</option><option value="dracula">Dracula</option><option value="forest">Rừng</option><option value="sunset">Hoàng hôn</option>
+    <option value="glass">Liquid glass</option><option value="glasslight">Liquid glass sáng (không màu)</option><option value="excel">Excel phẳng</option><option value="solarized">Solarized sáng</option><option value="rose">Hồng</option><option value="ocean">Đại dương</option>
+  </select>
+  <select class="themes" id="fonts" aria-label="Phông chữ">
+    <option value="">Phông: Be Vietnam Pro</option><option value="Inter">Inter</option><option value="Roboto">Roboto</option><option value="Noto Sans">Noto Sans</option><option value="Open Sans">Open Sans</option><option value="Source Sans 3">Source Sans 3</option><option value="IBM Plex Sans">IBM Plex Sans</option><option value="Nunito">Nunito (tròn)</option><option value="Quicksand">Quicksand (tròn)</option><option value="Lora">Lora (serif)</option><option value="Merriweather">Merriweather (serif)</option><option value="JetBrains Mono">JetBrains Mono (mono)</option><option value="system-ui">Phông hệ thống</option>
+  </select>
 </aside>
 
 <div id="right">
@@ -439,6 +491,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <button role="tab" data-tab="rooms" aria-selected="true">Phòng</button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens">Token</button>
+  <button role="tab" data-tab="skills">Skill</button>
   <button role="tab" data-tab="settings">Cài đặt</button>
 </nav>
 <main id="view-rooms" class="view">
@@ -465,6 +518,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 </main>
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
+<section id="view-skills" class="view" hidden aria-label="Skill"></section>
 <section id="view-settings" class="view" hidden aria-label="Cài đặt"></section>
 </div>
 
@@ -479,7 +533,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 
 <script>
 const TOKEN = '__BEAR_AGENT_TOKEN__';
-const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null };
+const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null, repo: (() => { try { return localStorage.repoFilter || ''; } catch { return ''; } })() };
 // The log sticks to the newest message while the user is at the bottom (S.stick, set by scrolling,
 // sending and switching rooms), instead of measuring "at bottom" on the old DOM before each render.
 S.stick = true; S.expanded = new Set(); S.seen = {}; S.setSub = 'general';   // seen[room] = message count when the user last was at the bottom
@@ -705,9 +759,10 @@ function deleteRoomForm(anchor, name) {
 }
 function membersMenu(anchor) {
   const ms = members(S.current);
-  openMenu(anchor, `<div class="label">Thành viên #${esc(S.current)}</div>` + (ms.length ? ms.map((s) => `
-    <div class="item">${avatar(s.id, s.status, 'sm')}<span style="flex:1;min-width:0"><b>${esc(s.name)}</b><br><small style="color:var(--mute)">${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><button class="btn" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out}</button></div>`).join('')
+  openMenu(anchor, `<div class="label">Thành viên #${esc(S.current)}</div><div class="row"><button class="btn" data-openlead title="Mở một terminal Claude với lời nhắn gõ sẵn để nó vào phòng làm trưởng phòng">Mở terminal trưởng phòng</button></div>` + (ms.length ? ms.map((s) => `
+    <div class="item mem">${avatar(s.id, s.status, 'sm')}<span class="mi"><b>${esc(s.name)}</b>${isLead(s.id) ? ' ' + STAR : ''}<small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn sm" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out} Cho rời</button></span></div>`).join('')
     : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>'), (m) => {
+    m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast('Đã mở terminal: bấm Enter trong cửa sổ đó'); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast('Đã cho rời phòng'); }, (e) => toast(e.message)));
   });
@@ -760,7 +815,12 @@ function sessionRow(s) {
 function renderSessions() {
   const el = $('sessions'); el.innerHTML = '';
   const order = { busy: 0, waiting: 1, idle: 2, offline: 3 };
-  const all = Object.values(S.sessions).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
+  const repos = [...new Set(Object.values(S.sessions).map((s) => repo(s.cwd)).filter(Boolean))].sort();
+  const f = $('repoFilter');
+  if (S.repo && !repos.includes(S.repo)) S.repo = '';
+  f.innerHTML = '<option value="">Mọi repo</option>' + repos.map((r) => `<option${r === S.repo ? ' selected' : ''}>${esc(r)}</option>`).join('');
+  f.onchange = () => { S.repo = f.value; try { localStorage.repoFilter = S.repo; } catch {} renderSessions(); };
+  const all = Object.values(S.sessions).filter((s) => !S.repo || repo(s.cwd) === S.repo).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
   const live = all.filter((s) => s.status !== 'offline'), off = all.filter((s) => s.status === 'offline');
   if (!live.length) el.innerHTML = '<div class="side-empty">Chưa có Claude nào chạy. Mở một tab Claude Code là nó tự hiện ở đây.</div>';
   for (const s of live) el.append(sessionRow(s));
@@ -1006,7 +1066,7 @@ function connect() {
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
   es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
-  es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings')) renderSettingsView(); });
+  es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
   const hubState = (ok) => { const h = $('hubState'), t = `Hub: ${ok ? 'đã kết nối' : 'mất kết nối'}`; h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = t; h.setAttribute('aria-label', t); };
@@ -1111,7 +1171,7 @@ $('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch
 $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
-const TABS = ['rooms', 'workers', 'tokens', 'settings'];
+const TABS = ['rooms', 'workers', 'tokens', 'skills', 'settings'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'rooms';
   S.tab = name;
@@ -1122,7 +1182,7 @@ function showTab(name) {
   document.body.dataset.tab = name;
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ workers: loadWorkersView, tokens: loadTokens, settings: loadSettingsView })[name]?.();
+  ({ workers: loadWorkersView, tokens: loadTokens, skills: loadSettingsView, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
@@ -1419,12 +1479,18 @@ function providerCard(p) {
     <div class="pf"><button class="btn primary">Lưu</button>${p.hasKey ? '<button type="button" class="btn" data-clearkey>Xoá key</button>' : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : '<button type="button" class="btn danger" data-delprov>Xoá nhà cung cấp</button>'}</div>
   </form>`;
 }
+/** Skill tab: per-agent skill rules; shares Cài đặt's data, so every settings re-render lands here too. */
+function renderSkillsView() {
+  $('view-skills').innerHTML = `<div class="vw">${!S.settings || !S.skills ? errBox('settings') || '<div class="vempty">Đang tải…</div>'
+    : `<h2>Skill theo agent</h2><p class="small muted">Ép dùng: nhắc agent gọi skill (mỗi tin hoặc chỉ tin đầu phiên). Cấm: nhắc không dùng. Tự quyết: không nhắc gì. Ép dùng chỉ chọn được cho từng skill, không cho cả plugin.</p>
+    ${skillsBlock()}`}</div>`;
+}
 const ROUTES = { read: 'Đọc / khảo sát', edit: 'Sửa file', osin: 'Osin (bàn giao, rút gọn, dọn biên bản)' };
 /** P1b: per turn type, an off switch plus a provider and model ("Tự động" = free first, then each provider's own chain). */
 function routesBlock() {
   const rows = Object.entries(ROUTES).map(([k, l]) => {
     const r = S.settings.workerRoutes?.[k] ?? { enabled: true, provider: 'auto', model: 'auto' }, p = S.providers.find((x) => x.id === r.provider);
-    const models = p ? [...new Set([...p.models.read, ...p.models.edit, ...(r.model !== 'auto' ? [r.model] : [])])] : [];
+    const models = p ? [...new Set([...(p.models?.read ?? []), ...(p.models?.edit ?? []),...(r.model !== 'auto' ? [r.model] : [])])] : [];
     const opt = (v, t, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`;
     return `<tr><td>${l}</td><td><input type="checkbox" class="switch" data-set="workerRoutes.${k}.enabled"${r.enabled ? ' checked' : ''} aria-label="Bật loại lượt ${esc(l)}"></td>
       <td><select data-set="workerRoutes.${k}.provider" aria-label="Nhà cung cấp cho ${esc(l)}">${opt('auto', 'Tự động', r.provider)}${S.providers.map((x) => opt(x.id, x.label, r.provider)).join('')}</select></td>
@@ -1435,6 +1501,7 @@ function routesBlock() {
 }
 const SUBS = { general: 'Chung', worker: 'Worker', lead: 'Trưởng phòng', compact: 'Compact', providers: 'Nhà cung cấp', account: 'Tài khoản' };
 function renderSettingsView() {
+  if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
   const st = S.settings;
   if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || '<div class="vempty">Đang tải…</div>'}</div>`; return; }
@@ -1460,6 +1527,7 @@ function renderSettingsView() {
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, 'Tự dọn transcript vào room_chat mỗi 10 phút', 'Xem trước danh sách ở tab Worker trước khi bật.')}
     </div>` + routesBlock(),
     lead: `    <h2>Trưởng phòng</h2><div class="setbox">
+      <label class="setrow"><span><b>Tự mở trưởng phòng</b><small>Khi phòng mới tạo hoặc mất trưởng phòng, hub mở một terminal Claude với lời nhắn gõ sẵn; bạn bấm Enter thì nó vào phòng và làm ★. Mỗi phòng chỉ tự mở một lần, tốn quota của acc Claude trên máy.</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
       ${sw('archive.enabled', arOn, 'Sao lưu chat', 'Chép phần mới của mọi chat sang thư mục bên dưới mỗi 10 phút và khi một chat đóng. Không bao giờ xoá gì.')}
       <label class="setrow"><span><b>Thư mục sao lưu</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
     </div>
@@ -1487,7 +1555,7 @@ function renderSettingsView() {
   </div>`;
 }
 async function saveSetting(el) {
-  const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
+  const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
   try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast('Đã lưu'); }
   catch (e) { toast(e.message); }
   renderSettingsView();
@@ -1505,58 +1573,85 @@ async function saveProvider(form) {
   try { await api(`/api/providers/${enc(id)}`, patch, 'PUT'); toast('Đã lưu ' + id); loadSettingsView(); }
   catch (e) { toast(e.message); }
 }
-const sv = $('view-settings');
-sv.addEventListener('change', (e) => {
-  if (e.target.matches('[data-set]')) return saveSetting(e.target);
-  if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
-  if (e.target.closest('[data-cagent]')) return saveCompact(e.target.closest('[data-cagent]'));
-  if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
-});
-sv.addEventListener('input', (e) => {
-  if (e.target.id !== 'skQuery') return;
-  S.skQuery = e.target.value; renderSettingsView();
-  const q = $('skQuery'); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
-});
-sv.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const f = e.target;
-  if (f.dataset.prov) return saveProvider(f);
-  if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
-});
-sv.addEventListener('click', (e) => {
-  const sb = e.target.closest('[data-sub]');
-  if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
-  if (e.target.closest('#machineExport')) {
-    return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
-      S.machine = { ...S.machine, last: r };
-      toast(`Đã xuất ${r.items} mục vào ${r.dir}`);
-      renderSettingsView();
-    }, (err) => toast(err.message));
-  }
-  const go = e.target.closest('[data-gotab]');
-  if (go) { e.preventDefault(); showTab(go.dataset.gotab); return; }
-  if (e.target.closest('#skAll')) { S.skAll = !S.skAll; renderSettingsView(); return; }
-  const a = e.target.closest('[data-agent]');
-  if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
-  const r = e.target.closest('[data-rule]');
-  if (r) return saveRule(r.dataset.skill, r.dataset.rule === 'auto' ? null : { mode: r.dataset.rule, when: (S.settings.agentSkills[S.skAgent]?.[r.dataset.skill]?.when) || 'every' });
-  const f = e.target.closest('[data-prov]');
-  if (!f) return;
-  if (e.target.closest('[data-clearkey]')) return api(`/api/providers/${enc(f.dataset.prov)}`, { key: null }, 'PUT').then(() => { toast('Đã xoá key'); loadSettingsView(); }, (err) => toast(err.message));
-  const d = e.target.closest('[data-delprov]');
-  if (d) armed(d, 'Bấm lần nữa để xoá', () => api(`/api/providers/${enc(f.dataset.prov)}`, undefined, 'DELETE').then(() => { toast('Đã xoá ' + f.dataset.prov); loadSettingsView(); }, (err) => toast(err.message)));
-});
+for (const sv of [$('view-settings'), $('view-skills')]) {
+  sv.addEventListener('change', (e) => {
+    if (e.target.matches('[data-set]')) return saveSetting(e.target);
+    if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
+    if (e.target.closest('[data-cagent]')) return saveCompact(e.target.closest('[data-cagent]'));
+    if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
+  });
+  sv.addEventListener('input', (e) => {
+    if (e.target.id !== 'skQuery') return;
+    S.skQuery = e.target.value; renderSettingsView();
+    const q = $('skQuery'); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+  });
+  sv.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.dataset.prov) return saveProvider(f);
+    if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
+  });
+  sv.addEventListener('click', (e) => {
+    const sb = e.target.closest('[data-sub]');
+    if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
+    if (e.target.closest('#machineExport')) {
+      return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
+        S.machine = { ...S.machine, last: r };
+        toast(`Đã xuất ${r.items} mục vào ${r.dir}`);
+        renderSettingsView();
+      }, (err) => toast(err.message));
+    }
+    const go = e.target.closest('[data-gotab]');
+    if (go) { e.preventDefault(); showTab(go.dataset.gotab); return; }
+    if (e.target.closest('#skAll')) { S.skAll = !S.skAll; renderSettingsView(); return; }
+    const a = e.target.closest('[data-agent]');
+    if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
+    const r = e.target.closest('[data-rule]');
+    if (r) return saveRule(r.dataset.skill, r.dataset.rule === 'auto' ? null : { mode: r.dataset.rule, when: (S.settings.agentSkills[S.skAgent]?.[r.dataset.skill]?.when) || 'every' });
+    const f = e.target.closest('[data-prov]');
+    if (!f) return;
+    if (e.target.closest('[data-clearkey]')) return api(`/api/providers/${enc(f.dataset.prov)}`, { key: null }, 'PUT').then(() => { toast('Đã xoá key'); loadSettingsView(); }, (err) => toast(err.message));
+    const d = e.target.closest('[data-delprov]');
+    if (d) armed(d, 'Bấm lần nữa để xoá', () => api(`/api/providers/${enc(f.dataset.prov)}`, undefined, 'DELETE').then(() => { toast('Đã xoá ' + f.dataset.prov); loadSettingsView(); }, (err) => toast(err.message)));
+  });
+}
 
 
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
-  document.querySelectorAll('#themes button').forEach((b) => { b.classList.toggle('on', b.dataset.t === t); b.setAttribute('aria-checked', String(b.dataset.t === t)); });
+  document.getElementById('themes').value = t;
   try { localStorage.setItem('bear-agent-manager:theme', t); } catch {}
 }
-document.querySelectorAll('#themes button').forEach((b) => b.onclick = () => setTheme(b.dataset.t));
+const fontSel = document.getElementById('fonts');
+function setFont(f) {
+  const r = document.documentElement.style;
+  if (f) r.setProperty('--font', `"${f}",system-ui,-apple-system,"Segoe UI",sans-serif`); else r.removeProperty('--font');
+  fontSel.value = f;
+  try { localStorage.setItem('bear-agent-manager:font', f); } catch {}
+}
+fontSel.onchange = () => setFont(fontSel.value);
+try { setFont(localStorage.getItem('bear-agent-manager:font') || ''); } catch { setFont(''); }
+if (![...fontSel.options].some((o) => o.value === fontSel.value)) setFont('');
+
+// right-click a message group -> enlarged popup (copy of the rendered group, Esc / click outside closes)
+const zoom = document.createElement('div'); zoom.id = 'zoom'; zoom.hidden = true; document.body.appendChild(zoom);
+const closeZoom = () => { zoom.hidden = true; zoom.innerHTML = ''; };
+zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZoom(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
+$('log').addEventListener('contextmenu', (e) => {
+  const g = e.target.closest('.group'); if (!g || e.target.closest('a,pre,code,input,textarea')) return;
+  e.preventDefault();
+  zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true"><button class="zx" aria-label="Đóng">✕</button>${g.outerHTML}</div>`;
+  zoom.hidden = false;
+});
+
+const themeSel = document.getElementById('themes');
+themeSel.onchange = () => setTheme(themeSel.value);
+const themeOk = (t) => [...themeSel.options].some((o) => o.value === t);
 let savedTheme = 'auto'; try { savedTheme = localStorage.getItem('bear-agent-manager:theme') || 'auto'; } catch {}
 const urlTheme = new URLSearchParams(location.search).get('theme');
-if (['auto', 'light', 'gray', 'dark'].includes(urlTheme)) savedTheme = urlTheme;
+if (themeOk(urlTheme)) savedTheme = urlTheme;
+if (!themeOk(savedTheme)) savedTheme = 'auto';
 setTheme(savedTheme);
 renderAll();
 connect();

@@ -36,6 +36,18 @@ test('chat log sticks to the bottom by intent, not by measuring before render', 
   } finally { await hub.close(); }
 });
 
+test('theme picker: every option has a palette block (or is auto/light)', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const sel = html.match(/<select[^>]*id="themes"[\s\S]*?<\/select>/)![0];
+    const opts = [...sel.matchAll(/<option value="([a-z]+)">/g)].map((m) => m[1]);
+    assert.ok(opts.length >= 10, 'many themes');
+    for (const t of opts.filter((o) => !['auto', 'light'].includes(o))) assert.ok(html.includes(`:root[data-theme=${t}]`), `no palette for ${t}`);
+    for (const s of ['id="fonts"', "addEventListener('contextmenu'", 'id = \'zoom\'']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('inline script never calls $() before declaring it (a TDZ error blanks the whole page)', async () => {
   const { hub } = await makeHub();
   try {
@@ -45,11 +57,11 @@ test('inline script never calls $() before declaring it (a TDZ error blanks the 
   } finally { await hub.close(); }
 });
 
-test('UI has four tabs with their views', async () => {
+test('UI has five tabs with their views', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const t of ['rooms', 'workers', 'tokens', 'settings']) {
+    for (const t of ['rooms', 'workers', 'tokens', 'skills', 'settings']) {
       assert.ok(html.includes(`data-tab="${t}"`), `missing tab ${t}`);
       assert.ok(html.includes(`id="view-${t}"`), `missing view ${t}`);
     }
