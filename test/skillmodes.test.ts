@@ -37,3 +37,17 @@ test('listSkills reads user skills and installed plugin skills', () => {
   const names = listSkills(cfg).map((s) => [s.name, s.source]);
   assert.deepEqual(names.sort(), [['local-ai', 'user'], ['superpowers:brainstorming', 'plugin']]);
 });
+
+test('listSkills unquotes a quoted YAML description', () => {
+  const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-skq-'));
+  fs.mkdirSync(path.join(cfg, 'skills', 'q'), { recursive: true });
+  fs.writeFileSync(path.join(cfg, 'skills', 'q', 'SKILL.md'), '---\nname: q\ndescription: "Use when quoting"\n---\n');
+  assert.equal(listSkills(cfg)[0].description, 'Use when quoting');
+});
+
+test('listSkills reads a folded block-scalar description', () => {
+  const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-skb-'));
+  fs.mkdirSync(path.join(cfg, 'skills', 'b'), { recursive: true });
+  fs.writeFileSync(path.join(cfg, 'skills', 'b', 'SKILL.md'), '---\nname: b\ndescription: >\n  Lazy senior dev mode:\n  the smallest change.\nother: x\n---\n');
+  assert.equal(listSkills(cfg)[0].description, 'Lazy senior dev mode: the smallest change.');
+});

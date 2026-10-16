@@ -37,6 +37,10 @@ fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([
   { id: 'intern-2', label: 'Intern AI #2 (free)', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', auth: 'api-key', key: 'sk-demo-7335', models: { read: [], edit: [] } },
   { id: 'openrouter', label: 'OpenRouter (trả tiền)', tier: 'paid', enabled: false, baseUrl: 'https://openrouter.ai/api', auth: 'auth-token', key: '', models: { read: [], edit: [] } },
 ]));
+fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({
+  agentSkills: { firmware: { 'superpowers:brainstorming': { mode: 'force', when: 'first' }, 'ponytail:ponytail': { mode: 'force', when: 'every' }, 'frontend-design:*': { mode: 'ban' } } },
+  autoJobs: { handoff: { enabled: true, thresholdK: 300 } },
+}));
 const hub = await startHub({ dir, port, probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), listProcs: async () => procs, kill: async (pid) => { procs.length = 0; console.log('kill', pid); } });
 const st = hub.store;
 const fw = st.register({ id: 'a1b2c3d4-fw', cwd: 'D:/work/firmware' });

@@ -5,7 +5,11 @@ import { normAgent, type Settings, type SkillRule } from './settings.ts';
 export type SkillInfo = { name: string; source: 'user' | 'plugin'; plugin: string; description: string };
 
 function front(md: string, key: string): string {
-  return md.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))?.[1]?.trim() ?? '';
+  const m = md.match(new RegExp(`^${key}:[ \\t]*(.*)$((?:\\r?\\n[ \\t]+.*)*)`, 'm'));
+  if (!m) return '';
+  // YAML: a quoted scalar, or a block scalar ("> " / "|") whose text is on the indented lines below.
+  const v = /^[>|][+-]?$/.test(m[1].trim()) ? m[2].replace(/\s+/g, ' ').trim() : m[1].trim();
+  return v.replace(/^(["'])(.*)\1$/, '$2');
 }
 function skillsIn(dir: string): { name: string; description: string }[] {
   const out: { name: string; description: string }[] = [];

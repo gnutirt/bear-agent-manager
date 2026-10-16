@@ -330,6 +330,51 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .ubar .up{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .ubar .ur{color:var(--mute)}
 
+.setbox{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:4px 16px}
+.setbox .note{margin:10px 0 4px}
+.setrow{display:flex;align-items:center;gap:16px;padding:11px 0;border-top:1px solid var(--line)}
+.setbox>.setrow:first-child,.setbox>.note+.setrow{border-top:0}
+.setrow>span{flex:1;min-width:0}
+.setrow b{display:block;font-weight:600;font-size:13.5px}
+.setrow small{display:block;color:var(--mute);font-size:12.5px;margin-top:1px}
+.switch{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:11px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(16px)}
+@media (prefers-reduced-motion:reduce){.switch,.switch::after{transition:none}}
+.numin,.txtin,.vw input:not([type=checkbox]),.vw select{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:6px 10px;font-size:13px}
+.vw select option{background:var(--panel);color:var(--text)}
+.skgrid .tbl td:first-child{width:46%}.skgrid .tbl td:nth-child(2){width:18%}
+.numin{width:96px;text-align:right;font-variant-numeric:tabular-nums}
+.txtin{width:min(340px,40vw);font-family:var(--mono);font-size:12.5px}
+.vw input:focus,.vw select:focus{border-color:var(--accent);outline:0}
+.vw h3{font-size:13px;font-weight:700;margin:16px 0 8px;color:var(--mute)}
+.skgrid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;align-items:start}
+.agents{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.agent{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;text-align:left}
+.agent:hover{background:var(--hover)}
+.agent[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.agent .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent .cnt{font-size:11px;font-weight:700;border-radius:9px;padding:0 6px;line-height:17px;background:var(--accent);color:#fff}
+.search{width:100%;margin-bottom:4px}
+.rules{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.rule{font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;border:1px solid var(--line);background:var(--panel)}
+.rule.m-force{border-color:var(--accent);color:var(--accent)}
+.rule.m-ban{border-color:#E5484D;color:#E5484D}
+.tbl .sk{font-weight:600}
+.seg .m-force[aria-pressed=true]{background:var(--accent);color:#fff}
+.seg .m-ban[aria-pressed=true]{background:#E5484D;color:#fff}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+.pcard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.pcard label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mute);min-width:0}
+.pcard label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:13px}
+.pcard input:not([type=checkbox]),.pcard select{width:100%;color:var(--text)}
+.pcard .ph,.pcard .pf{display:flex;align-items:center;gap:8px}
+.pcard .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.spacer{flex:1}
+.addprov{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.addprov input{flex:1;min-width:140px}
+
 /* ---------- narrow panels (VS Code sidebar) ---------- */
 @media (max-width:760px){
   body{grid-template-columns:minmax(0,1fr)}
@@ -340,6 +385,9 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   body[data-tab=rooms] #tabs #tabsMenu{display:none}
   #tabs{padding:0 8px}
   section.view{padding:16px 14px 40px}
+  .skgrid{grid-template-columns:minmax(0,1fr)}
+  .agents{position:static;flex-direction:row;flex-wrap:wrap}
+  .setrow{flex-wrap:wrap}
   header{padding:10px 12px}
   #log,.compose-wrap,#presence{padding-left:12px;padding-right:12px}
   header .meta,.stack{display:none}
@@ -443,8 +491,8 @@ const I = {
   dots: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
 };
 
-async function api(p, body) {
-  const r = await fetch(p, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-room-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
+async function api(p, body, method) {
+  const r = await fetch(p, { method: method || (body ? 'POST' : 'GET'), headers: { 'content-type': 'application/json', 'x-room-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
   return d;
@@ -920,6 +968,7 @@ function connect() {
   es.addEventListener('forget', (e) => { delete S.sessions[JSON.parse(e.data).id]; renderAll(); });
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
+  es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
   es.onerror = () => { $('hubState').innerHTML = '<span class="led waiting"></span>mất kết nối'; };
@@ -1204,7 +1253,153 @@ $('view-tokens').addEventListener('click', (e) => {
   loadTokens();
 });
 
-function loadSettingsView() { $('view-settings').innerHTML = '<div class="vw"><h1>Cài đặt</h1></div>'; }
+/* ---------- Cài đặt tab ---------- */
+S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = '';
+const MODES = { force: 'Ép dùng', auto: 'Tự quyết', ban: 'Cấm' };
+const normAgent = (n) => String(n || '').trim().toLowerCase();
+const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
+/** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
+const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
+function loadSettingsView() {
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive')]).then(([s, p, sk, ar]) => {
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar;
+    if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
+    renderSettingsView();
+  }, (e) => toast(e.message));
+  renderSettingsView();
+}
+const sw = (path, on, label, hint = '') => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="checkbox" class="switch" data-set="${path}"${on ? ' checked' : ''}></label>`;
+const num = (path, v, label, hint, min, max) => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="number" class="numin" data-set="${path}" value="${v}" min="${min}" max="${max}"></label>`;
+function skillsBlock() {
+  const st = S.settings, sk = S.skills;
+  const agents = new Map();
+  for (const m of sk.members) if (!agents.has(normAgent(m.name))) agents.set(normAgent(m.name), m);
+  for (const a of Object.keys(st.agentSkills)) if (!agents.has(a)) agents.set(a, { id: '', name: a });
+  const list = [...agents.entries()].map(([k, m]) => {
+    const n = Object.keys(st.agentSkills[k] || {}).length, s = m.id && S.sessions[m.id];
+    return `<button class="agent" data-agent="${esc(k)}" aria-pressed="${k === S.skAgent}"><span class="led ${s ? s.status : ''}"></span><span class="an">${esc(m.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`;
+  }).join('') || '<div class="vempty">Chưa có agent nào trong hub.</div>';
+  const rules = st.agentSkills[S.skAgent] || {};
+  const q = S.skQuery.toLowerCase();
+  const groups = {};
+  for (const s of sk.skills) if (!q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)) (groups[s.plugin] ??= []).push(s);
+  const ruleRow = (name, desc, wildcard) => {
+    const own = rules[name], plugin = name.includes(':') ? name.split(':')[0] : '';
+    const inherited = !own && !wildcard && plugin && rules[plugin + ':*'];
+    const mode = own?.mode || 'auto';
+    // force on a whole plugin would push every one of its skills at once: only exact skills can be forced.
+    const btns = (wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban']).map((m) => `<button data-rule="${m}" data-skill="${esc(name)}" aria-pressed="${mode === m}" class="m-${m}">${MODES[m]}</button>`).join('');
+    const when = mode === 'force' ? `<select data-when="${esc(name)}" aria-label="Khi nào ép"><option value="every"${own.when === 'every' ? ' selected' : ''}>mỗi tin</option><option value="first"${own.when === 'first' ? ' selected' : ''}>tin đầu phiên</option></select>` : '';
+    return `<tr><td><span class="cut sk">${wildcard ? 'cả plugin' : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${inherited ? 'theo cả plugin: ' + MODES[inherited.mode] : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
+  };
+  const ruled = (plugin) => Object.keys(rules).some((n) => n.startsWith(plugin + ':') || (!plugin && !n.includes(':')));
+  const active = Object.entries(rules).map(([n, r]) => `<span class="rule m-${r.mode}">${esc(n)}: ${MODES[r.mode]}${r.mode === 'force' ? (r.when === 'first' ? ', tin đầu phiên' : ', mỗi tin') : ''}</span>`).join('');
+  const tables = Object.entries(groups).sort(([a], [b]) => Number(ruled(b)) - Number(ruled(a)) || a.localeCompare(b)).map(([plugin, items]) =>
+    `<h3>${plugin ? esc(plugin) : 'Skill riêng (~/.claude/skills)'}</h3>` + table(['Skill', '', 'Chế độ'], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('');
+  return `<div class="skgrid"><div class="agents">${list}</div><div>
+    ${S.skAgent ? `<div class="rules">${active || '<span class="small muted">Agent này chưa có rule nào: mọi skill đang Tự quyết.</span>'}</div>` : ''}
+    <input class="search" id="skQuery" placeholder="Tìm skill…" value="${esc(S.skQuery)}" aria-label="Tìm skill">
+    ${S.skAgent ? tables || '<div class="vempty">Không có skill nào khớp.</div>' : '<div class="vempty">Chọn một agent ở bên trái.</div>'}
+  </div></div>`;
+}
+function providerCard(p) {
+  const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
+  return `<form class="pcard" data-prov="${esc(p.id)}">
+    <div class="ph"><span class="led ${p.enabled && p.hasKey ? ledCls : ''}" title="${esc(ht)}"></span><b>${esc(p.label)}</b> ${tierBadge(p.tier)}<span class="spacer"></span><label class="inline"><input type="checkbox" name="enabled"${p.enabled ? ' checked' : ''}> Bật</label></div>
+    <label>Base URL<input name="baseUrl" value="${esc(p.baseUrl)}" spellcheck="false"></label>
+    <div class="two"><label>Xác thực<select name="auth"><option value="api-key"${p.auth === 'api-key' ? ' selected' : ''}>x-api-key</option><option value="auth-token"${p.auth === 'auth-token' ? ' selected' : ''}>Bearer token</option></select></label>
+    <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? 'đã lưu ' + esc(p.keyHint) + ' (để trống = giữ)' : 'chưa có key'}"></label></div>
+    <div class="two"><label>Model đọc<input name="read" value="${esc(p.models.read.join(', '))}" placeholder="mặc định của Intern"></label><label>Model sửa code<input name="edit" value="${esc(p.models.edit.join(', '))}" placeholder="mặc định của Intern"></label></div>
+    <div class="pf"><button class="btn primary">Lưu</button>${p.hasKey ? '<button type="button" class="btn" data-clearkey>Xoá key</button>' : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : '<button type="button" class="btn danger" data-delprov>Xoá nhà cung cấp</button>'}</div>
+  </form>`;
+}
+function renderSettingsView() {
+  if (S.tab !== 'settings') return;
+  const st = S.settings;
+  if (!st || !S.skills) { $('view-settings').innerHTML = '<div class="vw"><h1>Cài đặt</h1><div class="vempty">Đang tải…</div></div>'; return; }
+  const aj = st.autoJobs, ar = S.archive?.last;
+  const arState = !st.archive.dir && !S.archive?.dir ? 'Đang tắt.' : !ar ? 'Chưa sao lưu lượt nào kể từ khi hub chạy.'
+    : ar.ok ? `Lần gần nhất ${time(ar.at)}: chép ${ar.copiedFiles} file.` : `Không sao lưu được: ${esc(ar.reason)}`;
+  $('view-settings').innerHTML = `<div class="vw">
+    <h1>Cài đặt</h1><p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
+    <h2>Worker</h2><div class="setbox">
+      ${sw('skills.worker.enabled', st.skills.worker.enabled, 'Cho phép worker', 'Tắt thì hub từ chối mọi lượt worker; chat phải tự làm.')}
+      ${sw('skills.osin.enabled', st.skills.osin.enabled, 'Cho phép osin', 'Worker dọn dẹp: hồ sơ bàn giao, rút gọn tin nhắn, dọn biên bản.')}
+      ${sw('allowPaidFallback', st.allowPaidFallback, 'Tự chuyển sang tầng trả phí khi tầng free hết quota')}
+      ${num('workerCap', st.workerCap, 'Số worker chạy cùng lúc', 'Trên cả máy, 1–16. API free giới hạn chung theo phút.', 1, 16)}
+      ${sw('roomChat.autoSweep', st.roomChat.autoSweep, 'Tự dọn transcript vào room_chat mỗi 10 phút', 'Xem trước danh sách ở tab Worker trước khi bật.')}
+      <label class="setrow"><span><b>Thư mục sao lưu chat</b><small>${arState} Để trống để tắt.</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
+    </div>
+    <h2>Hub tự chạy osin</h2><div class="setbox">
+      <p class="small muted note">Nội dung chat và tin nhắn được gửi lên API của nhà cung cấp worker. Các lượt này không có quyền dùng tool nào.</p>
+      ${sw('autoJobs.handoff.enabled', aj.handoff.enabled, 'Làm hồ sơ bàn giao khi chat quá dài')}
+      ${num('autoJobs.handoff.thresholdK', aj.handoff.thresholdK, 'Ngưỡng ngữ cảnh (nghìn token)', '', 50, 2000)}
+      ${sw('autoJobs.digest.enabled', aj.digest.enabled, 'Rút gọn tin nhắn dài trong phòng')}
+      ${num('autoJobs.digest.minChars', aj.digest.minChars, 'Từ bao nhiêu ký tự', '', 1000, 100000)}
+      ${sw('autoJobs.notes.enabled', aj.notes.enabled, 'Đề xuất dọn biên bản phòng', 'Chỉ đề xuất, không bao giờ tự xoá.')}
+      ${num('autoJobs.notes.minNotes', aj.notes.minNotes, 'Khi biên bản có từ (mục)', '', 5, 500)}
+      ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, 'Tối đa số lượt mỗi ngày', '', 0, 200)}
+    </div>
+    <h2>Skill theo agent</h2><p class="small muted">Ép dùng: nhắc agent gọi skill (mỗi tin hoặc chỉ tin đầu phiên). Cấm: nhắc không dùng. Tự quyết: không nhắc gì. Ép dùng chỉ chọn được cho từng skill, không cho cả plugin.</p>
+    ${skillsBlock()}
+    <h2>Nhà cung cấp worker</h2>
+    <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
+    <form class="addprov" id="addProv"><input name="pid" placeholder="id, ví dụ intern-3" pattern="[a-z0-9-]{2,32}" required aria-label="id nhà cung cấp"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="Tầng"><option value="free">free</option><option value="paid">trả phí</option></select><button class="btn">${I.plus} Thêm nhà cung cấp</button></form>
+    <h2>Tài khoản Claude Pro</h2>
+    <div class="setbox"><p class="small muted note">Chờ Task 10. Lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
+      <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>
+    <h2>Thông tin</h2>
+    <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
+  </div>`;
+}
+async function saveSetting(el) {
+  const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
+  try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast('Đã lưu'); }
+  catch (e) { toast(e.message); }
+  renderSettingsView();
+}
+async function saveRule(skill, rule) {
+  try { S.settings = await api('/api/settings', { agentSkills: { [S.skAgent]: { [skill]: rule } } }, 'PUT'); }
+  catch (e) { toast(e.message); }
+  renderSettingsView();
+}
+async function saveProvider(form) {
+  const id = form.dataset.prov;
+  const patch = { enabled: form.enabled.checked, baseUrl: form.baseUrl.value.trim(), auth: form.auth.value,
+    models: { read: splitList(form.read.value), edit: splitList(form.edit.value) } };
+  if (form.key.value.trim()) patch.key = form.key.value.trim();   // empty = keep the saved key
+  try { await api(`/api/providers/${enc(id)}`, patch, 'PUT'); toast('Đã lưu ' + id); loadSettingsView(); }
+  catch (e) { toast(e.message); }
+}
+const sv = $('view-settings');
+sv.addEventListener('change', (e) => {
+  if (e.target.matches('[data-set]')) return saveSetting(e.target);
+  if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
+});
+sv.addEventListener('input', (e) => {
+  if (e.target.id !== 'skQuery') return;
+  S.skQuery = e.target.value; renderSettingsView();
+  const q = $('skQuery'); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+});
+sv.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.dataset.prov) return saveProvider(f);
+  if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
+});
+sv.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-agent]');
+  if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
+  const r = e.target.closest('[data-rule]');
+  if (r) return saveRule(r.dataset.skill, r.dataset.rule === 'auto' ? null : { mode: r.dataset.rule, when: (S.settings.agentSkills[S.skAgent]?.[r.dataset.skill]?.when) || 'every' });
+  const f = e.target.closest('[data-prov]');
+  if (!f) return;
+  if (e.target.closest('[data-clearkey]')) return api(`/api/providers/${enc(f.dataset.prov)}`, { key: null }, 'PUT').then(() => { toast('Đã xoá key'); loadSettingsView(); }, (err) => toast(err.message));
+  const d = e.target.closest('[data-delprov]');
+  if (d) armed(d, 'Bấm lần nữa để xoá', () => api(`/api/providers/${enc(f.dataset.prov)}`, undefined, 'DELETE').then(() => { toast('Đã xoá ' + f.dataset.prov); loadSettingsView(); }, (err) => toast(err.message)));
+});
+
+
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   document.querySelectorAll('#themes button').forEach((b) => { b.classList.toggle('on', b.dataset.t === t); b.setAttribute('aria-checked', String(b.dataset.t === t)); });

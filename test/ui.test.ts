@@ -72,3 +72,12 @@ test('token tab: range, KPIs, stacked chart with a table view, accounts block wa
     for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/accounts'", 'Asia/Ho_Chi_Minh', 'Xem dạng bảng', '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+test('settings tab: worker switches, auto jobs, per-agent skill rules, providers (keys write-only), accounts frame', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', 'Reload Window', 'Ép dùng', 'Cấm', 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
+    assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
+  } finally { await hub.close(); }
+});

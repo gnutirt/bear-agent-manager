@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- UI: four tabs. Worker (providers, live and recent runs, room_chat), Token (daily free/paid chart, per provider/model, chat context), Cài đặt (worker switches, automatic osin jobs, per-agent skill rules, providers with write-only keys; Claude accounts wait for Task 10).
 - Fix: the chat log stays pinned to the newest message (composer/notice height changes, late images, own messages, room switch, hidden panel); expanded messages stay expanded.
 - The hub can start osin by itself (handoff dossier when a chat passes a context threshold, digest of long room messages, notes cleanup proposal) when allowed in Settings; each job once, daily cap; never deletes notes.
 - Every chat learns at start which workers are on (and its own forced/banned skills); the hub health-checks provider keys every 30 minutes.
