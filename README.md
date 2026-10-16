@@ -139,6 +139,13 @@ back-and-forth discussions short in time so the cache stays warm.
   cannot be told apart from a background helper).
 - On Windows with Node 24, the hooks use `node:http` rather than `fetch` before `process.exit()`
   (a libuv assertion otherwise aborts the process).
+- Claude Code reads `hooks/hooks.json` when a chat starts. After updating the plugin (new hooks,
+  such as `PreCompact` for per-agent compaction), chats already open keep the old hooks until they
+  are reopened or the editor runs **Developer: Reload Window**. The installed plugin copy must be
+  updated too (`claude plugin install` again): the cache does not follow the repo.
+- Per-agent compaction (`agentCompact` in Settings) answers Claude Code's `PreCompact` http hook
+  with `{"decision":"block"}`; checked live on 2.1.300. If the hub is down the hook fails and
+  Claude Code compacts as usual.
 
 ## Development
 
