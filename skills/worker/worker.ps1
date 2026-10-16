@@ -46,6 +46,12 @@ $settings = Read-Json (Join-Path $hubHome "settings.json")
 if ($settings -and $settings.skills -and $settings.skills.$Kind -and $settings.skills.$Kind.enabled -eq $false) {
     Write-Output "[worker] skill '$Kind' is turned off in Bear Agent Manager settings: do the task yourself"; exit 4
 }
+# settings.workerRoutes: per turn type (read / edit / osin) off switch + provider + model. Explicit -Provider / -Model win.
+$routeKey = if ($Kind -eq "osin") { "osin" } elseif ($Tools -match 'Edit|Write') { "edit" } else { "read" }
+$route = if ($settings -and $settings.workerRoutes) { $settings.workerRoutes.$routeKey } else { $null }
+if ($route -and $route.enabled -eq $false) {
+    Write-Output "[worker] route '$routeKey' is turned off in Bear Agent Manager settings: do the task yourself"; exit 4
+}
 $allowPaid = [bool]($settings -and $settings.allowPaidFallback)
 $defaultModels = [pscustomobject]@{ read = @("deepseek-v4-flash-0731", "glm-5.3", "kimi-k2.6"); edit = @("kimi-k2.6", "glm-5.3", "deepseek-v4-pro-0813") }
 # Without providers.json: the built-in free provider + legacy key file / env.
@@ -62,11 +68,23 @@ foreach ($p in $providers) {
     }
 }
 $usable = { param($t) $providers | Where-Object { $_.enabled -and $_.key -and $_.tier -eq $t -and (-not $Provider -or $_.id -eq $Provider) } }
-$plan = switch ($Tier) {
-    "free" { @(& $usable "free") }
-    "paid" { @(& $usable "paid") }
-    default { @(& $usable "free") + $(if ($allowPaid) { @(& $usable "paid") } else { @() }) }
+$mkPlan = {
+    switch ($Tier) {
+        "free" { @(& $usable "free") }
+        "paid" { @(& $usable "paid") }
+        default { @(& $usable "free") + $(if ($allowPaid) { @(& $usable "paid") } else { @() }) }
+    }
 }
+$routed = $false
+if (-not $Provider -and $route -and $route.provider -and $route.provider -ne "auto") {
+    $Provider = "$($route.provider)"; $routed = $true
+}
+$plan = @(& $mkPlan)
+if ($routed -and -not $plan) {
+    Write-Output "[worker] workerRoutes.$routeKey provider '$Provider' is not usable (off, no key, or wrong tier): using automatic"
+    $Provider = ""; $routed = $false; $plan = @(& $mkPlan)
+}
+if ($routed -and $Model -eq "auto" -and $route.model -and $route.model -ne "auto") { $Model = "$($route.model)" }
 if (-not $plan) { Write-Output "[worker] No usable provider for tier '$Tier' (add a key in Bear Agent Manager > Cài đặt)"; exit 2 }
 $prov = $null
 # Wait while the hub reports the cap reached; give up waiting after 15 min. Hub down -> run right away.

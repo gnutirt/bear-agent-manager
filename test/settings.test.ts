@@ -69,3 +69,17 @@ test('archive switch pauses archiving without forgetting the folder', async () =
     assert.equal((await call<any>('/api/archive')).dir, 'X:\mem');
   } finally { await hub.close(); }
 });
+
+test('workerRoutes: unknown kinds dropped, bad values keep the old ones, a provider change resets the model', () => {
+  const d = defaultSettings(4);
+  assert.deepEqual(d.workerRoutes.osin, { enabled: true, provider: 'auto', model: 'auto' });
+  let s = patchSettings(d, { workerRoutes: { read: { provider: 'intern-2', model: 'kimi-k2.6' }, edit: { enabled: false }, bogus: { enabled: false }, osin: { provider: 'Bad Id!', model: 5 } } });
+  assert.deepEqual(s.workerRoutes.read, { enabled: true, provider: 'intern-2', model: 'kimi-k2.6' });
+  assert.equal(s.workerRoutes.edit.enabled, false);
+  assert.deepEqual(s.workerRoutes.osin, { enabled: true, provider: 'auto', model: 'auto' });
+  assert.ok(!('bogus' in s.workerRoutes));
+  s = patchSettings(s, { workerRoutes: { read: { provider: 'openrouter' } } });
+  assert.deepEqual(s.workerRoutes.read, { enabled: true, provider: 'openrouter', model: 'auto' });
+  s = patchSettings(s, { workerRoutes: { read: { provider: 'auto', model: 'x' } } });
+  assert.equal(s.workerRoutes.read.model, 'auto');
+});

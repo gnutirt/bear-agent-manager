@@ -54,3 +54,8 @@ test('worker.ps1 prints its JSON result as pure ASCII, readable by any caller co
   assert.ok(ps.includes(String.raw`[regex]::Replace($last, '[^\x00-\x7F]'`), 'non-ASCII escaped as \\uXXXX');
   assert.ok(ps.includes('Write-Output $ascii'), 'the escaped line is the one printed');
 });
+
+test('worker.ps1 honours settings.workerRoutes (off -> exit 4, unusable provider -> automatic, explicit -Provider/-Model win)', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  for (const s of ['$settings.workerRoutes.$routeKey', '$route.enabled -eq $false', 'is not usable', 'if (-not $Provider -and $route', '$Model -eq "auto" -and $route.model']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
+});

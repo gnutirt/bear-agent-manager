@@ -1419,6 +1419,20 @@ function providerCard(p) {
     <div class="pf"><button class="btn primary">Lưu</button>${p.hasKey ? '<button type="button" class="btn" data-clearkey>Xoá key</button>' : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : '<button type="button" class="btn danger" data-delprov>Xoá nhà cung cấp</button>'}</div>
   </form>`;
 }
+const ROUTES = { read: 'Đọc / khảo sát', edit: 'Sửa file', osin: 'Osin (bàn giao, rút gọn, dọn biên bản)' };
+/** P1b: per turn type, an off switch plus a provider and model ("Tự động" = free first, then each provider's own chain). */
+function routesBlock() {
+  const rows = Object.entries(ROUTES).map(([k, l]) => {
+    const r = S.settings.workerRoutes[k], p = S.providers.find((x) => x.id === r.provider);
+    const models = p ? [...new Set([...p.models.read, ...p.models.edit, ...(r.model !== 'auto' ? [r.model] : [])])] : [];
+    const opt = (v, t, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`;
+    return `<tr><td>${l}</td><td><input type="checkbox" class="switch" data-set="workerRoutes.${k}.enabled"${r.enabled ? ' checked' : ''} aria-label="Bật loại lượt ${esc(l)}"></td>
+      <td><select data-set="workerRoutes.${k}.provider" aria-label="Nhà cung cấp cho ${esc(l)}">${opt('auto', 'Tự động', r.provider)}${S.providers.map((x) => opt(x.id, x.label, r.provider)).join('')}</select></td>
+      <td><select data-set="workerRoutes.${k}.model" aria-label="Model cho ${esc(l)}"${p ? '' : ' disabled'}>${opt('auto', 'Tự động', r.model)}${models.map((m) => opt(m, m, r.model)).join('')}</select></td></tr>`;
+  }).join('');
+  return `<h2>Phân việc</h2><div class="setbox"><p class="small muted note">Chọn ai chạy từng loại lượt worker. Tự động: tầng free trước, rồi chuỗi model của từng nhà cung cấp. Nhà cung cấp chọn mà không dùng được (tắt, thiếu key) thì worker rơi về Tự động và ghi một dòng vào log lượt. Tham số -Provider / -Model khi gọi worker luôn thắng. Công tắc Cho phép worker/osin ở trên vẫn là công tắc tổng.</p>
+    ${table(['Loại lượt', 'Bật', 'Nhà cung cấp', 'Model'], rows)}</div>`;
+}
 const SUBS = { general: 'Chung', worker: 'Worker', lead: 'Trưởng phòng', compact: 'Compact', providers: 'Nhà cung cấp', account: 'Tài khoản' };
 function renderSettingsView() {
   if (S.tab !== 'settings') return;
@@ -1444,7 +1458,7 @@ function renderSettingsView() {
       ${sw('allowPaidFallback', st.allowPaidFallback, 'Tự chuyển sang tầng trả phí khi tầng free hết quota')}
       ${num('workerCap', st.workerCap, 'Số worker chạy cùng lúc', 'Trên cả máy, 1–16. API free giới hạn chung theo phút.', 1, 16)}
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, 'Tự dọn transcript vào room_chat mỗi 10 phút', 'Xem trước danh sách ở tab Worker trước khi bật.')}
-    </div>`,
+    </div>` + routesBlock(),
     lead: `    <h2>Trưởng phòng</h2><div class="setbox">
       ${sw('archive.enabled', arOn, 'Sao lưu chat', 'Chép phần mới của mọi chat sang thư mục bên dưới mỗi 10 phút và khi một chat đóng. Không bao giờ xoá gì.')}
       <label class="setrow"><span><b>Thư mục sao lưu</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>

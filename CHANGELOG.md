@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Worker routes (settings `workerRoutes`, Cài đặt > Worker > Phân việc): per turn type (read / edit / osin) an off switch, a provider and a model; "auto" keeps the old behaviour. worker.ps1 exits 4 for a switched-off route, falls back to auto (with a log line) when the chosen provider is unusable; explicit -Provider/-Model still win.
 - UI: Cài đặt split into sub-tabs (Chung, Worker, Trưởng phòng, Compact, Nhà cung cấp, Tài khoản); Claude Pro usage (VS Code + Antigravity) now on top of the Token tab; the room-lead star in the members menu is a text button (Phong trưởng phòng / Bỏ trưởng phòng).
 - Claude Pro usage (read only): GET /api/claude-usage shows each logged-in account (VS Code ~/.claude, Antigravity and any CLAUDE_CONFIG_DIR; same email = one row) with its 5-hour and weekly use, cached 5 minutes, polled every 15 minutes; one @you warning per cycle at 80% (5 h) / 90% (week). Token tab: Claude Pro block; Phòng tab: account chip per chat. The hub only reads .credentials.json, never writes or refreshes it, and never returns or logs a token.
 - Light wake (`agentCompact[agent].wakeCompact`, off by default): an offline agent whose chat reached its pct (150k without one) is compacted with `claude --resume <id> -p /compact` before the wake turn; the room shows "X được compact trước khi gọi dậy (343k → Nk)". A failed compaction still wakes it with a plain resume.

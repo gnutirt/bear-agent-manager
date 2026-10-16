@@ -12,10 +12,14 @@ export type AutoJobs = {
   handoff: { enabled: boolean; thresholdK: number }; digest: { enabled: boolean; minChars: number };
   notes: { enabled: boolean; minNotes: number }; maxRunsPerDay: number;
 };
+export type WorkerRoute = { enabled: boolean; provider: string; model: string };   // provider/model: 'auto' or an id
+const ROUTE_KINDS = ['read', 'edit', 'osin'] as const;
+const autoRoute = (): WorkerRoute => ({ enabled: true, provider: 'auto', model: 'auto' });
 export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
   agentSkills: Record<string, Record<string, SkillRule>>;
   agentCompact: Record<string, AgentCompact>;   // empty = Claude Code's own behavior for everyone
+  workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
@@ -27,7 +31,7 @@ export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {},
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -82,6 +86,13 @@ export function patchSettings(s: Settings, p: any): Settings {
       if (list.length) rt[k] = list; else delete rt[k];
     }
   }
+  const routes = {} as Settings['workerRoutes'];
+  for (const k of ROUTE_KINDS) {
+    const cur = s.workerRoutes?.[k] ?? autoRoute(), r = p?.workerRoutes?.[k];
+    const provider = typeof r?.provider === 'string' && /^(auto|[a-z0-9-]{1,32})$/.test(r.provider) ? r.provider : cur.provider;
+    const model = typeof r?.model === 'string' && /^(auto|[\w.\/:@-]{1,80})$/.test(r.model) ? r.model : provider !== cur.provider ? 'auto' : cur.model;
+    routes[k] = { enabled: bool(r?.enabled, cur.enabled), provider, model: provider === 'auto' ? 'auto' : model };   // a model only means something with a provider
+  }
   const aj = p?.autoJobs ?? {};
   return {
     skills: {
@@ -91,6 +102,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     agentSkills: agents,
     agentCompact: compact,
     reviveTools: rt,
+    workerRoutes: routes,
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },
       digest: { enabled: bool(aj.digest?.enabled, s.autoJobs.digest.enabled), minChars: int(aj.digest?.minChars, s.autoJobs.digest.minChars, 1000, 100_000) },
