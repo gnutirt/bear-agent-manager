@@ -2442,6 +2442,19 @@ export function joinAnswer(items: Item[], sentTurnId: string): string {
 
 ---
 
+### Task 10a: Đọc usage Claude Pro (chỉ đọc, làm trước T17)
+
+Thiết kế Planner, Boss duyệt 2026-10-16. Tách phần đọc khỏi T10; không tráo file nào nên không cần chủ repo ngồi máy. Người làm: Planner (sau commit T17).
+
+- `hub/usage.ts`: `listAccounts(configDirs)` → `{ configDir, label, email, plan, expiresAt }[]` (email từ `~/.claude.json` khi là config mặc định, `<cfg>/.claude.json` khi là `CLAUDE_CONFIG_DIR`; 2 config dir cùng email gộp một dòng). `parseUsage(json)` + `fetchUsage(cfg, fetchImpl)`: `GET https://api.anthropic.com/api/oauth/usage`, header `Authorization: Bearer` + `anthropic-beta: oauth-2025-04-20` → `five_hour` / `seven_day` (`utilization`, `resets_at`). Không bao giờ ghi file, không refresh token (Claude Code sở hữu token).
+- Config dir: `~/.claude` + `store.state.sessions[*].configDir` (đọc được cả acc Antigravity).
+- Cache theo acc 5 phút; 429 / lỗi mạng giữ số liệu cũ + `usageError`; token hết hạn → "hết hạn, mở Claude để làm mới"; macOS (Keychain) → "chưa hỗ trợ".
+- Hub: `GET /api/claude-usage[?refresh=1]` → `{ accounts: [{ label, email, plan, fiveHour, sevenDay, usageError, fetchedAt }] }`, không bao giờ có token. Poll nền 15 phút (chỉ khi có ≥1 acc): ≥80% của 5h (và ≥90% của tuần) → `postSystem` `@you` đúng 1 lần mỗi chu kỳ, khoá `email + window + resets_at` lưu trong state. Mỗi phiên ghi kèm acc (`configDir` → email).
+- UI: tab Token, khối "Claude Pro": mỗi acc 2 thanh (5 giờ, tuần), cam ≥70%, đỏ ≥90%, giờ reset `Asia/Ho_Chi_Minh`, nút Làm mới (hàm `usageBar` có từ T13). Tab Phòng: chip acc cạnh tên chat ("gmail" / "hdbank").
+- **Bắt buộc khi review (Boss):** (1) test chứng minh response `/api/claude-usage` và log hub không chứa `accessToken`/`refreshToken`, kể cả khi lỗi; (2) đọc `.credentials.json` vào bộ nhớ, không giữ handle, không ghi; test HOME giả, mtime không đổi; (3) chạy thật chỉ đọc: báo % 5h/tuần của 2 acc (email che `n***@`), ảnh khối Claude Pro 3 theme.
+- Test (fetch giả, config giả): parseUsage mẫu; hết hạn; 401; 429 giữ số liệu cũ; lỗi mạng không crash hub; không lộ token; cảnh báo 80% một lần mỗi chu kỳ, chu kỳ mới (resets_at đổi) thì báo lại; 2 config dir cùng email gộp.
+- Rủi ro: `/api/oauth/usage` là API nội bộ, bản Claude Code mới có thể đổi; khi đó UI hiện lỗi chứ không sai số.
+
 ### Task 17: Setup máy mới (R1 + R2) — skill `bear-setup` + `scripts/machine.mjs`
 
 Thiết kế của Planner (2026-10-16 10:20), Boss duyệt kèm chỉnh sửa (đã gộp vào dưới). Yêu cầu chung của chủ repo: mỗi tính năng phải có skill/prompt trong plugin hoặc tài liệu rõ ràng, để trên máy mới chỉ cần gọi `/bear-setup`.
@@ -2465,6 +2478,17 @@ Nghiencuu (research-change-acc, Claude Code 2.1.300 + docs code.claude.com): kh�
 - SessionStart `source=compact|clear`: chèn `<hub>/handoffs/<sid>.md` mới nhất + biên bản phòng, cắt ≤10.000 ký tự (giới hạn additionalContext).
 - Nếu (a) tệ: bỏ `hold`, chỉ giữ ngưỡng chung + chèn hồ sơ + nhắc user `/clear` khi vượt ngưỡng.
 - Test: route pre-compact (auto/manual, dưới/trên ngưỡng, agent không có rule = cho qua); session-start compact chèn hồ sơ và cắt đúng giới hạn.
+
+### Task 18b: Wake nhẹ — compact trước khi gọi dậy agent offline
+
+Thiết kế Planner, Boss duyệt 2026-10-16. Chỉ áp cho agent offline bị revive gọi dậy (không chèn `/compact` vào tab đang mở được). Setting `agentCompact[agent].wakeCompact: boolean`, mặc định false.
+
+- **Step 0 — cổng bắt buộc, báo Boss trước khi code**, thử trên **một session thử nghiệm riêng** (chat giả vài chục k token), không bao giờ trên session thật: (1) `claude --resume <id> -p "/compact"` có chạy trong print mode không; exit code; còn đúng session id cũ không; bao lâu; bao nhiêu token. (2) Sau đó `--resume <id> -p "<tin>"`: context còn bao nhiêu (`readContextTokens`). (3) Compact đọc toàn bộ context một lần trên acc chính → chỉ compact khi ctx ≥ `pct` của T18 (hoặc ≥ 150k nếu không đặt).
+- **Nhánh A (Step 0 chạy được):** `spawnRevive`: `wakeCompact` bật và ctx ≥ ngưỡng → chạy `-p "/compact"` trước (cùng tools, timeout 10 phút), xong mới gửi tin. Compact lỗi thì vẫn gửi tin bằng resume thường. Room hiện "Planner được compact trước khi gọi dậy (343k → Nk)".
+- **Nhánh B (A không chạy được hoặc ghi sang session mới):** không resume; `claude -p` mới cùng cwd, prompt = `handoffs/<sid>.md` + biên bản phòng + tin chưa đọc, ≤ 60k ký tự. Hồ sơ cũ hơn lần hoạt động cuối → chạy osin handoff trước (T9b, không tool); osin lỗi → resume thường. Hub chuyển danh tính sang session mới: tên, phòng, lead ★, cursor, rule skill và `agentCompact` (dùng đường rename của T8b); session cũ thành `<tên> (cũ)` và rời phòng. Room hiện "Planner tiếp tục ở phiên mới từ hồ sơ bàn giao".
+- Hồ sơ bàn giao làm sáng 2026-10-16 bị hỏng dấu tiếng Việt (lỗi encoding, sửa ở `093adee` + `c1fcc28`): làm lại trước khi dùng để wake.
+- Test (`revive` stub): wakeCompact tắt → hành vi cũ; bật mà ctx dưới ngưỡng → không compact; trên ngưỡng → nhánh A gọi `/compact` rồi tin, A lỗi → vẫn gửi tin; nhánh B: session mới nhận đủ tên/phòng/lead/cursor/rule, session cũ "(cũ)", hồ sơ cũ thì osin chạy trước.
+- Ngoài phạm vi (todoplan): revive chỉ cấp `Read/Grep/Glob/LS` + room tools nên agent bị gọi dậy không ghi file được; đề xuất setting theo agent `reviveTools` (mặc định giữ như cũ).
 
 ### Task 19: Tự spawn trưởng phòng (R3)
 
