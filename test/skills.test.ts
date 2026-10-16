@@ -36,3 +36,8 @@ test('worker.ps1 reads providers.json, supports -Tier and logs usage', () => {
     assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
   }
 });
+
+test('worker.ps1 -Tools none passes an empty tool list that survives PowerShell 5.1', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  assert.ok(ps.includes(`if ($Tools -eq "none") { @("--tools", '""') }`));
+});

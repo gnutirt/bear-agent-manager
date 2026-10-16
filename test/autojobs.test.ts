@@ -28,3 +28,12 @@ test('notes prompt carries the room and its notes as JSON; CRLF jobs.md works', 
   const md = '## notes — z\r\n\r\n```\r\nBiên bản của phòng <room>: <dán JSON>.\r\n```\r\n';
   assert.equal(jobPrompt({ kind: 'notes', room: 'proj', notes: [{ id: 1, text: 'a', by: 'x' }] }, md), 'Biên bản của phòng proj: [{"id":1,"text":"a","by":"x"}].');
 });
+
+test('automatic osin runs get no tools: the whole input is inline', async () => {
+  const { osinArgs } = await import('../hub/server.ts');
+  const argv = osinArgs({ promptFile: 'p', dir: 'd', task: 't' });
+  assert.equal(argv[argv.indexOf('-Tools') + 1], 'none');
+  assert.ok(!argv.some((a) => /Bash|Read|Edit|Write/.test(a)), argv.join(' '));
+  const md = '## handoff — x\n\n```\nĐọc file <chat.txt> rồi viết hồ sơ\n```\n';
+  assert.ok(jobPrompt(H, md, 'USER: hello').endsWith('---\nUSER: hello'));
+});

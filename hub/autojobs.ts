@@ -29,9 +29,10 @@ function block(md: string, name: string): string {
   return m ? m[1].trim() : '';
 }
 
-export function jobPrompt(j: AutoJob, jobsMd: string): string {
+/** The whole input goes into the prompt: automatic runs have no tools (see osinArgs in server.ts). */
+export function jobPrompt(j: AutoJob, jobsMd: string, chat = ''): string {
   const b = block(jobsMd, j.kind);
-  if (j.kind === 'handoff') return b.replace(/<chat\.txt>/g, 'chat.txt');                 // the hub writes chat.txt next to the prompt
+  if (j.kind === 'handoff') return b.replace(/<chat\.txt>/g, 'chat.txt (dán nguyên văn bên dưới, sau dòng ---)') + '\n\n---\n' + chat;
   if (j.kind === 'digest') return b.replace(/<N>/g, '15') + '\n\n---\n' + j.text;
   return b.replace(/<room>/g, j.room).replace(/<dán JSON>/g, JSON.stringify(j.notes));
 }

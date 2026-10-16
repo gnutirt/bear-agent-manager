@@ -90,6 +90,9 @@ Log-Line @{ event = "start"; pid = $PID; kind = $Kind; dir = $Dir; task = (Short
 
 # auto: read-only work -> cheap 1M-ctx flash; editing code -> stronger agentic coders. Later entries are fallbacks.
 $edits = $Tools -match 'Edit|Write'
+# -Tools none: no tools at all (jobs whose whole input is in the prompt, e.g. the hub's automatic runs).
+# PowerShell 5.1 drops "" arguments to native programs, so the empty list is passed as a literal "".
+$toolArgs = if ($Tools -eq "none") { @("--tools", '""') } else { @("--tools", $Tools, "--allowedTools", $Tools) }
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
 # Worker transcripts go to the hub's worker-config dir, not ~/.claude/projects/<repo> (they flooded each repo's chat list).
 $env:CLAUDE_CONFIG_DIR = Join-Path $hubHome "worker-config"
@@ -114,7 +117,7 @@ foreach ($prov in $plan) {
     foreach ($m in $chain) {
         foreach ($v in "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL") { Set-Item "Env:$v" $m }
         for ($try = 1; $try -le 2; $try++) {
-            $out = $prompt | claude -p --bare --model $m --tools $Tools --allowedTools $Tools --strict-mcp-config --output-format json 2>&1 | Out-String
+            $out = $prompt | claude -p --bare --model $m @toolArgs --strict-mcp-config --output-format json 2>&1 | Out-String
             $last = ($out.Trim() -split "`r?`n")[-1]
             try { $j = $last | ConvertFrom-Json } catch { $j = $null }
             if ($j -and -not $j.is_error) { Write-Output "[worker] provider=$($prov.id) model=$m"; Write-Output $last; Finish 0 $m $j "" }

@@ -29,9 +29,13 @@ const UI_FILE = path.join(ROOT, 'ui', 'index.html');
 const MAX_BODY = 64 * 1024;
 
 export type SpawnWorker = (a: { promptFile: string; dir: string; task: string }) => Promise<{ code: number; stdout: string }>;
-/** One osin run of the bundled worker.ps1 (detached from the request; the hub never waits on it). */
-const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powershell',
-  ['-NoProfile', '-File', path.join(ROOT, 'skills', 'worker', 'worker.ps1'), '-Kind', 'osin', '-Task', a.task, '-By', 'hub', '-PromptFile', a.promptFile, '-Dir', a.dir],
+/**
+ * argv of one automatic osin run. -Tools none: nobody watches these runs and their input is chat and room
+ * text (anything pasted from the web), so the worker gets no tools at all; the whole input is in the prompt.
+ */
+export const osinArgs = (a: { promptFile: string; dir: string; task: string }) =>
+  ['-NoProfile', '-File', path.join(ROOT, 'skills', 'worker', 'worker.ps1'), '-Kind', 'osin', '-Tools', 'none', '-Task', a.task, '-By', 'hub', '-PromptFile', a.promptFile, '-Dir', a.dir];
+const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powershell', osinArgs(a),
   { maxBuffer: 16 << 20, windowsHide: true },
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
@@ -355,14 +359,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   async function runAutoJob(j: AutoJob, key: string) {
     const dir = path.join(opts.dir, 'autojobs', key.replace(/[^\w.-]+/g, '_'));
     fs.mkdirSync(dir, { recursive: true });
+    let chat = '';
     if (j.kind === 'handoff') {
-      const chat = await new Promise<string>((resolve, reject) => execFile(process.execPath,
+      chat = await new Promise<string>((resolve, reject) => execFile(process.execPath,
         [path.join(ROOT, 'skills', 'osin', 'extract-chat.mjs'), j.transcript], { maxBuffer: 64 << 20, windowsHide: true },
         (err, stdout) => (err ? reject(err) : resolve(String(stdout)))));
-      fs.writeFileSync(path.join(dir, 'chat.txt'), chat);
+      fs.writeFileSync(path.join(dir, 'chat.txt'), chat);   // kept for the owner to inspect; the worker gets it inline
     }
     const promptFile = path.join(dir, 'prompt.txt');
-    fs.writeFileSync(promptFile, jobPrompt(j, fs.readFileSync(path.join(ROOT, 'skills', 'osin', 'jobs.md'), 'utf8')));
+    fs.writeFileSync(promptFile, jobPrompt(j, fs.readFileSync(path.join(ROOT, 'skills', 'osin', 'jobs.md'), 'utf8'), chat));
     const task = j.kind === 'handoff' ? `handoff: ${j.name}` : j.kind === 'digest' ? `digest: #${j.room} tin ${j.messageId}` : `notes: #${j.room}`;
     const out = await (opts.spawnWorker ?? spawnOsin)({ promptFile, dir, task: task.slice(0, 100) });
     if (out.code !== 0) return;
