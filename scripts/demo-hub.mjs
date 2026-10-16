@@ -41,11 +41,24 @@ fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({
   agentSkills: { firmware: { 'superpowers:brainstorming': { mode: 'force', when: 'first' }, 'ponytail:ponytail': { mode: 'force', when: 'every' }, 'frontend-design:*': { mode: 'ban' } } },
   autoJobs: { handoff: { enabled: true, thresholdK: 300 } },
 }));
-const hub = await startHub({ dir, port, probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), listProcs: async () => procs, kill: async (pid) => { procs.length = 0; console.log('kill', pid); } });
+// Two fake Claude logins (fake tokens) and a fake usage endpoint: the demo never reads real credentials.
+const home = path.join(dir, 'home');
+const login = (cfg, email) => {
+  fs.mkdirSync(path.join(home, cfg), { recursive: true });
+  fs.writeFileSync(path.join(home, cfg, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'demo-' + cfg, expiresAt: Date.now() + 864e5, subscriptionType: 'pro' } }));
+  fs.writeFileSync(cfg === '.claude' ? path.join(home, '.claude.json') : path.join(home, cfg, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: email } }));
+};
+login('.claude', 'demo.vscode@gmail.com'); login('.claude-antigravity', 'demo.ag@example.com');
+const usageFetch = async (_url, init) => {
+  const ag = String(init.headers.authorization).includes('antigravity'), at = (h) => new Date(Date.now() + h * 3600e3).toISOString();
+  return new Response(JSON.stringify(ag ? { five_hour: { utilization: 93, resets_at: at(1.5) }, seven_day: { utilization: 61, resets_at: at(70) } }
+    : { five_hour: { utilization: 34, resets_at: at(3) }, seven_day: { utilization: 76, resets_at: at(50) } }));
+};
+const hub = await startHub({ dir, port, probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), listProcs: async () => procs, kill: async (pid) => { procs.length = 0; console.log('kill', pid); }, usageHome: home, usageFetch });
 const st = hub.store;
-const fw = st.register({ id: 'a1b2c3d4-fw', cwd: 'D:/work/firmware' });
+const fw = st.register({ id: 'a1b2c3d4-fw', cwd: 'D:/work/firmware', configDir: path.join(home, '.claude-antigravity') });
 const web = st.register({ id: 'e5f6a7b8-web', cwd: 'D:/work/web-dashboard' });
-const app = st.register({ id: 'c9d0e1f2-app', cwd: 'D:/work/mobile-app' });
+const app = st.register({ id: 'c9d0e1f2-app', cwd: 'D:/work/mobile-app', configDir: path.join(home, '.claude-antigravity') });
 st.setIde(fw.id, 'antigravity'); st.setIde(web.id, 'vscode'); st.setIde(app.id, 'antigravity');
 st.rename(app.id, 'mobile');
 for (const s of [fw, web, app]) st.join(s.id, 'esp');

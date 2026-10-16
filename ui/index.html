@@ -103,6 +103,7 @@ input,textarea{font:inherit;color:inherit}
 .sess .lead-btn.on{color:#F5A524;opacity:1!important}
 .chip.lead{border-color:#F5A524;box-shadow:inset 0 0 0 1px #F5A524}
 .ide{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 5px;line-height:16px;background:var(--side-line);color:var(--side-text);flex:none}
+.acct{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 5px;line-height:16px;border:1px solid var(--side-line);color:var(--side-text);flex:none}
 .ide.antigravity{background:#5B3FD6;color:#fff}.ide.vscode{background:#1F6FD1;color:#fff}.ide.cursor{background:#3A3A3A;color:#fff}
 .toggle-off{width:100%;text-align:left;padding:6px 8px;color:var(--side-mute);font-size:12.5px;border-radius:8px}
 .toggle-off:hover{background:var(--side-2)}
@@ -713,7 +714,7 @@ function sessionRow(s) {
   const nameHtml = S.renaming === s.id
     ? `<input value="${esc(s.name)}" aria-label="Tên mới" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
-  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
+  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
     <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Đặt làm trưởng phòng'}" aria-label="Trưởng phòng">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="Đổi tên" aria-label="Đổi tên">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="Mở lại session này ở chế độ nền để nó đọc và trả lời phòng">⏻ Gọi dậy</button><button data-a="forget" title="Xóa khỏi danh sách" aria-label="Xóa khỏi danh sách">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="Đã ở trong #${esc(S.current)}" aria-label="Đã ở trong phòng">✓</span>` : `<button class="add icon" data-a="add" title="Thêm vào #${esc(S.current)}" aria-label="Thêm vào #${esc(S.current)}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
   d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
@@ -969,6 +970,7 @@ function connect() {
   es.addEventListener('rooms', (e) => setRooms(JSON.parse(e.data)));
   es.addEventListener('forget', (e) => { delete S.sessions[JSON.parse(e.data).id]; renderAll(); });
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
+  es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
@@ -1185,7 +1187,29 @@ $('view-workers').addEventListener('click', (e) => {
 /* ---------- Token tab ---------- */
 S.tkDays = 7; S.tokens = null;
 try { S.tkDays = Number(localStorage.getItem('bear-agent-manager:tkDays')) || 7; } catch {}
-const ACCOUNTS_API = '/api/accounts';   // Claude Pro accounts (Task 10): the block below waits for that route
+S.cu = null;   // Claude Pro usage (T10a): { accounts } or { error }
+function loadClaudeUsage(refresh = false) {
+  api('/api/claude-usage' + (refresh ? '?refresh=1' : '')).then((r) => { S.cu = r; renderTokensView(); renderSessions(); }, (e) => { S.cu = { error: e.message }; renderTokensView(); });
+}
+const sameDir = (a, b) => String(a || '').replace(/[\\/]+$/, '').toLowerCase() === String(b || '').replace(/[\\/]+$/, '').toLowerCase();
+/** Which Claude account a chat runs on; only shown once two accounts are logged in. */
+function acctChip(s) {
+  const accts = S.cu?.accounts || [];
+  if (accts.length < 2) return '';
+  const a = accts.find((x) => s.configDir ? x.configDirs.some((d) => sameDir(d, s.configDir)) : x.label === 'claude');
+  return a ? `<span class="acct" title="Claude Pro ${esc(a.email)}">${esc(a.label)}</span>` : '';
+}
+function claudeProBlock() {
+  const cu = S.cu;
+  const head = `<h2>Claude Pro <button class="btn" id="cuRefresh" style="margin-left:10px;padding:3px 10px;font-size:12px" title="Đọc lại mức dùng ngay">Làm mới</button></h2>`;
+  if (!cu) return head + '<div class="vempty">Đang tải…</div>';
+  if (cu.error) return head + `<div class="vempty">Không đọc được mức dùng: ${esc(cu.error)}</div>`;
+  if (!cu.accounts.length) return head + '<div class="vempty">Chưa thấy tài khoản Claude nào đăng nhập trên máy này.</div>';
+  return head + cu.accounts.map((a) => `<div class="chartbox" style="display:grid;gap:8px;margin-bottom:10px"><div class="small"><b>${esc(a.label)}</b> · ${esc(a.email || '?')}${a.plan ? ' · ' + esc(a.plan) : ''}</div>
+    ${a.fiveHour ? usageBar('5 giờ', a.fiveHour.pct, a.fiveHour.resetsAt) : ''}${a.sevenDay ? usageBar('Tuần', a.sevenDay.pct, a.sevenDay.resetsAt) : ''}
+    ${a.usageError ? `<div class="small muted">${a.fiveHour || a.sevenDay ? 'Số liệu cũ. ' : ''}${esc(a.usageError)}</div>` : ''}
+    ${a.fetchedAt ? `<div class="small muted">cập nhật ${new Date(a.fetchedAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}</div>` : ''}</div>`).join('');
+}
 const VN_TIME = { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' };
 /** One usage bar (5 h or weekly window of a Claude account); colour steps at 70 % and 90 % with the % as text. */
 const usageBar = (label, pct, resetsAt) => {
@@ -1222,6 +1246,7 @@ function barChart(days) {
     <line x1="0" y1="${H}" x2="${W}" y2="${H}" class="base"/>${bars}</svg>`;
 }
 function loadTokens() {
+  loadClaudeUsage();
   api('/api/tokens?days=' + S.tkDays).then((s) => { S.viewErr.tokens = ''; S.tokens = s; renderTokensView(); }, (e) => viewFail('tokens', e));
   renderTokensView();
 }
@@ -1254,10 +1279,11 @@ function renderTokensView() {
     <h2>Theo ngày</h2>${chart}
     <div class="cols"><div><h2>Theo nhà cung cấp</h2>${table(['Nhà cung cấp', ...BH.slice(1)], bucketRows(t.byProvider)) }</div><div><h2>Theo model</h2>${table(['Model', ...BH.slice(1)], bucketRows(t.byModel))}</div></div>
     <h2>Ngữ cảnh các chat</h2>${chats ? table(['Chat', 'Repo', '#Ngữ cảnh', 'Trạng thái', ''], chats) : '<div class="vempty">Chưa có chat nào báo kích thước ngữ cảnh.</div>'}
-    <h2>Tài khoản Claude Pro</h2><div class="vempty">Chờ Task 10: lưu và chuyển nhiều tài khoản, mức dùng 5 giờ và theo tuần (giờ Việt Nam) sẽ hiện ở đây.</div>
+    ${claudeProBlock()}
   </div>`;
 }
 $('view-tokens').addEventListener('click', (e) => {
+  if (e.target.closest('#cuRefresh')) { S.cu = null; renderTokensView(); return loadClaudeUsage(true); }
   const b = e.target.closest('[data-days]');
   if (!b) return;
   S.tkDays = Number(b.dataset.days); S.tokens = null;
@@ -1439,6 +1465,7 @@ if (['auto', 'light', 'gray', 'dark'].includes(urlTheme)) savedTheme = urlTheme;
 setTheme(savedTheme);
 renderAll();
 connect();
+loadClaudeUsage();   // account chips on the Phòng tab
 let savedTab = ''; try { savedTab = localStorage.getItem('bear-agent-manager:tab') || ''; } catch {}
 showTab(location.hash.slice(1) || savedTab);
 </script>

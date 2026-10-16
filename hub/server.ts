@@ -19,6 +19,7 @@ import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
+import { listAccounts, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
@@ -41,12 +42,12 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
   { maxBuffer: 16 << 20, windowsHide: true },
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
-export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number };
+export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string };
 export type Hub = { url: string; port: number; token: string; store: Store; close(): Promise<void> };
 type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout };
 
 export function publicSession(s: Session): PublicSession {
-  return { id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0 };
+  return { id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '' };
 }
 
 function json(res: http.ServerResponse, code: number, data: unknown): void {
@@ -94,6 +95,10 @@ export type HubOptions = {
   machineHome?: string;
   /** Runs an automatic osin job (stubbed in tests). */
   spawnWorker?: SpawnWorker;
+  /** Claude Pro usage requests (T10a); null turns usage off (tests that do not test it). */
+  usageFetch?: typeof fetch | null;
+  /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
+  usageHome?: string;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -351,6 +356,32 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   let prober: NodeJS.Timeout | undefined;
   if (opts.probe !== null) { probeAll().catch(() => {}); prober = setInterval(() => probeAll().catch(() => {}), 30 * 60_000); prober.unref(); }
 
+  // ---- Claude Pro usage (T10a): read only, cached 5 min, polled every 15 min while an account is logged in ----
+  const usageHome = opts.usageHome ?? os.homedir();
+  const usageDirs = () => [...new Set([path.join(usageHome, '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  const usage = opts.usageFetch === null ? null : new UsageReader(usageHome, opts.usageFetch ?? fetch);
+  /** Rooms of the sessions running on this account (all rooms when none is in a room). */
+  const accountRooms = (a: AccountUsage) => {
+    const mine = (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
+    const rooms = new Set(Object.values(store.state.sessions).filter((s) => mine(s.configDir ?? '')).flatMap((s) => Object.keys(s.rooms)));
+    return rooms.size ? [...rooms] : Object.keys(store.state.rooms);
+  };
+  async function pollUsage() {
+    if (!usage || !listAccounts(usageDirs(), usageHome).length) return;
+    const accounts = await usage.read(usageDirs());
+    const sent = (store.state.usageAlerts ??= []);
+    for (const al of usageAlerts(accounts, sent)) {
+      let posted = false;   // no room yet: warn on a later poll instead of losing it
+      for (const r of accountRooms(al.account)) { try { broadcast('msg', store.postSystem(r, al.text)); emitRoom(r); posted = true; } catch { /* room gone */ } }
+      if (posted) sent.push(al.key);
+    }
+    store.state.usageAlerts = sent.slice(-200);
+    store.save();
+    broadcast('claude-usage', { accounts: accounts.map(publicUsage) });
+  }
+  let usagePoller: NodeJS.Timeout | undefined;
+  if (usage) { pollUsage().catch(() => {}); usagePoller = setInterval(() => pollUsage().catch(() => {}), 15 * 60_000); usagePoller.unref(); }
+
   // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
   let skills: { at: number; list: SkillInfo[] } = { at: 0, list: [] };
   function skillCache(): SkillInfo[] {
@@ -525,6 +556,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, lastExport);
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'GET' && p === '/api/claude-usage') {
+      if (!usage) return json(res, 200, { accounts: [] });
+      const accounts = await usage.read(usageDirs(), url.searchParams.get('refresh') === '1');
+      return json(res, 200, { accounts: accounts.map(publicUsage) });
+    }
     if (m === 'GET' && p === '/api/brief') {
       const s = loadSettings(opts.dir, envCap);
       const name = store.state.sessions[url.searchParams.get('session') ?? '']?.name ?? '';
@@ -779,6 +815,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(archiver);
       clearInterval(roomChatSweeper);
       clearInterval(prober);
+      clearInterval(usagePoller);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       server.closeAllConnections();

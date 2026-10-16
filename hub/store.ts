@@ -34,6 +34,7 @@ export type RoomInfo = { name: string; createdAt: number; paused: boolean; membe
 type State = {
   sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
   autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
+  usageAlerts?: string[];   // Claude Pro usage warnings already posted: "email|window|resets_at"
 };
 
 export const ROOM_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;

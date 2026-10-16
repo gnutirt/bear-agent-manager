@@ -65,11 +65,11 @@ test('workers tab: providers, live and recent runs with filters, room_chat previ
   } finally { await hub.close(); }
 });
 
-test('token tab: range, KPIs, stacked chart with a table view, accounts block waiting for Task 10', async () => {
+test('token tab: range, KPIs, stacked chart with a table view, Claude Pro usage block (T10a)', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/accounts'", 'Asia/Ho_Chi_Minh', 'Xem dạng bảng', '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/claude-usage'", 'function claudeProBlock', 'id="cuRefresh"', 'function acctChip', 'Asia/Ho_Chi_Minh', 'Xem dạng bảng', '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
 
