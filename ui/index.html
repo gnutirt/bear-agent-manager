@@ -1423,7 +1423,7 @@ const ROUTES = { read: 'Đọc / khảo sát', edit: 'Sửa file', osin: 'Osin (
 /** P1b: per turn type, an off switch plus a provider and model ("Tự động" = free first, then each provider's own chain). */
 function routesBlock() {
   const rows = Object.entries(ROUTES).map(([k, l]) => {
-    const r = S.settings.workerRoutes[k], p = S.providers.find((x) => x.id === r.provider);
+    const r = S.settings.workerRoutes?.[k] ?? { enabled: true, provider: 'auto', model: 'auto' }, p = S.providers.find((x) => x.id === r.provider);
     const models = p ? [...new Set([...p.models.read, ...p.models.edit, ...(r.model !== 'auto' ? [r.model] : [])])] : [];
     const opt = (v, t, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`;
     return `<tr><td>${l}</td><td><input type="checkbox" class="switch" data-set="workerRoutes.${k}.enabled"${r.enabled ? ' checked' : ''} aria-label="Bật loại lượt ${esc(l)}"></td>
