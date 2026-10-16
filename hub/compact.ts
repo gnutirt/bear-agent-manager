@@ -1,0 +1,43 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { AgentCompact } from './settings.ts';
+
+// Per-agent auto compaction (T18). Claude Code has one threshold for every session; the PreCompact hook asks
+// the hub, which may block an automatic compaction for an agent whose rule says "hold until pct".
+// Tested live (Claude Code 2.1.300): a blocked auto compaction is skipped and the turn goes on; the hook runs
+// again on every later turn while above the threshold, so each call decides alone.
+
+/** Hold never goes past this share of the model's real window: past it a compaction always runs. */
+export const HOLD_CEILING = 0.85;
+export const MAX_CONTEXT_CHARS = 10_000;   // SessionStart additionalContext limit
+
+/** Real context window: 1M for "[1m]" models or once a turn has already gone past 200k, else 200k. */
+export function modelWindow(model: string, ctx = 0): number {
+  return /\[1m\]/i.test(model) || ctx > 200_000 ? 1_000_000 : 200_000;
+}
+
+export type CompactInput = { trigger: string; rule?: AgentCompact; ctx: number; model: string; retry?: boolean };
+
+/** 'block' only for an automatic compaction of a "hold" agent still under its pct and under the ceiling. */
+export function compactDecision(i: CompactInput): { decision: 'allow' | 'block'; reason: string } {
+  if (i.trigger !== 'auto') return { decision: 'allow', reason: 'manual /compact is never blocked' };
+  if (!i.rule || i.rule.mode !== 'hold') return { decision: 'allow', reason: 'no hold rule' };
+  // A second compaction in a turn we already held is the one Claude Code runs to recover from a full
+  // context; blocking it would fail the request.
+  if (i.retry) return { decision: 'allow', reason: 'second compaction in a held turn' };
+  const win = modelWindow(i.model, i.ctx);
+  if (i.ctx >= win * HOLD_CEILING) return { decision: 'allow', reason: `ctx ${i.ctx} past ${HOLD_CEILING * 100}% of ${win}` };
+  if (i.ctx >= (win * i.rule.pct) / 100) return { decision: 'allow', reason: `ctx ${i.ctx} reached ${i.rule.pct}%` };
+  return { decision: 'block', reason: `bear-agent-manager: held until ${i.rule.pct}% of the context window` };
+}
+
+/** Text SessionStart(compact|clear) adds: the agent's newest handoff file + its rooms' notes, cut to the limit. */
+export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS): string {
+  let handoff = '';
+  try { handoff = fs.readFileSync(path.join(home, 'handoffs', `${sessionId}.md`), 'utf8').trim(); } catch { /* none yet */ }
+  const roomNotes = notes.filter((n) => n.texts.length).map((n) => `Biên bản #${n.room}:\n${n.texts.map((t) => `- ${t}`).join('\n')}`).join('\n\n');
+  if ((!handoff && !roomNotes) || max < 200) return '';
+  const head = 'bear-agent-manager: context vừa được compact/clear. Hồ sơ bàn giao và biên bản phòng của bạn:\n\n';
+  const text = head + [handoff, roomNotes].filter(Boolean).join('\n\n');
+  return text.length <= max ? text : text.slice(0, max - 20) + '\n…(đã cắt bớt)';
+}

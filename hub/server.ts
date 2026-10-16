@@ -15,7 +15,8 @@ import { loadSettings, normAgent, patchSettings, saveSettings } from './settings
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
-import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
+import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
+import { compactContext, compactDecision } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { spawnRevive, type ReviveJob } from './revive.ts';
@@ -251,6 +252,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // A DNS-rebinding page reaches us with its own hostname in Host; only loopback names are ours.
   const allowedHost = (h = '') => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
 
+  const heldTurns = new Set<string>();   // prompt_ids whose auto compaction was blocked (pre-compact)
   /** Claude Code "http" hooks POST their JSON input here (no process spawn per tool call). */
   async function hookRoute(event: string, req: http.IncomingMessage, res: http.ServerResponse) {
     const b = await readBody(req);
@@ -279,6 +281,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), sess.name, skillCache()), firstTurn);
         } catch { /* no reminder */ }
         if (text) return json(res, 200, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } });
+        break;
+      }
+      case 'pre-compact': {
+        // T18: a "hold" agent's automatic compaction is blocked until its pct. Any error here answers non-2xx,
+        // which Claude Code treats as a non-blocking hook error: the compaction runs (fail open).
+        const sess = store.session(id);
+        const rule = loadSettings(opts.dir, envCap).agentCompact[normAgent(sess.name)];
+        const tr = String(b.transcript_path ?? sess.transcript ?? '');
+        const turn = String(b.prompt_id ?? '');
+        const d = compactDecision({ trigger: String(b.trigger ?? ''), rule, ctx: readContextTokens(tr), model: readModel(tr), retry: !!turn && heldTurns.has(turn) });
+        if (d.decision === 'block') {
+          heldTurns.add(turn);
+          if (heldTurns.size > 200) heldTurns.delete(heldTurns.values().next().value!);
+          return json(res, 200, { decision: 'block', reason: d.reason });
+        }
+        // The compaction goes ahead: refresh the handoff SessionStart(compact) reads next time (not awaited).
+        if (rule && sess.transcript) startAutoJobs([{ kind: 'handoff', sessionId: sess.id, transcript: sess.transcript, name: sess.name }]);
         break;
       }
       case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
@@ -325,9 +344,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const a = normAgent(from), b = normAgent(to);
     if (a === b) return;
     const s = loadSettings(opts.dir, envCap);
-    if (!s.agentSkills[a] || s.agentSkills[b]) return;   // never overwrite rules the new name already has
-    s.agentSkills[b] = s.agentSkills[a];
-    delete s.agentSkills[a];
+    let moved = false;
+    for (const map of [s.agentSkills, s.agentCompact] as Record<string, unknown>[]) {
+      if (!map[a] || map[b]) continue;   // never overwrite rules the new name already has
+      map[b] = map[a];
+      delete map[a];
+      moved = true;
+    }
+    if (!moved) return;
     saveSettings(opts.dir, s);
     broadcast('settings', s);
   }
@@ -485,6 +509,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const name = store.state.sessions[url.searchParams.get('session') ?? '']?.name ?? '';
       const text = [workerBrief(s, loadProviders(opts.dir, legacyKey).map(publicProvider), health),
         name ? skillReminder(effectiveRules(s, name, skillCache()), true) : ''].filter(Boolean).join('\n');
+      // SessionStart after compact/clear: agents with a compact rule get their handoff + room notes back.
+      const sid = url.searchParams.get('session') ?? '';
+      const sess = store.state.sessions[sid];
+      if (sess && /^(compact|clear)$/.test(url.searchParams.get('source') ?? '') && s.agentCompact[normAgent(sess.name)]) {
+        const notes = Object.keys(sess.rooms ?? {}).map((r) => ({ room: r, texts: store.state.rooms[r] ? store.notes(r).map((n) => n.text) : [] }));
+        const extra = compactContext(opts.dir, sid, notes, Math.max(0, 9_900 - text.length));
+        if (extra) return json(res, 200, { text: [text, extra].filter(Boolean).join('\n') });
+      }
       return json(res, 200, { text });
     }
     if (m === 'GET' && p === '/api/skills') {

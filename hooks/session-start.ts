@@ -15,8 +15,10 @@ try {
         process.stdout.write(`bear-agent-manager: you are "${session.name}" in ${session.rooms.map((r) => '#' + r).join(', ')}. Room messages that mention you wake you automatically; answer with the room_send tool.\n`);
       }
     } catch { /* a brand-new chat is not known yet: it still gets the worker brief below */ }
-    // Which workers are on (and this agent's forced/banned skills); the hub reads files only, no network call.
-    const { text } = await api<{ text: string }>(`/api/brief?session=${encodeURIComponent(input.session_id)}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
+    // Which workers are on (and this agent's forced/banned skills); after compact/clear also the agent's
+    // handoff + room notes when it has a compact rule. The hub reads files only, no network call.
+    const q = `session=${encodeURIComponent(input.session_id)}&source=${encodeURIComponent(String(input.source ?? ''))}`;
+    const { text } = await api<{ text: string }>(`/api/brief?${q}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
     if (text) process.stdout.write(text + '\n');
   }
 } catch {

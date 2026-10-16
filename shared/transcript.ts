@@ -34,6 +34,19 @@ export function readContextTokens(transcript: string | undefined): number {
   return 0;
 }
 
+/** Model of the last assistant turn ('' when unknown). */
+export function readModel(transcript: string | undefined): string {
+  const lines = readTail(transcript).split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes('"model"')) continue;
+    try {
+      const m = JSON.parse(lines[i]).message?.model;
+      if (m) return String(m);
+    } catch { /* partial first line of the tail */ }
+  }
+  return '';
+}
+
 /** Chat title from the transcript tail: the newest custom title wins over the newest AI title. */
 export function readTitle(transcript: string | undefined): string {
   const text = readTail(transcript);

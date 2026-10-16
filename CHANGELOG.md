@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Per-agent auto compaction (settings `agentCompact`, empty by default): `hold` blocks automatic compaction through the PreCompact hook until the agent reaches its pct, never past 85% of the model's window and never for `/compact`; after compact/clear, SessionStart gives agents with a rule their handoff file and room notes back (≤10,000 chars). Hub down = Claude Code compacts as usual.
 - New machine: /bear-setup skill + scripts/machine.mjs (check / export / import / link). Export carries skills, agents, CLAUDE.md, settings, memory, hub settings and the plugin list, never logins; keys only with --with-keys. link shares chats, skills and settings between VS Code (~/.claude) and Antigravity (~/.claude-antigravity). Settings tab: Xuất cấu hình máy.
 - UI: four tabs. Worker (providers, live and recent runs, room_chat), Token (daily free/paid chart, per provider/model, chat context), Cài đặt (worker switches, automatic osin jobs, per-agent skill rules, providers with write-only keys; Claude accounts wait for Task 10).
 - Fix: the chat log stays pinned to the newest message (composer/notice height changes, late images, own messages, room switch, hidden panel); expanded messages stay expanded.
