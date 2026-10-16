@@ -414,3 +414,40 @@ test('session end archives that session into BEAR_AGENT_ARCHIVE_DIR; GET /api/ar
     assert.equal((await call<any>('/api/archive')).dir, arc);
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });
+
+test('automatic handoff: a chat past the threshold starts osin exactly once and the dossier reaches its rooms', async () => {
+  const calls: any[] = [];
+  const spawnWorker = async (a: any) => { calls.push(a); return { code: 0, stdout: 'noise\n' + JSON.stringify({ result: '# Hồ sơ: big chat' }) }; };
+  const { hub, call, dir } = await makeHub(undefined, undefined, { spawnWorker });
+  try {
+    await call('/api/settings', { autoJobs: { handoff: { enabled: true, thresholdK: 50 } } }, { method: 'PUT' });
+    await call('/api/sessions/register', { id: 'big1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, ctx: 40000 });
+    await call('/api/rooms/proj/join', { sessionId: 'big1' });
+    assert.equal(calls.length, 0, 'below the threshold');
+    await call('/api/sessions/register', { id: 'big1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, ctx: 60000 });
+    for (let i = 0; i < 50 && !fs.existsSync(path.join(dir, 'handoffs', 'big1.md')); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].task, /^handoff:/);
+    assert.ok(fs.readFileSync(calls[0].promptFile, 'utf8').includes('chat.txt'));
+    assert.ok(fs.existsSync(path.join(calls[0].dir, 'chat.txt')));
+    assert.equal(fs.readFileSync(path.join(dir, 'handoffs', 'big1.md'), 'utf8'), '# Hồ sơ: big chat');
+    const msgs = await call<any[]>('/api/rooms/proj/messages');
+    assert.ok(msgs.some((m) => /hồ sơ bàn giao/.test(m.text)));
+    await call('/api/sessions/register', { id: 'big1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, ctx: 70000 });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(calls.length, 1, 'same session, same threshold: never again');
+  } finally { await hub.close(); }
+});
+
+test('automatic jobs stay off by default', async () => {
+  const calls: any[] = [];
+  const { hub, call } = await makeHub(undefined, undefined, { spawnWorker: async (a: any) => { calls.push(a); return { code: 0, stdout: '' }; } });
+  try {
+    await call('/api/sessions/register', { id: 'big2', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, ctx: 900000 });
+    await call('/api/sessions/big2/rename', { name: 'big2' });
+    await call('/api/rooms/proj/join', { sessionId: 'big2' });
+    await call('/api/rooms/proj/messages', { sessionId: 'big2', text: 'x'.repeat(6000) });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(calls.length, 0);
+  } finally { await hub.close(); }
+});

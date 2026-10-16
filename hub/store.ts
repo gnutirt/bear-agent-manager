@@ -31,7 +31,10 @@ export type Room = { name: string; createdAt: number; paused: boolean; agentWake
 const MAX_NOTE = 1000;
 const MAX_NOTES = 60;
 export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null };
-type State = { sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string> };
+type State = {
+  sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
+  autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
+};
 
 export const ROOM_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 export const SESSION_NAME = /^[A-Za-z0-9_-]{1,32}$/;

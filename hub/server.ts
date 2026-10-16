@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -11,6 +12,7 @@ import { summarize } from './tokens.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
+import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -22,8 +24,16 @@ import { workerConfigDir } from '../shared/worker-chat.ts';
 
 export type { ReviveJob };
 
-const UI_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ui', 'index.html');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const UI_FILE = path.join(ROOT, 'ui', 'index.html');
 const MAX_BODY = 64 * 1024;
+
+export type SpawnWorker = (a: { promptFile: string; dir: string; task: string }) => Promise<{ code: number; stdout: string }>;
+/** One osin run of the bundled worker.ps1 (detached from the request; the hub never waits on it). */
+const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powershell',
+  ['-NoProfile', '-File', path.join(ROOT, 'skills', 'worker', 'worker.ps1'), '-Kind', 'osin', '-Task', a.task, '-By', 'hub', '-PromptFile', a.promptFile, '-Dir', a.dir],
+  { maxBuffer: 16 << 20, windowsHide: true },
+  (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
 export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number };
 export type Hub = { url: string; port: number; token: string; store: Store; close(): Promise<void> };
@@ -70,6 +80,8 @@ export type HubOptions = {
   probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null;
   /** Pre-v0.3 Intern key file that fills an empty intern key (default ~/.claude/congnhan.key). */
   legacyKeyFile?: string;
+  /** Runs an automatic osin job (stubbed in tests). */
+  spawnWorker?: SpawnWorker;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -89,7 +101,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const chunk = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const r of sse) r.write(chunk);
   };
-  const emitSession = (s: Session) => broadcast('session', publicSession(s));
+  const emitSession = (s: Session) => { broadcast('session', publicSession(s)); autoCheckSession(s); };
 
   // ---- workers (worker / osin runs): process scan + status log ----
   const listProcs = opts.listProcs ?? listProcesses;
@@ -317,6 +329,56 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return s;
   }
 
+  // ---- automatic osin jobs (A2): only job types turned on in Settings, each key once, daily cap ----
+  let autoCfg: { at: number; s: ReturnType<typeof loadSettings>['autoJobs'] | null } = { at: 0, s: null };
+  const autoSettings = () => {   // emitSession runs on every tool call: re-read settings.json at most every 5 s
+    if (!autoCfg.s || Date.now() - autoCfg.at > 5000) autoCfg = { at: Date.now(), s: loadSettings(opts.dir, envCap).autoJobs };
+    return autoCfg.s;
+  };
+  function autoCheckSession(s: Session) {
+    const a = autoSettings();
+    if (!a.handoff.enabled || !s.transcript || (s.ctx ?? 0) < a.handoff.thresholdK * 1000) return;
+    startAutoJobs([{ kind: 'handoff', sessionId: s.id, transcript: s.transcript, name: s.name }]);
+  }
+  function startAutoJobs(cands: AutoJob[]) {
+    const a = autoSettings(), now = Date.now();
+    const st = (store.state.autoJobs ??= { runs: [], done: [] });
+    const due = dueJobs(cands, a, st, now);
+    if (!due.length) return;
+    // Counted before running: a failing worker still uses up its key and the daily cap (no retry storms).
+    for (const j of due) { st.runs.push(now); st.done.push(jobKey(j, a)); }
+    st.runs = st.runs.filter((t) => now - t < 86_400_000);
+    st.done = st.done.slice(-1000);
+    store.save();
+    for (const j of due) runAutoJob(j, jobKey(j, a)).catch(() => { /* shows up as a failed run on the Worker tab */ });
+  }
+  async function runAutoJob(j: AutoJob, key: string) {
+    const dir = path.join(opts.dir, 'autojobs', key.replace(/[^\w.-]+/g, '_'));
+    fs.mkdirSync(dir, { recursive: true });
+    if (j.kind === 'handoff') {
+      const chat = await new Promise<string>((resolve, reject) => execFile(process.execPath,
+        [path.join(ROOT, 'skills', 'osin', 'extract-chat.mjs'), j.transcript], { maxBuffer: 64 << 20, windowsHide: true },
+        (err, stdout) => (err ? reject(err) : resolve(String(stdout)))));
+      fs.writeFileSync(path.join(dir, 'chat.txt'), chat);
+    }
+    const promptFile = path.join(dir, 'prompt.txt');
+    fs.writeFileSync(promptFile, jobPrompt(j, fs.readFileSync(path.join(ROOT, 'skills', 'osin', 'jobs.md'), 'utf8')));
+    const task = j.kind === 'handoff' ? `handoff: ${j.name}` : j.kind === 'digest' ? `digest: #${j.room} tin ${j.messageId}` : `notes: #${j.room}`;
+    const out = await (opts.spawnWorker ?? spawnOsin)({ promptFile, dir, task: task.slice(0, 100) });
+    if (out.code !== 0) return;
+    let result = '';
+    try { result = String(JSON.parse(out.stdout.trim().split(/\r?\n/).pop() ?? '').result ?? '').trim(); } catch { return; }
+    if (!result) return;
+    const say = (room: string, text: string) => { try { broadcast('msg', store.postSystem(room, text)); emitRoom(room); } catch { /* room gone */ } };
+    if (j.kind === 'handoff') {
+      const file = path.join(opts.dir, 'handoffs', `${j.sessionId}.md`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, result);
+      for (const r of Object.keys(store.state.sessions[j.sessionId]?.rooms ?? {})) say(r, `@you hồ sơ bàn giao của ${j.name} đã sẵn sàng: ${file}`);
+    } else if (j.kind === 'digest') say(j.room, `osin — tóm tắt tin #${j.messageId}:\n${result}`);
+    else say(j.room, `@you osin đề xuất dọn biên bản #${j.room} (chưa xoá gì):\n${result}`);
+  }
+
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
   const archiveDir = () => loadSettings(opts.dir, envCap).archive.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || '';
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
@@ -407,6 +469,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'PUT' && p === '/api/settings') {
       const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
       saveSettings(opts.dir, next);
+      autoCfg.at = 0;
       broadcast('settings', next);
       return json(res, 200, next);
     }
@@ -534,6 +597,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const b = await readBody(req);
         const note = store.addNote(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''));
         emitNotes();
+        const all = store.notes(room);
+        if (all.length >= autoSettings().notes.minNotes) startAutoJobs([{ kind: 'notes', room, notes: all.map((n) => ({ id: n.id, text: n.text, by: n.by })) }]);
         return json(res, 200, note);
       }
       if (m === 'POST' && mm[3] === 'edit') {
@@ -589,6 +654,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         broadcast('msg', r.message);
         emitRoom(room);
         for (const id of r.message.wake) deliver(store.resolve(id));
+        if (r.message.text.length >= autoSettings().digest.minChars) startAutoJobs([{ kind: 'digest', room, messageId: r.message.id, text: r.message.text }]);
         return json(res, 200, r);
       }
       if (m === 'POST' && action === 'done') {
