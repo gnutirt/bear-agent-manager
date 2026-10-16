@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveNow, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders } from './providers.ts';
+import { summarize } from './tokens.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -328,6 +329,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
+    if (m === 'GET' && p === '/api/tokens') {
+      const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 7));
+      const since = Date.now() - days * 86_400_000;
+      // shortcut: re-reads the whole workers.jsonl per request; index it if the log grows past ~20 MB.
+      return json(res, 200, summarize(readWorkerLog(workerLog, since), Object.values(store.state.sessions).map(publicSession), since));
+    }
     if (m === 'POST' && p === '/api/room-chat/sweep') {
       const b = await readBody(req);
       const swept = sweepAll(!!b.apply);
