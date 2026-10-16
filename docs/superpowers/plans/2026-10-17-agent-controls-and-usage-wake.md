@@ -41,7 +41,7 @@ Test: stub `usageFetch` (có trong `startHub`) và đồng hồ; kiểm tra lưu
 - Hub: `error === 'rate_limit'` thì đọc dòng cuối transcript lấy `quotaLimits.resetsAt`, đặt `Session.limited = { until, type }`, trạng thái hiện "hết hạn mức tới HH:MM", đăng một dòng hệ thống trong phòng, và dùng `until + afterResetMin` làm `wakeAt` của session đó (chính xác hơn poll 15 phút, không cần ngưỡng). Lỗi khác (overloaded, server_error) chỉ đăng một dòng, không hẹn giờ.
 - Đến giờ: session đã đóng (`ended`) thì `spawnRevive` như hiện nay; exit 1 kèm 429 coi là "chưa tới giờ", dời 5 phút (tối đa 6 lần) rồi báo @you, không loop. Tab còn mở: mặc định chỉ báo @you; nếu `settings.lead.wake.closeLimitedTab` bật thì dùng T-B terminate rồi revive. Mặc định tắt vì làm tab chết.
 - T-C (theo poll usage) vẫn giữ làm lưới an toàn cho tài khoản không có StopFailure (ví dụ phiên VS Code chưa xác nhận).
-- Chưa kiểm: StopFailure có chạy trong VS Code không (mới đo bằng CLI -p). Làm bước đầu tiên của T-C2: bật hook, ép một lỗi trong VS Code, xem hub nhận được gì; nếu không chạy thì T-C2 chỉ áp cho CLI và ghi rõ giới hạn.
+- Đã đo (core-improve, 2026-10-17): StopFailure CÓ chạy với extension VS Code 2.1.301 và CLI. Extension claude-code của Antigravity là 2.1.69: không có StopFailure, gặp 429 không bắn hook nào. T-C2 vì vậy chỉ phủ VS Code/CLI; agent trên Antigravity dựa vào T-C (poll usage 15 phút), hoặc người dùng cập nhật extension trong Antigravity. Ghi giới hạn này trong CHANGELOG và trong chú thích ở tab con "Trưởng phòng". Chưa thử ép lỗi trong một tab VS Code đang mở thật, nên kiểm tay một lần sau khi làm xong.
 
 ## Thứ tự
 
