@@ -292,13 +292,35 @@ header .spacer{flex:1}
 #menu .idbox{margin:4px 6px 6px;padding:8px 10px;background:var(--code);border-radius:8px;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
 #menu input{width:calc(100% - 12px);margin:4px 6px;padding:7px 10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg)}
 #menu .row{display:flex;gap:6px;justify-content:flex-end;padding:4px 6px}
-/* members list: wide enough for the name, status on its own line, actions as a row underneath */
-#menu:has(.mem){min-width:min(400px,92vw);max-width:min(460px,92vw)}
-#menu .item.mem{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center;padding:10px;border-radius:10px;cursor:default}
-#menu .item.mem+.item.mem{margin-top:2px;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
-#menu .mem .mi{min-width:0;display:flex;flex-direction:column}
+/* members list: one row per member (avatar+led | name, badges, status | actions), title row on top, footer action below */
+#menu:has(.mem){min-width:min(500px,94vw);max-width:min(560px,94vw);padding:8px}
+#menu .mhead{display:flex;align-items:baseline;justify-content:space-between;padding:6px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+#menu .mhead b{font-size:14.5px}#menu .mhead span{color:var(--mute);font-size:12.5px}
+#menu .item.mem{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:12px;cursor:default}
+#menu .item.mem:hover{background:var(--hover)}
+#menu .item.mem.offline .av{filter:grayscale(1);opacity:.6}
+#menu .mem .mi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+#menu .mem .mn{display:flex;align-items:center;gap:6px;min-width:0}
+#menu .mem .mn b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 #menu .mem .mi small{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#menu .mem .macts{grid-column:2;display:flex;flex-wrap:wrap;gap:6px}
+#menu .mem .macts{display:flex;gap:6px;flex:none}
+#menu .mem .av .led{border-color:var(--panel)}
+#menu .btn.iconbtn{padding:4px 7px}
+#menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
+/* header avatars: all members, side by side (no overlap); idle = green led + floating zzz, busy = led blinks green/amber, offline = grey */
+.stack{display:flex;gap:10px;align-items:center}
+.stack .mb{position:relative;display:inline-flex}
+.stack .av{margin:0;border:2px solid var(--panel)}
+.stack .av .led{border-color:var(--panel);width:11px;height:11px}
+.stack .mb.offline .av{filter:grayscale(1);opacity:.55}
+.stack .mb.idle::after{content:"z z z";position:absolute;left:62%;top:-13px;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--mute);white-space:nowrap;animation:zzz 2.4s ease-in-out infinite}
+@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}30%,70%{opacity:1}100%{opacity:0;transform:translate(6px,-6px)}}
+.led.busy{animation:work 1s steps(1) infinite,pulse 1.6s infinite}
+@keyframes work{0%,100%{background:#22C55E}50%{background:#F5A524}}
+.stack .mb.busy .av{animation:ring 1s steps(1) infinite}
+@keyframes ring{0%,100%{box-shadow:0 0 0 2px #22C55E}50%{box-shadow:0 0 0 2px #F5A524}}
+.stack .more{font-size:12px;font-weight:700;color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.stack .mb.idle::after,.stack .mb.busy .av{animation:none}.stack .mb.idle::after{opacity:1}}
 .btn.sm{padding:4px 10px;font-size:12.5px;gap:5px}
 .btn.sm svg{width:13px;height:13px}
 #notesPanel{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:45;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .2s}
@@ -794,9 +816,9 @@ function deleteRoomForm(anchor, name) {
 }
 function membersMenu(anchor) {
   const ms = members(S.current);
-  openMenu(anchor, `<div class="label">Thành viên #${esc(S.current)}</div><div class="row"><button class="btn" data-openlead title="Mở một terminal Claude với lời nhắn gõ sẵn để nó vào phòng làm trưởng phòng">Mở terminal trưởng phòng</button></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem">${avatar(s.id, s.status, 'sm')}<span class="mi"><b>${esc(s.name)}</b>${isLead(s.id) ? ' ' + STAR : ''}<small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn sm" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out} Cho rời</button></span></div>`).join('')
-    : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>'), (m) => {
+  openMenu(anchor, `<div class="mhead"><b>Thành viên</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
+    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="Cho rời phòng" aria-label="Cho ${esc(s.name)} rời phòng">${I.out}</button></span></div>`).join('')
+    : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>') + `<div class="mfoot"><button class="btn sm" data-openlead title="Mở một terminal Claude với lời nhắn gõ sẵn để nó vào phòng làm trưởng phòng">Mở terminal trưởng phòng</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast('Đã mở terminal: bấm Enter trong cửa sổ đó'); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast('Đã cho rời phòng'); }, (e) => toast(e.message)));
@@ -928,7 +950,7 @@ function renderHeader() {
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;
   $('meta').textContent = r ? `${ms.length} Claude${busy ? ` · ${busy} đang làm` : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
-  $('stack').innerHTML = ms.slice(0, 5).map((s) => avatar(s.id, null, 'sm')).join('');
+  $('stack').innerHTML = ms.slice(0, 8).map((s) => `<span class="mb ${s.status}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}</span>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
@@ -1681,7 +1703,7 @@ zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZ
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
 $('log').addEventListener('contextmenu', (e) => {
   const g = e.target.closest('.group'); if (!g || e.target.closest('a,pre,code,input,textarea')) return;
-  e.preventDefault();
+  e.preventDefault(); closeMenu();
   zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true"><button class="zx" aria-label="Đóng">✕</button>${g.outerHTML}</div>`;
   zoom.hidden = false;
 });
