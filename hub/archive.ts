@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ArchiveResult = { ok: boolean; reason: string; copiedFiles: number; copiedBytes: number };
+export type ArchiveResult = { ok: boolean; reason: string; copiedFiles: number; copiedBytes: number; errors?: string[] };
 type Offsets = Record<string, { bytes: number; mtimeMs: number }>;
 
 export function archiveKey(configName: string, project: string, rel: string): string {
@@ -33,6 +33,7 @@ export function archiveNow(configDirs: string[], archiveDir: string, onlySession
   try { off = JSON.parse(fs.readFileSync(offFile, 'utf8')); } catch { /* first run */ }
   const sources: { cname: string | null; projects: string }[] = configDirs.map((c) => ({ cname: path.basename(c), projects: path.join(c, 'projects') }));
   if (roomChatRoot) sources.push({ cname: null, projects: roomChatRoot });
+  const byTail = new Map(Object.keys(off).map((k) => [k.slice(k.indexOf('/')), k]));
   const seen = new Set<string>();   // a second config dir often links its projects/ to the first one (junction)
   for (const { cname, projects } of sources) {
     let real = projects;
@@ -45,37 +46,46 @@ export function archiveNow(configDirs: string[], archiveDir: string, onlySession
         let key = archiveKey(cname ?? '.claude', proj, rel);
         if (!cname) {
           const tail = key.slice(key.indexOf('/'));
-          key = Object.keys(off).find((k) => k.endsWith(tail) && k.indexOf('/') === k.length - tail.length) ?? key;
+          key = byTail.get(tail) ?? key;
         }
         if (onlySession && !key.split('/')[2]?.startsWith(onlySession)) continue;
         const src = path.join(pdir, rel), dst = path.join(archiveDir, ...key.split('/'));
-        let st: fs.Stats; try { st = fs.statSync(src); } catch { continue; }
-        const prev = off[key];
-        if (!rel.endsWith('.jsonl')) {                      // whole-file kinds
-          if (prev && prev.bytes === st.size && prev.mtimeMs === st.mtimeMs) continue;
-          fs.mkdirSync(path.dirname(dst), { recursive: true });
-          fs.copyFileSync(src, dst);
-          off[key] = { bytes: st.size, mtimeMs: st.mtimeMs }; res.copiedFiles++; res.copiedBytes += st.size;
-          continue;
-        }
-        let from = prev?.bytes ?? 0;
-        if (st.size < from) {                               // rewritten: keep the old copy
-          if (fs.existsSync(dst)) fs.renameSync(dst, dst.replace(/\.jsonl$/, `.${stamp()}.jsonl`));
-          from = 0;
-        }
-        if (st.size === from) continue;
-        const buf = Buffer.alloc(st.size - from);
-        const fd = fs.openSync(src, 'r');
-        try { fs.readSync(fd, buf, 0, buf.length, from); } finally { fs.closeSync(fd); }
-        const end = buf.lastIndexOf(0x0a) + 1;             // whole lines only
-        if (!end) continue;
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
-        fs.appendFileSync(dst, buf.subarray(0, end));
-        off[key] = { bytes: from + end, mtimeMs: st.mtimeMs }; res.copiedFiles++; res.copiedBytes += end;
+        try { copyOne(src, dst, rel, key, off, res); }
+        catch (e) { (res.errors ??= []).push(`${key}: ${(e as Error).message}`); }   // EBUSY/ENOSPC: next file, offsets still saved
       }
     }
   }
+  if (res.errors?.length) { res.ok = false; res.reason = `${res.errors.length} file(s) failed: ${res.errors[0]}`; }
+  // Saved even when files failed: a lost offset would re-append (duplicate) everything copied in this round.
   fs.writeFileSync(offFile + '.tmp', JSON.stringify(off));
   fs.renameSync(offFile + '.tmp', offFile);
   return res;
+}
+
+function copyOne(src: string, dst: string, rel: string, key: string, off: Offsets, res: ArchiveResult) {
+  let st: fs.Stats; try { st = fs.statSync(src); } catch { return; }
+  const prev = off[key];
+  if (!rel.endsWith('.jsonl')) {                      // whole-file kinds
+    if (prev && prev.bytes === st.size && prev.mtimeMs === st.mtimeMs) return;
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(src, dst);
+    off[key] = { bytes: st.size, mtimeMs: st.mtimeMs }; res.copiedFiles++; res.copiedBytes += st.size;
+    return;
+  }
+  let from = prev?.bytes ?? 0;
+  if (st.size < from) {                               // rewritten: keep the old copy
+    if (fs.existsSync(dst)) fs.renameSync(dst, dst.replace(/\.jsonl$/, `.${stamp()}.jsonl`));
+    from = 0;
+  }
+  if (st.size === from) return;
+  const buf = Buffer.alloc(st.size - from);
+  const fd = fs.openSync(src, 'r');
+  try { fs.readSync(fd, buf, 0, buf.length, from); } finally { fs.closeSync(fd); }
+  const end = buf.lastIndexOf(0x0a) + 1;             // whole lines only
+  if (!end) return;
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  const had = fs.existsSync(dst) ? fs.statSync(dst).size : 0;
+  try { fs.appendFileSync(dst, buf.subarray(0, end)); }
+  catch (e) { try { fs.truncateSync(dst, had); } catch { /* best effort */ } throw e; }   // no half-appended tail
+  off[key] = { bytes: from + end, mtimeMs: st.mtimeMs }; res.copiedFiles++; res.copiedBytes += end;
 }

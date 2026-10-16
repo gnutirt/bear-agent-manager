@@ -97,3 +97,16 @@ test('a second config dir whose projects/ links to the first one is archived onc
   assert.equal(archiveNow([cfg, cfg2], arc).copiedFiles, 1);
   assert.ok(!fs.existsSync(path.join(arc, '.claude-antigravity')));
 });
+
+test('one failing file does not lose the offsets of the others (no duplicated lines next round)', () => {
+  const { cfg, proj, arc, out } = setup();
+  fs.writeFileSync(path.join(proj, 's1.jsonl'), 'a\n'); fs.writeFileSync(path.join(proj, 's2.jsonl'), 'b\n');
+  fs.mkdirSync(path.join(out, 's2.jsonl'), { recursive: true });   // appending to a directory throws
+  const r = archiveNow([cfg], arc);
+  assert.equal(r.ok, false);
+  assert.equal(r.errors?.length, 1);
+  fs.rmdirSync(path.join(out, 's2.jsonl'));
+  assert.equal(archiveNow([cfg], arc).ok, true);
+  assert.equal(fs.readFileSync(path.join(out, 's1.jsonl'), 'utf8'), 'a\n');
+  assert.equal(fs.readFileSync(path.join(out, 's2.jsonl'), 'utf8'), 'b\n');
+});
