@@ -9,10 +9,15 @@ try {
   const input = await readInput();
   if (await ensureHub()) {
     if (isSavedChat(input.transcript_path)) await register(input).catch(() => {});
-    const { session } = await api<{ session: { name: string; rooms: string[] } }>(`/api/sessions/${encodeURIComponent(input.session_id)}`);
-    if (session.rooms.length) {
-      process.stdout.write(`bear-agent-manager: you are "${session.name}" in ${session.rooms.map((r) => '#' + r).join(', ')}. Room messages that mention you wake you automatically; answer with the room_send tool.\n`);
-    }
+    try {
+      const { session } = await api<{ session: { name: string; rooms: string[] } }>(`/api/sessions/${encodeURIComponent(input.session_id)}`);
+      if (session.rooms.length) {
+        process.stdout.write(`bear-agent-manager: you are "${session.name}" in ${session.rooms.map((r) => '#' + r).join(', ')}. Room messages that mention you wake you automatically; answer with the room_send tool.\n`);
+      }
+    } catch { /* a brand-new chat is not known yet: it still gets the worker brief below */ }
+    // Which workers are on (and this agent's forced/banned skills); the hub reads files only, no network call.
+    const { text } = await api<{ text: string }>(`/api/brief?session=${encodeURIComponent(input.session_id)}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
+    if (text) process.stdout.write(text + '\n');
   }
 } catch {
   // unknown session or hub down: fail open, never break the session

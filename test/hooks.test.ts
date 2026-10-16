@@ -219,3 +219,13 @@ test('prompt hook reminds only the agent that owns the rule; a renamed agent kee
     assert.ok(Array.isArray(sk.skills) && sk.members.some((x: any) => x.name === 'Sep'));
   } finally { await hub.close(); }
 });
+
+test('session-start tells even a brand-new chat which workers are on', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/providers/intern', { key: 'k' }, { method: 'PUT' });
+    const r = await runHook('session-start.ts', { session_id: 'new2', cwd: 'C:\fw', hook_event_name: 'SessionStart', source: 'startup' }, e).done;
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /skill `worker`/);
+  } finally { await hub.close(); }
+});

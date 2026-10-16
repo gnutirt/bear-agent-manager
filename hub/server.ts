@@ -6,8 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveNow, type ArchiveResult } from './archive.ts';
-import { applyPatch, loadProviders, publicProvider, saveProviders } from './providers.ts';
+import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
+import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
@@ -65,6 +66,8 @@ export type HubOptions = {
   kill?: (pid: number) => Promise<void>;
   /** Max workers running at once on this machine; the cheap API's rate limit is shared (default 6). */
   workerCap?: number;
+  /** Provider key health check (GET /v1/models); null turns it off (tests). */
+  probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -274,6 +277,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  // ---- providers: health-checked at start and every 30 min; SessionStart reads the cached result ----
+  const legacyKey = path.join(os.homedir(), '.claude', 'congnhan.key');
+  const health: Record<string, 'ok' | 'bad' | 'unknown'> = {};
+  const withHealth = (list: Provider[]) => list.map((x) => ({ ...publicProvider(x), health: health[x.id] ?? 'unknown' }));
+  const probeAll = async () => {
+    for (const pr of loadProviders(opts.dir, legacyKey).filter((x) => x.enabled && x.key)) health[pr.id] = await (opts.probe ?? probeProvider)(pr);
+    broadcast('providers', withHealth(loadProviders(opts.dir, legacyKey)));
+  };
+  let prober: NodeJS.Timeout | undefined;
+  if (opts.probe !== null) { probeAll().catch(() => {}); prober = setInterval(() => probeAll().catch(() => {}), 30 * 60_000); prober.unref(); }
+
   // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
   let skills: { at: number; list: SkillInfo[] } = { at: 0, list: [] };
   function skillCache(): SkillInfo[] {
@@ -378,6 +392,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'GET' && p === '/api/brief') {
+      const s = loadSettings(opts.dir, envCap);
+      const name = store.state.sessions[url.searchParams.get('session') ?? '']?.name ?? '';
+      const text = [workerBrief(s, loadProviders(opts.dir, legacyKey).map(publicProvider), health),
+        name ? skillReminder(effectiveRules(s, name, skillCache()), true) : ''].filter(Boolean).join('\n');
+      return json(res, 200, { text });
+    }
     if (m === 'GET' && p === '/api/skills') {
       return json(res, 200, { skills: skillCache(), agents: loadSettings(opts.dir, envCap).agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) });
     }
@@ -400,8 +421,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, swept);
     }
     // ---- providers: worker endpoints + keys (keys never leave the hub) ----
-    const legacyKey = path.join(os.homedir(), '.claude', 'congnhan.key');
-    if (m === 'GET' && p === '/api/providers') return json(res, 200, loadProviders(opts.dir, legacyKey).map(publicProvider));
+    if (m === 'GET' && p === '/api/providers') return json(res, 200, withHealth(loadProviders(opts.dir, legacyKey)));
     const pv = p.match(/^\/api\/providers\/([a-z0-9-]+)$/);
     if (pv && m === 'PUT') {
       const list = applyPatch(loadProviders(opts.dir, legacyKey), pv[1], await readBody(req));
@@ -613,6 +633,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(heartbeat);
       clearInterval(archiver);
       clearInterval(roomChatSweeper);
+      clearInterval(prober);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       server.closeAllConnections();

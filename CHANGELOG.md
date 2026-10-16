@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Every chat learns at start which workers are on (and its own forced/banned skills); the hub health-checks provider keys every 30 minutes.
 - Skills can be forced (every prompt or first prompt only), left to Claude, or banned for each agent; reminders go through the UserPromptSubmit hook and follow the agent across renames. GET /api/skills lists installed skills and members.
 - Settings (settings.json, GET/PUT /api/settings): worker/osin on/off (the hub refuses slots, worker.ps1 exits 4), paid fallback, worker cap, archive dir, room_chat auto sweep, per-agent skill rules.
 - GET /api/tokens?days=N: worker token usage by tier, provider, model and day, plus each chat's context size.
