@@ -97,3 +97,21 @@ test('settings tab: machine export button, keys only when the switch is on', asy
     for (const s of ["'/api/machine'", "'/api/machine/export'", 'id="machineExport"', 'id="machineKeys"', 'withKeys: !!S.machineWithKeys', '/bear-setup']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+test('receipts: each member gets a chip only on the newest message that woke it, none once it answered', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const grab = (name: string) => html.match(new RegExp(String.raw`function ${name}\([\s\S]*?\n}\n`))![0];
+    const S = { sessions: { a: { name: 'fw', status: 'offline', cursor: 0 }, b: { name: 'web', status: 'idle', cursor: 5 } } };
+    const esc = (x: string) => x;
+    const { lastWakes, receipts } = new Function('S', 'esc', `${grab('lastWakes')}${grab('receipts')}return { lastWakes, receipts };`)(S, esc);
+    const list = [{ id: 1, wake: ['a'] }, { id: 2, wake: ['a', 'b'] }, { id: 3, fromId: 'b', wake: [] }];
+    const last = lastWakes(list);
+    assert.equal(receipts(list[0], list, last), '', 'older message that woke an offline agent: no chip');
+    const newest = receipts(list[1], list, last);
+    assert.equal((newest.match(/class="rc dead"/g) || []).length, 1, 'only the newest message has the dead chip');
+    assert.ok(!newest.includes('web'), 'web already answered: its chip is gone');
+    assert.ok(!html.includes('đã trả lời'));
+  } finally { await hub.close(); }
+});

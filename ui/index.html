@@ -40,7 +40,6 @@
 .rcpt{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .rc{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel);border:1px solid var(--line);color:var(--mute)}
 .rc.got{color:#16A34A;border-color:color-mix(in srgb,#16A34A 35%,var(--line))}
-.rc.replied{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
 .rc.dead{color:#E5484D;border-color:color-mix(in srgb,#E5484D 40%,var(--line))}
 .rc.wait{border-style:dashed}
 button.rc.dead{cursor:pointer}
@@ -57,7 +56,8 @@ input,textarea{font:inherit;color:inherit}
 .brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;color:var(--side-strong);font-weight:700;font-size:16px}
 .brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
 .brand .logo svg{width:16px;height:16px}
-.hub-state{margin-left:auto;font-weight:500;font-size:12px;color:var(--side-mute);display:flex;align-items:center;gap:6px}
+.brand .bname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hub-state{margin-left:auto;display:flex;align-items:center;padding:4px}
 .side-scroll{flex:1;overflow-y:auto;padding:4px 8px 16px}
 .sec{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 6px;color:var(--side-mute);font-size:12.5px;font-weight:600}
 .sec button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
@@ -156,9 +156,12 @@ header .spacer{flex:1}
 #banner span{flex:1}
 
 #log{flex:1;overflow-y:auto;padding:18px 20px 8px}
-.group{--c:var(--accent);display:flex;gap:12px;padding:10px 14px 10px 12px;margin:0 0 10px;border-radius:12px;max-width:920px;
+/* one reading column: messages, presence and composer share the same centred width */
+#logBody{max-width:820px;margin:0 auto}
+#presence,.compose-wrap{width:100%;max-width:860px;margin-left:auto;margin-right:auto;box-sizing:border-box}
+.group{--c:var(--accent);display:flex;gap:12px;padding:10px 14px 10px 12px;margin:0 0 10px;border-radius:12px;
   background:color-mix(in srgb,var(--c) 7%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 22%,var(--line));border-left:4px solid var(--c)}
-.group.you{flex-direction:row-reverse;margin-left:auto;max-width:720px;border-left-width:1px;border-right:4px solid var(--c);background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+.group.you{flex-direction:row-reverse;margin-left:auto;max-width:88%;border-left-width:1px;border-right:4px solid var(--c);background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
 .group.you .head{flex-direction:row-reverse}
 .group.tome .head::after{content:"gọi bạn";margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
 .group .body{flex:1;min-width:0}
@@ -402,8 +405,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <aside id="side">
   <div class="brand">
     <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M17 9h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-3"/></svg></span>
-    Bear Agent Manager
-    <span class="hub-state" id="hubState"><span class="led idle"></span>đã kết nối</span>
+    <span class="bname" title="Bear Agent Manager">Bear Agent</span>
+    <span class="hub-state" id="hubState" title="Hub: đã kết nối" aria-label="Hub: đã kết nối"><span class="led idle"></span></span>
   </div>
   <div class="side-scroll">
     <div class="sec">Phòng <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
@@ -813,15 +816,20 @@ function renderHeader() {
   $('text').disabled = !r;
 }
 
-/* Read receipts for the members a message woke: waiting → received → replied (or offline). */
-function receipts(m, list) {
+/** Newest message that woke each member: only that one carries the member's receipt. */
+function lastWakes(list) {
+  const last = {};
+  for (const m of list) for (const id of m.wake || []) last[id] = m.id;
+  return last;
+}
+/* Read receipts on the newest message that woke each member: waiting → received (or offline). Once the
+   member has answered the chip goes away (the answer is right below), so old messages stay quiet. */
+function receipts(m, list, last = lastWakes(list)) {
   if (!m.wake?.length) return '';
   const chips = m.wake.map((id) => {
     const s = S.sessions[id];
-    if (!s) return '';
-    const replied = list.some((x) => x.id > m.id && x.fromId === id);
-    const [cls, txt] = replied ? ['replied', '↩ đã trả lời']
-      : (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? '✓ đã nhận · đang làm' : '✓ đã nhận']
+    if (!s || last[id] !== m.id || list.some((x) => x.id > m.id && x.fromId === id)) return '';
+    const [cls, txt] = (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? '✓ đã nhận · đang làm' : '✓ đã nhận']
       : s.status === 'offline' ? ['dead', '✕ đã tắt · bấm để gọi dậy']
       : ['wait', '… chưa nhận'];
     return cls === 'dead'
@@ -844,17 +852,18 @@ function renderLog() {
     $('emptyInvite').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); return;
   }
   let html = '', prev = null, prevDay = '';
+  const last = lastWakes(ms);
   for (const m of ms) {
     const day = dayOf(m.ts);
     if (day !== prevDay) { html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
     if (m.kind === 'system') { html += `<div class="sysline">${md(m.text)}</div>`; prev = null; continue; }
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
-    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms)}</div></div>`);
+    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -975,8 +984,9 @@ function connect() {
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
-  es.onerror = () => { $('hubState').innerHTML = '<span class="led waiting"></span>mất kết nối'; };
-  es.onopen = () => { $('hubState').innerHTML = '<span class="led idle"></span>đã kết nối'; };
+  const hubState = (ok) => { const h = $('hubState'), t = `Hub: ${ok ? 'đã kết nối' : 'mất kết nối'}`; h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = t; h.setAttribute('aria-label', t); };
+  es.onerror = () => hubState(false);
+  es.onopen = () => hubState(true);
 }
 
 /* ---------- composer + @mentions ---------- */
