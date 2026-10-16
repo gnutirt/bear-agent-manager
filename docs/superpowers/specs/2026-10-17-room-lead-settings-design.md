@@ -27,6 +27,23 @@ Mục tiêu: một chỗ cài đặt cho trưởng phòng, Cài đặt chia tab 
 
 Không đổi API, không đổi `settings.json`.
 
+### P1b: phân việc cho worker (chủ repo chọn hướng A, 2026-10-17)
+
+Trong tab con Worker thêm mục "Phân việc": mỗi loại lượt chọn nhà cung cấp + model, hoặc "tự động" (hành vi hiện nay: free trước, chuỗi `models.read` / `models.edit` của nhà cung cấp). Ba loại, khớp cách `skills/worker/worker.ps1` đã phân:
+- `read`: lượt worker không có công cụ sửa file (khảo sát, đọc log lớn);
+- `edit`: lượt worker có Edit/Write (`$edits` trong worker.ps1);
+- `osin`: mọi lượt `-Kind osin` (bàn giao, rút gọn, dọn biên bản; cả lượt hub tự chạy).
+
+```
+settings.workerRoutes: { read|edit|osin: { enabled: boolean; provider: 'auto' | <providerId>; model: 'auto' | <model> } }   // mặc định mỗi loại enabled true, auto, auto
+```
+
+- `enabled: false` cho loại nào thì hub trả "tắt" cho loại đó như `skills.<kind>.enabled=false` hiện nay (worker.ps1 exit 4); `skills.worker/osin.enabled` vẫn là công tắc tổng.
+- Thứ tự ưu tiên: tham số dòng lệnh `-Provider` / `-Model` rõ ràng > `workerRoutes` > tự động. Nhà cung cấp được chọn không dùng được (tắt, thiếu key) thì rơi về tự động và ghi một dòng vào log lượt, không im lặng.
+- Model chọn từ danh sách model của nhà cung cấp đó; ô chọn model chỉ liệt kê model của nhà cung cấp đang chọn.
+- Validate trong `hub/settings.ts` (khoá lạ bị bỏ, giá trị sai về mặc định). `worker.ps1` đọc `workerRoutes` từ cùng settings.json mà nó đã đọc.
+- Hướng B (lời dặn cố định gắn vào prompt mỗi loại lượt) chưa làm; nếu cần sẽ là việc riêng.
+
 ### P2: tab con "Trưởng phòng" có cài đặt riêng
 
 Thêm `settings.lead` (một bộ chung cho mọi phòng; ghi đè theo phòng để sau, không làm ở P2):
