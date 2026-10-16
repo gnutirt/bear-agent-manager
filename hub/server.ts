@@ -68,6 +68,8 @@ export type HubOptions = {
   workerCap?: number;
   /** Provider key health check (GET /v1/models); null turns it off (tests). */
   probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null;
+  /** Pre-v0.3 Intern key file that fills an empty intern key (default ~/.claude/congnhan.key). */
+  legacyKeyFile?: string;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -278,7 +280,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   // ---- providers: health-checked at start and every 30 min; SessionStart reads the cached result ----
-  const legacyKey = path.join(os.homedir(), '.claude', 'congnhan.key');
+  const legacyKey = opts.legacyKeyFile ?? path.join(os.homedir(), '.claude', 'congnhan.key');
   const health: Record<string, 'ok' | 'bad' | 'unknown'> = {};
   const withHealth = (list: Provider[]) => list.map((x) => ({ ...publicProvider(x), health: health[x.id] ?? 'unknown' }));
   const probeAll = async () => {

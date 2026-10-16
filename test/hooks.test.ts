@@ -223,6 +223,8 @@ test('prompt hook reminds only the agent that owns the rule; a renamed agent kee
 test('session-start tells even a brand-new chat which workers are on', async () => {
   const { hub, call, env: e } = await env();
   try {
+    const none = await runHook('session-start.ts', { session_id: 'fresh1', cwd: 'C:\\fw', hook_event_name: 'SessionStart', source: 'startup' }, e).done;
+    assert.ok(!/skill `worker`/.test(none.stdout), 'no key anywhere in the test hub: no brief');
     await call('/api/providers/intern', { key: 'k' }, { method: 'PUT' });
     const r = await runHook('session-start.ts', { session_id: 'new2', cwd: 'C:\fw', hook_event_name: 'SessionStart', source: 'startup' }, e).done;
     assert.equal(r.code, 0);
