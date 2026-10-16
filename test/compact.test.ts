@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { compactContext, compactDecision, modelWindow } from '../hub/compact.ts';
+import { compactContext, compactDecision, modelWindow, wantsWakeCompact } from '../hub/compact.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 import { makeHub } from './helpers.ts';
 
@@ -41,7 +41,12 @@ test('settings: agentCompact defaults empty, pct clamped to 10..85, auto/null re
   let s = defaultSettings();
   assert.deepEqual(s.agentCompact, {});
   s = patchSettings(s, { agentCompact: { Planner: { mode: 'hold', pct: 99 }, Boss: { mode: 'handoff' }, x: { mode: 'weird' } } });
-  assert.deepEqual(s.agentCompact, { planner: { mode: 'hold', pct: 85 }, boss: { mode: 'handoff', pct: 70 } });
+  assert.deepEqual(s.agentCompact, { planner: { mode: 'hold', pct: 85 }, boss: { mode: 'handoff' } });
+  s = patchSettings(s, { agentCompact: { muse: { wakeCompact: true }, boss: { wakeCompact: true, pct: 60 } } });
+  assert.deepEqual(s.agentCompact.muse, { mode: 'auto', wakeCompact: true }, 'auto + wakeCompact keeps an entry');
+  assert.deepEqual(s.agentCompact.boss, { mode: 'handoff', pct: 60, wakeCompact: true });
+  s = patchSettings(s, { agentCompact: { muse: { wakeCompact: false } } });
+  assert.equal(s.agentCompact.muse, undefined);
   s = patchSettings(s, { agentCompact: { planner: { mode: 'auto' }, boss: null } });
   assert.deepEqual(s.agentCompact, {});
 });
@@ -87,4 +92,53 @@ test('hook pre-compact: blocks a held agent once per turn, fails open otherwise;
     assert.ok((await call<any>('/api/brief?session=c1&source=compact')).text.includes('# Hồ sơ: firmware'));
     assert.ok(!(await call<any>('/api/brief?session=c1&source=startup')).text.includes('# Hồ sơ'));
   } finally { await hub.close(); }
+});
+
+test('wantsWakeCompact: only with wakeCompact on, from pct% of the window or 150k without pct', () => {
+  const m = 'claude-opus-5-5';
+  assert.equal(wantsWakeCompact(undefined, 400_000, m), false);
+  assert.equal(wantsWakeCompact({ mode: 'hold', pct: 70 }, 400_000, m), false);
+  assert.equal(wantsWakeCompact({ mode: 'auto', wakeCompact: true }, 149_000, m), false);
+  assert.equal(wantsWakeCompact({ mode: 'auto', wakeCompact: true }, 150_000, m), true);
+  assert.equal(wantsWakeCompact({ mode: 'hold', pct: 50, wakeCompact: true }, 100_000, m), true);
+  assert.equal(wantsWakeCompact({ mode: 'hold', pct: 50, wakeCompact: true }, 99_000, m), false);
+});
+
+async function offlineAgent(compactCode: number | null, ctx: number, wake: boolean) {
+  const order: string[] = [];
+  const h = await makeHub(undefined, () => { order.push('revive'); }, {
+    compactRevive: async () => { order.push('compact'); if (compactCode === null) throw new Error('spawn failed'); return compactCode; },
+  });
+  try {
+    const tr = path.join(h.dir, 'fw.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: ctx } } }) + '\n');
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: tr });
+    await h.call('/api/sessions/s1/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 's1' });
+    if (wake) await h.call('/api/settings', { agentCompact: { fw: { wakeCompact: true } } }, { method: 'PUT' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw wake up' });
+    await new Promise((r) => setTimeout(r, 100));
+    const msgs = (await h.call<any[]>('/api/rooms/proj/messages?limit=10')).map((m: any) => m.text);
+    return { order, msgs };
+  } finally { await h.hub.close(); }
+}
+
+test('wake compact: off or under the threshold -> plain revive', async () => {
+  assert.deepEqual((await offlineAgent(0, 343_000, false)).order, ['revive']);
+  assert.deepEqual((await offlineAgent(0, 100_000, true)).order, ['revive']);
+});
+
+test('wake compact: on and over the threshold -> /compact, then the wake, one room line with before -> after', async () => {
+  const { order, msgs } = await offlineAgent(0, 343_000, true);
+  assert.deepEqual(order, ['compact', 'revive']);
+  assert.ok(msgs.some((t: string) => t === 'fw được compact trước khi gọi dậy (343k → 343k).'), msgs.join(' | '));
+});
+
+test('wake compact: a failed or crashed compaction still wakes the agent', async () => {
+  for (const code of [1, null]) {
+    const { order, msgs } = await offlineAgent(code, 343_000, true);
+    assert.deepEqual(order, ['compact', 'revive']);
+    assert.ok(msgs.some((t: string) => t.includes('compact trước khi gọi dậy bị lỗi')));
+  }
 });

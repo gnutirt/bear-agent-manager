@@ -16,10 +16,10 @@ import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './ski
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
-import { compactContext, compactDecision } from './compact.ts';
+import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
-import { spawnRevive, type ReviveJob } from './revive.ts';
+import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -73,6 +73,8 @@ export type HubOptions = {
   port: number;
   sweepMs?: number;
   revive?: (job: ReviveJob) => unknown;
+  /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
+  compactRevive?: (job: CompactJob) => Promise<number> | number;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
   batchMs?: number;
   /** Resume closed sessions automatically when mentioned (default off: a cold resume re-reads the whole chat). */
@@ -99,6 +101,7 @@ const WORKER_HISTORY_MS = 24 * 3600_000;
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const runRevive = opts.revive ?? spawnRevive;
+  const runCompact = opts.compactRevive ?? spawnCompact;
   const autoRevive = opts.autoRevive ?? process.env.BEAR_AGENT_REVIVE === '1';
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
   const store = new Store(opts.dir);
@@ -205,12 +208,30 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       : formatDelivery([], takeNotes(s.id), leadRooms(s.id)).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
-    emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
+    // T18b: a long chat is compacted first (setting wakeCompact), so the wake does not re-read all of it.
+    const rule = loadSettings(opts.dir, envCap).agentCompact[normAgent(s.name)];
+    const before = readContextTokens(s.transcript);
+    const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript));
+    let compacted = false;
+    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir };
+    const tellRooms = (text: string) => {
+      for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
+    };
+    emitSession(store.setStatus(s.id, 'busy', compactFirst ? 'đang compact' : 'đang hồi sinh'));
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so only read files and reply.`;
     Promise.resolve()
-      .then(() => runRevive({ id: s.id, cwd: s.cwd, configDir: s.configDir, text, logDir: opts.dir }))
+      .then(async () => {
+        if (!compactFirst) return;
+        // A failed compaction still wakes the agent with a plain resume.
+        compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
+        if (!compacted) tellRooms(`${s.name}: compact trước khi gọi dậy bị lỗi, gọi dậy bình thường.`);
+        emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
+      })
+      .then(() => runRevive({ ...job, text }))
       .catch(() => {})
       .finally(() => {
+        // Measured after the wake turn: its context is the compacted chat plus the new messages.
+        if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${kTokens(before)} → ${kTokens(readContextTokens(s.transcript))}).`);
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });

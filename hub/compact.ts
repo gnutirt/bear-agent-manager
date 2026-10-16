@@ -27,9 +27,20 @@ export function compactDecision(i: CompactInput): { decision: 'allow' | 'block';
   if (i.retry) return { decision: 'allow', reason: 'second compaction in a held turn' };
   const win = modelWindow(i.model, i.ctx);
   if (i.ctx >= win * HOLD_CEILING) return { decision: 'allow', reason: `ctx ${i.ctx} past ${HOLD_CEILING * 100}% of ${win}` };
-  if (i.ctx >= (win * i.rule.pct) / 100) return { decision: 'allow', reason: `ctx ${i.ctx} reached ${i.rule.pct}%` };
-  return { decision: 'block', reason: `bear-agent-manager: held until ${i.rule.pct}% of the context window` };
+  const pct = i.rule.pct ?? 70;
+  if (i.ctx >= (win * pct) / 100) return { decision: 'allow', reason: `ctx ${i.ctx} reached ${pct}%` };
+  return { decision: 'block', reason: `bear-agent-manager: held until ${pct}% of the context window` };
 }
+
+export const WAKE_COMPACT_DEFAULT = 150_000;
+/** T18b: compact an offline agent before waking it when this is on and ctx reached pct% (150k without pct). */
+export function wantsWakeCompact(rule: AgentCompact | undefined, ctx: number, model: string): boolean {
+  if (!rule?.wakeCompact || !ctx) return false;
+  return ctx >= (rule.pct != null ? (modelWindow(model, ctx) * rule.pct) / 100 : WAKE_COMPACT_DEFAULT);
+}
+
+/** "343k" style token count for room lines. */
+export const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
 
 /** Text SessionStart(compact|clear) adds: the agent's newest handoff file + its rooms' notes, cut to the limit. */
 export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS): string {

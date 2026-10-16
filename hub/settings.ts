@@ -3,8 +3,11 @@ import path from 'node:path';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
-/** Per-agent auto compaction (T18): hold = block automatic compaction until pct% of the window. */
-export type AgentCompact = { mode: 'auto' | 'hold' | 'handoff'; pct: number };
+/**
+ * Per-agent compaction. T18: hold = block automatic compaction until pct% of the window.
+ * T18b: wakeCompact = run /compact before an offline agent is woken, once ctx >= pct% (150k without pct).
+ */
+export type AgentCompact = { mode: 'auto' | 'hold' | 'handoff'; pct?: number; wakeCompact?: boolean };
 export type AutoJobs = {
   handoff: { enabled: boolean; thresholdK: number }; digest: { enabled: boolean; minChars: number };
   notes: { enabled: boolean; minNotes: number }; maxRunsPerDay: number;
@@ -57,9 +60,15 @@ export function patchSettings(s: Settings, p: any): Settings {
     for (const [name, r] of Object.entries<any>(p.agentCompact)) {
       const k = normAgent(name);
       if (!k) continue;
-      if (r === null || r?.mode === 'auto') { delete compact[k]; continue; }   // auto is the default: no entry
-      if (!['hold', 'handoff'].includes(r?.mode)) continue;
-      compact[k] = { mode: r.mode, pct: int(r.pct, compact[k]?.pct ?? 70, 10, 85) };
+      if (r === null) { delete compact[k]; continue; }
+      const cur = compact[k];
+      const mode = r?.mode ?? cur?.mode ?? 'auto';
+      if (!['auto', 'hold', 'handoff'].includes(mode)) continue;
+      const wake = bool(r?.wakeCompact, cur?.wakeCompact ?? false);
+      if (mode === 'auto' && !wake) { delete compact[k]; continue; }   // Claude Code's own behavior: no entry
+      // pct: hold needs one (default 70); otherwise unset means "wake compact from 150k".
+      const pct = r?.pct != null || cur?.pct != null || mode === 'hold' ? int(r?.pct, cur?.pct ?? 70, 10, 85) : undefined;
+      compact[k] = { mode, ...(pct != null ? { pct } : {}), ...(wake ? { wakeCompact: true } : {}) };
     }
   }
   const aj = p?.autoJobs ?? {};
