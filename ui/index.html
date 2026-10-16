@@ -302,7 +302,7 @@ header .spacer{flex:1}
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Mời Claude</button>
   </header>
   <div id="banner"><span>Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume">Tiếp tục</button></div>
-  <div id="log"></div>
+  <div id="log"><div id="logBody"></div></div>
   <div id="presence"></div>
   <div class="compose-wrap">
     <div id="mentionMenu" role="listbox"></div>
@@ -325,6 +325,20 @@ header .spacer{flex:1}
 <script>
 const TOKEN = '__BEAR_AGENT_TOKEN__';
 const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null };
+// The log sticks to the newest message while the user is at the bottom (S.stick, set by scrolling,
+// sending and switching rooms), instead of measuring "at bottom" on the old DOM before each render.
+S.stick = true; S.expanded = new Set();
+const logEl = document.getElementById('log'), logBody = document.getElementById('logBody');   // $ is declared below
+const pinBottom = () => { if (S.stick) logEl.scrollTop = logEl.scrollHeight; };
+logEl.addEventListener('scroll', () => {
+  // A hidden webview reports 0 height and clamps scrollTop: that is not the user scrolling up.
+  if (!logEl.clientHeight) return;
+  S.stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+}, { passive: true });
+// #log shrinks/grows when the composer, #cost, #notice or presence change height;
+// #logBody grows when images/fonts load or a message is expanded. Either way: re-pin.
+const logRO = new ResizeObserver(pinBottom);
+logRO.observe(logEl); logRO.observe(logBody);
 const $ = (id) => document.getElementById(id);
 const enc = encodeURIComponent;
 const LABEL = { busy: 'đang làm', idle: 'rảnh', waiting: 'chờ bạn duyệt quyền', offline: 'đã tắt' };
@@ -678,16 +692,15 @@ function receipts(m, list) {
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
-    el.innerHTML = `<div class="empty"><h2>Tạo phòng đầu tiên</h2>Phòng là nơi các Claude nói chuyện với nhau và với bạn. Tạo một phòng, rồi thêm các Claude đang chạy ở cột trái vào.<br><button class="btn primary" id="emptyNew">${I.plus} Tạo phòng</button></div>`;
+    logBody.innerHTML = `<div class="empty"><h2>Tạo phòng đầu tiên</h2>Phòng là nơi các Claude nói chuyện với nhau và với bạn. Tạo một phòng, rồi thêm các Claude đang chạy ở cột trái vào.<br><button class="btn primary" id="emptyNew">${I.plus} Tạo phòng</button></div>`;
     $('emptyNew').onclick = () => showNewRoom(); return;
   }
   const ms = S.messages[S.current] || [];
   if (!ms.length) {
     const n = members(S.current).length;
-    el.innerHTML = `<div class="empty"><h2>#${esc(S.current)} chưa có tin nhắn</h2>${n ? 'Gõ @tên bên dưới để giao việc cho một Claude, hoặc nhắn không tag để cả phòng cùng nghe.' : 'Thêm Claude vào phòng bằng nút + ở cột trái, hoặc copy lệnh mời rồi dán vào tab Claude.'}<br><button class="btn primary" id="emptyInvite">${I.copy} Copy lệnh mời Claude</button></div>`;
+    logBody.innerHTML = `<div class="empty"><h2>#${esc(S.current)} chưa có tin nhắn</h2>${n ? 'Gõ @tên bên dưới để giao việc cho một Claude, hoặc nhắn không tag để cả phòng cùng nghe.' : 'Thêm Claude vào phòng bằng nút + ở cột trái, hoặc copy lệnh mời rồi dán vào tab Claude.'}<br><button class="btn primary" id="emptyInvite">${I.copy} Copy lệnh mời Claude</button></div>`;
     $('emptyInvite').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); return;
   }
-  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   let html = '', prev = null, prevDay = '';
   for (const m of ms) {
     const day = dayOf(m.ts);
@@ -695,27 +708,32 @@ function renderLog() {
     if (m.kind === 'system') { html += `<div class="sysline">${md(m.text)}</div>`; prev = null; continue; }
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
-    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg">${md(m.text)}</div>${receipts(m, ms)}</div></div>`);
+    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg">${md(m.text)}</div>${receipts(m, ms)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms)}</div></div>`;
     }
     prev = m;
   }
-  el.innerHTML = html;
-  el.querySelectorAll('.msg').forEach((m) => {
-    if (m.scrollHeight > 260 && !m.dataset.open) {
-      m.classList.add('clamp');
-      const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = 'Xem thêm';
-      b.onclick = () => { const open = m.classList.toggle('clamp'); b.textContent = open ? 'Xem thêm' : 'Thu gọn'; };
-      m.after(b);
-    }
+  logBody.innerHTML = html;
+  logBody.querySelectorAll('.msg').forEach((m) => {
+    if (m.scrollHeight <= 260) return;
+    const id = m.dataset.mid, open = S.expanded.has(id);   // re-renders keep "Xem thêm" open
+    if (!open) m.classList.add('clamp');
+    const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = open ? 'Thu gọn' : 'Xem thêm';
+    b.onclick = () => {
+      const clamped = m.classList.toggle('clamp');
+      if (clamped) S.expanded.delete(id); else S.expanded.add(id);
+      b.textContent = clamped ? 'Xem thêm' : 'Thu gọn';
+    };
+    m.after(b);
   });
   el.querySelectorAll('[data-wake]').forEach((b) => b.onclick = () => reviveSession(b.dataset.wake));
   el.querySelectorAll('[data-rename]').forEach((b) => b.onclick = () => renameSessionForm(b, b.dataset.rename));
-  if (atBottom || !el.dataset.room || el.dataset.room !== S.current) el.scrollTop = el.scrollHeight;
+  if (el.dataset.room !== S.current) S.stick = true;   // switching rooms always lands at the bottom
   el.dataset.room = S.current;
+  pinBottom();
 }
 
 function renderPresence() {
@@ -759,7 +777,7 @@ async function loadNotes(room) {
 function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderPresence(); renderNotes(); }
 
 async function select(name) {
-  S.current = name; S.unread[name] = 0;
+  S.current = name; S.unread[name] = 0; S.stick = true;
   try { localStorage.setItem('bear-agent-manager:room', name); } catch {}
   if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
   if (name && !S.notes[name]) await loadNotes(name);
@@ -873,6 +891,7 @@ $('composer').onsubmit = async (e) => {
   try {
     const r = await api(`/api/rooms/${enc(S.current)}/messages`, { text });
     $('text').value = ''; autosize(); updateCost();
+    S.stick = true; pinBottom();   // your own message: always show it
     const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
     if (r.unknownMentions.length) note(new Error(`Không có Claude nào tên ${r.unknownMentions.map((n) => '@' + n).join(', ')} trong phòng nên tin này không đánh thức ai.`));
     else if (dead.length) note(new Error(`${dead.join(', ')} đã tắt. Tab đã đóng hẳn thì hub tự gọi dậy ở chế độ nền; nếu không, bấm "Gọi dậy" ở cột trái hoặc dưới tin nhắn.`));

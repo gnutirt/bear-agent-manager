@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: the chat log stays pinned to the newest message (composer/notice height changes, late images, own messages, room switch, hidden panel); expanded messages stay expanded.
 - The hub can start osin by itself (handoff dossier when a chat passes a context threshold, digest of long room messages, notes cleanup proposal) when allowed in Settings; each job once, daily cap; never deletes notes.
 - Every chat learns at start which workers are on (and its own forced/banned skills); the hub health-checks provider keys every 30 minutes.
 - Skills can be forced (every prompt or first prompt only), left to Claude, or banned for each agent; reminders go through the UserPromptSubmit hook and follow the agent across renames. GET /api/skills lists installed skills and members.

@@ -26,3 +26,21 @@ test('UI inline script compiles and the workers panel is wired (list, live updat
     for (const s of ['id="workers"', 'id="wkCap"', "'/api/workers'", "addEventListener('workers'", '/kill`']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+test('chat log sticks to the bottom by intent, not by measuring before render', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['S.stick', 'new ResizeObserver(', 'id="logBody"', 'S.expanded', 'data-mid=']) assert.ok(html.includes(s), `missing ${s}`);
+    assert.ok(!html.includes('atBottom'), 'the pre-render atBottom check is gone');
+  } finally { await hub.close(); }
+});
+
+test('inline script never calls $() before declaring it (a TDZ error blanks the whole page)', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = html.slice(html.indexOf('<script>'));
+    assert.ok(!script.slice(0, script.indexOf('const $ =')).includes('$('));
+  } finally { await hub.close(); }
+});
