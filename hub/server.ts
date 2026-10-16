@@ -666,7 +666,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);
-      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined });
+      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
       if (b.ide) s = store.setIde(s.id, String(b.ide));
       if (b.title) s = setTitleKeepingRules(s.id, String(b.title));
       emitSession(s);

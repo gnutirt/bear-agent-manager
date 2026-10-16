@@ -22,6 +22,7 @@ export type Session = {
   titleNamed?: boolean;          // name already derived from the title once
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
+  pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
 };
 export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
 const IDES = new Set<string>(['vscode', 'antigravity', 'cursor', 'cli']);
@@ -194,7 +195,7 @@ export class Store {
     this.save();
   }
 
-  register(input: { id: string; cwd: string; name?: string; source?: string; configDir?: string; transcript?: string; ctx?: number }): Session {
+  register(input: { id: string; cwd: string; name?: string; source?: string; configDir?: string; transcript?: string; ctx?: number; pid?: number }): Session {
     if (!input.id) throw new StoreError(400, 'id required');
     const t = this.now();
     let s = this.state.sessions[this.resolve(input.id)];
@@ -221,6 +222,7 @@ export class Store {
     if (input.configDir) s.configDir = input.configDir;
     if (input.transcript) s.transcript = input.transcript;
     if (input.ctx && input.ctx > 0) s.ctx = input.ctx;
+    if (Number.isInteger(input.pid) && input.pid! > 0) s.pid = input.pid;
     s.activity = '';
     s.lastSeen = t;
     if (input.cwd) s.cwd = input.cwd;

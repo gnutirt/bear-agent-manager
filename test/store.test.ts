@@ -360,3 +360,13 @@ test('post with replyTo keeps a short quote; unknown or other-room ids are refus
   assert.throws(() => st.post('r2', a.id, 'x', undefined, orig.id), (e: StoreError) => e.status === 400, 'a message of another room');
   assert.equal(st.post('r1', null, 'plain').message.replyTo, undefined);
 });
+
+test('register keeps the claude pid; a register without one does not erase it', () => {
+  const st = new Store(tmp());
+  st.register({ id: 'p1', cwd: path.join('D:', 'x'), pid: 4242 });
+  assert.equal(st.session('p1').pid, 4242);
+  st.register({ id: 'p1', cwd: path.join('D:', 'x') });
+  assert.equal(st.session('p1').pid, 4242);
+  st.register({ id: 'p1', cwd: path.join('D:', 'x'), pid: 4343 });
+  assert.equal(st.session('p1').pid, 4343);
+});
