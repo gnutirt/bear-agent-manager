@@ -48,6 +48,14 @@ test('theme picker: every option has a palette block (or is auto/light)', async 
   } finally { await hub.close(); }
 });
 
+test('reply: quote bar, floating button, replyTo sent with the message, quote box jumps to the original', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['id="replyBar"', "id = 'rplBtn'", '{ text, replyTo: S.reply.id }', 'data-goto=', 'm.replyTo']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('inline script never calls $() before declaring it (a TDZ error blanks the whole page)', async () => {
   const { hub } = await makeHub();
   try {

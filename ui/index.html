@@ -64,6 +64,18 @@
 .themes{display:block;width:calc(100% - 24px);margin:8px 12px 14px;padding:7px 10px;border:1px solid var(--side-line);border-radius:10px;background:var(--side-2);color:var(--side-strong);font-size:12.5px;font-weight:600}
 .themes option{background:var(--side);color:var(--side-strong)}
 #fonts{margin-top:-6px}
+/* reply: floating button on the hovered message, quote bar above the composer, quote box inside a reply */
+#rplBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
+#rplBtn:hover{background:var(--accent);color:#fff}
+#replyBar{display:flex;align-items:center;gap:10px;margin:0 0 6px;padding:6px 8px 6px 12px;border-left:3px solid var(--accent);border-radius:8px;background:var(--accent-soft);font-size:13px}
+#replyBar[hidden]{display:none}
+#replyBar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#replyBar button{width:24px;height:24px;border-radius:6px;color:var(--mute)}
+#replyBar button:hover{background:var(--hover);color:var(--text)}
+.quote{display:block;max-width:100%;margin:2px 0 4px;padding:3px 10px;border-left:3px solid var(--accent);border-radius:6px;background:var(--accent-soft);color:var(--mute);font-size:12.5px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quote:hover{color:var(--text)}
+@keyframes flash{0%,60%{background:var(--accent-soft)}100%{background:transparent}}
+.flash{animation:flash 1.6s ease-out;border-radius:8px}
 /* right-click a message group: enlarged reading popup */
 #zoom{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(10,14,25,.55);padding:4vh 4vw}
 #zoom[hidden]{display:none}
@@ -128,7 +140,9 @@ input,textarea{font:inherit;color:inherit}
 .ctx.lo{background:color-mix(in srgb,#22C55E 22%,transparent);color:#15803D}
 .ctx.mid{background:color-mix(in srgb,#F5A524 25%,transparent);color:#A16207}
 .ctx.hi{background:color-mix(in srgb,#EF4444 22%,transparent);color:#B91C1C}
-:root[data-theme=dark] .ctx.lo{color:#4ADE80}:root[data-theme=dark] .ctx.mid{color:#FBBF24}:root[data-theme=dark] .ctx.hi{color:#F87171}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset]) .ctx.lo{color:#4ADE80}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset]) .ctx.mid{color:#FBBF24}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset]) .ctx.hi{color:#F87171}
 .sess .acts button.add.icon{width:26px;height:26px;padding:0;border-radius:50%;justify-content:center}
 .sess .in{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;background:var(--idle)}
 .sess .acts button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
@@ -395,7 +409,20 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .pcard input.warn{border-color:#F5A524}.pcard input.warn::placeholder{color:#B7791F}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
-.setrow{display:flex;align-items:center;gap:16px;padding:11px 0;border-top:1px solid var(--line);max-width:720px}
+.setrow{display:flex;align-items:center;gap:20px;padding:14px 0;border-top:1px solid var(--line)}
+/* settings: roomier cards, a real sub-tab bar, section titles with an accent mark */
+#view-settings .setbox{padding:6px 22px;border-radius:16px;box-shadow:0 1px 2px rgba(17,24,39,.05)}
+#view-settings .setrow b{font-size:14px}
+#view-settings .vw>.setbox{max-width:1100px}   /* label and its switch stay near each other on wide screens; tables keep the full width */
+#view-settings .setrow:hover{background:linear-gradient(90deg,transparent,var(--hover) 12%,var(--hover) 88%,transparent)}
+#view-settings .vw>.seg{display:flex;flex-wrap:wrap;gap:4px;padding:4px;border-radius:14px;margin:0 0 20px!important;width:fit-content;max-width:100%}
+#view-settings .vw>.seg button{padding:8px 18px;border-radius:10px;font-size:13.5px;font-weight:600}
+#view-settings .vw>.seg button[aria-pressed=true]{background:var(--accent);color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 40%,transparent)}
+#view-settings .vw h2{font-size:16px;margin:30px 0 12px}
+#view-settings .vw h2::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+#view-settings .vw .lede{font-size:14px}
+#view-settings .numin,#view-settings .txtin,#view-settings .vw select{padding:8px 12px;border-radius:10px}
+#view-settings .pcard{border-radius:16px;padding:16px 18px}
 .setbox>.setrow:first-child,.setbox>.note+.setrow{border-top:0}
 .setrow>span{flex:1;min-width:0}
 .setrow b{display:block;font-weight:600;font-size:13.5px}
@@ -510,6 +537,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div id="presence"></div>
   <div class="compose-wrap">
     <div id="mentionMenu" role="listbox"></div>
+    <div id="replyBar" hidden></div>
     <form id="composer"><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude"></textarea><button id="send" aria-label="Gửi" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
     <div id="cost"></div>
     <div id="notice"></div>
@@ -923,6 +951,12 @@ function receipts(m, list, last = lastWakes(list)) {
   return chips ? `<div class="rcpt">${chips}</div>` : '';
 }
 
+const plain = (t, n = 80) => { const s = String(t).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+function quote(m) {
+  if (m.replyTo == null) return '';
+  const o = (S.messages[S.current] || []).find((x) => x.id === m.replyTo);
+  return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(o.fromId ? (S.sessions[o.fromId]?.name || o.from) : 'Bạn')}</b>: ${esc(plain(o.text))}` : `tin #${m.replyTo}`}</button>`;
+}
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
@@ -943,11 +977,11 @@ function renderLog() {
     if (m.kind === 'system') { html += `<div class="sysline">${md(m.text)}</div>`; prev = null; continue; }
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
-    if (cont) html = html.replace(/<\/div><\/div>$/, `<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`);
+    if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div><div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -1132,8 +1166,8 @@ $('composer').onsubmit = async (e) => {
   const text = $('text').value.trim();
   if (!text || !S.current) return;
   try {
-    const r = await api(`/api/rooms/${enc(S.current)}/messages`, { text });
-    $('text').value = ''; autosize(); updateCost();
+    const r = await api(`/api/rooms/${enc(S.current)}/messages`, S.reply ? { text, replyTo: S.reply.id } : { text });
+    $('text').value = ''; autosize(); updateCost(); setReply(null);
     S.stick = true; pinBottom();   // your own message: always show it
     const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
     if (r.unknownMentions.length) note(new Error(`Không có Claude nào tên ${r.unknownMentions.map((n) => '@' + n).join(', ')} trong phòng nên tin này không đánh thức ai.`));
@@ -1644,6 +1678,40 @@ $('log').addEventListener('contextmenu', (e) => {
   zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true"><button class="zx" aria-label="Đóng">✕</button>${g.outerHTML}</div>`;
   zoom.hidden = false;
 });
+
+// reply: hover a message -> floating "Trả lời"; quote bar above the composer; quote box click -> jump to the original
+S.reply = null;
+const rplBtn = document.createElement('button'); rplBtn.id = 'rplBtn'; rplBtn.type = 'button'; rplBtn.textContent = '↩ Trả lời'; document.body.appendChild(rplBtn);
+let rplFor = null;
+function setReply(m) {
+  S.reply = m ? { id: m.id, name: m.fromId ? (S.sessions[m.fromId]?.name || m.from) : 'Bạn', text: plain(m.text) } : null;
+  const bar = $('replyBar');
+  bar.hidden = !S.reply;
+  bar.innerHTML = S.reply ? `<span>↩ Trả lời <b>${esc(S.reply.name)}</b>: ${esc(S.reply.text)}</span><button type="button" aria-label="Huỷ trả lời">✕</button>` : '';
+  if (!S.reply) return;
+  bar.querySelector('button').onclick = () => setReply(null);
+  const t = $('text');
+  if (m.fromId && !t.value.includes('@' + S.reply.name)) { t.value = `@${S.reply.name} ` + t.value; autosize(); }
+  t.focus();
+}
+$('log').addEventListener('mouseover', (e) => {
+  const el = e.target.closest('.msg[data-mid]'); if (!el) return;
+  rplFor = el.dataset.mid;
+  const r = el.getBoundingClientRect();
+  rplBtn.style.display = 'block'; rplBtn.style.top = Math.max(r.top, 70) + 'px'; rplBtn.style.left = Math.max(r.right - 92, r.left) + 'px';
+});
+$('log').addEventListener('mouseleave', (e) => { if (e.relatedTarget !== rplBtn) rplBtn.style.display = 'none'; });
+$('log').addEventListener('scroll', () => { rplBtn.style.display = 'none'; });
+rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log')) rplBtn.style.display = 'none'; };
+rplBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = 'none'; if (m) setReply(m); };
+$('log').addEventListener('click', (e) => {
+  const q = e.target.closest('.quote'); if (!q) return;
+  const t = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`);
+  if (!t) return toast('Tin gốc không còn trong danh sách đang tải');
+  S.stick = false; t.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+});
+$('text').addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.reply) setReply(null); });
 
 const themeSel = document.getElementById('themes');
 themeSel.onchange = () => setTheme(themeSel.value);
