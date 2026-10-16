@@ -118,8 +118,9 @@ foreach ($prov in $plan) {
         $models = $defaultModels                            # the built-in chains are Intern model ids
     }
     $chain = if ($Model -ne "auto") { @($Model) } elseif ($edits) { @($models.edit) } else { @($models.read) }
-    $quota = $false
+    $quota = @($chain).Count -gt 0                          # stays true only if every model in the chain hit a limit
     foreach ($m in $chain) {
+        $hit = $false
         foreach ($v in "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL") { Set-Item "Env:$v" $m }
         for ($try = 1; $try -le 2; $try++) {
             $out = $prompt | claude -p --bare --model $m @toolArgs --strict-mcp-config --output-format json 2>&1 | Out-String
@@ -132,9 +133,9 @@ foreach ($prov in $plan) {
             $err = if ($j) { "$($j.api_error_status) $($j.result)" } else { $out }
             if ($err -notmatch $quotaRx) { break }          # not a limit problem -> try next model
             if ($try -eq 1 -and $err -match '429|rate.?limit') { Start-Sleep 65; continue }  # RPM window, retry once
-            $quota = $true; break
+            $hit = $true; break
         }
-        if ($quota) { break }                               # 墨点 quota is per provider/key: switching model won't help
+        if (-not $hit) { $quota = $false }                  # quota can be per model (kimi out, deepseek fine): try the next model
         Write-Output "[worker] provider=$($prov.id) model=$m failed :: $err"
     }
     if ($quota) { Write-Output "[worker] QUOTA provider=$($prov.id) :: $err" }   # next provider (another free key, then paid)
