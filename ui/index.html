@@ -46,8 +46,8 @@
 /* excel: flat, square, black on white, visible grid */
 :root[data-theme=excel]{--side:#F2F2F2;--side-2:#E2E2E2;--side-line:#BFBFBF;--side-text:#000000;--side-mute:#595959;--side-strong:#000000;--bg:#FFFFFF;--panel:#FFFFFF;--text:#000000;--mute:#595959;--line:#BFBFBF;--hover:#E8F1EC;--accent:#217346;--accent-soft:#D9EAD3;--me:#FFF2CC;--code:#F2F2F2;--shadow:0 2px 8px rgba(0,0,0,.25)}
 :root[data-theme=excel] *:not(.led):not(.switch){border-radius:0!important}
-:root[data-theme=excel] .group{background:#fff;border:1px solid #D9D9D9;margin-bottom:-1px}
-:root[data-theme=excel] .group:hover{background:#E8F1EC;border-color:#217346}
+:root[data-theme=excel] .group{background:#fff;border:1px solid #D9D9D9;margin-bottom:-1px;box-shadow:none}
+:root[data-theme=excel] .group:hover{background:#E8F1EC;border-color:#217346;box-shadow:none;transform:none}
 :root[data-theme=excel] .tbl th,:root[data-theme=excel] .tbl td{border:1px solid #D9D9D9}
 :root[data-theme=excel] .tbl th{background:#F2F2F2;color:#000}
 :root[data-theme=excel] .room.active,:root[data-theme=excel] .sess .acts button.add,:root[data-theme=excel] .btn.primary,:root[data-theme=excel] #send{color:#fff}
@@ -84,7 +84,7 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 #zoom .zbox{width:min(1100px,100%);max-height:100%;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 28px;font-size:18px;line-height:1.65;position:relative}
 #zoom .zbox .rn,#zoom .zbox .more-btn{display:none}
 /* the copied group must not draw its own card inside the popup card */
-#zoom .zbox .group,#zoom .zbox .group:hover,#zoom .zbox .group.you{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;max-width:none}
+#zoom .zbox .group,#zoom .zbox .group:hover,#zoom .zbox .group.you{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;max-width:none;transform:none}
 #zoom .zbox .group.you,#zoom .zbox .group.you .head{flex-direction:row}
 #zoom .zbox .msg{max-height:none!important;-webkit-mask-image:none;mask-image:none}
 #zoom .zbox .msg code,#zoom .zbox .msg pre{font-size:15px}
@@ -220,11 +220,13 @@ header .spacer{flex:1}
 /* one reading column: messages, presence and composer share the same centred width */
 #logBody{max-width:1480px;margin:0 auto}
 #presence,.compose-wrap{width:100%;max-width:1480px;margin-left:auto;margin-right:auto;box-sizing:border-box}
-/* flat feed: no heavy side bars, a faint tint per agent, wide enough for code and tables */
-.group{--c:var(--accent);display:flex;gap:14px;padding:12px 16px;margin:0 0 6px;border-radius:14px;
-  background:color-mix(in srgb,var(--c) 4%,transparent);border:1px solid transparent;transition:background .15s,border-color .15s}
-.group:hover{background:color-mix(in srgb,var(--c) 8%,var(--panel));border-color:color-mix(in srgb,var(--c) 18%,var(--line))}
-.group.you{flex-direction:row-reverse;margin-left:auto;max-width:78%;background:color-mix(in srgb,var(--accent) 12%,var(--panel));border-color:color-mix(in srgb,var(--accent) 25%,var(--line))}
+/* raised cards: solid panel with a hint of the agent colour, lifted by a two-layer shadow; hover lifts it a little more */
+.group{--c:var(--accent);position:relative;display:flex;gap:14px;padding:14px 18px;margin:0 0 12px;border-radius:16px;
+  background:color-mix(in srgb,var(--c) 6%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 20%,var(--line));
+  box-shadow:0 1px 2px rgba(17,24,39,.08),0 6px 16px -4px rgba(17,24,39,.14);transition:transform .15s,box-shadow .15s,border-color .15s}
+.group:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:0 2px 4px rgba(17,24,39,.1),0 12px 28px -6px color-mix(in srgb,var(--c) 38%,rgba(17,24,39,.2))}
+.group.you{flex-direction:row-reverse;margin-left:auto;max-width:78%;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+@media (prefers-reduced-motion:reduce){.group,.group:hover{transform:none;transition:none}}
 .group.you .head{flex-direction:row-reverse}
 .group.tome .head::after{content:"gọi bạn";margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
 .group .body{flex:1;min-width:0}
@@ -1702,8 +1704,10 @@ function setReply(m) {
 $('log').addEventListener('mouseover', (e) => {
   const el = e.target.closest('.msg[data-mid]'); if (!el) return;
   rplFor = el.dataset.mid;
-  const r = el.getBoundingClientRect();
-  rplBtn.style.display = 'block'; rplBtn.style.top = Math.max(r.top, 70) + 'px'; rplBtn.style.left = Math.max(r.right - 92, r.left) + 'px';
+  // sits on the card's top edge (like a hover toolbar) so it never covers text; hidden when that edge is scrolled out of the log
+  const g = el.closest('.group').getBoundingClientRect(), lg = $('log').getBoundingClientRect();
+  if (g.top - 14 < lg.top) { rplBtn.style.display = 'none'; return; }
+  rplBtn.style.display = 'block'; rplBtn.style.top = (g.top - 14) + 'px'; rplBtn.style.left = (g.right - 112) + 'px';
 });
 $('log').addEventListener('mouseleave', (e) => { if (e.relatedTarget !== rplBtn) rplBtn.style.display = 'none'; });
 $('log').addEventListener('scroll', () => { rplBtn.style.display = 'none'; });
