@@ -482,7 +482,7 @@ const TOKEN = '__BEAR_AGENT_TOKEN__';
 const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null };
 // The log sticks to the newest message while the user is at the bottom (S.stick, set by scrolling,
 // sending and switching rooms), instead of measuring "at bottom" on the old DOM before each render.
-S.stick = true; S.expanded = new Set(); S.seen = {};   // seen[room] = message count when the user last was at the bottom
+S.stick = true; S.expanded = new Set(); S.seen = {}; S.setSub = 'general';   // seen[room] = message count when the user last was at the bottom
 const logEl = document.getElementById('log'), logBody = document.getElementById('logBody');   // $ is declared below
 const pinBottom = () => { if (S.stick) logEl.scrollTop = logEl.scrollHeight; };
 logEl.addEventListener('scroll', () => {
@@ -706,7 +706,7 @@ function deleteRoomForm(anchor, name) {
 function membersMenu(anchor) {
   const ms = members(S.current);
   openMenu(anchor, `<div class="label">Thành viên #${esc(S.current)}</div>` + (ms.length ? ms.map((s) => `
-    <div class="item">${avatar(s.id, s.status, 'sm')}<span style="flex:1;min-width:0"><b>${esc(s.name)}</b><br><small style="color:var(--mute)">${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><button class="btn" data-lead="${esc(s.id)}" title="${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Đặt làm trưởng phòng'}">${isLead(s.id) ? '★' : '☆'}</button><button class="btn" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out}</button></div>`).join('')
+    <div class="item">${avatar(s.id, s.status, 'sm')}<span style="flex:1;min-width:0"><b>${esc(s.name)}</b><br><small style="color:var(--mute)">${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><button class="btn" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn" data-out="${esc(s.id)}" title="Cho rời phòng">${I.out}</button></div>`).join('')
     : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>'), (m) => {
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast('Đã cho rời phòng'); }, (e) => toast(e.message)));
@@ -1309,12 +1309,11 @@ function renderTokensView() {
   const bucketRows = (m) => Object.entries(m).sort((a, b) => sum(b[1]) - sum(a[1])).map(([k, b]) => `<tr><td>${esc(k)}</td><td class="num">${b.runs}</td><td class="num">${fmtTok(b.in)}</td><td class="num">${fmtTok(b.out)}</td><td class="num">${fmtTok(b.cacheRead)}</td><td class="num">${b.failed || ''}</td></tr>`).join('');
   const BH = ['', '#Lượt', '#Vào', '#Ra', '#Đọc cache', '#Lỗi'];
   const chats = t.chats.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.repo)}</td><td class="num"><span class="ctx ${c.ctx < 100e3 ? 'lo' : c.ctx < 300e3 ? 'mid' : 'hi'}">${fmtK(c.ctx)}</span></td><td>${LABEL[c.status] || esc(c.status)}</td><td class="small muted">${c.ctx >= 300e3 ? 'nên /compact hoặc giao osin làm hồ sơ bàn giao' : ''}</td></tr>`).join('');
-  $('view-tokens').innerHTML = `<div class="vw">${head}
+  $('view-tokens').innerHTML = `<div class="vw">${claudeProBlock()}${head}
     <div class="kpis">${kpis}</div>
     <h2>Theo ngày</h2>${chart}
     <div class="cols"><div><h2>Theo nhà cung cấp</h2>${table(['Nhà cung cấp', ...BH.slice(1)], bucketRows(t.byProvider)) }</div><div><h2>Theo model</h2>${table(['Model', ...BH.slice(1)], bucketRows(t.byModel))}</div></div>
     <h2>Ngữ cảnh các chat</h2>${chats ? table(['Chat', 'Repo', '#Ngữ cảnh', 'Trạng thái', ''], chats) : '<div class="vempty">Chưa có chat nào báo kích thước ngữ cảnh.</div>'}
-    ${claudeProBlock()}
   </div>`;
 }
 $('view-tokens').addEventListener('click', (e) => {
@@ -1420,6 +1419,7 @@ function providerCard(p) {
     <div class="pf"><button class="btn primary">Lưu</button>${p.hasKey ? '<button type="button" class="btn" data-clearkey>Xoá key</button>' : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : '<button type="button" class="btn danger" data-delprov>Xoá nhà cung cấp</button>'}</div>
   </form>`;
 }
+const SUBS = { general: 'Chung', worker: 'Worker', lead: 'Trưởng phòng', compact: 'Compact', providers: 'Nhà cung cấp', account: 'Tài khoản' };
 function renderSettingsView() {
   if (S.tab !== 'settings') return;
   const st = S.settings;
@@ -1428,14 +1428,24 @@ function renderSettingsView() {
   const arOn = st.archive.enabled ?? !!st.archive.dir;
   const arState = !arOn ? (st.archive.dir ? 'Đang tắt; thư mục vẫn được giữ.' : 'Đang tắt. Điền thư mục rồi bật công tắc.') : !S.archive?.dir ? 'Chưa chọn thư mục.' : !ar ? 'Chưa chạy lượt nào kể từ khi hub khởi động; lượt kế tiếp trong vòng 10 phút.'
     : ar.ok ? `Lần gần nhất ${time(ar.at)}: chép ${ar.copiedFiles} file mới.` : `Không sao lưu được: ${esc(ar.reason)}`;
-  $('view-settings').innerHTML = `<div class="vw">
-    <p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
-    <h2>Worker</h2><div class="setbox">
+  const P = {
+    general: `    <p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
+    <h2>Chuyển sang máy khác</h2>
+    <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
+      <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
+      <div class="pf"><button class="btn primary" id="machineExport">Xuất cấu hình máy</button><span class="small muted">${S.machine?.last ? `Lần gần nhất ${time(S.machine.last.at)}: ${S.machine.last.items} mục${S.machine.last.withKeys ? ', có key' : ''}.` : 'Chưa xuất lần nào kể từ khi hub chạy.'}</span></div>
+      ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
+    <h2>Thông tin</h2>
+    <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
+`,
+    worker: `    <h2>Worker</h2><div class="setbox">
       ${sw('skills.worker.enabled', st.skills.worker.enabled, 'Cho phép worker', 'Tắt thì hub từ chối mọi lượt worker; chat phải tự làm.')}
       ${sw('skills.osin.enabled', st.skills.osin.enabled, 'Cho phép osin', 'Worker dọn dẹp: hồ sơ bàn giao, rút gọn tin nhắn, dọn biên bản.')}
       ${sw('allowPaidFallback', st.allowPaidFallback, 'Tự chuyển sang tầng trả phí khi tầng free hết quota')}
       ${num('workerCap', st.workerCap, 'Số worker chạy cùng lúc', 'Trên cả máy, 1–16. API free giới hạn chung theo phút.', 1, 16)}
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, 'Tự dọn transcript vào room_chat mỗi 10 phút', 'Xem trước danh sách ở tab Worker trước khi bật.')}
+    </div>`,
+    lead: `    <h2>Trưởng phòng</h2><div class="setbox">
       ${sw('archive.enabled', arOn, 'Sao lưu chat', 'Chép phần mới của mọi chat sang thư mục bên dưới mỗi 10 phút và khi một chat đóng. Không bao giờ xoá gì.')}
       <label class="setrow"><span><b>Thư mục sao lưu</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
     </div>
@@ -1448,24 +1458,18 @@ function renderSettingsView() {
       ${sw('autoJobs.notes.enabled', aj.notes.enabled, 'Đề xuất dọn biên bản phòng', 'Chỉ đề xuất, không bao giờ tự xoá.')}
       ${num('autoJobs.notes.minNotes', aj.notes.minNotes, 'Khi biên bản có từ (mục)', '', 5, 500)}
       ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, 'Tối đa số lượt mỗi ngày', '', 0, 200)}
-    </div>
-    <h2>Tự compact theo agent</h2>
-    ${compactBlock()}
-    <h2>Skill theo agent</h2><p class="small muted">Ép dùng: nhắc agent gọi skill (mỗi tin hoặc chỉ tin đầu phiên). Cấm: nhắc không dùng. Tự quyết: không nhắc gì. Ép dùng chỉ chọn được cho từng skill, không cho cả plugin.</p>
-    ${skillsBlock()}
-    <h2>Nhà cung cấp worker</h2>
+    </div>`,
+    compact: `    <h2>Tự compact theo agent</h2>
+    ${compactBlock()}`,
+    providers: `    <h2>Nhà cung cấp worker</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
-    <form class="addprov" id="addProv"><input name="pid" placeholder="id, ví dụ intern-3" pattern="[a-z0-9-]{2,32}" required aria-label="id nhà cung cấp"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="Tầng"><option value="free">free</option><option value="paid">trả phí</option></select><button class="btn">${I.plus} Thêm nhà cung cấp</button></form>
-    <h2>Tài khoản Claude Pro</h2>
+    <form class="addprov" id="addProv"><input name="pid" placeholder="id, ví dụ intern-3" pattern="[a-z0-9-]{2,32}" required aria-label="id nhà cung cấp"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="Tầng"><option value="free">free</option><option value="paid">trả phí</option></select><button class="btn">${I.plus} Thêm nhà cung cấp</button></form>`,
+    account: `    <h2>Tài khoản Claude Pro</h2>
     <div class="setbox"><p class="small note"><b>Mức dùng 5h/tuần: <a href="#tokens" data-gotab="tokens">xem tab Token</a></b></p><p class="small muted note">Chuyển tài khoản (chờ Task 10): lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
-      <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>
-    <h2>Chuyển sang máy khác</h2>
-    <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
-      <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
-      <div class="pf"><button class="btn primary" id="machineExport">Xuất cấu hình máy</button><span class="small muted">${S.machine?.last ? `Lần gần nhất ${time(S.machine.last.at)}: ${S.machine.last.items} mục${S.machine.last.withKeys ? ', có key' : ''}.` : 'Chưa xuất lần nào kể từ khi hub chạy.'}</span></div>
-      ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
-    <h2>Thông tin</h2>
-    <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
+      <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>`,
+  };
+  const bar = `<span class="seg" role="group" aria-label="Nhóm cài đặt" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
+  $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
 }
 async function saveSetting(el) {
@@ -1506,6 +1510,8 @@ sv.addEventListener('submit', (e) => {
   if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
 });
 sv.addEventListener('click', (e) => {
+  const sb = e.target.closest('[data-sub]');
+  if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
   if (e.target.closest('#machineExport')) {
     return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
       S.machine = { ...S.machine, last: r };

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- UI: Cài đặt split into sub-tabs (Chung, Worker, Trưởng phòng, Compact, Nhà cung cấp, Tài khoản); Claude Pro usage (VS Code + Antigravity) now on top of the Token tab; the room-lead star in the members menu is a text button (Phong trưởng phòng / Bỏ trưởng phòng).
 - Claude Pro usage (read only): GET /api/claude-usage shows each logged-in account (VS Code ~/.claude, Antigravity and any CLAUDE_CONFIG_DIR; same email = one row) with its 5-hour and weekly use, cached 5 minutes, polled every 15 minutes; one @you warning per cycle at 80% (5 h) / 90% (week). Token tab: Claude Pro block; Phòng tab: account chip per chat. The hub only reads .credentials.json, never writes or refreshes it, and never returns or logs a token.
 - Light wake (`agentCompact[agent].wakeCompact`, off by default): an offline agent whose chat reached its pct (150k without one) is compacted with `claude --resume <id> -p /compact` before the wake turn; the room shows "X được compact trước khi gọi dậy (343k → Nk)". A failed compaction still wakes it with a plain resume.
 - Per-agent auto compaction (settings `agentCompact`, empty by default): `hold` blocks automatic compaction through the PreCompact hook until the agent reaches its pct, never past 85% of the model's window and never for `/compact`; after compact/clear, SessionStart gives agents with a rule their handoff file and room notes back (≤10,000 chars). Hub down = Claude Code compacts as usual. Open chats get the new PreCompact hook only after reopening or Reload Window (and after reinstalling the plugin copy).

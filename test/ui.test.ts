@@ -115,3 +115,12 @@ test('receipts: each member gets a chip only on the newest message that woke it,
     assert.ok(!html.includes('đã trả lời'));
   } finally { await hub.close(); }
 });
+
+test('settings sub-tabs, Claude usage first in the Token tab, text button to make a room lead', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['data-sub="${k}"', "general: 'Chung'", "lead: 'Trưởng phòng'", "account: 'Tài khoản'", 'Phong trưởng phòng', 'Bỏ trưởng phòng']) assert.ok(html.includes(s), `missing ${s}`);
+    assert.ok(html.includes('<div class="vw">${claudeProBlock()}${head}'), 'Claude usage comes before the worker token KPIs');
+  } finally { await hub.close(); }
+});
