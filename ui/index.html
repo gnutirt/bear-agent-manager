@@ -81,6 +81,9 @@
 #zoom[hidden]{display:none}
 #zoom .zbox{width:min(1100px,100%);max-height:100%;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 28px;font-size:18px;line-height:1.65;position:relative}
 #zoom .zbox .rn,#zoom .zbox .more-btn{display:none}
+/* the copied group must not draw its own card inside the popup card */
+#zoom .zbox .group,#zoom .zbox .group:hover,#zoom .zbox .group.you{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;max-width:none}
+#zoom .zbox .group.you,#zoom .zbox .group.you .head{flex-direction:row}
 #zoom .zbox .msg{max-height:none!important;-webkit-mask-image:none;mask-image:none}
 #zoom .zbox .msg code,#zoom .zbox .msg pre{font-size:15px}
 #zoom .zx{position:sticky;top:0;float:right;width:32px;height:32px;border-radius:50%;background:var(--hover);font-size:16px}
