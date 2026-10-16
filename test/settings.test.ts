@@ -16,11 +16,11 @@ test('defaults: workers on, everything automatic off, no skill rules', () => {
 test('patch validates and merges deeply', () => {
   let s = patchSettings(defaultSettings(4), {
     skills: { osin: { enabled: false } }, workerCap: 99,
-    agentSkills: { ' Boss ': { 'superpowers:*': { mode: 'force', when: 'first' }, bad: { mode: 'weird' }, 'x y': { mode: 'ban' } } },
+    agentSkills: { ' Boss ': { 'superpowers:*': { mode: 'ban' }, 'ponytail:*': { mode: 'force' }, bad: { mode: 'weird' }, 'x y': { mode: 'ban' } } },
     autoJobs: { handoff: { enabled: true } },
   });
   assert.deepEqual([s.skills.worker.enabled, s.skills.osin.enabled, s.workerCap], [true, false, 16]);
-  assert.deepEqual(s.agentSkills, { boss: { 'superpowers:*': { mode: 'force', when: 'first' } } });
+  assert.deepEqual(s.agentSkills, { boss: { 'superpowers:*': { mode: 'ban', when: 'every' } } });
   assert.deepEqual(s.autoJobs.handoff, { enabled: true, thresholdK: 300 });
   s = patchSettings(s, { agentSkills: { Planner: { 'ponytail:ponytail': { mode: 'force' } } } });
   assert.deepEqual(Object.keys(s.agentSkills).sort(), ['boss', 'planner']);

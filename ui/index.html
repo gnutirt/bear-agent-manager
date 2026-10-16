@@ -1352,7 +1352,7 @@ function skillsBlock() {
     // force on a whole plugin would push every one of its skills at once: only exact skills can be forced.
     const btns = (wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban']).map((m) => `<button data-rule="${m}" data-skill="${esc(name)}" aria-pressed="${mode === m}" class="m-${m}">${MODES[m]}</button>`).join('');
     const when = mode === 'force' ? `<select data-when="${esc(name)}" aria-label="Khi nào ép"><option value="every"${own.when === 'every' ? ' selected' : ''}>mỗi tin</option><option value="first"${own.when === 'first' ? ' selected' : ''}>tin đầu phiên</option></select>` : '';
-    return `<tr><td><span class="cut sk">${wildcard ? 'cả plugin' : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${inherited ? 'theo cả plugin: ' + MODES[inherited.mode] : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
+    return `<tr><td><span class="cut sk">${wildcard ? 'cả plugin' : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${wildcard ? 'không Ép được cả plugin: hãy Ép từng skill' : inherited ? 'theo cả plugin: ' + MODES[inherited.mode] : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
   };
   const ruled = (plugin) => Object.keys(rules).some((n) => n.startsWith(plugin + ':') || (!plugin && !n.includes(':')));
   // Default: only this agent's rules. Typing searches every skill (to add a rule); "Hiện tất cả" lists them all.

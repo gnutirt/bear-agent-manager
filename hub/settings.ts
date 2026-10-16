@@ -39,6 +39,7 @@ function rules(cur: Record<string, SkillRule>, patch: any): Record<string, Skill
     if (!/^[\w.-]+(:([\w.-]+|\*))?$/.test(name)) continue;   // "plugin:skill", "plugin:*" or a user skill
     if (r === null) { delete out[name]; continue; }
     if (!['force', 'auto', 'ban'].includes(r?.mode)) continue;
+    if (r.mode === 'force' && name.endsWith(':*')) continue;   // force on a whole plugin would push every one of its skills each turn
     out[name] = { mode: r.mode, when: r.when === 'first' ? 'first' : 'every' };
   }
   return out;

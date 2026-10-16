@@ -17,12 +17,12 @@ test('reminder: force every / force first / ban; auto says nothing', () => {
 });
 
 test('rules belong to one agent; plugin:* expands; an exact rule beats the wildcard', () => {
-  const s = patchSettings(defaultSettings(4), { agentSkills: { Boss: { 'superpowers:*': { mode: 'force', when: 'first' }, 'superpowers:brainstorming': { mode: 'ban' } } } });
+  const s = patchSettings(defaultSettings(4), { agentSkills: { Boss: { 'superpowers:*': { mode: 'ban' }, 'superpowers:brainstorming': { mode: 'force' } } } });
   const installed = [{ name: 'superpowers:writing-plans' }, { name: 'superpowers:brainstorming' }, { name: 'ponytail:ponytail' }] as any;
   const r = effectiveRules(s, 'boss', installed);
   assert.deepEqual(Object.keys(r).sort(), ['superpowers:brainstorming', 'superpowers:writing-plans']);
-  assert.equal(r['superpowers:writing-plans'].mode, 'force');
-  assert.equal(r['superpowers:brainstorming'].mode, 'ban');
+  assert.equal(r['superpowers:writing-plans'].mode, 'ban');
+  assert.equal(r['superpowers:brainstorming'].mode, 'force');
   assert.deepEqual(effectiveRules(s, 'Planner', installed), {}, 'other agents get nothing');
 });
 
