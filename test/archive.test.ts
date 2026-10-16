@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { archiveKey, archiveNow } from '../hub/archive.ts';
+import { archiveInWorker, archiveKey, archiveNow } from '../hub/archive.ts';
 
 function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-arc-'));
@@ -109,4 +109,13 @@ test('one failing file does not lose the offsets of the others (no duplicated li
   assert.equal(archiveNow([cfg], arc).ok, true);
   assert.equal(fs.readFileSync(path.join(out, 's1.jsonl'), 'utf8'), 'a\n');
   assert.equal(fs.readFileSync(path.join(out, 's2.jsonl'), 'utf8'), 'b\n');
+});
+
+test('archiveInWorker runs the same round in a worker thread', async () => {
+  const { cfg, proj, arc, out } = setup();
+  fs.writeFileSync(path.join(proj, 's1.jsonl'), 'a\n');
+  const r = await archiveInWorker({ configDirs: [cfg], archiveDir: arc });
+  assert.deepEqual([r.ok, r.copiedFiles], [true, 1]);
+  assert.equal(fs.readFileSync(path.join(out, 's1.jsonl'), 'utf8'), 'a\n');
+  assert.equal((await archiveInWorker({ configDirs: [cfg], archiveDir: path.join(arc, 'missing') })).ok, false);
 });

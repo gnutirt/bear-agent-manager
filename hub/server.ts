@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
-import { archiveNow, type ArchiveResult } from './archive.ts';
+import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
 import { probeProvider, workerBrief } from './brief.ts';
@@ -84,6 +84,8 @@ export type HubOptions = {
   probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null;
   /** Pre-v0.3 Intern key file that fills an empty intern key (default ~/.claude/congnhan.key). */
   legacyKeyFile?: string;
+  /** Runs one archive round (default: archiveNow in a worker thread; stubbed in tests). */
+  archiveRunner?: (a: ArchiveArgs) => Promise<ArchiveResult>;
   /** Runs an automatic osin job (stubbed in tests). */
   spawnWorker?: SpawnWorker;
 };
@@ -389,22 +391,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // The switch can pause archiving without forgetting the folder.
   const archiveDir = () => { const a = loadSettings(opts.dir, envCap).archive; return a.enabled === false ? '' : a.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || ''; };
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
+  // One round at a time, off the event loop: a round asked for while one runs is skipped (the running
+  // round or the next 10-minute one copies the same bytes; offsets make that safe), so no caller waits.
+  let archiving: Promise<void> | null = null;
   function runArchive(onlySession?: string) {
     const dir = archiveDir();
-    if (!dir) return;
-    try {
-      const r = archiveNow(configDirs(), dir, onlySession, path.join(HOME, 'room_chat'));
-      if (!onlySession && r.ok !== (lastArchive?.ok ?? true)) broadcast('archive', { ok: r.ok, reason: r.reason }); // warn once, clear once
-      if (!onlySession || !r.ok) lastArchive = { ...r, at: Date.now() };
-    } catch (e) {
-      lastArchive = { ok: false, reason: String((e as Error).message), copiedFiles: 0, copiedBytes: 0, at: Date.now() };
-    }
+    if (!dir || archiving) return;
+    archiving = (opts.archiveRunner ?? archiveInWorker)({ configDirs: configDirs(), archiveDir: dir, onlySession, roomChatRoot: path.join(HOME, 'room_chat') })
+      .then((r) => {
+        if (!onlySession && r.ok !== (lastArchive?.ok ?? true)) broadcast('archive', { ok: r.ok, reason: r.reason }); // warn once, clear once
+        if (!onlySession || !r.ok) lastArchive = { ...r, at: Date.now() };
+      }, (e) => { lastArchive = { ok: false, reason: String((e as Error).message), copiedFiles: 0, copiedBytes: 0, at: Date.now() }; })
+      .finally(() => { archiving = null; });
   }
   const archiver = setInterval(runArchive, 10 * 60_000);
   archiver.unref();
 
   function sweepAll(apply: boolean) {
-    if (apply) runArchive();   // copy first: moved files keep their archive key anyway
+    if (apply) runArchive();   // starts a round; files it has not reached yet are found again under room_chat with their old key
     const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
     const revive = new Set<string>();
     const out: Swept[] = [];

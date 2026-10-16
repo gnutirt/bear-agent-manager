@@ -1,7 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 
 export type ArchiveResult = { ok: boolean; reason: string; copiedFiles: number; copiedBytes: number; errors?: string[] };
+export type ArchiveArgs = { configDirs: string[]; archiveDir: string; onlySession?: string; roomChatRoot?: string };
+
+/** archiveNow in a worker thread: the hub keeps answering hooks while a round copies. */
+export function archiveInWorker(a: ArchiveArgs): Promise<ArchiveResult> {
+  return new Promise((resolve, reject) => {
+    const w = new Worker(new URL('./archive-worker.ts', import.meta.url), { workerData: a });
+    w.once('message', resolve);
+    w.once('error', reject);
+    w.once('exit', (code) => { if (code) reject(new Error(`archive worker exited with ${code}`)); });
+  });
+}
 type Offsets = Record<string, { bytes: number; mtimeMs: number }>;
 
 export function archiveKey(configName: string, project: string, rel: string): string {

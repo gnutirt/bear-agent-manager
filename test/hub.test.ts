@@ -409,8 +409,9 @@ test('session end archives that session into BEAR_AGENT_ARCHIVE_DIR; GET /api/ar
   try {
     await call('/api/sessions/register', { id: 'arc-s9', cwd: 'D:/r', configDir: cfg });
     await fetch(`${hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'arc-s9' }) });
-    await new Promise((r) => setTimeout(r, 200));
-    assert.equal(fs.readFileSync(path.join(arc, '.claude-x', 'D--r', 'arc-s9.jsonl'), 'utf8'), 'a\n');
+    const out = path.join(arc, '.claude-x', 'D--r', 'arc-s9.jsonl');
+    for (let i = 0; i < 100 && !fs.existsSync(out); i++) await new Promise((r) => setTimeout(r, 100));   // the round runs in a worker thread
+    assert.equal(fs.readFileSync(out, 'utf8'), 'a\n');
     assert.equal((await call<any>('/api/archive')).dir, arc);
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });
@@ -450,4 +451,27 @@ test('automatic jobs stay off by default', async () => {
     await new Promise((r) => setTimeout(r, 100));
     assert.equal(calls.length, 0);
   } finally { await hub.close(); }
+});
+
+test('archive rounds never overlap and never make a hook wait', async () => {
+  let calls = 0, release: () => void = () => {};
+  const archiveRunner = () => { calls++; return new Promise<any>((r) => { release = () => r({ ok: true, reason: '', copiedFiles: 0, copiedBytes: 0 }); }); };
+  process.env.BEAR_AGENT_ARCHIVE_DIR = os.tmpdir();
+  const { hub, call } = await makeHub(undefined, undefined, { archiveRunner });
+  const end = (id: string) => fetch(`${hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: id }) });
+  try {
+    await call('/api/sessions/register', { id: 'ov1', cwd: 'D:/r' });
+    await call('/api/sessions/register', { id: 'ov2', cwd: 'D:/r' });
+    const t0 = Date.now();
+    assert.equal((await end('ov1')).status, 200);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await end('ov2')).status, 200);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(Date.now() - t0 < 1000, 'the end hook answers while a round is still running');
+    assert.equal(calls, 1, 'a round asked for during a running round is skipped');
+    release(); await new Promise((r) => setTimeout(r, 20));
+    await end('ov1'); await new Promise((r) => setTimeout(r, 50));
+    assert.equal(calls, 2, 'the next round starts once the previous one is done');
+    release();
+  } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });
