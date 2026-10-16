@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveNow, type ArchiveResult } from './archive.ts';
+import { applyPatch, loadProviders, publicProvider, saveProviders } from './providers.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -332,6 +333,32 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const swept = sweepAll(!!b.apply);
       broadcast('roomchat', swept);
       return json(res, 200, swept);
+    }
+    // ---- providers: worker endpoints + keys (keys never leave the hub) ----
+    const legacyKey = path.join(os.homedir(), '.claude', 'congnhan.key');
+    if (m === 'GET' && p === '/api/providers') return json(res, 200, loadProviders(opts.dir, legacyKey).map(publicProvider));
+    const pv = p.match(/^\/api\/providers\/([a-z0-9-]+)$/);
+    if (pv && m === 'PUT') {
+      const list = applyPatch(loadProviders(opts.dir, legacyKey), pv[1], await readBody(req));
+      saveProviders(opts.dir, list);
+      broadcast('providers', list.map(publicProvider));
+      return json(res, 200, publicProvider(list.find((x) => x.id === pv[1])!));
+    }
+    if (m === 'POST' && p === '/api/providers') {
+      const b = await readBody(req);
+      if (!/^[a-z0-9-]{2,32}$/.test(String(b.id ?? ''))) throw new StoreError(400, 'id must be 2-32 chars a-z 0-9 -');
+      const list = loadProviders(opts.dir, legacyKey);
+      if (list.some((x) => x.id === b.id)) throw new StoreError(409, `provider ${b.id} exists`);
+      list.push({ id: b.id, label: b.id, tier: 'paid', enabled: false, baseUrl: '', auth: 'api-key', key: '', models: { read: [], edit: [] } });
+      const next = applyPatch(list, b.id, b);
+      saveProviders(opts.dir, next);
+      return json(res, 200, publicProvider(next.find((x) => x.id === b.id)!));
+    }
+    if (pv && m === 'DELETE') {
+      if (pv[1] === 'intern') throw new StoreError(400, 'the free provider cannot be removed');
+      const list = loadProviders(opts.dir, legacyKey).filter((x) => x.id !== pv[1]);
+      saveProviders(opts.dir, list);
+      return json(res, 200, { ok: true });
     }
     const wk = m === 'POST' && p.match(/^\/api\/workers\/(\d+)\/kill$/);
     if (wk) {

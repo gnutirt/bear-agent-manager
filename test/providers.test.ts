@@ -1,0 +1,65 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { applyPatch, defaultProviders, loadProviders, publicProvider, saveProviders } from '../hub/providers.ts';
+import { makeHub } from './helpers.ts';
+
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ar-prov-'));
+
+test('defaults: intern free enabled, openrouter paid disabled', () => {
+  const d = defaultProviders();
+  assert.deepEqual(d.map((p) => [p.id, p.tier, p.enabled]), [['intern', 'free', true], ['openrouter', 'paid', false]]);
+  assert.equal(d[0].baseUrl, 'https://discovery-api.intern-ai.org.cn');
+  assert.deepEqual(d[0].models.read, ['deepseek-v4-flash-0731', 'glm-5.3', 'kimi-k2.6']);
+});
+
+test('load: missing or broken file -> defaults; legacy congnhan.key fills intern key', () => {
+  const h = tmp();
+  assert.equal(loadProviders(h)[0].key, '');
+  fs.writeFileSync(path.join(h, 'providers.json'), '{broken');
+  const legacy = path.join(h, 'congnhan.key'); fs.writeFileSync(legacy, ' sk-old \n');
+  assert.equal(loadProviders(h, legacy)[0].key, 'sk-old');
+});
+
+test('patch: omitted or empty key keeps it, null clears it; save/load round trip', () => {
+  const h = tmp();
+  let l = applyPatch(defaultProviders(), 'intern', { key: 'sk-abcdef1234' });
+  l = applyPatch(l, 'intern', { key: '' });
+  l = applyPatch(l, 'intern', { enabled: false });
+  assert.equal(l[0].key, 'sk-abcdef1234');
+  assert.equal(l[0].enabled, false);
+  saveProviders(h, l);
+  assert.equal(loadProviders(h)[0].key, 'sk-abcdef1234');
+  assert.equal(applyPatch(l, 'intern', { key: null })[0].key, '');
+  assert.throws(() => applyPatch(l, 'nope', {}), /unknown provider/);
+});
+
+test('public view never leaks the key', () => {
+  const p = publicProvider({ ...defaultProviders()[0], key: 'sk-abcdef1234' });
+  assert.equal((p as any).key, undefined);
+  assert.deepEqual([p.hasKey, p.keyHint], [true, '…1234']);
+});
+
+test('API: GET masks keys, PUT stores them', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    const put = await call('/api/providers/openrouter', { key: 'sk-or-9999', enabled: true }, { method: 'PUT' });
+    assert.deepEqual([put.hasKey, put.keyHint, put.enabled], [true, '…9999', true]);
+    const list = await call('/api/providers');
+    assert.ok(!JSON.stringify(list).includes('sk-or-9999'));
+  } finally { await hub.close(); }
+});
+
+test('API: POST adds a second free provider, DELETE removes it but never the built-in intern', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    const add = await call('/api/providers', { id: 'intern-2', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', key: 'sk-two-7335' });
+    assert.deepEqual([add.id, add.tier, add.enabled, add.keyHint], ['intern-2', 'free', true, '…7335']);
+    await assert.rejects(call('/api/providers', { id: 'intern-2' }), /exists/);
+    await assert.rejects(call('/api/providers/intern', undefined, { method: 'DELETE' }), /cannot be removed/);
+    await call('/api/providers/intern-2', undefined, { method: 'DELETE' });
+    assert.deepEqual((await call<any[]>('/api/providers')).map((p) => p.id), ['intern', 'openrouter']);
+  } finally { await hub.close(); }
+});
