@@ -8,7 +8,7 @@ import { startHub, type Hub, type ReviveJob } from '../hub/server.ts';
 export async function makeHub(sweepMs?: number, revive: (job: ReviveJob) => unknown = () => {}, extra: Record<string, unknown> = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-hub-'));
   // listProcs is stubbed so tests never scan the real process table.
-  const hub: Hub = await startHub({ dir, port: 0, sweepMs, revive, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), usageFetch: null, usageHome: dir, ...extra });
+  const hub: Hub = await startHub({ dir, port: 0, sweepMs, revive, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), usageFetch: null, usageHome: dir, openUrl: () => {}, ...extra });
   async function call<T = any>(p: string, body?: unknown, init: RequestInit = {}): Promise<T> {
     const res = await fetch(hub.url + p, {
       method: body === undefined ? 'GET' : 'POST',

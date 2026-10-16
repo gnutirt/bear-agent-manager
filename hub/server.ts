@@ -19,7 +19,8 @@ import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
-import { listAccounts, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
+import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir } from './lead.ts';
+import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
@@ -99,6 +100,8 @@ export type HubOptions = {
   usageFetch?: typeof fetch | null;
   /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
   usageHome?: string;
+  /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
+  openUrl?: (url: string) => void;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -383,6 +386,33 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   let usagePoller: NodeJS.Timeout | undefined;
   if (usage) { pollUsage().catch(() => {}); usagePoller = setInterval(() => pollUsage().catch(() => {}), 15 * 60_000); usagePoller.unref(); }
 
+  // ---- semi-automatic room lead (T19): open a terminal with the prompt typed in, the user presses Enter ----
+  const leadPending = new Map<string, { cwd: string; at: number }>();   // room -> terminal we opened, waiting for its join
+  function openLead(room: string, cwd: string, auto: boolean) {
+    const notes = store.notes(room).map((n) => n.text);
+    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes)));
+    leadPending.set(room, { cwd, at: Date.now() });
+    if (auto) { (store.state.leadOpened ??= []).push(room); store.state.leadOpened = store.state.leadOpened.slice(-500); store.save(); }
+    const acct = listAccounts([path.join(usageHome, '.claude')], usageHome)[0];
+    const who = acct?.email ? ` (acc VS Code: ${maskEmail(acct.email)})` : '';
+    try { broadcast('msg', store.postSystem(room, `@you ${auto ? 'Phòng chưa có trưởng phòng: hub' : 'Hub'} đã mở một terminal Claude ở ${cwd}${who}. Bấm Enter trong cửa sổ đó để nó vào phòng và làm trưởng phòng.`)); emitRoom(room); } catch { /* room gone */ }
+  }
+  /** Once per room ever (the lock survives restarts), and only when Settings say so. */
+  function maybeAutoLead(room: string, cwd: string) {
+    if (loadSettings(opts.dir, envCap).autoLead !== 'terminal') return;
+    const r = store.state.rooms[room];
+    if (!r || r.lead || (store.state.leadOpened ?? []).includes(room)) return;
+    openLead(room, cwd || os.homedir(), true);
+  }
+  /** The first session joining from the folder we opened becomes lead. */
+  function claimLead(room: string, s: Session) {
+    const pend = leadPending.get(room);
+    if (!pend || Date.now() - pend.at > PENDING_MS || !sameDir(pend.cwd, s.cwd) || store.state.rooms[room]?.lead) return;
+    leadPending.delete(room);
+    store.setLead(room, s.id);
+    try { broadcast('msg', store.postSystem(room, `${s.name} là trưởng phòng ★`)); } catch { /* room gone */ }
+  }
+
   // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
   let skills: { at: number; list: SkillInfo[] } = { at: 0, list: [] };
   function skillCache(): SkillInfo[] {
@@ -648,6 +678,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       store.createRoom(String(b.name ?? ''));
       emitRoom(b.name);
+      maybeAutoLead(String(b.name), os.homedir());
       return json(res, 200, store.roomInfo(b.name));
     }
 
@@ -665,9 +696,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (m === 'POST' && action === 'forget') {
         const s = store.session(id);
         const rooms = Object.keys(s.rooms);
+        const led = rooms.filter((r) => store.state.rooms[r]?.lead === s.id);
         store.forget(s.id);
         broadcast('forget', { id: s.id });
         for (const r of rooms) emitRoom(r);
+        for (const r of led) maybeAutoLead(r, s.cwd);
         return json(res, 200, { ok: true });
       }
       if (m === 'POST' && action === 'status') {
@@ -728,16 +761,26 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
 
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done)$/);
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
       if (m === 'POST' && (action === 'join' || action === 'leave')) {
         const b = await readBody(req);
+        const wasLead = store.state.rooms[room]?.lead === store.session(String(b.sessionId ?? '')).id;
         const s = action === 'join' ? store.join(String(b.sessionId ?? ''), room) : store.leave(String(b.sessionId ?? ''), room);
+        if (action === 'join') claimLead(room, s);
         emitSession(s);
         emitRoom(room);
+        if (action === 'leave' && wasLead) maybeAutoLead(room, s.cwd);
         return json(res, 200, store.roomInfo(room));
+      }
+      if (m === 'POST' && action === 'open-lead') {
+        // Manual button: works with autoLead off, no once-only lock. Folder: the lead's, else a member's, else home.
+        const r = store.room(room);
+        const from = (r.lead && store.state.sessions[r.lead]) || store.members(room)[0];
+        openLead(room, from?.cwd || os.homedir(), false);
+        return json(res, 200, { ok: true });
       }
       if (m === 'POST' && (action === 'rename' || action === 'delete')) {
         const b = await readBody(req);
