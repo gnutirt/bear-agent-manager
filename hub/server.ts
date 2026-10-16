@@ -9,6 +9,7 @@ import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
+import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
@@ -86,6 +87,8 @@ export type HubOptions = {
   legacyKeyFile?: string;
   /** Runs one archive round (default: archiveNow in a worker thread; stubbed in tests). */
   archiveRunner?: (a: ArchiveArgs) => Promise<ArchiveResult>;
+  /** Home whose ~/.claude the machine export reads (tests use a fake one). */
+  machineHome?: string;
   /** Runs an automatic osin job (stubbed in tests). */
   spawnWorker?: SpawnWorker;
 };
@@ -391,6 +394,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // The switch can pause archiving without forgetting the folder.
   const archiveDir = () => { const a = loadSettings(opts.dir, envCap).archive; return a.enabled === false ? '' : a.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || ''; };
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
+  let lastExport: { dir: string; items: number; withKeys: boolean; warnings: string[]; at: number } | null = null;
   // One round at a time, off the event loop: a round asked for while one runs is skipped (the running
   // round or the next 10-minute one copies the same bytes; offsets make that safe), so no caller waits.
   let archiving: Promise<void> | null = null;
@@ -466,6 +470,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
+    // ---- machine export (T17): settings, skills, memory, plugin list for a new machine; never logins ----
+    const machineDir = () => path.join(archiveDir() || opts.dir, 'machine');
+    if (m === 'GET' && p === '/api/machine') return json(res, 200, { dir: machineDir(), last: lastExport });
+    if (m === 'POST' && p === '/api/machine/export') {
+      const b = await readBody(req);
+      const r = exportMachine({ home: opts.machineHome ?? os.homedir(), hubHome: opts.dir, dir: machineDir(), withKeys: b.withKeys === true });
+      lastExport = { dir: r.dir, items: r.items.length, withKeys: b.withKeys === true, warnings: r.warnings, at: Date.now() };
+      return json(res, 200, lastExport);
+    }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
     if (m === 'GET' && p === '/api/brief') {
       const s = loadSettings(opts.dir, envCap);

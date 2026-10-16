@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New machine: /bear-setup skill + scripts/machine.mjs (check / export / import / link). Export carries skills, agents, CLAUDE.md, settings, memory, hub settings and the plugin list, never logins; keys only with --with-keys. link shares chats, skills and settings between VS Code (~/.claude) and Antigravity (~/.claude-antigravity). Settings tab: Xuất cấu hình máy.
 - UI: four tabs. Worker (providers, live and recent runs, room_chat), Token (daily free/paid chart, per provider/model, chat context), Cài đặt (worker switches, automatic osin jobs, per-agent skill rules, providers with write-only keys; Claude accounts wait for Task 10).
 - Fix: the chat log stays pinned to the newest message (composer/notice height changes, late images, own messages, room switch, hidden panel); expanded messages stay expanded.
 - The hub can start osin by itself (handoff dossier when a chat passes a context threshold, digest of long room messages, notes cleanup proposal) when allowed in Settings; each job once, daily cap; never deletes notes.

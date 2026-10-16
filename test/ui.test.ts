@@ -89,3 +89,11 @@ test('a view whose data fails to load says why instead of loading forever', asyn
     for (const s of ['function viewFail', "viewFail('tokens', e)", "viewFail('settings', e)", "viewFail('workers', e)", 'role="alert"']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+test('settings tab: machine export button, keys only when the switch is on', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ["'/api/machine'", "'/api/machine/export'", 'id="machineExport"', 'id="machineKeys"', 'withKeys: !!S.machineWithKeys', '/bear-setup']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});

@@ -1273,8 +1273,8 @@ const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 /** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
 const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
 function loadSettingsView() {
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive')]).then(([s, p, sk, ar]) => {
-    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar;
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine')]).then(([s, p, sk, ar, mc]) => {
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc;
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
     S.viewErr.settings = ''; renderSettingsView();
   }, (e) => viewFail('settings', e));
@@ -1362,6 +1362,11 @@ function renderSettingsView() {
     <h2>Tài khoản Claude Pro</h2>
     <div class="setbox"><p class="small muted note">Chờ Task 10. Lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
       <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>
+    <h2>Chuyển sang máy khác</h2>
+    <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
+      <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
+      <div class="pf"><button class="btn primary" id="machineExport">Xuất cấu hình máy</button><span class="small muted">${S.machine?.last ? `Lần gần nhất ${time(S.machine.last.at)}: ${S.machine.last.items} mục${S.machine.last.withKeys ? ', có key' : ''}.` : 'Chưa xuất lần nào kể từ khi hub chạy.'}</span></div>
+      ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
     <h2>Thông tin</h2>
     <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
   </div>`;
@@ -1388,6 +1393,7 @@ async function saveProvider(form) {
 const sv = $('view-settings');
 sv.addEventListener('change', (e) => {
   if (e.target.matches('[data-set]')) return saveSetting(e.target);
+  if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
   if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
 });
 sv.addEventListener('input', (e) => {
@@ -1402,6 +1408,13 @@ sv.addEventListener('submit', (e) => {
   if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
 });
 sv.addEventListener('click', (e) => {
+  if (e.target.closest('#machineExport')) {
+    return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
+      S.machine = { ...S.machine, last: r };
+      toast(`Đã xuất ${r.items} mục vào ${r.dir}`);
+      renderSettingsView();
+    }, (err) => toast(err.message));
+  }
   const a = e.target.closest('[data-agent]');
   if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
   const r = e.target.closest('[data-rule]');
