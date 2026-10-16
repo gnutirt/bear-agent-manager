@@ -85,6 +85,8 @@ export type HubOptions = {
   /** Process table source and killer for workers (stubbed in tests). */
   listProcs?: () => Promise<Proc[]>;
   kill?: (pid: number) => Promise<void>;
+  /** Ends the hub process for POST /api/restart (a hook starts the next one); stubbed in tests. */
+  exit?: () => void;
   /** Max workers running at once on this machine; the cheap API's rate limit is shared (default 6). */
   workerCap?: number;
   /** Provider key health check (GET /v1/models); null turns it off (tests). */
@@ -679,6 +681,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       await killProc(pid);
       await refreshWorkers();
       return json(res, 200, { ok: true });
+    }
+    if (m === 'POST' && p === '/api/restart') {
+      // Load the new code in a throwaway process first: a syntax error must not leave the machine without a hub.
+      const href = new URL('./server.ts', import.meta.url).href;
+      const err = await new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
+      if (err) return json(res, 500, { error: `new code does not load, hub kept running: ${err}` });
+      json(res, 200, { ok: true });
+      setTimeout(opts.exit ?? (() => process.exit(0)), 300).unref();
+      return;
     }
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);

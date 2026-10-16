@@ -489,6 +489,16 @@ test('POST /api/sessions/:id/model stores the agent model for the next backgroun
   } finally { await hub.close(); }
 });
 
+test('POST /api/restart checks the new code loads, answers, then asks the process to exit', async () => {
+  let exited = 0;
+  const { hub, call } = await makeHub(undefined, undefined, { exit: () => { exited++; } });
+  try {
+    assert.deepEqual(await call('/api/restart', {}), { ok: true });
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(exited, 1);
+  } finally { await hub.close(); }
+});
+
 test('terminate: needs a known claude pid; kills it, marks the session ended', async () => {
   const killed: number[] = [];
   const procs: any[] = [{ pid: 700, ppid: 1, name: 'claude.exe', cmd: '"C:\\x\\claude.exe" --foo', started: 1 }, { pid: 701, ppid: 1, name: 'node.exe', cmd: 'node server.js', started: 1 }];

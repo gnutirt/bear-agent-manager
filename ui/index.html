@@ -1596,6 +1596,9 @@ function renderSettingsView() {
       <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
       <div class="pf"><button class="btn primary" id="machineExport">Xuất cấu hình máy</button><span class="small muted">${S.machine?.last ? `Lần gần nhất ${time(S.machine.last.at)}: ${S.machine.last.items} mục${S.machine.last.withKeys ? ', có key' : ''}.` : 'Chưa xuất lần nào kể từ khi hub chạy.'}</span></div>
       ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
+    <h2>Hub</h2>
+    <div class="setbox"><p class="small muted note">Nạp lại code mới của hub sau khi sửa. Hub thử nạp code mới trước; lỗi thì giữ nguyên hub đang chạy. Agent đang chờ tự nối lại sau vài giây.</p>
+      <div class="pf"><button class="btn" id="hubRestart">Khởi động lại hub</button></div></div>
     <h2>Thông tin</h2>
     <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
 `,
@@ -1674,6 +1677,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
     if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
+    if (e.target.closest('#hubRestart')) {
+      return api('/api/restart', {}).then(() => { toast('Hub đang khởi động lại…'); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
+    }
     if (e.target.closest('#machineExport')) {
       return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
         S.machine = { ...S.machine, last: r };
