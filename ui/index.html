@@ -307,20 +307,30 @@ header .spacer{flex:1}
 #menu .mem .av .led{border-color:var(--panel)}
 #menu .btn.iconbtn{padding:4px 7px}
 #menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
+/* glass themes: message cards are real frosted glass (agent-tinted sheen, bright rim, depth) */
+html:root[data-theme=glass] .group{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 26%,rgba(255,255,255,.20)),rgba(255,255,255,.05) 70%);border-color:rgba(255,255,255,.38);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08),0 10px 30px rgba(8,6,40,.38)}
+html:root[data-theme=glass] .group:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 36%,rgba(255,255,255,.26)),rgba(255,255,255,.10) 70%);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 16px 40px color-mix(in srgb,var(--c) 40%,rgba(8,6,40,.4))}
+html:root[data-theme=glass] .group.you{background:linear-gradient(135deg,rgba(255,255,255,.34),rgba(255,255,255,.10))}
+html:root[data-theme=glass] .group .head b{color:#fff!important;text-shadow:0 1px 6px rgba(8,6,40,.55)}
+html:root[data-theme=glass] .rc.got{color:#86EFAC}html:root[data-theme=glass] .rc.wait,html:root[data-theme=glass] .rc{color:#E4E8FF}
+html:root[data-theme=glasslight] .group{background:linear-gradient(135deg,rgba(255,255,255,.92),color-mix(in srgb,var(--c) 10%,rgba(255,255,255,.55)));border-color:rgba(255,255,255,.95)}
 /* header avatars: all members, side by side (no overlap); idle = green led + floating zzz, busy = led blinks green/amber, offline = grey */
 .stack{display:flex;gap:10px;align-items:center}
 .stack .mb{position:relative;display:inline-flex}
 .stack .av{margin:0;border:2px solid var(--panel)}
 .stack .av .led{border-color:var(--panel);width:11px;height:11px}
 .stack .mb.offline .av{filter:grayscale(1);opacity:.55}
-.stack .mb.idle::after{content:"z z z";position:absolute;left:62%;top:-13px;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--mute);white-space:nowrap;animation:zzz 2.4s ease-in-out infinite}
-@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}30%,70%{opacity:1}100%{opacity:0;transform:translate(6px,-6px)}}
+.stack .zz{position:absolute;left:60%;top:-16px;display:flex;gap:1px;font-weight:800;color:var(--mute);pointer-events:none}
+.stack .zz i{font-style:normal;font-size:9px;animation:zzz 2s ease-in-out infinite}
+.stack .zz i:nth-child(2){font-size:11px;animation-delay:.35s}.stack .zz i:nth-child(3){font-size:13px;animation-delay:.7s}
+@keyframes zzz{0%{opacity:0;transform:translate(-3px,7px) rotate(-8deg)}35%,65%{opacity:1}100%{opacity:0;transform:translate(5px,-8px) rotate(8deg)}}
 .led.busy{animation:work 1s steps(1) infinite,pulse 1.6s infinite}
 @keyframes work{0%,100%{background:#22C55E}50%{background:#F5A524}}
 .stack .mb.busy .av{animation:ring 1s steps(1) infinite}
 @keyframes ring{0%,100%{box-shadow:0 0 0 2px #22C55E}50%{box-shadow:0 0 0 2px #F5A524}}
 .stack .more{font-size:12px;font-weight:700;color:var(--mute)}
-@media (prefers-reduced-motion:reduce){.stack .mb.idle::after,.stack .mb.busy .av{animation:none}.stack .mb.idle::after{opacity:1}}
+@media (prefers-reduced-motion:reduce){.stack .zz i,.stack .mb.busy .av{animation:none}}
 .btn.sm{padding:4px 10px;font-size:12.5px;gap:5px}
 .btn.sm svg{width:13px;height:13px}
 #notesPanel{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:45;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .2s}
@@ -955,7 +965,7 @@ function renderHeader() {
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;
   $('meta').textContent = r ? `${ms.length} Claude${busy ? ` · ${busy} đang làm` : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
-  $('stack').innerHTML = ms.slice(0, 8).map((s) => `<span class="mb ${s.status}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}</span>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
+  $('stack').innerHTML = ms.slice(0, 8).map((s) => `<span class="mb ${s.status}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</span>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
