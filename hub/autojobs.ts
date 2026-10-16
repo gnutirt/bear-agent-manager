@@ -29,10 +29,18 @@ function block(md: string, name: string): string {
   return m ? m[1].trim() : '';
 }
 
+/** Keeps the start (the original goal) and the end (work in progress) of a chat too big for a worker model. */
+export const MAX_CHAT_CHARS = 300_000;
+export function capChat(chat: string, max = MAX_CHAT_CHARS): string {
+  if (chat.length <= max) return chat;
+  const head = Math.floor(max * 0.3), tail = max - head;
+  return `${chat.slice(0, head)}\n[… cắt ${chat.length - max} ký tự ở giữa …]\n${chat.slice(-tail)}`;
+}
+
 /** The whole input goes into the prompt: automatic runs have no tools (see osinArgs in server.ts). */
 export function jobPrompt(j: AutoJob, jobsMd: string, chat = ''): string {
   const b = block(jobsMd, j.kind);
-  if (j.kind === 'handoff') return b.replace(/<chat\.txt>/g, 'chat.txt (dán nguyên văn bên dưới, sau dòng ---)') + '\n\n---\n' + chat;
+  if (j.kind === 'handoff') return b.replace(/<chat\.txt>/g, 'chat.txt (dán nguyên văn bên dưới, sau dòng ---)') + '\n\n---\n' + capChat(chat);
   if (j.kind === 'digest') return b.replace(/<N>/g, '15') + '\n\n---\n' + j.text;
   return b.replace(/<room>/g, j.room).replace(/<dán JSON>/g, JSON.stringify(j.notes));
 }

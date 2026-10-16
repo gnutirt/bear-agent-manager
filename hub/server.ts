@@ -362,7 +362,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let chat = '';
     if (j.kind === 'handoff') {
       chat = await new Promise<string>((resolve, reject) => execFile(process.execPath,
-        [path.join(ROOT, 'skills', 'osin', 'extract-chat.mjs'), j.transcript], { maxBuffer: 64 << 20, windowsHide: true },
+        // 3M chars: let capChat (autojobs.ts) keep both the start and the end instead of extract-chat's tail only.
+        [path.join(ROOT, 'skills', 'osin', 'extract-chat.mjs'), j.transcript, '3000000'], { maxBuffer: 64 << 20, windowsHide: true },
         (err, stdout) => (err ? reject(err) : resolve(String(stdout)))));
       fs.writeFileSync(path.join(dir, 'chat.txt'), chat);   // kept for the owner to inspect; the worker gets it inline
     }

@@ -37,3 +37,11 @@ test('automatic osin runs get no tools: the whole input is inline', async () => 
   const md = '## handoff — x\n\n```\nĐọc file <chat.txt> rồi viết hồ sơ\n```\n';
   assert.ok(jobPrompt(H, md, 'USER: hello').endsWith('---\nUSER: hello'));
 });
+
+test('a 1 MB chat is cut to fit a worker model, keeping its start and its end', () => {
+  const chat = 'GOAL ' + 'x'.repeat(1_000_000) + ' LATEST';
+  const p = jobPrompt(H, '## handoff — x\n\n```\nĐọc file <chat.txt>\n```\n', chat);
+  assert.ok(p.length < 301_000, String(p.length));
+  assert.match(p, /\[… cắt \d+ ký tự ở giữa …\]/);
+  assert.ok(p.includes('GOAL') && p.endsWith('LATEST'));
+});
