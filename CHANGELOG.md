@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- worker.ps1: -Tier auto|free|paid, providers from providers.json (next free key on quota, paid fallback only when allowed), token usage logged, exit 4 when the skill is turned off.
 - Hub keeps worker providers (free Intern AI, paid OpenRouter, more can be added) in providers.json; /api/providers never returns keys.
 - Chat archive (phase 1): the hub copies new transcript bytes (also subagents, tool-results, memory and room_chat) to BEAR_AGENT_ARCHIVE_DIR every 10 minutes and at session end; never deletes.
 - Room-made transcripts (workers, empty and test sessions) can be moved into ~/.bear-agent-manager/room_chat/<project>; preview with scripts/move-room-chats.mjs or POST /api/room-chat/sweep.

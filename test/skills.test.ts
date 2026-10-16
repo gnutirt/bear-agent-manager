@@ -29,3 +29,10 @@ test('worker.ps1 isolates worker transcripts in worker-config', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
   assert.match(ps, /\$env:CLAUDE_CONFIG_DIR\s*=\s*Join-Path \$hubHome "worker-config"/);
 });
+
+test('worker.ps1 reads providers.json, supports -Tier and logs usage', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  for (const s of ['providers.json', '[ValidateSet("auto", "free", "paid")][string]$Tier', 'usage = @{', 'exit 4', 'ANTHROPIC_AUTH_TOKEN']) {
+    assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
+  }
+});

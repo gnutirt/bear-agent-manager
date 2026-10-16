@@ -28,7 +28,7 @@ input itself**: scripts shrink it, the worker reads it, the main account reads o
    powershell -NoProfile -File "${CLAUDE_SKILL_DIR}\..\worker\worker.ps1" -Kind osin -Task "<job: ≤100-char summary, no secrets>" -By "<your chat name>" -PromptFile "<scratchpad>\vesinh-task.txt" -Dir "<dir with the input file>" *> "<scratchpad>\vesinh-out.txt"
    ```
    `-Kind/-Task/-By` put the run on the Bear Agent Manager "Worker" tab (see worker skill).
-   Last line of the output is JSON: read `.result`. Exit 3 = worker quota hit: do the job yourself or wait.
+   Last line of the output is JSON: read `.result`. Exit 3 = worker quota hit, 2 = no key, 4 = osin turned off in settings: do the job yourself.
 3. Repo cleanup is always two phases: **repo-survey → the owner (or the room lead) approves rows → repo-apply**.
    Review `git diff` and run tests before any commit; the worker never commits.
 4. Handoff result: save it next to the project (e.g. `docs/handoff/<date>-<title>.md`) and tell the owner
@@ -38,6 +38,6 @@ input itself**: scripts shrink it, the worker reads it, the main account reads o
 
 - Data goes to a third-party server. Never feed it secrets, `.env`, keys, VPN configs, or a chat about
   contracts/customers without the owner's OK — ask first.
-- Key from `INTERN_API_KEY` or `~/.claude/congnhan.key`; never set `ANTHROPIC_*` globally.
+- Keys and providers: same as the worker skill (`providers.json`, Cài đặt tab); never set `ANTHROPIC_*` globally.
 - Parallel workers are capped machine-wide by the hub (shared rate limit with worker).
 - Treat the worker's answer as a claim: spot-check paths and line numbers before acting.
