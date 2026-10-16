@@ -8,7 +8,8 @@ import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveNow, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders } from './providers.ts';
 import { summarize } from './tokens.ts';
-import { loadSettings, patchSettings, saveSettings } from './settings.ts';
+import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
+import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -236,12 +237,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!isSavedChat(tr)) { res.writeHead(200); return res.end(); }
       let s = store.register({ id, cwd: String(b.cwd ?? ''), transcript: tr, ctx: readContextTokens(tr) || undefined });
       const title = readTitle(tr);
-      if (title) s = store.setTitle(s.id, title);
+      if (title) s = setTitleKeepingRules(s.id, title);
       emitSession(s);
     }
     const status = (st: Status, activity: string) => emitSession(store.setStatus(id, st, activity));
     switch (event) {
-      case 'prompt': status('busy', 'thinking'); break;
+      case 'prompt': {
+        status('busy', 'thinking');
+        // The hook must never break a prompt: any failure here just means no reminder.
+        let text = '';
+        try {
+          const sess = store.session(id);
+          const firstTurn = !sess.prompts;
+          store.bumpPrompts(sess.id);
+          text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), sess.name, skillCache()), firstTurn);
+        } catch { /* no reminder */ }
+        if (text) return json(res, 200, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } });
+        break;
+      }
       case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
       case 'notify': status('waiting', String(b.message ?? 'needs permission')); break;
       case 'end': emitSession(store.markEnded(id)); setImmediate(() => runArchive(store.session(id).id)); break;
@@ -261,6 +274,33 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
+  let skills: { at: number; list: SkillInfo[] } = { at: 0, list: [] };
+  function skillCache(): SkillInfo[] {
+    if (Date.now() - skills.at < 60_000) return skills.list;
+    const seen = new Set<string>();
+    const list = configDirs().flatMap((c) => listSkills(c)).filter((s) => !seen.has(s.name) && seen.add(s.name));
+    skills = { at: Date.now(), list };
+    return list;
+  }
+  /** Rules are keyed by agent name: a renamed agent (UI, room_set_name, auto title) keeps them. */
+  function moveSkillRules(from: string, to: string) {
+    const a = normAgent(from), b = normAgent(to);
+    if (a === b) return;
+    const s = loadSettings(opts.dir, envCap);
+    if (!s.agentSkills[a] || s.agentSkills[b]) return;   // never overwrite rules the new name already has
+    s.agentSkills[b] = s.agentSkills[a];
+    delete s.agentSkills[a];
+    saveSettings(opts.dir, s);
+    broadcast('settings', s);
+  }
+  function setTitleKeepingRules(id: string, title: string): Session {
+    const before = store.session(id).name;
+    const s = store.setTitle(id, title);
+    moveSkillRules(before, s.name);
+    return s;
+  }
+
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
   const archiveDir = () => loadSettings(opts.dir, envCap).archive.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || '';
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
@@ -338,6 +378,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'GET' && p === '/api/skills') {
+      return json(res, 200, { skills: skillCache(), agents: loadSettings(opts.dir, envCap).agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) });
+    }
     if (m === 'PUT' && p === '/api/settings') {
       const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
       saveSettings(opts.dir, next);
@@ -396,7 +439,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined });
       if (b.ide) s = store.setIde(s.id, String(b.ide));
-      if (b.title) s = store.setTitle(s.id, String(b.title));
+      if (b.title) s = setTitleKeepingRules(s.id, String(b.title));
       emitSession(s);
       for (const r of Object.keys(s.rooms)) emitRoom(r);
       return json(res, 200, { session: publicSession(s) });
@@ -443,7 +486,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'rename') {
         const b = await readBody(req);
+        const before = store.session(id).name;
         const s = store.rename(id, String(b.name ?? ''));
+        moveSkillRules(before, s.name);
         emitSession(s);
         return json(res, 200, { session: publicSession(s) });
       }

@@ -17,6 +17,7 @@ export type Session = {
   notesSeen?: Record<string, number>; // room -> notesAt last delivered to this session
   ended?: boolean;               // SessionEnd seen: the tab is closed, safe to resume in the background
   configDir?: string;            // CLAUDE_CONFIG_DIR of the claude process ('' = default ~/.claude)
+  prompts?: number;              // user prompts seen by the UserPromptSubmit hook (0 = next one is the first)
   title?: string;                // chat title shown on the editor tab (ai-title / custom-title)
   titleNamed?: boolean;          // name already derived from the title once
   transcript?: string;           // transcript_path; revive requires it to exist
@@ -243,6 +244,12 @@ export class Store {
   }
 
   /** SessionEnd: the tab/process is gone, so a background resume cannot collide with it. */
+  bumpPrompts(id: string): void {
+    const s = this.session(id);
+    s.prompts = (s.prompts ?? 0) + 1;
+    this.save();
+  }
+
   markEnded(id: string): Session {
     const s = this.session(id);
     s.status = 'offline';

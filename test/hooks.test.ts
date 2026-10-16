@@ -191,3 +191,31 @@ test('ideFromCommand tells the editor from the claude binary path', () => {
   assert.equal(ideFromCommand('"C:\\Program Files\\nodejs\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe"'), 'cli');
   assert.equal(ideFromCommand(''), '');
 });
+
+test('prompt hook reminds only the agent that owns the rule; a renamed agent keeps it', async () => {
+  const { hub, call } = await makeHub();
+  const prompt = async (sid: string) => {
+    const r = await fetch(`${hub.url}/hooks/prompt`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: sid, cwd: 'C:\fw', prompt: 'hi' }) });
+    const t = await r.text();
+    return t ? (JSON.parse(t).hookSpecificOutput?.additionalContext ?? '') : '';
+  };
+  try {
+    await call('/api/sessions/register', { id: 'sb', cwd: 'C:\fw' });
+    await call('/api/sessions/register', { id: 'sp', cwd: 'C:\fw' });
+    await call('/api/sessions/sb/rename', { name: 'Boss' });
+    await call('/api/sessions/sp/rename', { name: 'Planner' });
+    await call('/api/settings', { agentSkills: { Boss: { 'ponytail:ponytail': { mode: 'force' }, 'superpowers:brainstorming': { mode: 'force', when: 'first' } } } }, { method: 'PUT' });
+    const first = await prompt('sb');
+    assert.match(first, /ponytail:ponytail/);
+    assert.match(first, /superpowers:brainstorming/);
+    const second = await prompt('sb');
+    assert.match(second, /ponytail:ponytail/);
+    assert.ok(!second.includes('brainstorming'), 'a "first" rule only fires on the first prompt');
+    assert.equal(await prompt('sp'), '', 'Planner has no rules');
+    await call('/api/sessions/sb/rename', { name: 'Sep' });
+    assert.match(await prompt('sb'), /ponytail:ponytail/);
+    assert.deepEqual(Object.keys((await call<any>('/api/settings')).agentSkills), ['sep']);
+    const sk = await call<any>('/api/skills');
+    assert.ok(Array.isArray(sk.skills) && sk.members.some((x: any) => x.name === 'Sep'));
+  } finally { await hub.close(); }
+});
