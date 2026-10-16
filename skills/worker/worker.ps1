@@ -103,9 +103,11 @@ foreach ($prov in $plan) {
     $env:ANTHROPIC_BASE_URL = $prov.baseUrl
     if ($prov.auth -eq "auth-token") { $env:ANTHROPIC_AUTH_TOKEN = $prov.key; $env:ANTHROPIC_API_KEY = "" }
     else { $env:ANTHROPIC_API_KEY = $prov.key; Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue }
-    $models = if ($prov.models -and (@($prov.models.read).Count -or @($prov.models.edit).Count)) { $prov.models }
-              elseif ($prov.baseUrl -match 'intern-ai\.org\.cn') { $defaultModels }   # the built-in chains are Intern model ids
-              else { Write-Output "[worker] provider=$($prov.id) has no models configured: skipped"; continue }
+    $models = $prov.models
+    if (-not ($models -and (@($models.read).Count -or @($models.edit).Count))) {
+        if ($prov.baseUrl -notmatch 'intern-ai\.org\.cn') { Write-Output "[worker] provider=$($prov.id) has no models configured: skipped"; continue }
+        $models = $defaultModels                            # the built-in chains are Intern model ids
+    }
     $chain = if ($Model -ne "auto") { @($Model) } elseif ($edits) { @($models.edit) } else { @($models.read) }
     $quota = $false
     foreach ($m in $chain) {
