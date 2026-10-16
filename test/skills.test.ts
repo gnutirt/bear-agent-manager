@@ -7,7 +7,7 @@ const SKILLS = path.join(import.meta.dirname, '..', 'skills');
 
 test('bundled skills: name matches folder, files referenced via ${CLAUDE_SKILL_DIR} exist, no personal paths', () => {
   const dirs = fs.readdirSync(SKILLS);
-  assert.deepEqual(dirs.sort(), ['osin', 'worker']);
+  assert.deepEqual(dirs.sort(), ['bear-setup', 'osin', 'worker']);
   for (const d of dirs) {
     const md = fs.readFileSync(path.join(SKILLS, d, 'SKILL.md'), 'utf8');
     assert.equal(md.match(/^name: (.+)$/m)?.[1], d);
@@ -40,4 +40,10 @@ test('worker.ps1 reads providers.json, supports -Tier and logs usage', () => {
 test('worker.ps1 -Tools none passes an empty tool list that survives PowerShell 5.1', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
   assert.ok(ps.includes(`if ($Tools -eq "none") { @("--tools", '""') }`));
+});
+
+test('worker.ps1 pipes the prompt as UTF-8 (PowerShell 5.1 defaults to us-ascii and turns Vietnamese into ?)', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  const enc = ps.indexOf('$OutputEncoding = New-Object Text.UTF8Encoding($false)'), pipe = ps.indexOf('$prompt | claude');
+  assert.ok(enc > 0 && enc < pipe, 'UTF-8 $OutputEncoding must be set before the prompt is piped');
 });

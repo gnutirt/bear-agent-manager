@@ -94,6 +94,9 @@ $edits = $Tools -match 'Edit|Write'
 # PowerShell 5.1 drops "" arguments to native programs, so the empty list is passed as a literal "".
 $toolArgs = if ($Tools -eq "none") { @("--tools", '""') } else { @("--tools", $Tools, "--allowedTools", $Tools) }
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+# PowerShell 5.1 pipes text to native programs as us-ascii: every non-ASCII prompt (Vietnamese, CJK) reached
+# the worker as '?'. UTF-8 without BOM for the prompt we pipe into claude.
+$OutputEncoding = New-Object Text.UTF8Encoding($false)
 # Worker transcripts go to the hub's worker-config dir, not ~/.claude/projects/<repo> (they flooded each repo's chat list).
 $env:CLAUDE_CONFIG_DIR = Join-Path $hubHome "worker-config"
 New-Item -ItemType Directory -Force $env:CLAUDE_CONFIG_DIR | Out-Null
