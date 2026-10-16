@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Settings (settings.json, GET/PUT /api/settings): worker/osin on/off (the hub refuses slots, worker.ps1 exits 4), paid fallback, worker cap, archive dir, room_chat auto sweep, per-agent skill rules.
 - GET /api/tokens?days=N: worker token usage by tier, provider, model and day, plus each chat's context size.
 - worker.ps1: -Tier auto|free|paid, providers from providers.json (next free key on quota, paid fallback only when allowed), token usage logged, exit 4 when the skill is turned off.
 - Hub keeps worker providers (free Intern AI, paid OpenRouter, more can be added) in providers.json; /api/providers never returns keys.

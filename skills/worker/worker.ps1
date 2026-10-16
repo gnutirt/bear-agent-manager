@@ -76,9 +76,10 @@ if (Test-Path $tokFile) {
     $deadline = (Get-Date).AddMinutes(15)
     while ((Get-Date) -lt $deadline) {
         try {
-            $s = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/api/workers/slot?self=$PID" -Headers @{ "x-room-token" = $tok } -TimeoutSec 20
+            $s = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/api/workers/slot?self=$PID&kind=$Kind" -Headers @{ "x-room-token" = $tok } -TimeoutSec 20
         } catch { break }
         if ($s.ok) { break }
+        if ($s.disabled) { Write-Output "[worker] skill '$Kind' is off in Bear Agent Manager settings: do the task yourself"; exit 4 }
         Write-Output "[worker] waiting for a slot ($($s.running)/$($s.cap) workers running)"
         Start-Sleep 15
     }

@@ -8,6 +8,7 @@ import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveNow, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders } from './providers.ts';
 import { summarize } from './tokens.ts';
+import { loadSettings, patchSettings, saveSettings } from './settings.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -87,7 +88,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // ---- workers (worker / osin runs): process scan + status log ----
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
-  const workerCap = opts.workerCap ?? Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
+  const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
+  const cap = () => opts.workerCap ?? loadSettings(opts.dir, envCap).workerCap;   // a test's workerCap wins over the file
   const workerLog = path.join(opts.dir, 'workers.jsonl');
   let live: LiveWorker[] = [];
   let scannedAt = 0;
@@ -104,7 +106,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     });
     // A start line whose process is gone (killed, crashed) is not running any more.
     const recent = runs.filter((r) => r.status !== 'running').slice(0, 50);
-    return { running, recent, cap: workerCap, scannedAt };
+    return { running, recent, cap: cap(), scannedAt };
   }
   async function refreshWorkers() {
     await scanWorkers();
@@ -260,8 +262,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
-  // shortcut: env only until Task 8 adds settings.archive.dir.
-  const archiveDir = () => process.env.BEAR_AGENT_ARCHIVE_DIR ?? '';
+  const archiveDir = () => loadSettings(opts.dir, envCap).archive.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || '';
   let lastArchive: (ArchiveResult & { at: number }) | null = null;
   function runArchive(onlySession?: string) {
     const dir = archiveDir();
@@ -292,6 +293,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     return out;
   }
+  // Moves room-made transcripts only once the owner turned it on (after looking at a dry run).
+  const roomChatSweeper = setInterval(() => {
+    if (loadSettings(opts.dir, envCap).roomChat.autoSweep) try { sweepAll(true); } catch { /* next round */ }
+  }, 10 * 60_000);
+  roomChatSweeper.unref();
 
   async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? '/', 'http://hub');
@@ -324,11 +330,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       await scanWorkers();
       // The asking worker.ps1 is already in the process table; ?self=<its pid> leaves it out.
       const self = Number(url.searchParams.get('self'));
+      const kind = url.searchParams.get('kind') === 'osin' ? 'osin' : 'worker';
+      if (!loadSettings(opts.dir, envCap).skills[kind].enabled) return json(res, 200, { ok: false, disabled: true, running: 0, cap: cap() });
       const running = live.filter((w) => w.pid !== self).length;
-      return json(res, 200, { ok: running < workerCap, running, cap: workerCap });
+      return json(res, 200, { ok: running < cap(), running, cap: cap() });
     }
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
+    if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'PUT' && p === '/api/settings') {
+      const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
+      saveSettings(opts.dir, next);
+      broadcast('settings', next);
+      return json(res, 200, next);
+    }
     if (m === 'GET' && p === '/api/tokens') {
       const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 7));
       const since = Date.now() - days * 86_400_000;
@@ -552,6 +567,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(workerPoller);
       clearInterval(heartbeat);
       clearInterval(archiver);
+      clearInterval(roomChatSweeper);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       server.closeAllConnections();
