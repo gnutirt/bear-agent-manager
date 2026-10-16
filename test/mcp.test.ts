@@ -40,6 +40,8 @@ test('join, send (default room), read, who, typo warning', async () => {
     await callTool(api, 's2', 'room_join', { room: 'proj' });
     assert.match(await callTool(api, 's1', 'room_send', { text: '@web ping' }), /Woke 1/);
     assert.match(await callTool(api, 's1', 'room_send', { text: 'just noting' }), /no one was woken/i);
+    assert.match(await callTool(api, 's1', 'room_send', { text: '@web re', replyTo: 1 }), /Woke 1/);
+    await assert.rejects(callTool(api, 's1', 'room_send', { text: '@web re', replyTo: 9999 }), /replyTo/);
     assert.match(await callTool(api, 's1', 'room_send', { text: '@wbe typo' }), /no member named @wbe/);
     assert.match(await callTool(api, 's2', 'room_read', {}), /fw: @web ping/);
     const who = await callTool(api, 's2', 'room_who', {});

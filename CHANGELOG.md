@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reply to a message (any room): POST /api/rooms/:r/messages and the `room_send` tool take `replyTo` (id of a message in the same room, else 400). The message keeps `replyTo` and a short `replyQuote`; deliveries show `↪ reply to #id (sender): first 80 chars` above it, so an agent sees what it answers.
 - Worker routes (settings `workerRoutes`, Cài đặt > Worker > Phân việc): per turn type (read / edit / osin) an off switch, a provider and a model; "auto" keeps the old behaviour. worker.ps1 exits 4 for a switched-off route, falls back to auto (with a log line) when the chosen provider is unusable; explicit -Provider/-Model still win.
 - UI: Cài đặt split into sub-tabs (Chung, Worker, Trưởng phòng, Compact, Nhà cung cấp, Tài khoản); Claude Pro usage (VS Code + Antigravity) now on top of the Token tab; the room-lead star in the members menu is a text button (Phong trưởng phòng / Bỏ trưởng phòng).
 - UI: per-agent skill rules moved from Cài đặt to their own Skill tab.

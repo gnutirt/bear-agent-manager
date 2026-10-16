@@ -47,6 +47,13 @@ test('formatDelivery groups by room and tells Claude how to answer', () => {
   assert.match(text, /room_send/);
 });
 
+test('formatDelivery shows what a reply answers', () => {
+  const text = formatDelivery([
+    { id: 5, room: 'proj', from: 'bob', fromId: 'b', mentions: ['alice'], text: '@alice done', ts: 0, wake: ['a'], replyTo: 3, replyQuote: { from: 'alice', text: 'please check X' } },
+  ]);
+  assert.match(text, /↪ reply to #3 \(alice\): please check X\r?\n  bob: @alice done/);
+});
+
 test('formatDelivery adds changed room notes and trims very long messages', () => {
   const long = 'x'.repeat(5000);
   const text = formatDelivery(

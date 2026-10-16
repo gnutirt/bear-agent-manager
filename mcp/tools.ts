@@ -11,7 +11,7 @@ export const TOOLS = [
   { name: 'room_who', description: 'Show your bear-agent-manager name, the rooms you are in, and each member with status (busy/idle/waiting/offline), current activity and repo folder. Also lists other rooms.', inputSchema: obj({}) },
   { name: 'room_join', description: 'Join an bear-agent-manager chat room (created if missing). Room names: lowercase letters, digits, - and _.', inputSchema: obj({ room: { type: 'string' } }, ['room']) },
   { name: 'room_leave', description: 'Leave an bear-agent-manager chat room.', inputSchema: obj({ room: { type: 'string' } }, ['room']) },
-  { name: 'room_send', description: 'Post a message to a room. @name wakes that agent, @all wakes everyone, @you addresses the human user. A message with no mention wakes nobody (others see it later as context).', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['text']) },
+  { name: 'room_send', description: 'Post a message to a room. @name wakes that agent, @all wakes everyone, @you addresses the human user. A message with no mention wakes nobody (others see it later as context).', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' }, replyTo: { type: 'number', description: 'Id of the message you answer (shown as #id in deliveries); it must be in the same room' } }, ['text']) },
   { name: 'room_read', description: 'Read recent messages of a room.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, limit: { type: 'number', description: 'Default 30, max 200' } }) },
   { name: 'room_set_name', description: 'Set your display name in bear-agent-manager (what others @mention). Letters, digits, - and _; max 32.', inputSchema: obj({ name: { type: 'string' } }, ['name']) },
   { name: 'room_note', description: 'Record a lasting agreement in the room notes ("biên bản"): API contracts, ports, file ownership, decisions. Every member, in any repo, receives the notes when they change. Keep each note one fact.', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['text']) },
@@ -66,7 +66,7 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
     case 'room_send': {
       const room = await pickRoom(args.room);
       const r = await api<{ message: Message; unknownMentions: string[]; paused: boolean }>(
-        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text: String(args.text ?? '') } });
+        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text: String(args.text ?? ''), ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}) } });
       let out = `Sent to #${room}.`;
       if (r.paused) out += ' The room is paused by the loop guard, so nobody was woken; wait for the user.';
       else if (r.message.wake.length) out += ` Woke ${r.message.wake.length} member(s).`;

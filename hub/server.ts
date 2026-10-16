@@ -807,7 +807,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'messages') {
         const b = await readBody(req);
-        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''));
+        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''), undefined, b.replyTo == null ? undefined : Number(b.replyTo));
         broadcast('msg', r.message);
         emitRoom(room);
         for (const id of r.message.wake) deliver(store.resolve(id));

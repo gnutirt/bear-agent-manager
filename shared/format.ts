@@ -27,6 +27,7 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     if (m.room !== room) { room = m.room; lines.push(`#${room}`); }
     let body = m.text;
     if (body.length > MAX_MSG) { body = body.slice(0, MAX_MSG) + ` … [trimmed, message #${m.id}]`; trimmed = true; }
+    if (m.replyTo != null) lines.push(`  ↪ reply to #${m.replyTo}${m.replyQuote ? ` (${m.replyQuote.from}): ${m.replyQuote.text}` : ''}`);
     lines.push(`  ${m.from}: ${body.replace(/\n/g, '\n    ')}`);
   }
   for (const [r, list] of Object.entries(notes)) {

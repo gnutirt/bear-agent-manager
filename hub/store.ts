@@ -344,7 +344,7 @@ export class Store {
     return message;
   }
 
-  post(roomName: string, fromId: string | null, text: string, kind?: 'done'): { message: Message; unknownMentions: string[]; paused: boolean } {
+  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number): { message: Message; unknownMentions: string[]; paused: boolean } {
     const room = this.state.rooms[roomName];
     if (!room) throw new StoreError(404, `unknown room ${roomName}`);
     const body = String(text ?? '').trim();
@@ -354,9 +354,15 @@ export class Store {
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);
     if (sender) sender.lastSeen = this.now();
 
+    let reply: Pick<Message, 'replyTo' | 'replyQuote'> = {};
+    if (replyTo != null) {
+      const orig = Number.isInteger(replyTo) ? this.messages.find((m) => m.id === replyTo && m.room === roomName) : undefined;
+      if (!orig) throw new StoreError(400, `replyTo #${replyTo} is not a message of #${roomName}`);
+      reply = { replyTo: orig.id, replyQuote: { from: orig.from, text: orig.text.replace(/\s+/g, ' ').trim().slice(0, 80) } };
+    }
     const message: Message = {
       id: this.lastId() + 1, room: roomName, from: sender?.name ?? 'you', fromId: sender?.id ?? null,
-      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}),
+      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...reply,
     };
     if (!sender) { room.agentWakeStreak = 0; room.paused = false; room.done = []; }
     const members = this.members(roomName);

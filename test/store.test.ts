@@ -346,3 +346,17 @@ test('notes survive room rename and a fresh joiner sees them', () => {
   st.join(late.id, 'esp');
   assert.equal(st.unseenNotes(late.id).esp.length, 1);
 });
+
+test('post with replyTo keeps a short quote; unknown or other-room ids are refused', () => {
+  const st = new Store(tmp());
+  const a = st.register({ id: 'a', cwd: path.join('D:', 'x') });
+  st.join(a.id, 'r1'); st.join(a.id, 'r2');
+  const orig = st.post('r1', a.id, 'first line\nsecond   line ' + 'x'.repeat(100)).message;
+  const re = st.post('r1', null, 'thanks', undefined, orig.id).message;
+  assert.equal(re.replyTo, orig.id);
+  assert.equal(re.replyQuote!.from, a.name);
+  assert.ok(re.replyQuote!.text.startsWith('first line second line') && re.replyQuote!.text.length === 80);
+  assert.throws(() => st.post('r1', null, 'x', undefined, 999), (e: StoreError) => e.status === 400);
+  assert.throws(() => st.post('r2', a.id, 'x', undefined, orig.id), (e: StoreError) => e.status === 400, 'a message of another room');
+  assert.equal(st.post('r1', null, 'plain').message.replyTo, undefined);
+});
