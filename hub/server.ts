@@ -213,7 +213,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (reviving.has(s.id) || waiters.has(s.id) || !hasTranscript(s)) return false;
     const p = store.pending(s.id);
     const delivery = p.messages.length
-      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id))
+      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id)
       : formatDelivery([], takeNotes(s.id), leadRooms(s.id)).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
@@ -246,6 +246,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });
     return true;
+  }
+
+  /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
+  async function terminateSession(s: Session) {
+    if (!s.pid) throw new StoreError(409, `${s.name}: pid of its claude is unknown (it is sent by the hooks; reopen the chat once)`);
+    const proc = (await listProcs()).find((p) => p.pid === s.pid);
+    if (!proc || !/(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(proc.cmd)) throw new StoreError(409, `${s.name}: pid ${s.pid} is not a running claude`);
+    if (proc.started && proc.started > s.lastSeen + 5000) throw new StoreError(409, `${s.name}: pid ${s.pid} started after this session was last seen (pid reused)`);
+    await killProc(s.pid);
+    const w = waiters.get(s.id);
+    if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
+    emitSession(store.markEnded(s.id));
+    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, `${s.name}: claude đã được kết thúc từ hub.`)); emitRoom(r); } catch { /* room gone */ } }
+    setImmediate(() => runArchive(s.id));
   }
 
   function wait(id: string, url: URL, res: http.ServerResponse) {
@@ -339,7 +353,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const pend = store.pending(sid);
         if (pend.wake && pend.messages.length) {
           consume(sid, pend.messages[pend.messages.length - 1].id);
-          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid)) } });
+          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid) } });
         }
         break;
       }
@@ -684,7 +698,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -714,6 +728,30 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         saveSettings(opts.dir, next);
         broadcast('settings', next);
         return json(res, 200, { model: next.agentModel[normAgent(s.name)] ?? '' });
+      }
+      if (m === 'POST' && action === 'terminate') {
+        await terminateSession(store.session(id));
+        return json(res, 200, { ok: true });
+      }
+      if (m === 'POST' && action === 'compact') {
+        // Stop the tab (if any), run /compact on the saved chat in the background, then optionally wake it.
+        const b = await readBody(req);
+        const s = store.session(id);
+        if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
+        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
+        if (!s.ended && s.status !== 'offline') await terminateSession(s);
+        reviving.add(s.id);
+        const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
+        emitSession(store.setStatus(s.id, 'busy', 'đang compact'));
+        const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+        Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
+          say(code === 0 ? `${s.name} đã được compact (${kTokens(before)} → ${kTokens(readContextTokens(s.transcript))}).` : `${s.name}: compact bị lỗi (mã ${code}).`);
+        }).finally(() => {
+          reviving.delete(s.id);
+          if (b.revive === true && revive(s.id)) return;
+          emitSession(store.markEnded(s.id));
+        });
+        return json(res, 202, { started: true });
       }
       if (m === 'POST' && action === 'status') {
         const b = await readBody(req);

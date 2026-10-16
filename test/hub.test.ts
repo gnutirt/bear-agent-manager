@@ -488,3 +488,36 @@ test('POST /api/sessions/:id/model stores the agent model for the next backgroun
     assert.deepEqual((await call<any>('/api/settings')).agentModel, {});
   } finally { await hub.close(); }
 });
+
+test('terminate: needs a known claude pid; kills it, marks the session ended', async () => {
+  const killed: number[] = [];
+  const procs: any[] = [{ pid: 700, ppid: 1, name: 'claude.exe', cmd: '"C:\\x\\claude.exe" --foo', started: 1 }, { pid: 701, ppid: 1, name: 'node.exe', cmd: 'node server.js', started: 1 }];
+  const { hub, call } = await makeHub(undefined, undefined, { listProcs: async () => procs, kill: async (pid: number) => { killed.push(pid); } });
+  try {
+    await call('/api/sessions/register', { id: 't1', cwd: 'C:/fw' });
+    await assert.rejects(call('/api/sessions/t1/terminate', {}), /pid of its claude is unknown/);
+    await call('/api/sessions/register', { id: 't1', cwd: 'C:/fw', pid: 701 });
+    await assert.rejects(call('/api/sessions/t1/terminate', {}), /not a running claude/);
+    await call('/api/sessions/register', { id: 't1', cwd: 'C:/fw', pid: 700 });
+    await call('/api/sessions/t1/terminate', {});
+    assert.deepEqual(killed, [700]);
+    assert.equal((await call<any>('/api/sessions/t1')).session.status, 'offline');
+  } finally { await hub.close(); }
+});
+
+test('compact: terminates the tab, runs compact on the saved chat, then wakes it only when asked', async () => {
+  const order: string[] = [];
+  const procs: any[] = [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }];
+  const { hub, dir, call } = await makeHub(undefined, () => { order.push('revive'); }, {
+    listProcs: async () => procs, kill: async () => { order.push('kill'); }, compactRevive: async () => { order.push('compact'); return 0; },
+  });
+  try {
+    const tr = path.join(dir, 'c.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 1000 } } }) + '\n');
+    await call('/api/sessions/register', { id: 'c1', cwd: 'C:/fw', transcript: tr, pid: 800 });
+    const r = await fetch(hub.url + '/api/sessions/c1/compact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify({ revive: true }) });
+    assert.equal(r.status, 202);
+    await new Promise((res) => setTimeout(res, 150));
+    assert.deepEqual(order, ['kill', 'compact', 'revive']);
+  } finally { await hub.close(); }
+});
