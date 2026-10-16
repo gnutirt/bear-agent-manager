@@ -21,6 +21,7 @@ import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './co
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir } from './lead.ts';
+import { accountKey, planWakes } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
@@ -382,8 +383,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const usageDirs = () => [...new Set([path.join(usageHome, '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   const usage = opts.usageFetch === null ? null : new UsageReader(usageHome, opts.usageFetch ?? fetch);
   /** Rooms of the sessions running on this account (all rooms when none is in a room). */
+  const onAccount = (a: AccountUsage) => (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
   const accountRooms = (a: AccountUsage) => {
-    const mine = (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
+    const mine = onAccount(a);
     const rooms = new Set(Object.values(store.state.sessions).filter((s) => mine(s.configDir ?? '')).flatMap((s) => Object.keys(s.rooms)));
     return rooms.size ? [...rooms] : Object.keys(store.state.rooms);
   };
@@ -397,10 +399,61 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (posted) sent.push(al.key);
     }
     store.state.usageAlerts = sent.slice(-200);
+    // T-C: book a wake-up for an account that is about to run dry (one per cycle; the booking survives restarts).
+    const have = (store.state.wakeAt ??= {});
+    for (const w of planWakes(accounts, loadSettings(opts.dir, envCap).lead.wake, have)) {
+      have[w.key] = w.entry;
+      const at = new Date(w.entry.at).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
+      for (const r of accountRooms(w.account)) { try { broadcast('msg', store.postSystem(r, `Claude ${w.account.label} gần hết usage 5 giờ (${Math.round(w.account.fiveHour!.pct)}%): tạm dừng giao việc mới, hẹn đánh thức lúc ${at}.`)); emitRoom(r); } catch { /* room gone */ } }
+      scheduleWake(w.key);
+    }
     store.save();
     broadcast('claude-usage', { accounts: accounts.map(publicUsage) });
   }
+  const wakeTimers = new Map<string, NodeJS.Timeout>();
+  function scheduleWake(key: string) {
+    const e = store.state.wakeAt?.[key];
+    if (!e) return;
+    clearTimeout(wakeTimers.get(key));
+    const t = setTimeout(() => fireWake(key).catch(() => {}), Math.min(Math.max(0, e.at - Date.now()), 2 ** 31 - 1));
+    t.unref();
+    wakeTimers.set(key, t);
+  }
+  /** Booked time reached: still above the threshold -> try again in 5 minutes (6 times, then tell @you); reset -> post as the user, mentioning only this account's agents (its lead alone when it has one). */
+  async function fireWake(key: string) {
+    const have = store.state.wakeAt ?? {}, e = have[key];
+    if (!e || !usage) return;
+    const cfg = loadSettings(opts.dir, envCap).lead.wake;
+    const acc = (await usage.read(usageDirs(), true)).find((a) => accountKey(a) === key);
+    const rooms = acc ? accountRooms(acc) : [];
+    if (acc?.fiveHour && acc.fiveHour.pct >= cfg.atPct) {
+      if (++e.tries > 6) {
+        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Claude ${acc.label} vẫn ${Math.round(acc.fiveHour.pct)}% sau nhiều lần thử, tôi ngừng hẹn giờ đánh thức.`)); emitRoom(r); } catch { /* room gone */ } }
+        delete have[key];
+      } else { e.at = Date.now() + 5 * 60_000; scheduleWake(key); }
+      store.save();
+      return;
+    }
+    if (acc) {
+      const mine = onAccount(acc);
+      for (const r of rooms) {
+        const ms = store.members(r).filter((s) => mine(s.configDir ?? ''));
+        const lead = ms.find((s) => s.id === store.state.rooms[r]?.lead);
+        const targets = lead ? [lead] : ms;
+        if (!targets.length) continue;
+        try {
+          const posted = store.post(r, null, `${targets.map((s) => '@' + s.name).join(' ')} usage Claude ${acc.label} đã reset, làm tiếp việc đang dở.`);
+          broadcast('msg', posted.message);
+          emitRoom(r);
+          for (const id of posted.message.wake) deliver(store.resolve(id));
+        } catch { /* room gone */ }
+      }
+    }
+    delete have[key];
+    store.save();
+  }
   let usagePoller: NodeJS.Timeout | undefined;
+  for (const k of Object.keys(store.state.wakeAt ?? {})) scheduleWake(k);
   if (usage) { pollUsage().catch(() => {}); usagePoller = setInterval(() => pollUsage().catch(() => {}), 15 * 60_000); usagePoller.unref(); }
 
   // ---- semi-automatic room lead (T19): open a terminal with the prompt typed in, the user presses Enter ----
@@ -921,6 +974,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(roomChatSweeper);
       clearInterval(prober);
       clearInterval(usagePoller);
+      for (const t of wakeTimers.values()) clearTimeout(t);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       server.closeAllConnections();

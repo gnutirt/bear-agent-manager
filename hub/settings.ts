@@ -20,6 +20,7 @@ export type Settings = {
   agentSkills: Record<string, Record<string, SkillRule>>;
   agentCompact: Record<string, AgentCompact>;   // empty = Claude Code's own behavior for everyone
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
+  lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number } };   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
@@ -34,7 +35,7 @@ export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', language: 'auto',
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', language: 'auto',
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -97,6 +98,8 @@ export function patchSettings(s: Settings, p: any): Settings {
       if (!m) delete am[k]; else if (/^[\w.\/:@\[\]-]{1,80}$/.test(m)) am[k] = m;   // model id or alias (sonnet, opus[1m], claude-sonnet-5-5)
     }
   }
+  const lw = p?.lead?.wake ?? {};
+  const lead = { wake: { enabled: bool(lw.enabled, s.lead.wake.enabled), atPct: int(lw.atPct, s.lead.wake.atPct, 50, 100), afterResetMin: int(lw.afterResetMin, s.lead.wake.afterResetMin, 0, 120) } };
   const routes = {} as Settings['workerRoutes'];
   for (const k of ROUTE_KINDS) {
     const cur = s.workerRoutes?.[k] ?? autoRoute(), r = p?.workerRoutes?.[k];
@@ -114,6 +117,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     agentCompact: compact,
     reviveTools: rt,
     agentModel: am,
+    lead,
     workerRoutes: routes,
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
     language: ['auto', 'vi', 'en'].includes(p?.language) ? p.language : s.language ?? 'auto',
