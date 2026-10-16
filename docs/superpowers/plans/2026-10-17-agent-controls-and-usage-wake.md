@@ -6,6 +6,8 @@ Spec gốc: docs/superpowers/specs/2026-10-17-room-lead-settings-design.md (mụ
 - `claude --resume <id> --model X -p` đổi model thật.
 - Hẹn giờ của Claude Code (CronCreate, ScheduleWakeup, Routine) không dùng được cho hub; timer đặt ở hub.
 
+Phạm vi (chủ repo, 2026-10-17): mọi thứ dưới đây chạy cho MỌI phòng, repo và tài khoản. Không hard-code tên phòng hay tên agent (planner, coder...) trong code hub/UI/test; khoá theo session id, `configDir`/email của tài khoản, và cài đặt chung; test dùng tên giả.
+
 Quy ước: mỗi task một commit, test xanh (`npm test`), không push, CHANGELOG Unreleased, báo hash cho @truong-phong. Việc giao diện (nút trong menu Thành viên, tab con Trưởng phòng) làm trong ui/index.html, pull/merge trước khi commit vì @frontend cùng sửa file.
 
 ## T-A: hub biết pid claude của từng session

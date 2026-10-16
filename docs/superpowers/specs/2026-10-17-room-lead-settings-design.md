@@ -53,7 +53,7 @@ lead: { delegate: boolean; distribute: boolean; handoffOnDone: boolean }   // m�
 ```
 
 Cả ba chỉ thêm dòng vào lời nhắc mà `leadPrompt` (hub/lead.ts) gửi cho trưởng phòng lúc hub mở terminal, và vào nhắc nhở SessionStart/prompt hook của trưởng phòng nếu hook đó đã có đường chèn:
-- `delegate`: nhận task từ planner rồi giao cho coder bằng @tên, báo @you khi xong.
+- `delegate`: nhận task từ thành viên làm vai lập kế hoạch rồi giao cho thành viên làm vai code bằng @tên, báo @you khi xong. Vai và tên lấy từ `room_who` / biên bản của phòng, KHÔNG hard-code tên "planner"/"coder" hay tên phòng nào trong code hub (chủ repo, 2026-10-17: mọi tính năng là cho toàn hệ thống).
 - `distribute`: việc đọc nhiều giao worker, dọn dẹp giao osin (theo skill `worker`/`osin`).
 - `handoffOnDone`: xong việc thì ghi `room_note` và hồ sơ bàn giao.
 
