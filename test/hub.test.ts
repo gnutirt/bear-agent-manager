@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeHub } from './helpers.ts';
 
@@ -394,4 +397,20 @@ test('post-tool hook route returns waking messages as additionalContext once, el
     assert.match(out.hookSpecificOutput.additionalContext, /stop and read this/);
     assert.equal(await post(), '');
   } finally { await hub.close(); }
+});
+
+test('session end archives that session into BEAR_AGENT_ARCHIVE_DIR; GET /api/archive reports the dir', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-arc-hub-'));
+  const cfg = path.join(root, '.claude-x'), arc = path.join(root, 'X');
+  fs.mkdirSync(path.join(cfg, 'projects', 'D--r'), { recursive: true }); fs.mkdirSync(arc);
+  fs.writeFileSync(path.join(cfg, 'projects', 'D--r', 'arc-s9.jsonl'), 'a\n');
+  process.env.BEAR_AGENT_ARCHIVE_DIR = arc;
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'arc-s9', cwd: 'D:/r', configDir: cfg });
+    await fetch(`${hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'arc-s9' }) });
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(fs.readFileSync(path.join(arc, '.claude-x', 'D--r', 'arc-s9.jsonl'), 'utf8'), 'a\n');
+    assert.equal((await call<any>('/api/archive')).dir, arc);
+  } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });

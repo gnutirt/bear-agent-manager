@@ -41,6 +41,9 @@ export function sweepProject(dir: string, o: SweepOpts): Swept[] {
     const kind = o.reviveIds.has(id) ? 'revive' : classify(from, st.size, path.basename(dir));
     if (!kind) continue;
     const to = o.apply ? moveSafe(from, roomChatDir(dir), file) : path.join(roomChatDir(dir), file);
+    // The session's <id>/ folder (subagents/, tool-results/) goes along; never merged into an existing one.
+    const side = path.join(dir, id), sideTo = path.join(roomChatDir(dir), id);
+    if (o.apply && to && fs.existsSync(side) && !fs.existsSync(sideTo)) try { fs.renameSync(side, sideTo); } catch { /* busy: next sweep */ }
     if (to) out.push({ file, kind, from, to });
   }
   return out;

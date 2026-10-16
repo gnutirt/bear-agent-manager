@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ensureToken } from '../shared/config.ts';
+import { ensureToken, HOME } from '../shared/config.ts';
+import { archiveNow, type ArchiveResult } from './archive.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
@@ -239,7 +240,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       case 'prompt': status('busy', 'thinking'); break;
       case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
       case 'notify': status('waiting', String(b.message ?? 'needs permission')); break;
-      case 'end': emitSession(store.markEnded(id)); break;
+      case 'end': emitSession(store.markEnded(id)); setImmediate(() => runArchive(store.session(id).id)); break;
       case 'post-tool': {
         const sid = store.session(id).id;
         const pend = store.pending(sid);
@@ -256,7 +257,26 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
+  // shortcut: env only until Task 8 adds settings.archive.dir.
+  const archiveDir = () => process.env.BEAR_AGENT_ARCHIVE_DIR ?? '';
+  let lastArchive: (ArchiveResult & { at: number }) | null = null;
+  function runArchive(onlySession?: string) {
+    const dir = archiveDir();
+    if (!dir) return;
+    try {
+      const r = archiveNow(configDirs(), dir, onlySession, path.join(HOME, 'room_chat'));
+      if (!onlySession && r.ok !== (lastArchive?.ok ?? true)) broadcast('archive', { ok: r.ok, reason: r.reason }); // warn once, clear once
+      if (!onlySession || !r.ok) lastArchive = { ...r, at: Date.now() };
+    } catch (e) {
+      lastArchive = { ok: false, reason: String((e as Error).message), copiedFiles: 0, copiedBytes: 0, at: Date.now() };
+    }
+  }
+  const archiver = setInterval(runArchive, 10 * 60_000);
+  archiver.unref();
+
   function sweepAll(apply: boolean) {
+    if (apply) runArchive();   // copy first: moved files keep their archive key anyway
     const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
     const revive = new Set<string>();
     const out: Swept[] = [];
@@ -306,6 +326,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, { ok: running < workerCap, running, cap: workerCap });
     }
     if (m === 'GET' && p === '/api/room-chat') return json(res, 200, listRoomChat());
+    if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
     if (m === 'POST' && p === '/api/room-chat/sweep') {
       const b = await readBody(req);
       const swept = sweepAll(!!b.apply);
@@ -496,6 +517,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(sweeper);
       clearInterval(workerPoller);
       clearInterval(heartbeat);
+      clearInterval(archiver);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       server.closeAllConnections();

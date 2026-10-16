@@ -45,7 +45,7 @@ test('adoptWorkerTranscripts brings worker-config transcripts into the repo room
   fs.mkdirSync(path.join(wp, proj));
   fs.writeFileSync(path.join(wp, proj, 'x.jsonl'), [u(), a('glm-5.3')].join('\n'));
   assert.deepEqual(adoptWorkerTranscripts(wp, root, true), [], 'a fresh worker transcript may still be written');
-  adoptWorkerTranscripts(wp, root, true, 0);
+  adoptWorkerTranscripts(wp, root, true, 0, Date.now() + 1000);   // mtime can be a hair ahead of Date.now() on Windows
   assert.ok(fs.existsSync(path.join(roomChatDir(dir), 'x.jsonl')));
   const list = listRoomChat().filter((e) => e.project === proj);
   assert.deepEqual(list.map((e) => [e.project, e.file, e.kind]), [[proj, 'x.jsonl', 'worker']]);
@@ -65,4 +65,13 @@ test('a real chat whose first 256 KB are only snapshot lines is not empty', () =
   const { dir } = project({ 'big.jsonl': [...Array(50).fill(snap), u(), a('claude-opus-5-5')] });
   assert.ok(fs.statSync(path.join(dir, 'big.jsonl')).size > 256 * 1024);
   assert.deepEqual(sweepProject(dir, { apply: false, ...none }), []);
+});
+
+test("the session's <id>/ folder moves along with its transcript", () => {
+  const { dir } = project({ 'w.jsonl': [u(), a('glm-5.3')] });
+  fs.mkdirSync(path.join(dir, 'w', 'subagents'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'w', 'subagents', 'agent-1.jsonl'), 'x\n');
+  sweepProject(dir, { apply: true, ...none });
+  assert.ok(!fs.existsSync(path.join(dir, 'w')));
+  assert.ok(fs.existsSync(path.join(roomChatDir(dir), 'w', 'subagents', 'agent-1.jsonl')));
 });
