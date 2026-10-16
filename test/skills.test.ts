@@ -51,6 +51,6 @@ test('worker.ps1 pipes the prompt as UTF-8 (PowerShell 5.1 defaults to us-ascii 
 
 test('worker.ps1 prints its JSON result as pure ASCII, readable by any caller code page', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  assert.ok(ps.includes("[regex]::Replace($last, '[^\x00-\x7F]'"), 'non-ASCII escaped as \uXXXX');
+  assert.ok(ps.includes(String.raw`[regex]::Replace($last, '[^\x00-\x7F]'`), 'non-ASCII escaped as \\uXXXX');
   assert.ok(ps.includes('Write-Output $ascii'), 'the escaped line is the one printed');
 });
