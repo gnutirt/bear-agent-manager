@@ -56,3 +56,11 @@ test('UI has four tabs with their views', async () => {
     assert.ok(html.includes('.view[hidden]{display:none!important}'), 'a hidden flex <main> must really hide');
   } finally { await hub.close(); }
 });
+
+test('workers tab: providers, live and recent runs with filters, room_chat preview and sweep', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['function renderWorkersView', 'data-filter="${k}"', "failed: (r) => r.status === 'failed'", "addEventListener('providers'", "'/api/providers'", "'/api/room-chat'", "'/api/room-chat/sweep'"]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});

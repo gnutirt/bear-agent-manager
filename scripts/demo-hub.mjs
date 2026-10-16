@@ -16,12 +16,22 @@ const procs = [
 const log = [
   { event: 'start', id: 'd1', pid: 4242, kind: 'vesinh', dir: 'D:/work/firmware', task: 'Hồ sơ bàn giao cho chat firmware (1.3 MB)', tools: 'Read,Grep,Glob,Bash', by: 'a1b2c3d4-fw', skill: 'congnhanvesinh', ts: t0 - 95_000 },
   { event: 'start', id: 'd2', pid: 11, kind: 'congnhan', dir: 'D:/work/web-dashboard', task: 'Khảo sát chỗ parse /status trong app.js', tools: 'Read,Grep,Glob,Bash', by: 'e5f6a7b8-web', skill: 'congnhan', ts: t0 - 900_000 },
-  { event: 'end', id: 'd2', exit: 0, model: 'deepseek-v4-flash-0731', cost: 0.004, result: 'app.js:120 parseStatus()', ts: t0 - 780_000 },
+  { event: 'end', id: 'd2', exit: 0, model: 'deepseek-v4-flash-0731', cost: 0.004, result: 'app.js:120 parseStatus()', provider: 'intern', tier: 'free', usage: { in: 182_400, out: 3_100, cacheRead: 40_000, cacheWrite: 0 }, ts: t0 - 780_000 },
   { event: 'start', id: 'd3', pid: 12, kind: 'congnhan', dir: 'D:/work/mobile-app', task: 'Sửa màn hình cài đặt theo spec', tools: 'Read,Grep,Glob,Bash,Edit,Write', by: 'c9d0e1f2-app', skill: 'congnhan', ts: t0 - 600_000 },
-  { event: 'end', id: 'd3', exit: 3, model: 'kimi-k2.6', error: 'QUOTA 429 rate limit', ts: t0 - 540_000 },
+  { event: 'end', id: 'd3', exit: 3, model: 'kimi-k2.6', error: 'QUOTA 429 rate limit', provider: 'intern', tier: 'free', ts: t0 - 540_000 },
+  { event: 'start', id: 'd4', pid: 13, kind: 'osin', dir: 'C:/hub/autojobs/digest_esp_12', task: 'digest: #esp tin 12', tools: 'none', by: 'hub', skill: 'osin', ts: t0 - 300_000 },
+  { event: 'end', id: 'd4', exit: 0, model: 'deepseek-v4-flash-0731', result: 'Tóm tắt 9 dòng', provider: 'intern-2', tier: 'free', usage: { in: 6_200, out: 410, cacheRead: 0, cacheWrite: 0 }, ts: t0 - 280_000 },
+  { event: 'start', id: 'd5', pid: 14, kind: 'worker', dir: 'D:/work/firmware', task: 'Viết lại driver SPI theo datasheet', tools: 'Read,Grep,Glob,Bash,Edit,Write', by: 'a1b2c3d4-fw', skill: 'worker', ts: t0 - 7_200_000 },
+  { event: 'end', id: 'd5', exit: 0, model: 'anthropic/claude-haiku', result: 'spi.c viết lại, test pass', provider: 'openrouter', tier: 'paid', usage: { in: 95_000, out: 12_400, cacheRead: 0, cacheWrite: 0 }, ts: t0 - 6_600_000 },
 ];
 fs.writeFileSync(path.join(dir, 'workers.jsonl'), log.map((l) => JSON.stringify(l) + '\n').join(''));
-const hub = await startHub({ dir, port, listProcs: async () => procs, kill: async (pid) => { procs.length = 0; console.log('kill', pid); } });
+// Fake providers: the demo never reads the real Intern key and never health-checks over the network.
+fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([
+  { id: 'intern', label: 'Intern AI (free)', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', auth: 'api-key', key: 'sk-demo-1a2b', models: { read: [], edit: [] } },
+  { id: 'intern-2', label: 'Intern AI #2 (free)', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', auth: 'api-key', key: 'sk-demo-7335', models: { read: [], edit: [] } },
+  { id: 'openrouter', label: 'OpenRouter (trả tiền)', tier: 'paid', enabled: false, baseUrl: 'https://openrouter.ai/api', auth: 'auth-token', key: '', models: { read: [], edit: [] } },
+]));
+const hub = await startHub({ dir, port, probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), listProcs: async () => procs, kill: async (pid) => { procs.length = 0; console.log('kill', pid); } });
 const st = hub.store;
 const fw = st.register({ id: 'a1b2c3d4-fw', cwd: 'D:/work/firmware' });
 const web = st.register({ id: 'e5f6a7b8-web', cwd: 'D:/work/web-dashboard' });
