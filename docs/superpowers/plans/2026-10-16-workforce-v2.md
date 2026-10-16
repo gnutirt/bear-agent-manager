@@ -2432,6 +2432,47 @@ export function joinAnswer(items: Item[], sentTurnId: string): string {
 - [ ] **Step 4: Chạy** `npm test` → PASS. Smoke test tay: Chrome debug đã đăng nhập → gọi `muse_ask("Reply with exactly one line: PONG-42")` từ một chat → nhận `PONG-42`; dòng muse hiện trong tab Worker.
 - [ ] **Step 5: Commit** — CHANGELOG `- Tier 3 worker: Muse through a separate MCP server (muse_ask / muse_status, Chrome debug session; Q&A only).` → `git commit -m "feat(mcp): muse worker server"`.
 
+**Sửa sau 5 lần chạy thật (research-museAI, 2026-10-16), áp dụng khi làm task này:**
+1. `joinAnswer(items, sentTurnId)` sai: turnId của user và assistant không khớp nhau (user `1cd4036f-…`, assistant `assistant-msg-4b6a9f81-…`), và trước khi gửi không biết turnId. Đổi thành `joinAnswer(items, fromIndex)`: `fromIndex` = số `[data-message-item]` đếm được trước khi bấm Send; lấy item user đầu tiên có index ≥ fromIndex rồi gộp các item assistant sau nó. Test: `[u,a('old'),u,a('p1'),a('p2')]`, fromIndex=2 → `'p1\n\np2'`; không có user nào ≥ fromIndex → `''`. Bỏ `turnId` khỏi `Item` nếu không dùng ở đâu khác.
+2. Thời gian thật: PONG 9 giây, câu nghiên cứu web 20–55 giây. `timeout_s` mặc định 180, poll 1 giây là đủ.
+3. Mô tả tool `muse_ask`: "Nhờ Muse (agent của Meta, tự tra web) nghiên cứu web hoặc cho ý kiến thứ 2. Kết quả là claim chưa kiểm chứng: kiểm tra lại ý nào sắp đem đi code. Không gửi secret/key/file login/dữ liệu khách hàng. Không giao việc có hành động thật." (Ở T10 Muse đưa sai host refresh token.)
+4. `plugins/` không dùng chung giữa 2 config dir (biên bản [5]) → server `muse` chỉ có ở bên đã cài plugin. Xem T17.
+5. Gán prompt: native setter của `HTMLTextAreaElement.value` + `input` (bubbles), đợi 300 ms rồi mới click Send. Script đã chạy thật: `docs/superpowers/notes/muse-ask.reference.mjs`.
+6. Ngoài phạm vi: mở chat mới / side chat (mọi câu dồn vào 1 thread), giới hạn tốc độ gói free.
+
+---
+
+### Task 17: Setup máy mới (R1 + R2) — skill `bear-setup` + `scripts/machine.mjs`
+
+Thiết kế của Planner (2026-10-16 10:20), Boss duyệt kèm chỉnh sửa (đã gộp vào dưới). Yêu cầu chung của chủ repo: mỗi tính năng phải có skill/prompt trong plugin hoặc tài liệu rõ ràng, để trên máy mới chỉ cần gọi `/bear-setup`.
+
+- `check`: báo cáo các config dir (`.claude`, `.claude-antigravity`), mục nào đã link / chưa, plugin cài ở bên nào, nội dung có lệch không. **Trước khi link `settings.json`:** in diff giữa hai bên (Antigravity hiện chưa có file này) và nói rõ link xong thì Antigravity dùng chung hook + quyền của VS Code.
+- `export [--dir X:\Coding\claude-mem\machine] [--with-keys]`: chép `~/.claude/skills/**`, `agents/`, `commands/`, `output-styles/`, `keybindings.json` (có thì chép), `CLAUDE.md`, `settings.json`, `projects/*/memory/**`, `<hub>/settings.json`; danh sách plugin + marketplace (đọc `installed_plugins.json`, `known_marketplaces.json`; chỉ tên + nguồn, không lấy cache); `manifest.json` (đường dẫn home thay bằng `~`). `providers.json` và khối `env` của settings.json chỉ xuất khi `--with-keys`, kèm cảnh báo in ra (script và UI): "file chứa key, đừng chia sẻ thư mục này". KHÔNG BAO GIỜ xuất `.credentials.json`, `.claude.json`.
+- `import <dir>`: không ghi đè; file đã có → `.bak-<ts>` hoặc dừng nếu thiếu `--force`. Plugin: `claude plugin marketplace add` + `install` cho từng config dir; marketplace local (như repo này) thì hỏi đường dẫn clone mới.
+- `link` (R2): trong `.claude-antigravity`, link về `.claude`: thư mục `projects`, `hooks`, `file-history`, `paste-cache`, `skills/` (junction `mklink /J` trên Windows, không cần admin; symlink trên macOS/Linux); file `CLAUDE.md`, `history.jsonl`, `settings.json` (hardlink). Đích có dữ liệu thật (không phải link) → cảnh báo và dừng; `--merge` thì chuyển dữ liệu đó sang `.claude` trước. `plugins/` KHÔNG link (install ghi đường dẫn tuyệt đối, cache riêng) → cài plugin cho cả 2 bên.
+- ⚠️ Hardlink bị tách khi Claude Code ghi file kiểu file tạm + rename (settings.json hay bị) → `check` so nội dung và báo lệch, chạy `link` lại để nối. Symlink file trên Windows cần Developer Mode nên không dùng.
+- UI Cài đặt: nút "Xuất cấu hình máy" + trạng thái lần xuất gần nhất (import/link chạy trên máy mới, chưa có hub → chỉ qua skill/script).
+- `skills/bear-setup/SKILL.md`: Claude chạy `check` → cho user xem → hỏi → export / import / link. `docs/setup-new-machine.md` cho người đọc.
+- Test (HOME giả): export có skills, không có `.credentials.json`; providers chỉ có khi `--with-keys`; import không ghi đè; link từ chối khi đích có dữ liệu, tạo junction trên win32.
+
+### Task 18: Tự compact theo từng agent
+
+Nghiencuu (research-change-acc, Claude Code 2.1.300 + docs code.claude.com): không có lệnh nào ra lệnh compact hay đặt ngưỡng riêng cho một phiên đang mở; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` / `CLAUDE_CODE_AUTO_COMPACT_WINDOW` chỉ đọc lúc khởi động và áp cho mọi phiên; settings `autoCompactWindow` theo repo chứ không theo agent; hook không chạy được slash command. Hướng được duyệt: ngưỡng chung + hook PreCompact chặn theo agent + SessionStart `compact|clear` chèn lại hồ sơ bàn giao.
+
+- **Step 0 — cổng bắt buộc, thử thật TRƯỚC khi code** (phiên test riêng, `CLAUDE_CODE_AUTO_COMPACT_WINDOW=100000`): (a) chặn auto compact thì lượt sau Claude Code có thử lại không hay đâm vào giới hạn context; (b) đổi `autoCompactWindow` có ăn ngay cho phiên đang mở không; (c) idle compaction có đi qua PreCompact không; (d) PreCompact có nhận **http hook** không. Báo kết quả cho Boss trước khi code phần `hold`.
+- Settings: `agentCompact: Record<agent, { mode: 'auto'|'hold'|'handoff', pct: number }>`, **mặc định trống** (không đổi hành vi hiện tại). `hold` = chặn auto compact tới khi đạt pct; `handoff` = cho compact và chèn hồ sơ.
+- Hook PreCompact → `/hooks/pre-compact`. Matcher `auto`: tra agent theo session_id, chưa tới ngưỡng riêng → `{decision:'block'}`. `/compact` thủ công không bao giờ bị chặn. Trước khi cho compact thì gọi handoff của T9b (không chờ kết quả).
+- SessionStart `source=compact|clear`: chèn `<hub>/handoffs/<sid>.md` mới nhất + biên bản phòng, cắt ≤10.000 ký tự (giới hạn additionalContext).
+- Nếu (a) tệ: bỏ `hold`, chỉ giữ ngưỡng chung + chèn hồ sơ + nhắc user `/clear` khi vượt ngưỡng.
+- Test: route pre-compact (auto/manual, dưới/trên ngưỡng, agent không có rule = cho qua); session-start compact chèn hồ sơ và cắt đúng giới hạn.
+
+### Task 19: Tự spawn trưởng phòng (R3)
+
+Chỉ làm sau khi có kết quả nghiencuu (mở tab Claude trong VS Code/Antigravity bằng URI handler hoặc command được không; terminal nào mở được trên Windows mà không bị chặn).
+
+- Setting `autoLead: 'off'|'terminal'`, **mặc định off**. Khi tạo phòng (hoặc phòng mất lead), hub mở một cửa sổ terminal chạy `claude` tương tác (plugin có sẵn room tools + hooks), prompt đầu: `room_join` + nhận vai lead. Headless `-p` không làm lead được (không có người gõ).
+- Mỗi lần spawn phải hiện trong room, ghi rõ ai và acc nào (lead tốn quota của acc đó).
+
 ---
 
 
@@ -2440,7 +2481,7 @@ export function joinAnswer(items: Item[], sentTurnId: string): string {
 ```
 T1 ─ T2 ─ T3 ─ T3b ─ T3c ─┬─ T4 ─ T5 ─ T6 ─ T7 ────────────┐
                           ├─ T8 ─ T8b ─ T9 ─ T9b ─ T-UI ────┤
-                          └─ T10 ───────────────────────────┴─ T11 ─ T12 ─ T13 ─ T14 ─ T15 ··· T16 (sau v0.3.0)
+                          └─ T10 ───────────────────────────┴─ T11 ─ T12 ─ T13 ─ T14 ─ T17 ─ T18 ─ T19 ─ T15 ··· T16 (sau v0.3.0)
 ```
 
 T4, T8, T10 độc lập nhau (có thể song song); T3b dùng `Settings.roomChat` (nếu T8 chưa xong thì tạm đọc `autoSweep=false`); T5 cần T4 (T8 nếu có); T9 cần T4 + T8b; T9b cần T8 + T5; T-UI độc lập (chỉ `ui/index.html`) nhưng chạy sau T9b, trước T10, và phải xong trước T11; UI (T11–14) cần mọi API trước nó.
