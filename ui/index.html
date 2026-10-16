@@ -84,7 +84,7 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 #zoom .zbox{width:min(1100px,100%);max-height:100%;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 28px;font-size:18px;line-height:1.65;position:relative}
 #zoom .zbox .rn,#zoom .zbox .more-btn{display:none}
 /* the copied group must not draw its own card inside the popup card */
-#zoom .zbox .group,#zoom .zbox .group:hover,#zoom .zbox .group.you{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;max-width:none;transform:none}
+#zoom .zbox .group.group,#zoom .zbox .group.group:hover,#zoom .zbox .group.group.you,#zoom .zbox .group.group.tome{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;max-width:none;transform:none}
 #zoom .zbox .group.you,#zoom .zbox .group.you .head{flex-direction:row}
 #zoom .zbox .msg{max-height:none!important;-webkit-mask-image:none;mask-image:none}
 #zoom .zbox .msg code,#zoom .zbox .msg pre{font-size:15px}
@@ -223,7 +223,7 @@ header .spacer{flex:1}
 /* raised cards: solid panel with a hint of the agent colour, lifted by a two-layer shadow; hover lifts it a little more */
 .group{--c:var(--accent);position:relative;display:flex;gap:14px;padding:14px 18px;margin:0 0 12px;border-radius:16px;
   background:color-mix(in srgb,var(--c) 6%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 20%,var(--line));
-  box-shadow:0 1px 2px rgba(17,24,39,.08),0 6px 16px -4px rgba(17,24,39,.14);transition:transform .15s,box-shadow .15s,border-color .15s}
+  box-shadow:0 1px 3px rgba(17,24,39,.12),0 8px 20px -4px rgba(17,24,39,.22),inset 0 1px 0 rgba(255,255,255,.12);transition:transform .15s,box-shadow .15s,border-color .15s}
 .group:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:0 2px 4px rgba(17,24,39,.1),0 12px 28px -6px color-mix(in srgb,var(--c) 38%,rgba(17,24,39,.2))}
 .group.you{flex-direction:row-reverse;margin-left:auto;max-width:78%;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 @media (prefers-reduced-motion:reduce){.group,.group:hover{transform:none;transition:none}}
@@ -633,6 +633,11 @@ async function api(p, body, method) {
   if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
   return d;
 }
+/* I1: strings by key from GET /api/i18n; a missing key falls back to vi, then to the key. Changing settings.language re-renders. */
+const I18N = { setting: 'auto', dicts: { vi: {}, en: {} } };
+const uiLang = () => { const s = S.settings?.language ?? I18N.setting; return s === 'vi' || s === 'en' ? s : /^vi\b/i.test(navigator.language) ? 'vi' : 'en'; };
+const t = (key, params = {}) => (I18N.dicts[uiLang()][key] ?? I18N.dicts.vi[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
+api('/api/i18n').then((d) => { Object.assign(I18N, d); if (S.tab === 'settings') renderSettingsView(); }, () => {});   // old hub: keys show until restart
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const color = (name) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
 const initials = (name) => name === 'you' ? 'Bạn' : name.split(/[-_]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
@@ -1574,6 +1579,8 @@ function renderSettingsView() {
     : ar.ok ? `Lần gần nhất ${time(ar.at)}: chép ${ar.copiedFiles} file mới.` : `Không sao lưu được: ${esc(ar.reason)}`;
   const P = {
     general: `    <p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
+    <h2>${t('settings.language')}</h2>
+    <div class="setbox"><label class="setrow"><span><b>${t('settings.language')}</b><small>${t('settings.language.hint')}</small></span><select data-set="language">${[['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']].map(([v, l]) => `<option value="${v}"${(st.language ?? 'auto') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
     <h2>Chuyển sang máy khác</h2>
     <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
       <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
