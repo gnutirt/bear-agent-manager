@@ -24,6 +24,12 @@ const log = [
   { event: 'start', id: 'd5', pid: 14, kind: 'worker', dir: 'D:/work/firmware', task: 'Viết lại driver SPI theo datasheet', tools: 'Read,Grep,Glob,Bash,Edit,Write', by: 'a1b2c3d4-fw', skill: 'worker', ts: t0 - 7_200_000 },
   { event: 'end', id: 'd5', exit: 0, model: 'anthropic/claude-haiku', result: 'spi.c viết lại, test pass', provider: 'openrouter', tier: 'paid', usage: { in: 95_000, out: 12_400, cacheRead: 0, cacheWrite: 0 }, ts: t0 - 6_600_000 },
 ];
+// A week of past runs for the Token tab chart.
+for (let day = 1; day <= 6; day++) {
+  const ts = t0 - day * 86_400_000, paid = day % 3 === 0;
+  log.push({ event: 'start', id: 'h' + day, pid: 100 + day, kind: day % 2 ? 'worker' : 'osin', dir: 'D:/work/firmware', task: 'Khảo sát ngày ' + day, tools: 'Read', by: 'a1b2c3d4-fw', skill: 'worker', ts },
+    { event: 'end', id: 'h' + day, exit: day === 4 ? 1 : 0, model: paid ? 'anthropic/claude-haiku' : 'deepseek-v4-flash-0731', provider: paid ? 'openrouter' : 'intern', tier: paid ? 'paid' : 'free', usage: { in: 40_000 + day * 23_000, out: 2_000 + day * 900, cacheRead: 10_000, cacheWrite: 0 }, ts: ts + 60_000 });
+}
 fs.writeFileSync(path.join(dir, 'workers.jsonl'), log.map((l) => JSON.stringify(l) + '\n').join(''));
 // Fake providers: the demo never reads the real Intern key and never health-checks over the network.
 fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([

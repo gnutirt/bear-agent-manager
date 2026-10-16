@@ -64,3 +64,11 @@ test('workers tab: providers, live and recent runs with filters, room_chat previ
     for (const s of ['function renderWorkersView', 'data-filter="${k}"', "failed: (r) => r.status === 'failed'", "addEventListener('providers'", "'/api/providers'", "'/api/room-chat'", "'/api/room-chat/sweep'"]) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+test('token tab: range, KPIs, stacked chart with a table view, accounts block waiting for Task 10', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/accounts'", 'Asia/Ho_Chi_Minh', 'Xem dạng bảng', '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
