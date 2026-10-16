@@ -105,6 +105,10 @@ input,textarea{font:inherit;color:inherit}
 .ide{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 5px;line-height:16px;background:var(--side-line);color:var(--side-text);flex:none}
 .acct{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 5px;line-height:16px;border:1px solid var(--side-line);color:var(--side-text);flex:none}
 .ide.antigravity{background:#5B3FD6;color:#fff}.ide.vscode{background:#1F6FD1;color:#fff}.ide.cursor{background:#3A3A3A;color:#fff}
+.wksum{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 8px;border-radius:8px;font-size:12.5px;color:var(--side-text)}
+.wksum:hover{background:var(--side-2)}
+.wksum .cut{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.led.failed{background:#E5484D}
 .toggle-off{width:100%;text-align:left;padding:6px 8px;color:var(--side-mute);font-size:12.5px;border-radius:8px}
 .toggle-off:hover{background:var(--side-2)}
 .side-empty{padding:6px 8px;color:var(--side-mute);font-size:12.5px}
@@ -274,7 +278,7 @@ header .spacer{flex:1}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
-.vw{max-width:1180px}
+.vw{max-width:960px}
 .vw h1{margin:0 0 4px;font-size:20px;font-weight:700}
 .vw .lede{margin:0 0 20px;color:var(--mute);font-size:13.5px;max-width:72ch}
 .vw h2{font-size:15px;font-weight:700;margin:28px 0 10px;display:flex;align-items:center;gap:10px}
@@ -336,8 +340,12 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .ubar .ur{color:var(--mute)}
 
 .setbox{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:4px 16px}
+/* one bordered card per section: a table inside a card keeps only its row lines */
+.setbox .tblwrap,.chartbox .tblwrap,.pcard .tblwrap{border:0;border-radius:0;background:none}
 .setbox .note{margin:10px 0 4px}
-.setrow{display:flex;align-items:center;gap:16px;padding:11px 0;border-top:1px solid var(--line)}
+.skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
+.skfind .search{flex:1;margin:0}
+.setrow{display:flex;align-items:center;gap:16px;padding:11px 0;border-top:1px solid var(--line);max-width:720px}
 .setbox>.setrow:first-child,.setbox>.note+.setrow{border-top:0}
 .setrow>span{flex:1;min-width:0}
 .setrow b{display:block;font-weight:600;font-size:13.5px}
@@ -787,16 +795,21 @@ function renderWorkers() {
   const { running, recent, cap } = S.workers;
   $('wkCap').textContent = `${running.length}/${cap}`; $('wkCap').classList.toggle('full', running.length >= cap);
   $('tabWkCount').textContent = running.length || '';
-  if (!running.length) el.innerHTML = '<div class="side-empty">Không có worker nào đang chạy.</div>';
+  // One line here, the full list lives on the Worker tab; a failed run keeps a red dot so it is not missed.
+  const fail = recent.filter((r) => r.status === 'failed').length;
+  const sum = document.createElement('button'); sum.className = 'wksum'; sum.title = 'Mở tab Worker';
+  const now = running.length ? 'đang chạy: ' + running.map((w) => w.task || w.kind).join(', ') : 'không có worker nào chạy';
+  sum.innerHTML = `<span class="led ${fail ? 'failed' : running.length ? 'busy' : ''}"></span><span class="cut">${esc(now)}${fail ? ` · ${fail} lỗi` : ''}</span>`;
+  sum.onclick = () => showTab('workers');
+  el.append(sum);
+  if (!running.length && !recent.length) return;
+  const t = document.createElement('button'); t.className = 'toggle-off';
+  t.textContent = `${S.showRecent ? '▾' : '▸'} Chi tiết`;
+  t.onclick = () => { S.showRecent = !S.showRecent; renderWorkers(); };
+  el.append(t);
+  if (!S.showRecent) return;
   for (const w of running) el.append(workerRow(w, true));
-  if (recent.length) {
-    const t = document.createElement('button'); t.className = 'toggle-off';
-    const fail = recent.filter((r) => r.status === 'failed').length;
-    t.textContent = `${S.showRecent ? '▾' : '▸'} Gần đây (${recent.length}${fail ? ', ' + fail + ' lỗi' : ''})`;
-    t.onclick = () => { S.showRecent = !S.showRecent; renderWorkers(); };
-    el.append(t);
-    if (S.showRecent) for (const r of recent.slice(0, 15)) el.append(workerRow(r, false));
-  }
+  for (const r of recent.slice(0, 15)) el.append(workerRow(r, false));
 }
 function loadWorkers() { api('/api/workers').then((w) => { S.workers = w; renderWorkers(); }, () => {}); }
 setInterval(() => { if (S.workers.running.length) { renderWorkers(); renderWorkersView(); } }, 5000);
@@ -1169,7 +1182,7 @@ function renderWorkersView() {
     ? `<p class="small">Sẽ chuyển ${S.swept.length} transcript. Chỉ chuyển, không xoá; chat thật, chat đang mở và file vừa sửa trong 10 phút không bao giờ bị đụng.</p>` + table(['File', 'Loại', 'Repo'], S.swept.slice(0, 50).map((x) => `<tr><td>${esc(x.file)}</td><td>${RC_KIND[x.kind] || x.kind}</td><td class="muted" title="${esc(x.from)}">${esc(parent(x.from))}</td></tr>`).join(''))
     : '<p class="small">Không có transcript nào cần chuyển.</p>';
   $('view-workers').innerHTML = `<div class="vw">
-    <h1>Worker</h1>
+    
     ${errBox('workers')}
     <p class="lede">Claude Code chạy nền trên API giá rẻ hoặc miễn phí, do các chat thuê để đọc nhiều hoặc dọn dẹp. Theo dõi, dừng, và xem chúng tốn bao nhiêu token ở đây.</p>
     <h2>Nhà cung cấp <span class="aside">${running.length}/${cap} worker đang chạy</span></h2>
@@ -1264,7 +1277,7 @@ function renderTokensView() {
   if (S.tab !== 'tokens') return;
   const t = S.tokens;
   const RANGES = { 1: '24 giờ', 7: '7 ngày', 30: '30 ngày' };
-  const head = `<h1>Token</h1><p class="lede">Token worker đã dùng theo tầng, nhà cung cấp và model, cùng độ lớn ngữ cảnh của từng chat. Ngữ cảnh chat là ước lượng hiện tại, không phải hoá đơn.</p>
+  const head = `<p class="lede">Token worker đã dùng theo tầng, nhà cung cấp và model, cùng độ lớn ngữ cảnh của từng chat. Ngữ cảnh chat là ước lượng hiện tại, không phải hoá đơn.</p>
     <span class="seg" role="group" aria-label="Khoảng thời gian">${Object.entries(RANGES).map(([d, l]) => `<button data-days="${d}" aria-pressed="${Number(d) === S.tkDays}">${l}</button>`).join('')}</span>`;
   if (!t) { $('view-tokens').innerHTML = `<div class="vw">${head}${errBox('tokens') || '<div class="vempty" style="margin-top:16px">Đang tải…</div>'}</div>`; return; }
   const sum = (b) => b.in + b.out;
@@ -1341,14 +1354,43 @@ function skillsBlock() {
     return `<tr><td><span class="cut sk">${wildcard ? 'cả plugin' : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${inherited ? 'theo cả plugin: ' + MODES[inherited.mode] : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
   };
   const ruled = (plugin) => Object.keys(rules).some((n) => n.startsWith(plugin + ':') || (!plugin && !n.includes(':')));
-  const active = Object.entries(rules).map(([n, r]) => `<span class="rule m-${r.mode}">${esc(n)}: ${MODES[r.mode]}${r.mode === 'force' ? (r.when === 'first' ? ', tin đầu phiên' : ', mỗi tin') : ''}</span>`).join('');
-  const tables = Object.entries(groups).sort(([a], [b]) => Number(ruled(b)) - Number(ruled(a)) || a.localeCompare(b)).map(([plugin, items]) =>
-    `<h3>${plugin ? esc(plugin) : 'Skill riêng (~/.claude/skills)'}</h3>` + table(['Skill', '', 'Chế độ'], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('');
+  // Default: only this agent's rules. Typing searches every skill (to add a rule); "Hiện tất cả" lists them all.
+  const desc = new Map(sk.skills.map((s) => [s.name, s.description]));
+  const names = Object.keys(rules);
+  const mine = names.length
+    ? table(['Skill', '', 'Chế độ'], names.map((n) => ruleRow(n, desc.get(n) || '', n.endsWith(':*'))).join(''))
+    : '<div class="vempty">Agent này chưa có rule nào: mọi skill đang Tự quyết. Tìm một skill bên dưới để thêm rule.</div>';
+  const browse = q || S.skAll;
+  const tables = !browse ? '' : Object.entries(groups).sort(([a], [b]) => Number(ruled(b)) - Number(ruled(a)) || a.localeCompare(b)).map(([plugin, items]) =>
+    `<h3>${plugin ? esc(plugin) : 'Skill riêng (~/.claude/skills)'}</h3>` + table(['Skill', '', 'Chế độ'], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('') || '<div class="vempty">Không có skill nào khớp.</div>';
   return `<div class="skgrid"><div class="agents">${list}</div><div>
-    ${S.skAgent ? `<div class="rules">${active || '<span class="small muted">Agent này chưa có rule nào: mọi skill đang Tự quyết.</span>'}</div>` : ''}
-    <input class="search" id="skQuery" placeholder="Tìm skill…" value="${esc(S.skQuery)}" aria-label="Tìm skill">
-    ${S.skAgent ? tables || '<div class="vempty">Không có skill nào khớp.</div>' : '<div class="vempty">Chọn một agent ở bên trái.</div>'}
+    ${S.skAgent ? `${mine}
+    <div class="skfind"><input class="search" id="skQuery" placeholder="Thêm rule: tìm skill…" value="${esc(S.skQuery)}" aria-label="Thêm rule: tìm skill"><button class="btn" id="skAll" aria-pressed="${!!S.skAll}">${S.skAll ? 'Ẩn bớt' : 'Hiện tất cả skill'}</button></div>
+    ${tables}` : '<div class="vempty">Chọn một agent ở bên trái.</div>'}
   </div></div>`;
+}
+const CMODES = { auto: 'Claude Code tự quyết', hold: 'Giữ tới ngưỡng', handoff: 'Compact + chèn hồ sơ' };
+/** Per-agent compaction (T18/T18b): one row per agent, saved as soon as a field changes. */
+function compactBlock() {
+  const ac = S.settings.agentCompact || {};
+  const names = [...new Set([...S.skills.members.map((m) => normAgent(m.name)), ...Object.keys(ac)])].filter(Boolean);
+  if (!names.length) return '<div class="vempty">Chưa có agent nào trong hub.</div>';
+  const rows = names.map((n) => {
+    const r = ac[n] || { mode: 'auto' };
+    return `<tr data-cagent="${esc(n)}"><td>${esc(n)}</td>
+      <td><select data-cmode aria-label="Tự compact của ${esc(n)}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
+      <td><input type="number" class="numin" data-cpct min="10" max="85" value="${r.pct ?? ''}" placeholder="${r.mode === 'hold' ? '70' : 'mặc định'}" aria-label="Ngưỡng % của ${esc(n)}"></td>
+      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="Compact trước khi gọi dậy ${esc(n)}"></td></tr>`;
+  }).join('');
+  return `<div class="setbox"><p class="small muted note">Giữ tới ngưỡng: chặn auto-compact tới khi ngữ cảnh đạt % của context window (tối đa 85%; /compact gõ tay không bao giờ bị chặn). Compact + chèn hồ sơ: sau compact, agent nhận lại hồ sơ bàn giao và biên bản phòng. Compact khi gọi dậy: agent đã tắt được compact trước khi đọc tin mới (từ ngưỡng %, hoặc 150k nếu để trống). Chat đang mở cần Reload Window để có hook mới.</p>
+    ${table(['Agent', 'Tự compact', 'Ngưỡng %', 'Compact khi gọi dậy'], rows)}</div>`;
+}
+async function saveCompact(tr) {
+  const pct = tr.querySelector('[data-cpct]').value.trim();
+  const rule = { mode: tr.querySelector('[data-cmode]').value, wakeCompact: tr.querySelector('[data-cwake]').checked, ...(pct ? { pct: Number(pct) } : {}) };
+  try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule } }, 'PUT'); toast('Đã lưu'); }
+  catch (e) { toast(e.message); }
+  renderSettingsView();
 }
 function providerCard(p) {
   const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
@@ -1364,13 +1406,13 @@ function providerCard(p) {
 function renderSettingsView() {
   if (S.tab !== 'settings') return;
   const st = S.settings;
-  if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw"><h1>Cài đặt</h1>${errBox('settings') || '<div class="vempty">Đang tải…</div>'}</div>`; return; }
+  if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || '<div class="vempty">Đang tải…</div>'}</div>`; return; }
   const aj = st.autoJobs, ar = S.archive?.last;
   const arOn = st.archive.enabled ?? !!st.archive.dir;
   const arState = !arOn ? (st.archive.dir ? 'Đang tắt; thư mục vẫn được giữ.' : 'Đang tắt. Điền thư mục rồi bật công tắc.') : !S.archive?.dir ? 'Chưa chọn thư mục.' : !ar ? 'Chưa chạy lượt nào kể từ khi hub khởi động; lượt kế tiếp trong vòng 10 phút.'
     : ar.ok ? `Lần gần nhất ${time(ar.at)}: chép ${ar.copiedFiles} file mới.` : `Không sao lưu được: ${esc(ar.reason)}`;
   $('view-settings').innerHTML = `<div class="vw">
-    <h1>Cài đặt</h1><p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
+    <p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
     <h2>Worker</h2><div class="setbox">
       ${sw('skills.worker.enabled', st.skills.worker.enabled, 'Cho phép worker', 'Tắt thì hub từ chối mọi lượt worker; chat phải tự làm.')}
       ${sw('skills.osin.enabled', st.skills.osin.enabled, 'Cho phép osin', 'Worker dọn dẹp: hồ sơ bàn giao, rút gọn tin nhắn, dọn biên bản.')}
@@ -1390,13 +1432,15 @@ function renderSettingsView() {
       ${num('autoJobs.notes.minNotes', aj.notes.minNotes, 'Khi biên bản có từ (mục)', '', 5, 500)}
       ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, 'Tối đa số lượt mỗi ngày', '', 0, 200)}
     </div>
+    <h2>Tự compact theo agent</h2>
+    ${compactBlock()}
     <h2>Skill theo agent</h2><p class="small muted">Ép dùng: nhắc agent gọi skill (mỗi tin hoặc chỉ tin đầu phiên). Cấm: nhắc không dùng. Tự quyết: không nhắc gì. Ép dùng chỉ chọn được cho từng skill, không cho cả plugin.</p>
     ${skillsBlock()}
     <h2>Nhà cung cấp worker</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
     <form class="addprov" id="addProv"><input name="pid" placeholder="id, ví dụ intern-3" pattern="[a-z0-9-]{2,32}" required aria-label="id nhà cung cấp"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="Tầng"><option value="free">free</option><option value="paid">trả phí</option></select><button class="btn">${I.plus} Thêm nhà cung cấp</button></form>
     <h2>Tài khoản Claude Pro</h2>
-    <div class="setbox"><p class="small muted note">Chờ Task 10. Lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
+    <div class="setbox"><p class="small muted note">Mức dùng 5 giờ và theo tuần của từng tài khoản đã có ở tab Token. Phần dưới chờ Task 10: lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
       <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>
     <h2>Chuyển sang máy khác</h2>
     <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
@@ -1430,6 +1474,7 @@ const sv = $('view-settings');
 sv.addEventListener('change', (e) => {
   if (e.target.matches('[data-set]')) return saveSetting(e.target);
   if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
+  if (e.target.closest('[data-cagent]')) return saveCompact(e.target.closest('[data-cagent]'));
   if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
 });
 sv.addEventListener('input', (e) => {
@@ -1451,6 +1496,7 @@ sv.addEventListener('click', (e) => {
       renderSettingsView();
     }, (err) => toast(err.message));
   }
+  if (e.target.closest('#skAll')) { S.skAll = !S.skAll; renderSettingsView(); return; }
   const a = e.target.closest('[data-agent]');
   if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
   const r = e.target.closest('[data-rule]');
