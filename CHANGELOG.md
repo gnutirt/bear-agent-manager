@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Language groundwork (I1, any room/repo): settings `language` ('auto' | 'vi' | 'en', auto = this computer's locale), strings by key in `shared/i18n/vi.ts` + `en.ts` with `t()` (missing key falls back to vi, then the key), GET /api/i18n, a Ngôn ngữ / Language picker in Cài đặt > Chung, a test that both files keep the same keys and {params}, and docs/glossary.md for standard wording. UI strings move to keys in I2, hub notices in I3.
 - Change an agent's model (T-B): `POST /api/sessions/:id/model {model}` stores `agentModel[agent]` (empty clears; id or alias like `sonnet`, `opus[1m]`). It applies to the agent's next background turn (wake or compact) as `claude --resume --model X`; a tab that is already running keeps its model. Works for any agent in any room; the setting follows a renamed agent.
 - Hub knows each session's claude pid (`Session.pid`, sent by the hooks as their parent pid; a register without one keeps the old pid). Groundwork for terminate / compact / change-model buttons. Hooks must stay `node` + args in hooks.json: a string command runs through bash and the parent pid would be bash.exe.
 - Reply to a message (any room): POST /api/rooms/:r/messages and the `room_send` tool take `replyTo` (id of a message in the same room, else 400). The message keeps `replyTo` and a short `replyQuote`; deliveries show `↪ reply to #id (sender): first 80 chars` above it, so an agent sees what it answers.
