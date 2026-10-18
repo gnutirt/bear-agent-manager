@@ -2,6 +2,7 @@
   "name": "bear-agent-manager",
   "version": "0.2.0",
   "private": true,
+  "repository": "github:gnutirt/bear-agent-manager",
   "type": "module",
   "engines": { "node": ">=22.18" },
   "scripts": {

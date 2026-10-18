@@ -13,6 +13,7 @@ import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
+import { CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
@@ -102,6 +103,8 @@ export type HubOptions = {
   spawnWorker?: SpawnWorker;
   /** Claude Pro usage requests (T10a); null turns usage off (tests that do not test it). */
   usageFetch?: typeof fetch | null;
+  /** V1 update check against GitHub releases; null turns it off (tests). */
+  versionFetch?: typeof fetch | null;
   /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
   usageHome?: string;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
@@ -515,6 +518,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     delete have[key];
     store.save();
   }
+  // ---- versions (V1): the hub's version, the plugin copies the hooks run from, the latest GitHub release ----
+  const pkg = readPackage(ROOT);
+  const updates = opts.versionFetch === null ? null : new UpdateChecker({ repo: pkg.repo, version: pkg.version, cacheFile: path.join(opts.dir, 'version.json'), fetch: opts.versionFetch ?? fetch });
+  const checkUpdates = (force = false) => (updates && loadSettings(opts.dir, envCap).updates.check ? updates.check(force) : Promise.resolve(updates?.cached() ?? null));
+  async function versionNow() {
+    const check = loadSettings(opts.dir, envCap).updates.check;
+    return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check);
+  }
+  let versionPoller: NodeJS.Timeout | undefined;
+  if (updates) { checkUpdates().catch(() => {}); versionPoller = setInterval(() => checkUpdates().catch(() => {}), CHECK_EVERY_MS); versionPoller.unref(); }
   let usagePoller: NodeJS.Timeout | undefined;
   for (const k of Object.keys(store.state.wakeAt ?? {})) scheduleWake(k);
   if (usage) { pollUsage().catch(() => {}); usagePoller = setInterval(() => pollUsage().catch(() => {}), 15 * 60_000); usagePoller.unref(); }
@@ -720,6 +733,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, lastExport);
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'GET' && p === '/api/version') return json(res, 200, await versionNow());
+    if (m === 'POST' && p === '/api/version/check') { await checkUpdates(true); return json(res, 200, await versionNow()); }
     if (m === 'GET' && p === '/api/i18n') return json(res, 200, { setting: loadSettings(opts.dir, envCap).language, system: systemLang(), dicts: await loadDicts() });
     if (m === 'GET' && p === '/api/claude-usage') {
       if (!usage) return json(res, 200, { accounts: [] });
@@ -1043,6 +1058,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(roomChatSweeper);
       clearInterval(prober);
       clearInterval(usagePoller);
+      clearInterval(versionPoller);
       for (const t of wakeTimers.values()) clearTimeout(t);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
