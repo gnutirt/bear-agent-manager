@@ -317,7 +317,10 @@ html:root[data-theme=glass] .rc.got{color:#86EFAC}html:root[data-theme=glass] .r
 html:root[data-theme=glasslight] .group{background:linear-gradient(135deg,rgba(255,255,255,.92),color-mix(in srgb,var(--c) 10%,rgba(255,255,255,.55)));border-color:rgba(255,255,255,.95)}
 /* header avatars: all members, side by side (no overlap); idle = green led + floating zzz, busy = led blinks green/amber, offline = grey */
 .stack{display:flex;gap:10px;align-items:center}
-.stack .mb{position:relative;display:inline-flex}
+.stack .mb{position:relative;display:inline-flex;cursor:pointer;border-radius:50%;transition:transform .12s}
+.stack .mb:hover{transform:translateY(-2px)}
+.group .head>b[data-name],#menu .mem .mn b[data-name]{cursor:pointer}
+.group .head>b[data-name]:hover,#menu .mem .mn b[data-name]:hover{text-decoration:underline}
 .stack .av{margin:0;border:2px solid var(--panel)}
 .stack .av .led{border-color:var(--panel);width:11px;height:11px}
 .stack .mb.offline .av{filter:grayscale(1);opacity:.55}
@@ -646,22 +649,24 @@ async function api(p, body, method) {
 /* I1: strings by key from GET /api/i18n; a missing key falls back to vi, then to the key. Changing settings.language re-renders. */
 const I18N = { setting: 'auto', dicts: { vi: {}, en: {} } };
 const uiLang = () => { const s = S.settings?.language ?? I18N.setting; return s === 'vi' || s === 'en' ? s : /^vi\b/i.test(navigator.language) ? 'vi' : 'en'; };
-const t = (key, params = {}) => (I18N.dicts[uiLang()][key] ?? I18N.dicts.vi[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
+// t() gives '' (never a bare key) until the dictionary has loaded or when a key is missing; the static HTML keeps its built-in Vietnamese meanwhile
+const t = (key, params = {}) => (!I18N.loaded ? '' : I18N.dicts[uiLang()][key] ?? I18N.dicts.vi[key] ?? (console.warn('missing i18n key', key), '')).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 /** Fills the static HTML from the dictionary: data-i18n (text), -html, -ph (placeholder), -title, -aria, -ta (title + aria-label). Missing key = leave the built-in Vietnamese. */
 function applyStatic() {
-  const set = (sel, attr, fn) => document.querySelectorAll(sel).forEach((el) => { const k = el.getAttribute(attr), v = t(k); if (v !== k) fn(el, v); });
+  const set = (sel, attr, fn) => document.querySelectorAll(sel).forEach((el) => { const k = el.getAttribute(attr), v = t(k); if (v) fn(el, v); });
   set('[data-i18n]', 'data-i18n', (el, v) => { el.textContent = v; });
   set('[data-i18n-html]', 'data-i18n-html', (el, v) => { el.innerHTML = v; });
   set('[data-i18n-ph]', 'data-i18n-ph', (el, v) => { el.placeholder = v; });
   set('[data-i18n-title]', 'data-i18n-title', (el, v) => { el.title = v; });
   set('[data-i18n-aria]', 'data-i18n-aria', (el, v) => { el.setAttribute('aria-label', v); });
   set('[data-i18n-ta]', 'data-i18n-ta', (el, v) => { el.title = v; el.setAttribute('aria-label', v); });
+  if (S.hubOk != null) { const txt = t(S.hubOk ? 'hub.connected' : 'hub.disconnected'), h = $('hubState'); h.title = txt; h.setAttribute('aria-label', txt); }
   document.documentElement.lang = uiLang();
 }
 /** An object whose values are looked up in the dictionary on every read, so module-level label tables follow the language. */
 function lazy(o) { return Object.defineProperties({}, Object.fromEntries(Object.entries(o).map(([k, key]) => [k, { get: () => t(key), enumerable: true }]))); }
 let renderEverything = () => {};   // set once the views exist
-const loadI18n = () => api('/api/i18n').then((d) => { Object.assign(I18N, d); applyStatic(); renderEverything(); }, () => {});   // old hub: keys show until restart
+const loadI18n = () => api('/api/i18n').then((d) => { Object.assign(I18N, d, { loaded: true }); applyStatic(); renderEverything(); }, () => setTimeout(loadI18n, 3000));   // old hub without /api/i18n: retry until it restarts
 loadI18n();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const color = (name) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
@@ -849,7 +854,7 @@ function deleteRoomForm(anchor, name) {
 function membersMenu(anchor) {
   const ms = members(S.current);
   openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span></div>`).join('')
+    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span></div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
@@ -982,7 +987,7 @@ function renderHeader() {
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;
   $('meta').textContent = r ? `${ms.length} Claude${busy ? t('header.busy', { n: busy }) : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
-  $('stack').innerHTML = ms.slice(0, 8).map((s) => `<span class="mb ${s.status}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</span>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
+  $('stack').innerHTML = ms.slice(0, 8).map((s) => `<button type="button" class="mb ${s.status}" data-name="${esc(s.name)}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</button>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
@@ -1042,7 +1047,7 @@ function renderLog() {
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -1164,7 +1169,7 @@ function connect() {
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
-  const hubState = (ok) => { const h = $('hubState'), txt = t(ok ? 'hub.connected' : 'hub.disconnected'); h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = txt; h.setAttribute('aria-label', txt); };
+  const hubState = (ok) => { S.hubOk = ok; const h = $('hubState'), txt = t(ok ? 'hub.connected' : 'hub.disconnected'); h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = txt; h.setAttribute('aria-label', txt); };
   es.onerror = () => hubState(false);
   es.onopen = () => hubState(true);
 }
@@ -1594,7 +1599,7 @@ function routesBlock() {
   return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', compact: 'sub.compact', providers: 'sub.providers', account: 'sub.account' });
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account' });
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -1616,8 +1621,6 @@ function renderSettingsView() {
     <h2>Hub</h2>
     <div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
       <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>
-    <h2>${t('info.title')}</h2>
-    <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>
 `,
     worker: `    <h2>Worker</h2><div class="setbox">
       ${sw('skills.worker.enabled', st.skills.worker.enabled, t('set.worker.on'), t('set.worker.on.hint'))}
@@ -1628,8 +1631,6 @@ function renderSettingsView() {
     </div>` + routesBlock(),
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
-      ${sw('archive.enabled', arOn, t('set.archive'), t('set.archive.hint'))}
-      <label class="setrow"><span><b>${t('set.archive.dir')}</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
     </div>
     <h2>${t('set.auto.title')}</h2><div class="setbox">
       <p class="small muted note">${t('set.auto.note')}</p>
@@ -1641,6 +1642,12 @@ function renderSettingsView() {
       ${num('autoJobs.notes.minNotes', aj.notes.minNotes, t('set.notes.min'), '', 5, 500)}
       ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, t('set.maxRuns'), '', 0, 200)}
     </div>`,
+    data: `    <h2>${t('set.archive')}</h2><div class="setbox">
+      ${sw('archive.enabled', arOn, t('set.archive'), t('set.archive.hint'))}
+      <label class="setrow"><span><b>${t('set.archive.dir')}</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
+    </div>
+    <h2>${t('info.title')}</h2>
+    <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
     compact: `    <h2>${t('compact.title')}</h2>
     ${compactBlock()}`,
     providers: `    <h2>${t('prov.workerTitle')}</h2>
@@ -1783,6 +1790,12 @@ $('log').addEventListener('click', (e) => {
   tg.classList.remove('flash'); void tg.offsetWidth; tg.classList.add('flash');
 });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.reply) setReply(null); });
+
+// click a member's avatar (header), sender name (message) or name (members menu) to tag them in the composer
+const tagByName = (name) => { if (name && name !== t('you')) { closeMenu(); insertMention(name); } };
+$('stack').addEventListener('click', (e) => { const mb = e.target.closest('.mb'); if (mb) tagByName(mb.dataset.name); });
+$('log').addEventListener('click', (e) => { const b = e.target.closest('.head > b[data-name]'); if (b) tagByName(b.dataset.name); });
+$('menu').addEventListener('click', (e) => { const n = e.target.closest('.mem .mn b[data-name]'); if (n) tagByName(n.dataset.name); });
 
 const themeSel = document.getElementById('themes');
 themeSel.onchange = () => setTheme(themeSel.value);

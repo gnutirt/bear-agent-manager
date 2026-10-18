@@ -17,3 +17,4 @@ Mọi chuỗi giao diện và thông báo hub dùng đúng bảng này (`shared/
 | nhà cung cấp | provider | Nơi cấp API cho worker. |
 | hạn mức | usage limit | Phần quota Claude Pro dùng trong cửa sổ 5 giờ hoặc tuần. |
 | cài đặt | settings | `~/.bear-agent-manager/settings.json`, dùng chung cho cả máy. |
+| sao lưu | backup | Bản chép các chat sang thư mục do người dùng chọn; không bao giờ xoá gì. |

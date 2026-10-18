@@ -374,5 +374,6 @@ export const en: Record<string, string> = {
   'reply.gone': 'The original message is no longer in the loaded list',
   'rcKind.worker': 'worker',
   'rcKind.test': 'test',
-  'msg.toYou': 'for you',
+  'msg.toYou': 'sent to you',
+  'sub.data': 'Data & backup',
 };

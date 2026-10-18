@@ -374,5 +374,6 @@ export const vi: Record<string, string> = {
   'reply.gone': 'Tin gốc không còn trong danh sách đang tải',
   'rcKind.worker': 'worker',
   'rcKind.test': 'test',
-  'msg.toYou': 'gọi bạn',
+  'msg.toYou': 'gửi cho bạn',
+  'sub.data': 'Dữ liệu & sao lưu',
 };
