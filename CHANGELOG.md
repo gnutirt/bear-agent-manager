@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-18
+
 - `Session.pids` `[{pid, headless, at}]`: every claude that registered for a chat (its tab and a background wake) is remembered (live ones only, last 4). End (`terminate`) now kills all of them that are still a claude of this chat, instead of only the last registered pid, which could be the wrong one. Needs hub restart.
 - Room lead works from tasks (K2): the lead prompt and every delivery to a lead say to turn each request of the user into tasks with `room_tasks add` (one job each, the user's message as `fromMsg`, an owner from room_who, none for plain questions) and to follow them with `room_tasks list`. Fix: the lead prompt sentences had the same keys as the Settings labels (lead.delegate, lead.distribute, lead.handoff), so the labels showed whole sentences; the prompt now uses lead.step.*, and a test refuses duplicate dictionary keys. Needs hub restart.
 - Fix: a tab and a background wake no longer run on the same chat. A hook that registers WITHOUT `BEAR_AGENT_HEADLESS` (a tab) ends the hub's background claude of that session (`stopRevive`) and the room is told; a background waiter (`wait?headless=1`) steps aside at once when a tab already waits; a tab's waiter supersedes a background one. `register` takes `headless`. Needs hub restart; hooks need the shim/new plugin.
