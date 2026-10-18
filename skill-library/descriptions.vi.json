@@ -155,7 +155,7 @@
   "warranty-timeline": "Lập dòng thời gian yêu cầu bảo hành, khiếu nại về lỗi thiết bị (pin, inverter) để xử lý tranh chấp hoặc rà soát nội bộ.",
   "insurance-claim-summaries": "Tóm tắt hồ sơ bồi thường bảo hiểm: sự cố, lập luận các bên, phạm vi bảo hiểm (theo luật Mỹ).",
   "modeling-carbon-credit-economics": "Mô hình kinh tế tín chỉ carbon: lượng giảm phát thải, chi phí thẩm định, giá thị trường.",
-  "vn-quy-dinh-dau-noi-dien-mat-troi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực.",
+  "vn-quy-dinh-dau-noi-dien-mat-troi": "Quy định điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 58/2025/NĐ-CP, thay Nghị định 135/2024): bán điện dư, thông báo/đăng ký, miễn giấy phép.",
   "process-doc": "Viết tài liệu quy trình (SOP): các bước, người phụ trách, điểm kiểm soát, ngoại lệ.",
   "statistical-analysis": "Phân tích thống kê dữ liệu: mô tả, kiểm định, tương quan, xu hướng, diễn giải kết quả.",
   "sql-queries": "Viết và tối ưu truy vấn SQL cho báo cáo và phân tích dữ liệu.",

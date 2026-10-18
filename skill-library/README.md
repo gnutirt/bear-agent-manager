@@ -92,7 +92,7 @@ Viết theo luật Mỹ và thông lệ quốc tế. Dùng cho hợp đồng the
 
 ## Solar (`solar/`) — 15
 
-`vietnam/vn-quy-dinh-dau-noi-dien-mat-troi` · tự viết · MIT: quy định điện mặt trời mái nhà tự sản xuất tự tiêu thụ (Nghị định 135/2024/NĐ-CP). Các điểm chính lấy từ bản tóm tắt công khai, chưa đối chiếu nguyên văn; bỏ văn bản gốc vào `references/van-ban/`.
+`vietnam/vn-quy-dinh-dau-noi-dien-mat-troi` · tự viết · MIT: quy định điện mặt trời mái nhà tự sản xuất tự tiêu thụ (Nghị định 58/2025/NĐ-CP, thay Nghị định 135/2024 từ 03/03/2025). Các điểm chính lấy từ bản tóm tắt công khai, chưa đối chiếu nguyên văn; bỏ văn bản gốc vào `references/van-ban/`.
 
 `engineering/pv-system-design` · tự viết · MIT: thiết kế kỹ thuật PV (số tấm mỗi chuỗi theo nhiệt độ, số chuỗi mỗi MPPT, chọn inverter và tỷ lệ DC/AC, cầu chì chuỗi, sụt áp cáp, khoảng cách hàng tránh bóng che, danh mục tiêu chuẩn IEC). Có script `scripts/string_sizing.py` tính chuỗi từ datasheet. Kết quả là bản tính sơ bộ, kỹ sư có chứng chỉ phải kiểm tra.
 

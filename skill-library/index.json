@@ -2092,8 +2092,8 @@
         "legal"
       ],
       "path": "solar/vietnam/vn-quy-dinh-dau-noi-dien-mat-troi",
-      "description": "Tra cứu và áp dụng quy định Việt Nam cho điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP) — đối tượng áp dụng, có được bán điện dư lên lưới không và tối đa bao nhiêu, khi nào được miễn giấy phép hoạt động điện lực, thủ tục đăng ký với điện lực, chống phát ngược (zero export). Dùng skill này mỗi khi người dùng hỏi lắp điện mặt trời mái nhà có phải xin phép không, có bán điện cho EVN được không, hệ bao nhiêu kW thì cần giấy phép, thủ tục đấu nối, hoặc soạn hồ sơ/thuyết minh pháp lý cho dự án điện mặt trời mái nhà ở Việt Nam, kể cả khi họ không nêu số hiệu nghị định.",
-      "descVi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực.",
+      "description": "Tra cứu và áp dụng quy định Việt Nam cho điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 58/2025/NĐ-CP, thay Nghị định 135/2024/NĐ-CP) — đối tượng áp dụng, có được bán điện dư lên lưới không và tối đa bao nhiêu, khi nào được miễn giấy phép hoạt động điện lực, thủ tục đăng ký với điện lực, chống phát ngược (zero export). Dùng skill này mỗi khi người dùng hỏi lắp điện mặt trời mái nhà có phải xin phép không, có bán điện cho EVN được không, hệ bao nhiêu kW thì cần giấy phép, thủ tục đấu nối, hoặc soạn hồ sơ/thuyết minh pháp lý cho dự án điện mặt trời mái nhà ở Việt Nam, kể cả khi họ không nêu số hiệu nghị định.",
+      "descVi": "Quy định điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 58/2025/NĐ-CP, thay Nghị định 135/2024): bán điện dư, thông báo/đăng ký, miễn giấy phép.",
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
       "licenseFile": "solar/vietnam/LICENSE",
