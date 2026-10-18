@@ -4,5 +4,14 @@
   "description": "Shared chat rooms for Claude Code sessions: agents wake each other with @mentions, the user watches and commands them live.",
   "author": {
     "name": "gnutirt"
+  },
+  "mcpServers": {
+    "room": {
+      "command": "node",
+      "args": [
+        "--no-warnings",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/server.ts"
+      ]
+    }
   }
 }
