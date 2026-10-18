@@ -66,6 +66,12 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 .themes{display:block;width:calc(100% - 24px);margin:8px 12px 14px;padding:7px 10px;border:1px solid var(--side-line);border-radius:10px;background:var(--side-2);color:var(--side-strong);font-size:12.5px;font-weight:600}
 .themes option{background:var(--side);color:var(--side-strong)}
 #fonts{margin-top:-6px}
+.verbtn{display:block;margin:0 12px 12px;padding:4px 10px;border-radius:8px;font-size:12px;color:var(--side-mute);text-align:left}
+.verbtn:hover{background:var(--side-2);color:var(--side-strong)}
+.verbtn.new{color:#fff;background:var(--accent);font-weight:600}
+#menu .vbody{padding:8px 10px;display:grid;gap:8px;font-size:13px}
+#menu .vnotes{max-height:160px;overflow:auto;white-space:pre-wrap;font-size:12.5px;color:var(--mute);background:var(--code);border-radius:8px;padding:8px 10px}
+#menu .vbody .verr{margin:0;padding:8px 10px}
 /* reply: floating button on the hovered message, quote bar above the composer, quote box inside a reply */
 #rplBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
 #rplBtn:hover{background:var(--accent);color:#fff}
@@ -559,6 +565,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <select class="themes" id="fonts" aria-label="Phông chữ" data-i18n-aria="font.label">
     <option value="" data-i18n="font.default">Phông: Be Vietnam Pro</option><option value="Inter">Inter</option><option value="Roboto">Roboto</option><option value="Noto Sans">Noto Sans</option><option value="Open Sans">Open Sans</option><option value="Source Sans 3">Source Sans 3</option><option value="IBM Plex Sans">IBM Plex Sans</option><option value="Nunito" data-i18n="font.nunito">Nunito (tròn)</option><option value="Quicksand" data-i18n="font.quicksand">Quicksand (tròn)</option><option value="Lora">Lora (serif)</option><option value="Merriweather">Merriweather (serif)</option><option value="JetBrains Mono">JetBrains Mono (mono)</option><option value="system-ui" data-i18n="font.system">Phông hệ thống</option>
   </select>
+  <button class="verbtn" id="verBtn" type="button" hidden></button>
 </aside>
 
 <div id="right">
@@ -670,6 +677,7 @@ function applyStatic() {
   set('[data-i18n-ta]', 'data-i18n-ta', (el, v) => { el.title = v; el.setAttribute('aria-label', v); });
   if (S.hubOk != null) { const txt = t(S.hubOk ? 'hub.connected' : 'hub.disconnected'), h = $('hubState'); h.title = txt; h.setAttribute('aria-label', txt); }
   document.documentElement.lang = uiLang();
+  if (typeof renderVersion === 'function' && S.ver) renderVersion();
 }
 /** An object whose values are looked up in the dictionary on every read, so module-level label tables follow the language. */
 function lazy(o) { return Object.defineProperties({}, Object.fromEntries(Object.entries(o).map(([k, key]) => [k, { get: () => t(key), enumerable: true }]))); }
@@ -1836,6 +1844,34 @@ const tagByName = (name) => { if (name && name !== t('you')) { closeMenu(); inse
 $('stack').addEventListener('click', (e) => { const mb = e.target.closest('.mb'); if (mb) tagByName(mb.dataset.name); });
 $('log').addEventListener('click', (e) => { const b = e.target.closest('.head > b[data-name]'); if (b) tagByName(b.dataset.name); });
 $('menu').addEventListener('click', (e) => { const n = e.target.closest('.mem .mn b[data-name]'); if (n) tagByName(n.dataset.name); });
+
+// version (V2): "v0.2.0" at the bottom of the sidebar; a dot when GitHub has a newer release; click for notes, "check now" and update guidance
+S.ver = null;
+function renderVersion() {
+  const b = $('verBtn'), v = S.ver;
+  if (!v || !v.current) { b.hidden = true; return; }
+  b.hidden = false;
+  b.className = 'verbtn' + (v.newer || v.mismatch ? ' new' : '');
+  b.textContent = `v${v.current}` + (v.newer ? ` · ${t('ver.new', { v: v.latest })}` : v.mismatch ? ` · ${t('ver.mismatch.short')}` : '');
+}
+const loadVersion = () => api('/api/version').then((v) => { S.ver = v; renderVersion(); }, () => {});
+$('verBtn').onclick = (e) => {
+  const v = S.ver; if (!v) return;
+  const notes = v.notes ? `<div class="vnotes">${esc(String(v.notes).slice(0, 800))}</div>` : '';
+  const reason = { 'up-to-date': 'ver.reason.upToDate', 'not-git': 'ver.reason.notGit', 'other-remote': 'ver.reason.otherRemote', dirty: 'ver.reason.dirty', unchecked: 'ver.reason.unchecked' }[v.reason];
+  const plugins = (v.plugins || []).map((p) => `<div class="small muted">${esc(p.version || '?')} · ${esc(p.path)}</div>`).join('');
+  openMenu(e.currentTarget, `<div class="mhead"><b>${t('ver.title')}</b><span>v${esc(v.current)}</span></div>
+    <div class="vbody">
+      <div>${v.newer ? t('ver.available', { v: esc(v.latest) }) : v.error ? esc(t('ver.error', { err: v.error })) : t('ver.upToDate')}</div>
+      ${notes}
+      ${v.mismatch ? `<div class="verr small">${t('ver.mismatch')}</div>${plugins}` : ''}
+      ${v.newer ? `<div class="small muted">${reason ? t(reason) : ''} ${t('ver.howTo')}</div>` : ''}
+    </div>
+    <div class="mfoot">${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
+    m.querySelector('[data-vcheck]')?.addEventListener('click', () => api('/api/version/check', {}).then((r) => { S.ver = r; renderVersion(); closeMenu(); toast(r.newer ? t('ver.available', { v: r.latest }) : t('ver.upToDate')); }, (err) => toast(err.message)));
+  });
+};
+loadVersion();
 
 const themeSel = document.getElementById('themes');
 themeSel.onchange = () => setTheme(themeSel.value);
