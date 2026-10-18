@@ -142,3 +142,20 @@ test('wake compact: a failed or crashed compaction still wakes the agent', async
     assert.ok(msgs.some((t: string) => t.includes('compact trước khi gọi dậy bị lỗi')));
   }
 });
+
+test('a wake that fails leaves the messages unread and says so in the room', async () => {
+  const h = await makeHub(undefined, () => 1);
+  try {
+    const tr = path.join(h.dir, 'x.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 10 } } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'f1', cwd: 'C:/fw', transcript: tr });
+    await h.call('/api/sessions/f1/rename', { name: 'alice' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'f1' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'f1' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@alice hello' });
+    await new Promise((r) => setTimeout(r, 200));
+    const msgs = (await h.call<any[]>('/api/rooms/proj/messages?limit=10')).map((m: any) => m.text);
+    assert.ok(msgs.some((t) => /alice không dậy được \(claude thoát với mã 1/.test(t)), msgs.join('|'));
+    assert.ok(h.hub.store.pending('f1').messages.some((m) => m.text === '@alice hello'), 'still unread');
+  } finally { await h.hub.close(); }
+});

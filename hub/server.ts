@@ -21,7 +21,7 @@ import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './co
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir } from './lead.ts';
-import { accountKey, planWakes } from './wake.ts';
+import { accountKey, blockedUntil, planWakes } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
@@ -218,6 +218,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const delivery = p.messages.length
       ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id)
       : formatDelivery([], takeNotes(s.id), leadRooms(s.id)).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
+    const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
     // T18b: a long chat is compacted first (setting wakeCompact), so the wake does not re-read all of it.
@@ -232,23 +233,50 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     };
     emitSession(store.setStatus(s.id, 'busy', compactFirst ? 'đang compact' : 'đang hồi sinh'));
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so ${tools ? `use only read tools and ${tools.join(', ')}` : 'only read files'} and reply.`;
+    let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
       .then(async () => {
-        if (!compactFirst) return;
-        // A failed compaction still wakes the agent with a plain resume.
-        compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
-        if (!compacted) tellRooms(`${s.name}: compact trước khi gọi dậy bị lỗi, gọi dậy bình thường.`);
-        emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
+        const blocked = await blockedAccount(s);
+        if (blocked) { failure = blocked; return; }
+        if (compactFirst) {
+          // A failed compaction still wakes the agent with a plain resume.
+          compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
+          if (!compacted) tellRooms(`${s.name}: compact trước khi gọi dậy bị lỗi, gọi dậy bình thường.`);
+          emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
+        }
+        const code = await Promise.resolve(runRevive({ ...job, text, ...(tools ? { tools } : {}) }));
+        if (typeof code === 'number' && code !== 0) failure = `claude thoát với mã ${code}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
       })
-      .then(() => runRevive({ ...job, text, ...(tools ? { tools } : {}) }))
-      .catch(() => {})
+      .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
       .finally(() => {
+        if (failure) {
+          const cur = store.session(s.id);
+          cur.cursor = Math.min(cur.cursor, cursorBefore);
+          store.save();
+          tellRooms(`${s.name} không dậy được (${failure}). Tin vẫn chưa đọc; mở tab của ${s.name} hoặc thử lại sau.`);
+        }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${kTokens(before)} → ${kTokens(readContextTokens(s.transcript))}).`);
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });
     return true;
+  }
+
+  const lastLogLine = () => {
+    try { return fs.readFileSync(path.join(opts.dir, 'revive.log'), 'utf8').trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? ''; } catch { return ''; }
+  };
+  /** Account out of usage (a window at 100%): waking an agent on it only burns the turn. Books a wake-up for the reset and says why. */
+  async function blockedAccount(s: Session): Promise<string> {
+    if (!usage) return '';
+    const dirs = usageDirs();
+    const accs = await usage.read(dirs).catch(() => []);
+    const acc = accs.find((a) => onAccount(a)(s.configDir ?? ''));
+    const until = acc ? blockedUntil(acc) : 0;
+    if (!acc || until <= Date.now()) return '';
+    const key = accountKey(acc), have = (store.state.wakeAt ??= {});
+    if (!have[key]) { have[key] = { at: until + loadSettings(opts.dir, envCap).lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
+    return `tài khoản ${acc.label} hết hạn mức tới ${new Date(until).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' })}, đã hẹn đánh thức sau đó`;
   }
 
   /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
@@ -426,9 +454,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cfg = loadSettings(opts.dir, envCap).lead.wake;
     const acc = (await usage.read(usageDirs(), true)).find((a) => accountKey(a) === key);
     const rooms = acc ? accountRooms(acc) : [];
-    if (acc?.fiveHour && acc.fiveHour.pct >= cfg.atPct) {
+    if (acc && ((acc.fiveHour && acc.fiveHour.pct >= cfg.atPct) || blockedUntil(acc) > Date.now())) {
       if (++e.tries > 6) {
-        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Claude ${acc.label} vẫn ${Math.round(acc.fiveHour.pct)}% sau nhiều lần thử, tôi ngừng hẹn giờ đánh thức.`)); emitRoom(r); } catch { /* room gone */ } }
+        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Claude ${acc.label} vẫn chưa reset sau nhiều lần thử, tôi ngừng hẹn giờ đánh thức.`)); emitRoom(r); } catch { /* room gone */ } }
         delete have[key];
       } else { e.at = Date.now() + 5 * 60_000; scheduleWake(key); }
       store.save();
