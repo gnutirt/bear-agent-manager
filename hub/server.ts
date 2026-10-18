@@ -695,8 +695,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     try { cur = fs.readFileSync(file, 'utf8').trim(); } catch { /* none yet */ }
     if (cur !== ROOT) {
       fs.mkdirSync(opts.dir, { recursive: true });
-      fs.writeFileSync(`${file}.tmp`, ROOT + '
-');
+      fs.writeFileSync(`${file}.tmp`, ROOT + '\n');
       fs.renameSync(`${file}.tmp`, file);
       console.log(`hub: plugin source is now ${ROOT} (was ${cur || 'none'})`);
     }

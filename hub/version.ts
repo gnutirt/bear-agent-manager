@@ -153,6 +153,7 @@ export function versionInfo(current: string, repo: string | null, rel: Release |
   const reason: VersionInfo['reason'] = !latest ? 'unchecked' : !newer ? 'up-to-date' : !g.git ? 'not-git' : !g.remoteOk ? 'other-remote' : !g.clean ? 'dirty' : 'ok';
   return {
     current, repo, latest, url: rel?.url || null, notes: rel?.notes ?? '', checkedAt: rel?.checkedAt ?? null, ...(rel?.error ? { error: rel.error } : {}),
-    newer, check, plugins, mismatch: plugins.some((p) => p.version !== current && !(p.shim && sourceOk)),   // a shim copy runs the hub's own code while the hub names its source canApply: reason === 'ok', reason,
+    newer, check, plugins, mismatch: plugins.some((p) => p.version !== current && !(p.shim && sourceOk)),   // a shim copy runs the hub's own code while the hub names its source
+    canApply: reason === 'ok', reason,
   };
 }
