@@ -1,5 +1,5 @@
 ---
-name: risk-assessment
+name: kyc-risk-assessment
 description: >
   Deterministic heuristic risk scoring using a four-factor weighted model (Geographic 30%,
   Customer 35%, Product 25%, Channel 10%) aligned with Basel III, EBA Guidelines, FATF standards,

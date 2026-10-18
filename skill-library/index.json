@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 151,
+  "count": 150,
   "skills": [
     {
       "name": "3-statement-model",
@@ -828,12 +828,12 @@
       "jurisdiction": "US"
     },
     {
-      "name": "onboarding",
+      "name": "kyc-onboarding",
       "category": "banking",
       "roles": [
         "banking"
       ],
-      "path": "banking/kyc-analyst/onboarding",
+      "path": "banking/kyc-analyst/kyc-onboarding",
       "description": "Full KYC customer onboarding with mandatory Step 0 independent verification (5+1 searches), 17 sequential stagegates requiring explicit analyst consent, deterministic four-factor risk scoring, case folder auto-creation, 4-sheet Excel dashboard, 17-section PDF report, and immutable audit trail. Covers UK/EU (AMLD5), US (FinCEN CDD), and MENA jurisdictions.",
       "descVi": "Quy trình KYC đầy đủ khi tiếp nhận khách hàng mới, có bước xác minh độc lập.",
       "source": "https://github.com/vyayasan/kyc-analyst",
@@ -841,12 +841,12 @@
       "licenseFile": "banking/kyc-analyst/LICENSE"
     },
     {
-      "name": "refresh",
+      "name": "kyc-refresh",
       "category": "banking",
       "roles": [
         "banking"
       ],
-      "path": "banking/kyc-analyst/refresh",
+      "path": "banking/kyc-analyst/kyc-refresh",
       "description": "Periodic customer refresh with re-verification of original due diligence to detect material changes and maintain compliance with ongoing due diligence requirements. Triggers include time-based review (annual HIGH risk, 2-3 year intervals for MEDIUM/LOW), risk-based escalation (score changes, business pivots), and event-based alerts (sanctions, adverse media, regulatory actions).",
       "descVi": "Cập nhật định kỳ hồ sơ khách hàng, xác minh lại để phát hiện thay đổi trọng yếu.",
       "source": "https://github.com/vyayasan/kyc-analyst",
@@ -854,12 +854,12 @@
       "licenseFile": "banking/kyc-analyst/LICENSE"
     },
     {
-      "name": "risk-assessment",
+      "name": "kyc-risk-assessment",
       "category": "banking",
       "roles": [
         "banking"
       ],
-      "path": "banking/kyc-analyst/risk-assessment",
+      "path": "banking/kyc-analyst/kyc-risk-assessment",
       "description": "Deterministic heuristic risk scoring using a four-factor weighted model (Geographic 30%, Customer 35%, Product 25%, Channel 10%) aligned with Basel III, EBA Guidelines, FATF standards, and FinCEN guidance. Bands: LOW (0-20), MEDIUM (21-60), HIGH (61-80), CRITICAL (81-100).",
       "descVi": "Chấm điểm rủi ro khách hàng theo mô hình 4 yếu tố có trọng số.",
       "source": "https://github.com/vyayasan/kyc-analyst",
@@ -867,12 +867,12 @@
       "licenseFile": "banking/kyc-analyst/LICENSE"
     },
     {
-      "name": "screening",
+      "name": "kyc-screening",
       "category": "banking",
       "roles": [
         "banking"
       ],
-      "path": "banking/kyc-analyst/screening",
+      "path": "banking/kyc-analyst/kyc-screening",
       "description": "Comprehensive sanctions and PEP screening against 12+ databases (OFAC, EU, UK, UN, INTERPOL) with false positive assessment, HITL decision gates, and regulatory-compliant documentation.",
       "descVi": "Sàng lọc danh sách cấm vận và người có ảnh hưởng chính trị (PEP), xử lý trùng khớp giả.",
       "source": "https://github.com/vyayasan/kyc-analyst",
@@ -880,12 +880,12 @@
       "licenseFile": "banking/kyc-analyst/LICENSE"
     },
     {
-      "name": "transaction-monitoring",
+      "name": "kyc-transaction-monitoring",
       "category": "banking",
       "roles": [
         "banking"
       ],
-      "path": "banking/kyc-analyst/transaction-monitoring",
+      "path": "banking/kyc-analyst/kyc-transaction-monitoring",
       "description": "AML transaction monitoring for ongoing customer relationships. Identifies suspicious patterns including structuring, layering, and unusual activity. Assesses against regulatory thresholds and prepares Suspicious Activity Reports (SARs) with HITL decision gates.",
       "descVi": "Giám sát giao dịch phòng chống rửa tiền cho khách hàng hiện hữu.",
       "source": "https://github.com/vyayasan/kyc-analyst",
@@ -1326,33 +1326,6 @@
       "licenseFile": "general/anthropic/mcp-builder/LICENSE.txt"
     },
     {
-      "name": "skill-creator",
-      "category": "general",
-      "roles": [
-        "general"
-      ],
-      "path": "general/anthropic/skill-creator",
-      "description": "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.",
-      "descVi": "Tạo skill mới, sửa skill có sẵn và đo hiệu quả skill.",
-      "source": "https://github.com/anthropics/skills",
-      "license": "Apache-2.0",
-      "licenseFile": "general/anthropic/skill-creator/LICENSE.txt"
-    },
-    {
-      "name": "brief",
-      "category": "legal",
-      "roles": [
-        "legal"
-      ],
-      "path": "legal/anthropic-legal/brief",
-      "description": "Generate contextual briefings for legal work — daily summary, topic research, or incident response. Use when starting your day and need a scan of legal-relevant items across email, calendar, and contracts, when researching a specific legal question across internal sources, or when a developing situation (data breach, litigation threat, regulatory inquiry) needs rapid context.",
-      "descVi": "Soạn bản tóm tắt cho công việc pháp lý: tổng hợp hằng ngày, nghiên cứu một chủ đề, xử lý sự cố.",
-      "source": "https://github.com/anthropics/knowledge-work-plugins",
-      "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE",
-      "jurisdiction": "US"
-    },
-    {
       "name": "compliance-check",
       "category": "legal",
       "roles": [
@@ -1361,6 +1334,20 @@
       "path": "legal/anthropic-legal/compliance-check",
       "description": "Run a compliance check on a proposed action, product feature, or business initiative, surfacing applicable regulations, required approvals, and risk areas. Use when launching a feature that touches personal data, when marketing or product proposes something with regulatory implications, or when you need to know which approvals and jurisdictional requirements apply before proceeding.",
       "descVi": "Kiểm tra tuân thủ cho một hành động, tính năng sản phẩm hoặc sáng kiến kinh doanh, nêu quy định áp dụng.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
+      "name": "legal-brief",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/legal-brief",
+      "description": "Generate contextual briefings for legal work — daily summary, topic research, or incident response. Use when starting your day and need a scan of legal-relevant items across email, calendar, and contracts, when researching a specific legal question across internal sources, or when a developing situation (data breach, litigation threat, regulatory inquiry) needs rapid context.",
+      "descVi": "Soạn bản tóm tắt cho công việc pháp lý: tổng hợp hằng ngày, nghiên cứu một chủ đề, xử lý sự cố.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
       "licenseFile": "legal/anthropic-legal/LICENSE",

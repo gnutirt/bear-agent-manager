@@ -1,10 +1,10 @@
 ---
-name: brief
+name: legal-brief
 description: Generate contextual briefings for legal work — daily summary, topic research, or incident response. Use when starting your day and need a scan of legal-relevant items across email, calendar, and contracts, when researching a specific legal question across internal sources, or when a developing situation (data breach, litigation threat, regulatory inquiry) needs rapid context.
 argument-hint: "[daily | topic <query> | incident]"
 ---
 
-# /brief -- Legal Team Briefing
+# /legal-brief -- Legal Team Briefing
 
 > If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../../CONNECTORS.md).
 
@@ -15,9 +15,9 @@ Generate contextual briefings for legal work. Supports three modes: daily brief,
 ## Invocation
 
 ```
-/brief daily              # Morning brief of legal-relevant items
-/brief topic [query]      # Research brief on a specific legal question
-/brief incident [topic]   # Rapid brief on a developing situation
+/legal-brief daily              # Morning brief of legal-relevant items
+/legal-brief topic [query]      # Research brief on a specific legal question
+/legal-brief incident [topic]   # Rapid brief on a developing situation
 ```
 
 If no mode is specified, ask the user which type of brief they need.

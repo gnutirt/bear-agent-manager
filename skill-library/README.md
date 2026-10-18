@@ -3,7 +3,7 @@
 Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 từ các repo GitHub công khai.
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
-Tổng: **151 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3 · Pháp lý 20 · Solar 11.
+Tổng: **150 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 2 · Pháp lý 20 · Solar 11.
 Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
@@ -31,7 +31,7 @@ Copy-Item -Recurse skill-library\banking\casemark\assessing-credit-risk "$HOME\.
 Skill con của `course-training-skills` (có trường `bundle`) cần cả thư mục `training/course-training-skills`.
 
 **Lưu ý**
-- Trước khi cài, chạy `node skill-library/check-installed.mjs` để xem skill nào trùng tên với skill đã có trên máy (KHÁC = cùng tên, khác nội dung, Claude có thể nạp nhầm). `skill-creator` đã có sẵn bản mới hơn từ claude.ai: không cần cài bản trong thư viện.
+- Trước khi cài, chạy `node skill-library/check-installed.mjs` để xem skill nào trùng tên với skill đã có trên máy (KHÁC = cùng tên, khác nội dung, Claude có thể nạp nhầm). `skill-creator` đã bỏ khỏi thư viện vì máy đã có bản mới hơn đồng bộ từ claude.ai (`anthropic-skills:skill-creator`).
 - Mỗi skill đã cài tốn khoảng 100 token ở mọi lượt (phần mô tả luôn được nạp). Giao diện cảnh báo khi một tài khoản cài hoặc một agent ép quá 15 skill. Chỉ cài cái cần dùng.
 - Giấy phép của từng skill hiện trên thẻ và ghi ở `NOTICE.md`. Dùng lại hoặc phân phối thì giữ file LICENSE đi kèm.
 - Skill có nhãn **"Luật US"** (`jurisdiction: US`) viết theo luật và quy định của Mỹ. Không dùng nguyên văn cho hợp đồng hay hồ sơ Việt Nam: đối chiếu luật Việt Nam và nhờ luật sư xác nhận. Skill `VN` chỉ trích số liệu có trong văn bản gốc đặt ở `references/van-ban/`.
@@ -49,7 +49,7 @@ In the hub UI: Skills tab → *Skill library* → pick a role chip → choose th
 | `second-line` (27) | [anotb/second-line-financial-services](https://github.com/anotb/second-line-financial-services) · MIT | **banking-risk-compliance**: banking-supervision-readiness, credit-risk-governance, deposit-operations-controls, bank-fintech-partnership-review · **financial-crime-governance**: cdd-risk-review, edd-escalation-pack, sar-decision-qa, sanctions-screening-qa, aml-model-monitoring, negative-news-triage · **risk-compliance-core**: scoping, obligation-mapping, control-matrix, policy-gap-review, evidence-binder, issue-writeup, human-review-gates · **risk-reporting**: risk-committee-pack, kri-commentary, bcbs239-gap-assessment, attestation-pack, management-response, cyber-disclosure-readiness · **payments-fintech-compliance**: payments-risk-assessment, fintech-partner-controls, open-banking-data-controls, payment-operations-incident-review |
 | `finance-skills` (10) | [JoelLewis/finance_skills](https://github.com/JoelLewis/finance_skills) · MIT | anti-money-laundering, know-your-customer, account-opening-compliance, account-opening-workflow, reconciliation, operational-risk, counterparty-risk, lending, financial-statements, time-value-of-money |
 | `vietnam` (2) | Tự viết · MIT | **vn-phan-loai-no** (Thông tư 31/2024/TT-NHNN), **vn-phong-chong-rua-tien** (Luật 14/2022/QH15). Chỉ ghi điều đã xác minh; số ngày, tỷ lệ, ngưỡng tiền phải lấy từ văn bản gốc đặt trong `references/van-ban/`. |
-| `kyc-analyst` (5) | [vyayasan/kyc-analyst](https://github.com/vyayasan/kyc-analyst) · MIT | onboarding, screening, risk-assessment, transaction-monitoring, refresh |
+| `kyc-analyst` (5) | [vyayasan/kyc-analyst](https://github.com/vyayasan/kyc-analyst) · MIT | kyc-onboarding, kyc-screening, kyc-risk-assessment, kyc-transaction-monitoring, kyc-refresh |
 
 Các skill ngân hàng viết theo quy định Mỹ/EU (OCC, FDIC, BSA/AML, BCBS 239, DORA). Khi dùng cho ngân hàng Việt Nam cần đối chiếu
 với quy định của NHNN (ví dụ Thông tư 11/2021 về phân loại nợ, Luật Phòng chống rửa tiền 2022).
@@ -74,15 +74,15 @@ Máy này đã có sẵn chúng (`anthropic-skills:pptx` …).
 | `course-training-skills` (11) | [Mosapmohamd/course-training-skills](https://github.com/Mosapmohamd/course-training-skills) · MIT | Bộ thiết kế khoá học từ yêu cầu tới tài liệu cho giảng viên: course-designer, course-outline, session-designer, activity-designer, assessment-designer, practical-work, slide-designer, instructor-guide, notebook-designer, course-reviewer (+ skill điều phối ở thư mục gốc) |
 | `onewave` | [onewave-ai/claude-skills](https://github.com/onewave-ai/claude-skills) · MIT | quiz-maker: tạo câu hỏi kiểm tra kèm đáp án |
 
-## Chung (`general/`) — 3
+## Chung (`general/`) — 2
 
-`anthropic/`: skill-creator (tạo skill mới), internal-comms, mcp-builder — anthropics/skills · Apache-2.0.
+`anthropic/`: internal-comms, mcp-builder — anthropics/skills · Apache-2.0.
 
 ## Pháp lý (`legal/`) — 20
 
 | Nhóm | Nguồn · Giấy phép | Skill |
 |---|---|---|
-| `anthropic-legal` (8) | [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) · Apache-2.0 | review-contract, triage-nda, legal-risk-assessment, compliance-check, legal-response, brief, meeting-briefing, vendor-check |
+| `anthropic-legal` (8) | [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) · Apache-2.0 | review-contract, triage-nda, legal-risk-assessment, compliance-check, legal-response, legal-brief, meeting-briefing, vendor-check |
 | `casemark` (12) | CaseMark/skills · Apache-2.0 | contract-analysis, contract-summarization, contract-playbook-review, contract-dispute-analysis, due-diligence-checklist, due-diligence-report, confidentiality-nda, employment-contract-summary, loan-and-security-agreement, term-loan-agreement, corporate-compliance-checklist, policy-brief |
 
 Viết theo luật Mỹ và thông lệ quốc tế. Dùng cho hợp đồng theo luật Việt Nam thì đối chiếu Bộ luật Dân sự 2015, Luật Thương mại 2005 và nhờ luật sư xác nhận.

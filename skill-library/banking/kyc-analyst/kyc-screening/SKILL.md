@@ -1,5 +1,5 @@
 ---
-name: screening
+name: kyc-screening
 description: >
   Comprehensive sanctions and PEP screening against 12+ databases (OFAC, EU, UK, UN, INTERPOL)
   with false positive assessment, HITL decision gates, and regulatory-compliant documentation.

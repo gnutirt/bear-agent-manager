@@ -27,7 +27,10 @@ Changes made to the copies:
   so Claude also picks them up when the user writes in Vietnamese. The skill body is unchanged. `git log -p` on `skill-library/` shows each change.
 - `banking/second-line/*`: the plugin-level `references/*.md` of each upstream plugin is copied into every skill's own `references/`
   so a single skill works on its own. `legal/anthropic-legal/*`: the plugin's `CONNECTORS.md` is copied into each skill folder for the same reason.
+- Renamed to avoid clashing with generic names of other installed skills (folder and frontmatter `name`):
+  `banking/kyc-analyst/{onboarding,refresh,screening,risk-assessment,transaction-monitoring}` → `kyc-*`;
+  `legal/anthropic-legal/brief` → `legal-brief` (its `/brief` command examples now read `/legal-brief`).
 
 Not included because their licenses do not allow redistribution here: Anthropic's `pptx`, `docx`, `xlsx`, `pdf`
-skills (proprietary), Anthropic's `doc-coauthoring` (no license file), `narosemena/master-instructional-design` (CC BY-NC-ND 4.0), `espialuso/id-skills-for-claude`
+skills (proprietary), Anthropic's `doc-coauthoring` (no license file), Anthropic's `skill-creator` (a newer copy is already synced from claude.ai), `narosemena/master-instructional-design` (CC BY-NC-ND 4.0), `espialuso/id-skills-for-claude`
 and `zarazhangrui/codebase-to-course` (no license), `jiji262/claude-design-skill` (derived from a non-public system prompt).

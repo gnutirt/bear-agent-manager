@@ -1,5 +1,5 @@
 ---
-name: transaction-monitoring
+name: kyc-transaction-monitoring
 description: >
   AML transaction monitoring for ongoing customer relationships. Identifies suspicious patterns
   including structuring, layering, and unusual activity. Assesses against regulatory thresholds

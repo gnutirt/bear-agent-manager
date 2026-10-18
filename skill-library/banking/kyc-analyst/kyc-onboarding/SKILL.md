@@ -1,5 +1,5 @@
 ---
-name: onboarding
+name: kyc-onboarding
 description: >
   Full KYC customer onboarding with mandatory Step 0 independent verification (5+1 searches),
   17 sequential stagegates requiring explicit analyst consent, deterministic four-factor risk scoring,

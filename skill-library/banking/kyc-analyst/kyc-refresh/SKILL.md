@@ -1,5 +1,5 @@
 ---
-name: refresh
+name: kyc-refresh
 description: >
   Periodic customer refresh with re-verification of original due diligence to detect material changes
   and maintain compliance with ongoing due diligence requirements. Triggers include time-based review
