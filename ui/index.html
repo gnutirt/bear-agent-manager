@@ -2088,6 +2088,7 @@ function renderSettingsView() {
       ${sw('lead.delegate', st.lead?.delegate ?? true, t('lead.delegate'), t('lead.delegate.hint'))}
       ${sw('lead.distribute', st.lead?.distribute ?? true, t('lead.distribute'), t('lead.distribute.hint'))}
       ${sw('lead.handoffOnDone', st.lead?.handoffOnDone ?? true, t('lead.handoff'), t('lead.handoff.hint'))}
+      ${num('lead.idleMin', st.lead?.idleMin ?? 30, t('lead.idle'), t('lead.idle.hint'), 1, 240)}
     </div>
     <h2>${t('set.auto.title')}</h2><div class="setbox">
       <p class="small muted note">${t('set.auto.note')}</p>

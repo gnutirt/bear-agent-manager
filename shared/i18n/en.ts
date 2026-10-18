@@ -504,6 +504,7 @@ export const en: Record<string, string> = {
   'sys.wake.blocked': 'account {account} is out of quota until {until}, a wake-up is booked for after that',
   'sys.terminated': '{name}: claude was ended from the hub.',
   'sys.stop.api': '{name}: the turn stopped on an API error ({err}).',
+  'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',
   'sys.stop.limitAt': '@you {name} hit its plan limit, usable again at {at}. The tab is still open but no longer receives @; open the tab and type again after that time.',
@@ -586,4 +587,6 @@ export const en: Record<string, string> = {
   'hide.none': 'No personal skills to hide.',
   'hide.saved': 'Saved. Reopen the agent’s chat to apply.',
   'hide.level': 'level {l}',
+  'lead.idle': 'Woken background agents stay alive (minutes)',
+  'lead.idle.hint': 'After its last reply a background agent waits this many minutes for new messages before exiting; after that it shows offline and is woken again when a message arrives.',
 };

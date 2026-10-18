@@ -504,6 +504,7 @@ export const vi: Record<string, string> = {
   'sys.wake.blocked': 'tài khoản {account} hết hạn mức tới {until}, đã hẹn đánh thức sau đó',
   'sys.terminated': '{name}: claude đã được kết thúc từ hub.',
   'sys.stop.api': '{name}: lượt bị dừng bởi lỗi API ({err}).',
+  'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',
   'sys.stop.unknown': 'không rõ',
   'sys.stop.limit': '@you {name} hết hạn mức gói. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',
   'sys.stop.limitAt': '@you {name} hết hạn mức gói, dùng lại được lúc {at}. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',
@@ -586,4 +587,6 @@ export const vi: Record<string, string> = {
   'hide.none': 'Không có skill riêng nào để ẩn.',
   'hide.saved': 'Đã lưu. Mở lại chat của agent để áp dụng.',
   'hide.level': 'mức {l}',
+  'lead.idle': 'Agent được gọi dậy nền ở lại (phút)',
+  'lead.idle.hint': 'Sau lượt trả lời cuối, agent chạy nền chờ tin mới tới chừng này phút rồi mới thoát; quá hạn nó hiện offline. Gọi dậy lại khi có tin.',
 };
