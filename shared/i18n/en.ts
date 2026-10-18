@@ -692,4 +692,6 @@ export const en: Record<string, string> = {
   'perm.addAgent': 'Add an override for…',
   'perm.remove': 'Remove override',
   'perm.noneAgent': 'No overrides: every agent uses the default.',
+  'sessions.bg': 'bg',
+  'sessions.bg.tip': 'Running in the background: woken by the hub, no tab open. Open a tab to work with it directly.',
 };

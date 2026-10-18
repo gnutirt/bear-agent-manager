@@ -393,6 +393,7 @@ header .spacer{flex:1}
 .plists{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}.plists label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mute);font-weight:600}.plists textarea{font:12.5px var(--mono);padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);resize:vertical}
 .pagent{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}.pah{display:flex;align-items:center;gap:8px}#permAdd{margin-top:6px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
 @media (max-width:700px){.plists{grid-template-columns:1fr}}
+.bgtag{flex:none;padding:0 6px;border:1px solid var(--side-line,var(--line));border-radius:6px;font-size:10.5px;font-weight:700;line-height:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--side-mute,var(--mute))}.bgdot{font-size:11px;opacity:.7}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -1184,6 +1185,8 @@ function renderRooms() {
   }
 }
 
+/** A chat the hub runs in the background (no tab open, claude -p): marked so it is not mistaken for a real tab. Needs `bg` from the hub session (headless pid alive, no tab). */
+const bgTag = (s) => s.bg && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
 function sessionRow(s) {
   const inRoom = S.current && room(S.current)?.members.includes(s.id);
   const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id;
@@ -1191,7 +1194,7 @@ function sessionRow(s) {
   const nameHtml = S.renaming === s.id
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
-  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub"><span class="st st-${s.status}">${LABEL[s.status]}</span><span class="rp">${esc(repo(s.cwd))}</span></div></div>
+  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub"><span class="st st-${s.status}">${LABEL[s.status]}</span>${bgTag(s)}<span class="rp">${esc(repo(s.cwd))}</span></div></div>
     <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? t('members.unlead') : t('sessions.setLead')}" aria-label="${t('room.lead')}">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="${t('sessions.rename')}" aria-label="${t('sessions.rename')}">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="${t('sessions.wakeTip')}">${t('sessions.wake')}</button><button class="add wake" data-a="opentab" title="${t('members.openTab.tip')}">${t('members.openTab')}</button><button data-a="forget" title="${t('sessions.forget')}" aria-label="${t('sessions.forget')}">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
   d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
@@ -1221,7 +1224,7 @@ let sessTipTimer = 0;
 function showSessTip(row, above) {
   const s = S.sessions[row.dataset.sid]; if (!s) return;
   const rows = [[t('sessions.tip.doing'), s.status === 'busy' ? (s.activity || t('status.busy')) : LABEL[s.status]], [t('sessions.tip.dir'), s.cwd], [t('sessions.tip.rooms'), (s.rooms || []).map((x) => '#' + x).join(' ') || '-']];
-  sessTip.innerHTML = `<div class="tn"><b>${esc(s.name)}</b><span class="st st-${s.status}">${LABEL[s.status]}</span></div>${s.title ? `<div class="tt">${esc(s.title)}</div>` : ''}${rows.map(([k, v]) => `<div class="tr"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}<div class="tc">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}${ctxBadge(s)}</div>`;
+  sessTip.innerHTML = `<div class="tn"><b>${esc(s.name)}</b><span>${bgTag(s)}<span class="st st-${s.status}">${LABEL[s.status]}</span></span></div>${s.title ? `<div class="tt">${esc(s.title)}</div>` : ''}${rows.map(([k, v]) => `<div class="tr"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}<div class="tc">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}${ctxBadge(s)}</div>`;
   sessTip.hidden = false;
   const r = row.getBoundingClientRect(), h = sessTip.offsetHeight;
   if (above) { sessTip.style.left = Math.max(8, Math.min(r.left, innerWidth - sessTip.offsetWidth - 8)) + 'px'; sessTip.style.top = Math.max(8, r.top - h - 8) + 'px'; return; }
@@ -1533,7 +1536,7 @@ function renderPresence() {
   for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
     const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = t('presence.call', { name: s.name });
     c.dataset.sid = s.id; c.classList.add('st-' + s.status);
-    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>`;
+    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>${s.bg && s.status !== 'offline' ? '<span class="bgdot" title="' + t('sessions.bg.tip') + '">⏻</span>' : ''}`;
     c.onclick = () => insertMention(s.name);
     el.append(c);
   }

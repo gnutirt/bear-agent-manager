@@ -692,4 +692,6 @@ export const vi: Record<string, string> = {
   'perm.addAgent': 'Thêm ghi đè cho…',
   'perm.remove': 'Bỏ ghi đè',
   'perm.noneAgent': 'Chưa có ghi đè nào: mọi agent dùng mặc định.',
+  'sessions.bg': 'nền',
+  'sessions.bg.tip': 'Đang chạy nền: hub gọi dậy, không có tab nào mở. Mở tab để làm việc trực tiếp.',
 };
