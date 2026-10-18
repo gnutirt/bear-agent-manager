@@ -533,67 +533,67 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <span class="hub-state" id="hubState" title="Hub: đã kết nối" aria-label="Hub: đã kết nối"><span class="led idle"></span></span>
   </div>
   <div class="side-scroll">
-    <div class="sec">Phòng <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
-    <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới"></form>
+    <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
-    <div class="sec">Claude đang chạy <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo"><option value="">Mọi repo</option></select></div>
+    <div class="sec"><span data-i18n="sessions.title">Claude đang chạy</span> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
-    <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy">0/4</span></div>
+    <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy" data-i18n-title="workers.cap.tip">0/4</span></div>
     <div id="workers"></div>
   </div>
-  <select class="themes" id="themes" aria-label="Giao diện">
-    <option value="auto">Tự động</option><option value="light">Sáng</option><option value="gray">Xám</option><option value="dark">Tối</option>
-    <option value="midnight">Midnight (đen OLED)</option><option value="nord">Nord</option><option value="dracula">Dracula</option><option value="forest">Rừng</option><option value="sunset">Hoàng hôn</option>
-    <option value="glass">Liquid glass</option><option value="glasslight">Liquid glass sáng (không màu)</option><option value="excel">Excel phẳng</option><option value="solarized">Solarized sáng</option><option value="rose">Hồng</option><option value="ocean">Đại dương</option>
+  <select class="themes" id="themes" aria-label="Giao diện" data-i18n-aria="theme.label">
+    <option value="auto" data-i18n="theme.auto">Tự động</option><option value="light" data-i18n="theme.light">Sáng</option><option value="gray" data-i18n="theme.gray">Xám</option><option value="dark" data-i18n="theme.dark">Tối</option>
+    <option value="midnight" data-i18n="theme.midnight">Midnight (đen OLED)</option><option value="nord">Nord</option><option value="dracula">Dracula</option><option value="forest" data-i18n="theme.forest">Rừng</option><option value="sunset" data-i18n="theme.sunset">Hoàng hôn</option>
+    <option value="glass">Liquid glass</option><option value="glasslight" data-i18n="theme.glasslight">Liquid glass sáng (không màu)</option><option value="excel" data-i18n="theme.excel">Excel phẳng</option><option value="solarized" data-i18n="theme.solarized">Solarized sáng</option><option value="rose" data-i18n="theme.rose">Hồng</option><option value="ocean" data-i18n="theme.ocean">Đại dương</option>
   </select>
-  <select class="themes" id="fonts" aria-label="Phông chữ">
-    <option value="">Phông: Be Vietnam Pro</option><option value="Inter">Inter</option><option value="Roboto">Roboto</option><option value="Noto Sans">Noto Sans</option><option value="Open Sans">Open Sans</option><option value="Source Sans 3">Source Sans 3</option><option value="IBM Plex Sans">IBM Plex Sans</option><option value="Nunito">Nunito (tròn)</option><option value="Quicksand">Quicksand (tròn)</option><option value="Lora">Lora (serif)</option><option value="Merriweather">Merriweather (serif)</option><option value="JetBrains Mono">JetBrains Mono (mono)</option><option value="system-ui">Phông hệ thống</option>
+  <select class="themes" id="fonts" aria-label="Phông chữ" data-i18n-aria="font.label">
+    <option value="" data-i18n="font.default">Phông: Be Vietnam Pro</option><option value="Inter">Inter</option><option value="Roboto">Roboto</option><option value="Noto Sans">Noto Sans</option><option value="Open Sans">Open Sans</option><option value="Source Sans 3">Source Sans 3</option><option value="IBM Plex Sans">IBM Plex Sans</option><option value="Nunito" data-i18n="font.nunito">Nunito (tròn)</option><option value="Quicksand" data-i18n="font.quicksand">Quicksand (tròn)</option><option value="Lora">Lora (serif)</option><option value="Merriweather">Merriweather (serif)</option><option value="JetBrains Mono">JetBrains Mono (mono)</option><option value="system-ui" data-i18n="font.system">Phông hệ thống</option>
   </select>
 </aside>
 
 <div id="right">
-<nav id="tabs" role="tablist" aria-label="Màn hình">
-  <button id="tabsMenu" aria-label="Mở danh sách"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-  <button role="tab" data-tab="rooms" aria-selected="true">Phòng</button>
+<nav id="tabs" role="tablist" aria-label="Màn hình" data-i18n-aria="nav.label">
+  <button id="tabsMenu" aria-label="Mở danh sách" data-i18n-aria="nav.open"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <button role="tab" data-tab="rooms" aria-selected="true" data-i18n="tab.rooms">Phòng</button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens">Token</button>
   <button role="tab" data-tab="skills">Skill</button>
-  <button role="tab" data-tab="settings">Cài đặt</button>
+  <button role="tab" data-tab="settings" data-i18n="tab.settings">Cài đặt</button>
 </nav>
 <main id="view-rooms" class="view">
   <header>
-    <button id="menuBtn" aria-label="Mở danh sách"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <button id="menuBtn" aria-label="Mở danh sách" data-i18n-aria="nav.open"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <h1 id="title"><span class="h">#</span><span id="titleName">Bear Agent Manager</span></h1>
     <span class="meta" id="meta"></span>
     <span class="spacer"></span>
     <div class="stack" id="stack"></div>
-    <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>Biên bản <span id="notesCount">0</span></button>
+    <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng" data-i18n-title="notes.tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg><span data-i18n="notes.title">Biên bản</span> <span id="notesCount">0</span></button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
-    <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Mời Claude</button>
+    <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
   </header>
-  <div id="banner"><span>Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume">Tiếp tục</button></div>
-  <div id="log"><div id="logBody"></div><button class="btn primary" id="newMsgs" hidden aria-label="Có tin mới, cuộn xuống tin mới nhất">↓ Tin mới</button></div>
+  <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
+  <div id="log"><div id="logBody"></div><button class="btn primary" id="newMsgs" hidden aria-label="Có tin mới, cuộn xuống tin mới nhất" data-i18n-aria="newMsgs.label">↓ Tin mới</button></div>
   <div id="presence"></div>
   <div class="compose-wrap">
     <div id="mentionMenu" role="listbox"></div>
     <div id="replyBar" hidden></div>
-    <form id="composer"><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude"></textarea><button id="send" aria-label="Gửi" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
+    <form id="composer"><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude" data-i18n-ph="composer.ph"></textarea><button id="send" aria-label="Gửi" data-i18n-aria="composer.send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
     <div id="cost"></div>
     <div id="notice"></div>
-    <div class="hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
+    <div class="hint" data-i18n-html="composer.hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
   </div>
 </main>
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
-<section id="view-settings" class="view" hidden aria-label="Cài đặt"></section>
+<section id="view-settings" class="view" hidden aria-label="Cài đặt" data-i18n-aria="tab.settings"></section>
 </div>
 
-<aside id="notesPanel" aria-label="Biên bản phòng">
-  <div class="np-head"><h2>Biên bản #<span id="npRoom"></span><small>Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.</small></h2><button class="np-x" id="npClose" aria-label="Đóng">✕</button></div>
+<aside id="notesPanel" aria-label="Biên bản phòng" data-i18n-aria="notes.panel">
+  <div class="np-head"><h2><span data-i18n="notes.title">Biên bản</span> #<span id="npRoom"></span><small data-i18n="notes.hint">Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.</small></h2><button class="np-x" id="npClose" aria-label="Đóng" data-i18n-aria="common.close">✕</button></div>
   <div id="notesList"></div>
-  <div id="noteManual"><button class="btn" id="noteToggle" type="button">+ Thêm tay</button></div>
-  <form id="noteNew" hidden><textarea id="noteText" placeholder="Ghi một điều đã chốt, ví dụ: giao thức HLP/1 qua /hlp cổng 8765"></textarea><div class="row"><button class="btn" type="button" id="noteCancel">Hủy</button><button class="btn primary">Thêm</button></div></form>
+  <div id="noteManual"><button class="btn" id="noteToggle" type="button" data-i18n="notes.addManual">+ Thêm tay</button></div>
+  <form id="noteNew" hidden><textarea id="noteText" placeholder="Ghi một điều đã chốt, ví dụ: giao thức HLP/1 qua /hlp cổng 8765" data-i18n-ph="notes.manual.ph"></textarea><div class="row"><button class="btn" type="button" id="noteCancel" data-i18n="common.cancel">Hủy</button><button class="btn primary" data-i18n="common.add">Thêm</button></div></form>
 </aside>
 <div id="menu" role="menu"></div>
 <div id="toast" role="status"></div>
@@ -616,7 +616,7 @@ function newBtn() {
   const n0 = (S.messages[S.current] || []).length;
   if (S.stick) S.seen[S.current] = n0;
   const n = n0 - (S.seen[S.current] ?? n0), b = document.getElementById('newMsgs');
-  b.hidden = S.stick || n <= 0; b.textContent = `↓ Tin mới (${n})`;
+  b.hidden = S.stick || n <= 0; b.textContent = t('newMsgs.count', { n });
 }
 document.getElementById('newMsgs').onclick = () => { S.stick = true; pinBottom(); newBtn(); };
 // #log shrinks/grows when the composer, #cost, #notice or presence change height;
@@ -625,7 +625,7 @@ const logRO = new ResizeObserver(pinBottom);
 logRO.observe(logEl); logRO.observe(logBody);
 const $ = (id) => document.getElementById(id);
 const enc = encodeURIComponent;
-const LABEL = { busy: 'đang làm', idle: 'rảnh', waiting: 'chờ bạn duyệt quyền', offline: 'đã tắt' };
+const LABEL = lazy({ busy: 'status.busy', idle: 'status.idle', waiting: 'status.waiting', offline: 'status.offline' });
 const IDE = { vscode: 'VS Code', antigravity: 'Antigravity', cursor: 'Cursor', cli: 'Terminal' };
 const PALETTE = ['#4C6FFF', '#0EA5A4', '#E8853D', '#D946A8', '#7C5CFA', '#2E9E5B', '#0B8BD9', '#C2410C'];
 const I = {
@@ -647,10 +647,25 @@ async function api(p, body, method) {
 const I18N = { setting: 'auto', dicts: { vi: {}, en: {} } };
 const uiLang = () => { const s = S.settings?.language ?? I18N.setting; return s === 'vi' || s === 'en' ? s : /^vi\b/i.test(navigator.language) ? 'vi' : 'en'; };
 const t = (key, params = {}) => (I18N.dicts[uiLang()][key] ?? I18N.dicts.vi[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
-api('/api/i18n').then((d) => { Object.assign(I18N, d); if (S.tab === 'settings') renderSettingsView(); }, () => {});   // old hub: keys show until restart
+/** Fills the static HTML from the dictionary: data-i18n (text), -html, -ph (placeholder), -title, -aria, -ta (title + aria-label). Missing key = leave the built-in Vietnamese. */
+function applyStatic() {
+  const set = (sel, attr, fn) => document.querySelectorAll(sel).forEach((el) => { const k = el.getAttribute(attr), v = t(k); if (v !== k) fn(el, v); });
+  set('[data-i18n]', 'data-i18n', (el, v) => { el.textContent = v; });
+  set('[data-i18n-html]', 'data-i18n-html', (el, v) => { el.innerHTML = v; });
+  set('[data-i18n-ph]', 'data-i18n-ph', (el, v) => { el.placeholder = v; });
+  set('[data-i18n-title]', 'data-i18n-title', (el, v) => { el.title = v; });
+  set('[data-i18n-aria]', 'data-i18n-aria', (el, v) => { el.setAttribute('aria-label', v); });
+  set('[data-i18n-ta]', 'data-i18n-ta', (el, v) => { el.title = v; el.setAttribute('aria-label', v); });
+  document.documentElement.lang = uiLang();
+}
+/** An object whose values are looked up in the dictionary on every read, so module-level label tables follow the language. */
+function lazy(o) { return Object.defineProperties({}, Object.fromEntries(Object.entries(o).map(([k, key]) => [k, { get: () => t(key), enumerable: true }]))); }
+let renderEverything = () => {};   // set once the views exist
+const loadI18n = () => api('/api/i18n').then((d) => { Object.assign(I18N, d); applyStatic(); renderEverything(); }, () => {});   // old hub: keys show until restart
+loadI18n();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const color = (name) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
-const initials = (name) => name === 'you' ? 'Bạn' : name.split(/[-_]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+const initials = (name) => name === 'you' ? t('you') : name.split(/[-_]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 const FACES = ['#FFE7A8', '#CDEBFF', '#D3F4E0', '#FFD6E7', '#E5DEFF', '#FFE0CC', '#E6ECF5', '#FDF2B3'];
 /* Deterministic little robot per seed (session id): head shade, eyes, mouth and antenna vary. */
 function botSvg(seed) {
@@ -684,25 +699,27 @@ function botSvg(seed) {
 }
 const led = (status) => status ? `<span class="led ${status}"></span>` : '';
 const avatar = (seed, status, cls = '') => seed === 'you'
-  ? `<span class="av ${cls}" style="background:var(--accent)">Bạn${led(status)}</span>`
+  ? `<span class="av ${cls}" style="background:var(--accent)">${t('you')}${led(status)}</span>`
   : `<span class="av bot ${cls}" style="background:${color(seed)}">${botSvg(seed)}${led(status)}</span>`;
 const room = (n) => S.rooms.find((r) => r.name === n);
 const fmtK = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1000) + 'k';
-const ctxBadge = (s) => s?.ctx ? `<span class="ctx ${s.ctx < 100e3 ? 'lo' : s.ctx < 300e3 ? 'mid' : 'hi'}" title="Ngữ cảnh ~${fmtK(s.ctx)} token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)">${fmtK(s.ctx)}</span>` : '';
+const ctxBadge = (s) => s?.ctx ? `<span class="ctx ${s.ctx < 100e3 ? 'lo' : s.ctx < 300e3 ? 'mid' : 'hi'}" title="${t('ctx.tip', { k: fmtK(s.ctx) })}">${fmtK(s.ctx)}</span>` : '';
 const isLead = (id, r = S.current) => !!id && room(r)?.lead === id;
-const STAR = '<span class="star" title="Trưởng phòng" aria-label="Trưởng phòng">★</span>';
+// an object so the label follows the language each time it is put into a string
+const STAR = { toString: () => `<span class="star" title="${t('room.lead')}" aria-label="${t('room.lead')}">★</span>` };
 function reviveSession(id) {
   const s = S.sessions[id];
-  api(`/api/sessions/${enc(id)}/revive`, {}).then((r) => toast(r.started ? `Đang gọi dậy ${s?.name} ở chế độ nền${s?.ctx ? ` (nạp lại ~${fmtK(s.ctx)} token)` : ''}…` : `${s?.name} đang được gọi dậy rồi`), (e) => toast(e.message));
+  api(`/api/sessions/${enc(id)}/revive`, {}).then((r) => toast(r.started ? (s?.ctx ? t('revive.startedCtx', { name: s.name, k: fmtK(s.ctx) }) : t('revive.started', { name: s?.name })) : t('revive.already', { name: s?.name })), (e) => toast(e.message));
 }
 function setLead(id) {
   const on = !isLead(id);
-  api(`/api/rooms/${enc(S.current)}/lead`, { sessionId: on ? id : null }).then(() => toast(on ? `${S.sessions[id]?.name} là trưởng phòng #${S.current}` : 'Đã bỏ trưởng phòng'), (e) => toast(e.message));
+  api(`/api/rooms/${enc(S.current)}/lead`, { sessionId: on ? id : null }).then(() => toast(on ? t('lead.set', { name: S.sessions[id]?.name, room: S.current }) : t('lead.unset')), (e) => toast(e.message));
 }
 const members = (n) => (room(n)?.members || []).map((id) => S.sessions[id]).filter(Boolean);
 const repo = (cwd) => (cwd || '').split(/[\\/]/).filter(Boolean).pop() || cwd;
-const time = (ts) => new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-const dayOf = (ts) => new Date(ts).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' });
+const loc = () => uiLang() === 'vi' ? 'vi-VN' : 'en-GB';
+const time = (ts) => new Date(ts).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' });
+const dayOf = (ts) => new Date(ts).toLocaleDateString(loc(), { weekday: 'long', day: 'numeric', month: 'numeric' });
 
 /* Small markdown renderer: fenced code, headings, lists, quotes, bold/italic, inline code, links, @mentions. */
 function inline(s) {
@@ -762,7 +779,7 @@ async function copy(text, done) {
   }
   toast(done);
 }
-const inviteText = (name) => `Vào phòng bear-agent-manager "${name}": gọi room_join với room "${name}", chào mọi người bằng room_send (nói ngắn bạn là ai, đang làm gì), rồi chờ tin nhắn trong phòng.`;
+const inviteText = (name) => t('invite.text', { name });
 
 /* ---------- popover menu ---------- */
 function openMenu(anchor, html, wire) {
@@ -780,26 +797,26 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeMen
 
 function roomMenu(anchor, name) {
   openMenu(anchor, `
-    <div class="label">ID phòng (dùng để mời Claude)</div>
+    <div class="label">${t('roomMenu.id')}</div>
     <div class="idbox">${esc(name)}</div>
-    <button class="item" data-a="invite">${I.copy}Copy lệnh mời Claude</button>
-    <button class="item" data-a="id">${I.copy}Copy ID phòng</button>
+    <button class="item" data-a="invite">${I.copy}${t('invite.copy')}</button>
+    <button class="item" data-a="id">${I.copy}${t('roomMenu.copyId')}</button>
     <div class="sep"></div>
-    <button class="item" data-a="rename">${I.edit}Đổi tên phòng</button>
-    <button class="item danger" data-a="delete">${I.trash}Xóa phòng</button>`, (m) => {
-    m.querySelector('[data-a=invite]').onclick = () => { closeMenu(); copy(inviteText(name), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); };
-    m.querySelector('[data-a=id]').onclick = () => { closeMenu(); copy(name, 'Đã copy ID phòng'); };
+    <button class="item" data-a="rename">${I.edit}${t('roomMenu.rename')}</button>
+    <button class="item danger" data-a="delete">${I.trash}${t('roomMenu.delete')}</button>`, (m) => {
+    m.querySelector('[data-a=invite]').onclick = () => { closeMenu(); copy(inviteText(name), t('invite.copied')); };
+    m.querySelector('[data-a=id]').onclick = () => { closeMenu(); copy(name, t('roomMenu.idCopied')); };
     m.querySelector('[data-a=rename]').onclick = () => renameRoomForm(anchor, name);
     m.querySelector('[data-a=delete]').onclick = () => deleteRoomForm(anchor, name);
   });
 }
 function renameRoomForm(anchor, name) {
-  openMenu(anchor, `<div class="label">Tên mới cho #${esc(name)}</div><input id="rnRoom" value="${esc(name)}" autocomplete="off"><div class="row"><button class="btn" data-a="x">Hủy</button><button class="btn primary" data-a="ok">Đổi tên</button></div>`, (m) => {
+  openMenu(anchor, `<div class="label">${t('rename.newRoom', { name: esc(name) })}</div><input id="rnRoom" value="${esc(name)}" autocomplete="off"><div class="row"><button class="btn" data-a="x">${t('common.cancel')}</button><button class="btn primary" data-a="ok">${t('rename.ok')}</button></div>`, (m) => {
     const inp = m.querySelector('input');
     const go = () => {
       const to = inp.value.trim().toLowerCase();
       if (!to || to === name) return closeMenu();
-      api(`/api/rooms/${enc(name)}/rename`, { name: to }).then(() => { closeMenu(); if (S.current === name) S.current = to; toast(`Đã đổi tên thành #${to}`); }, (e) => toast(e.message));
+      api(`/api/rooms/${enc(name)}/rename`, { name: to }).then(() => { closeMenu(); if (S.current === name) S.current = to; toast(t('rename.done', { name: '#' + to })); }, (e) => toast(e.message));
     };
     inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     m.querySelector('[data-a=ok]').onclick = go;
@@ -809,12 +826,12 @@ function renameRoomForm(anchor, name) {
 }
 function renameSessionForm(anchor, id) {
   const s = S.sessions[id]; if (!s) return;
-  openMenu(anchor, `<div class="label">Nickname mới cho ${esc(s.name)}</div><input value="${esc(s.name)}" maxlength="32" autocomplete="off"><div class="row"><button class="btn" data-a="x">Hủy</button><button class="btn primary" data-a="ok">Đổi tên</button></div>`, (m) => {
+  openMenu(anchor, `<div class="label">${t('rename.newSession', { name: esc(s.name) })}</div><input value="${esc(s.name)}" maxlength="32" autocomplete="off"><div class="row"><button class="btn" data-a="x">${t('common.cancel')}</button><button class="btn primary" data-a="ok">${t('rename.ok')}</button></div>`, (m) => {
     const inp = m.querySelector('input');
     const go = () => {
       const v = inp.value.trim();
       if (!v || v === s.name) return closeMenu();
-      api(`/api/sessions/${enc(id)}/rename`, { name: v }).then(() => { closeMenu(); toast(`Đã đổi tên thành ${v}`); }, (e) => toast(e.message));
+      api(`/api/sessions/${enc(id)}/rename`, { name: v }).then(() => { closeMenu(); toast(t('rename.done', { name: v })); }, (e) => toast(e.message));
     };
     inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     m.querySelector('[data-a=ok]').onclick = go;
@@ -824,31 +841,31 @@ function renameSessionForm(anchor, id) {
 }
 function deleteRoomForm(anchor, name) {
   const n = members(name).length;
-  openMenu(anchor, `<div class="label">Xóa #${esc(name)}? ${n} Claude sẽ rời phòng, lịch sử chat được chuyển vào thùng rác của hub.</div><div class="row"><button class="btn" data-a="x">Giữ lại</button><button class="btn primary" data-a="ok" style="background:#E5484D;border-color:#E5484D">Xóa phòng</button></div>`, (m) => {
+  openMenu(anchor, `<div class="label">${t('delete.confirm', { name: esc(name), n })}</div><div class="row"><button class="btn" data-a="x">${t('delete.keep')}</button><button class="btn primary" data-a="ok" style="background:#E5484D;border-color:#E5484D">${t('roomMenu.delete')}</button></div>`, (m) => {
     m.querySelector('[data-a=x]').onclick = closeMenu;
-    m.querySelector('[data-a=ok]').onclick = () => api(`/api/rooms/${enc(name)}/delete`, {}).then(() => { closeMenu(); toast(`Đã xóa #${name}`); }, (e) => toast(e.message));
+    m.querySelector('[data-a=ok]').onclick = () => api(`/api/rooms/${enc(name)}/delete`, {}).then(() => { closeMenu(); toast(t('delete.done', { name })); }, (e) => toast(e.message));
   });
 }
 function membersMenu(anchor) {
   const ms = members(S.current);
-  openMenu(anchor, `<div class="mhead"><b>Thành viên</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Phong trưởng phòng'}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="Cho rời phòng" aria-label="Cho ${esc(s.name)} rời phòng">${I.out}</button></span></div>`).join('')
-    : '<div class="label">Chưa có ai. Bấm + cạnh một Claude ở cột trái.</div>') + `<div class="mfoot"><button class="btn sm" data-openlead title="Mở một terminal Claude với lời nhắn gõ sẵn để nó vào phòng làm trưởng phòng">Mở terminal trưởng phòng</button></div>`, (m) => {
-    m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast('Đã mở terminal: bấm Enter trong cửa sổ đó'); }, (e) => toast(e.message));
+  openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
+    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span></div>`).join('')
+    : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
+    m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
-    m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast('Đã cho rời phòng'); }, (e) => toast(e.message)));
+    m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast(t('members.removed')); }, (e) => toast(e.message)));
   });
 }
 
 /* ---------- rendering ---------- */
 function renderRooms() {
   const el = $('rooms'); el.innerHTML = '';
-  if (!S.rooms.length) el.innerHTML = '<div class="side-empty">Chưa có phòng nào.</div>';
+  if (!S.rooms.length) el.innerHTML = `<div class="side-empty">${t('rooms.none')}</div>`;
   for (const r of S.rooms) {
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
-    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="Tùy chọn phòng">${I.dots}</button>`;
+    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}">${I.dots}</button>`;
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
@@ -861,21 +878,21 @@ function sessionRow(s) {
   const d = document.createElement('div'); d.className = 'sess';
   const rooms = s.rooms.length ? ' · ' + s.rooms.map((r) => '#' + r).join(' ') : '';
   const nameHtml = S.renaming === s.id
-    ? `<input value="${esc(s.name)}" aria-label="Tên mới" maxlength="32">`
+    ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
   d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
-    <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? 'Bỏ trưởng phòng' : 'Đặt làm trưởng phòng'}" aria-label="Trưởng phòng">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="Đổi tên" aria-label="Đổi tên">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="Mở lại session này ở chế độ nền để nó đọc và trả lời phòng">⏻ Gọi dậy</button><button data-a="forget" title="Xóa khỏi danh sách" aria-label="Xóa khỏi danh sách">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="Đã ở trong #${esc(S.current)}" aria-label="Đã ở trong phòng">✓</span>` : `<button class="add icon" data-a="add" title="Thêm vào #${esc(S.current)}" aria-label="Thêm vào #${esc(S.current)}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
+    <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? t('members.unlead') : t('sessions.setLead')}" aria-label="${t('room.lead')}">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="${t('sessions.rename')}" aria-label="${t('sessions.rename')}">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="${t('sessions.wakeTip')}">${t('sessions.wake')}</button><button data-a="forget" title="${t('sessions.forget')}" aria-label="${t('sessions.forget')}">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
   d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
   d.querySelector('[data-a=wake]')?.addEventListener('click', () => reviveSession(s.id));
-  d.querySelector('[data-a=forget]')?.addEventListener('click', () => api(`/api/sessions/${enc(s.id)}/forget`, {}).then(() => toast(`Đã xóa ${s.name} khỏi danh sách`), (e) => toast(e.message)));
-  d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(`Đã thêm ${s.name} vào #${S.current}`), (e) => toast(e.message)));
+  d.querySelector('[data-a=forget]')?.addEventListener('click', () => api(`/api/sessions/${enc(s.id)}/forget`, {}).then(() => toast(t('sessions.forgot', { name: s.name })), (e) => toast(e.message)));
+  d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(t('sessions.added', { name: s.name, room: S.current })), (e) => toast(e.message)));
   const inp = d.querySelector('input');
   if (inp) {
     setTimeout(() => { inp.focus(); inp.select(); });
     const finish = (save) => {
       const v = inp.value.trim(); S.renaming = null;
-      if (save && v && v !== s.name) api(`/api/sessions/${enc(s.id)}/rename`, { name: v }).then(() => toast(`Đã đổi tên thành ${v}`), (e) => { toast(e.message); renderSessions(); });
+      if (save && v && v !== s.name) api(`/api/sessions/${enc(s.id)}/rename`, { name: v }).then(() => toast(t('rename.done', { name: v })), (e) => { toast(e.message); renderSessions(); });
       else renderSessions();
     };
     inp.onkeydown = (e) => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
@@ -890,24 +907,24 @@ function renderSessions() {
   const repos = [...new Set(Object.values(S.sessions).map((s) => repo(s.cwd)).filter(Boolean))].sort();
   const f = $('repoFilter');
   if (S.repo && !repos.includes(S.repo)) S.repo = '';
-  f.innerHTML = '<option value="">Mọi repo</option>' + repos.map((r) => `<option${r === S.repo ? ' selected' : ''}>${esc(r)}</option>`).join('');
+  f.innerHTML = `<option value="">${t('sessions.allRepos')}</option>` + repos.map((r) => `<option${r === S.repo ? ' selected' : ''}>${esc(r)}</option>`).join('');
   f.onchange = () => { S.repo = f.value; try { localStorage.repoFilter = S.repo; } catch {} renderSessions(); };
   const all = Object.values(S.sessions).filter((s) => !S.repo || repo(s.cwd) === S.repo).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
   const live = all.filter((s) => s.status !== 'offline'), off = all.filter((s) => s.status === 'offline');
-  if (!live.length) el.innerHTML = '<div class="side-empty">Chưa có Claude nào chạy. Mở một tab Claude Code là nó tự hiện ở đây.</div>';
+  if (!live.length) el.innerHTML = `<div class="side-empty">${t('sessions.empty')}</div>`;
   for (const s of live) el.append(sessionRow(s));
   if (off.length) {
-    const t = document.createElement('button'); t.className = 'toggle-off';
-    t.textContent = `${S.showOffline ? '▾' : '▸'} Đã tắt (${off.length})`;
-    t.onclick = () => { S.showOffline = !S.showOffline; renderSessions(); };
-    el.append(t);
+    const tb = document.createElement('button'); tb.className = 'toggle-off';
+    tb.textContent = `${S.showOffline ? '▾' : '▸'} ${t('sessions.offline', { n: off.length })}`;
+    tb.onclick = () => { S.showOffline = !S.showOffline; renderSessions(); };
+    el.append(tb);
     if (S.showOffline) for (const s of off) el.append(sessionRow(s));
   }
 }
 
 /* ---------- workers (worker / osin on the Intern API) ---------- */
 const KIND = { worker: ['🛠', 'worker'], osin: ['🧹', 'osin'] };
-const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'p' + String(s % 60).padStart(2, '0') : Math.floor(s / 3600) + 'g' + String(Math.floor(s % 3600 / 60)).padStart(2, '0'); };
+const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + t('dur.m') + String(s % 60).padStart(2, '0') : Math.floor(s / 3600) + t('dur.h') + String(Math.floor(s % 3600 / 60)).padStart(2, '0'); };
 const hirer = (by) => by ? (S.sessions[by]?.name ?? by.slice(0, 12)) : '';
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || '';
 function workerRow(w, live) {
@@ -916,20 +933,20 @@ function workerRow(w, live) {
   const st = live ? 'busy' : w.status === 'done' ? 'idle' : 'waiting';
   const title = w.task || label;
   const meta = live
-    ? [label, w.model || 'đang khởi động', w.canEdit ? 'được sửa file' : 'chỉ đọc', dur(Date.now() - w.startedAt)]
-    : [w.status === 'done' ? 'xong' : 'lỗi', w.model, w.durationMs != null ? dur(w.durationMs) : '', w.cost ? '$' + Number(w.cost).toFixed(3) : ''];
+    ? [label, w.model || t('worker.starting'), w.canEdit ? t('worker.canEdit') : t('worker.readOnly'), dur(Date.now() - w.startedAt)]
+    : [w.status === 'done' ? t('worker.done') : t('worker.failed'), w.model, w.durationMs != null ? dur(w.durationMs) : '', w.cost ? '$' + Number(w.cost).toFixed(3) : ''];
   const by = hirer(w.by);
-  const line3 = !live && w.error ? w.error : [by && 'thuê bởi ' + by, base(w.dir)].filter(Boolean).join(' · ');
-  d.innerHTML = `<span class="ic" title="${esc(label)}">${icon}<span class="led ${st}"></span></span><div class="who"><div class="nm" title="${esc(title)}">${esc(title)}</div><div class="sub" title="${esc(w.dir)}">${esc(meta.filter(Boolean).join(' · '))}</div><div class="sub${!live && w.error ? ' err' : ''}" title="${esc(!live && (w.error || w.result) || '')}">${esc(line3)}</div></div>${live ? '<button class="kill" title="Dừng worker này" aria-label="Dừng">✕</button>' : ''}`;
+  const line3 = !live && w.error ? w.error : [by && t('worker.hiredBy', { name: by }), base(w.dir)].filter(Boolean).join(' · ');
+  d.innerHTML = `<span class="ic" title="${esc(label)}">${icon}<span class="led ${st}"></span></span><div class="who"><div class="nm" title="${esc(title)}">${esc(title)}</div><div class="sub" title="${esc(w.dir)}">${esc(meta.filter(Boolean).join(' · '))}</div><div class="sub${!live && w.error ? ' err' : ''}" title="${esc(!live && (w.error || w.result) || '')}">${esc(line3)}</div></div>${live ? `<button class="kill" title="${t('worker.stopTip')}" aria-label="${t('worker.stop')}">✕</button>` : ''}`;
   // Two clicks instead of a confirm dialog: dialogs do not work inside VS Code webviews.
   d.querySelector('.kill')?.addEventListener('click', (e) => {
     const b = e.currentTarget;
     if (!b.classList.contains('armed')) {
-      b.classList.add('armed'); b.textContent = 'Dừng?'; b.title = `Bấm lần nữa để dừng ${label} (pid ${w.pid})`;
+      b.classList.add('armed'); b.textContent = t('worker.stopConfirm'); b.title = t('worker.stopAgain', { label, pid: w.pid });
       setTimeout(() => { if (b.isConnected) { b.classList.remove('armed'); b.textContent = '✕'; } }, 4000);
       return;
     }
-    api(`/api/workers/${w.pid}/kill`, {}).then(() => toast('Đã dừng worker'), (err) => toast(err.message));
+    api(`/api/workers/${w.pid}/kill`, {}).then(() => toast(t('worker.stopped')), (err) => toast(err.message));
   });
   return d;
 }
@@ -940,16 +957,16 @@ function renderWorkers() {
   $('tabWkCount').textContent = running.length || '';
   // One line here, the full list lives on the Worker tab; a failed run keeps a red dot so it is not missed.
   const fail = recent.filter((r) => r.status === 'failed').length;
-  const sum = document.createElement('button'); sum.className = 'wksum'; sum.title = 'Mở tab Worker';
-  const now = running.length ? 'đang chạy: ' + running.map((w) => w.task || w.kind).join(', ') : 'không có worker nào chạy';
-  sum.innerHTML = `<span class="led ${fail ? 'failed' : running.length ? 'busy' : ''}"></span><span class="cut">${esc(now)}${fail ? ` · ${fail} lỗi` : ''}</span>`;
+  const sum = document.createElement('button'); sum.className = 'wksum'; sum.title = t('worker.openTab');
+  const now = running.length ? t('worker.running', { list: running.map((w) => w.task || w.kind).join(', ') }) : t('worker.noneRunning');
+  sum.innerHTML = `<span class="led ${fail ? 'failed' : running.length ? 'busy' : ''}"></span><span class="cut">${esc(now)}${fail ? t('worker.failedCount', { n: fail }) : ''}</span>`;
   sum.onclick = () => showTab('workers');
   el.append(sum);
   if (!running.length && !recent.length) return;
-  const t = document.createElement('button'); t.className = 'toggle-off';
-  t.textContent = `${S.showRecent ? '▾' : '▸'} Chi tiết`;
-  t.onclick = () => { S.showRecent = !S.showRecent; renderWorkers(); };
-  el.append(t);
+  const tb = document.createElement('button'); tb.className = 'toggle-off';
+  tb.textContent = `${S.showRecent ? '▾' : '▸'} ${t('worker.details')}`;
+  tb.onclick = () => { S.showRecent = !S.showRecent; renderWorkers(); };
+  el.append(tb);
   if (!S.showRecent) return;
   for (const w of running) el.append(workerRow(w, true));
   for (const r of recent.slice(0, 15)) el.append(workerRow(r, false));
@@ -964,7 +981,7 @@ function renderHeader() {
   const ms = r ? members(r.name) : [];
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;
-  $('meta').textContent = r ? `${ms.length} Claude${busy ? ` · ${busy} đang làm` : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
+  $('meta').textContent = r ? `${ms.length} Claude${busy ? t('header.busy', { n: busy }) : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
   $('stack').innerHTML = ms.slice(0, 8).map((s) => `<span class="mb ${s.status}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</span>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
@@ -985,11 +1002,11 @@ function receipts(m, list, last = lastWakes(list)) {
   const chips = m.wake.map((id) => {
     const s = S.sessions[id];
     if (!s || last[id] !== m.id || list.some((x) => x.id > m.id && x.fromId === id)) return '';
-    const [cls, txt] = (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? '✓ đã nhận · đang làm' : '✓ đã nhận']
-      : s.status === 'offline' ? ['dead', '✕ đã tắt · bấm để gọi dậy']
-      : ['wait', '… chưa nhận'];
+    const [cls, txt] = (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? t('rcpt.gotBusy') : t('rcpt.got')]
+      : s.status === 'offline' ? ['dead', t('rcpt.dead')]
+      : ['wait', t('rcpt.wait')];
     return cls === 'dead'
-      ? `<button class="rc ${cls}" data-wake="${esc(id)}" title="Mở lại ${esc(s.name)} ở chế độ nền">${esc(s.name)} ${txt}</button>`
+      ? `<button class="rc ${cls}" data-wake="${esc(id)}" title="${t('rcpt.reopen', { name: esc(s.name) })}">${esc(s.name)} ${txt}</button>`
       : `<span class="rc ${cls}" title="${esc(s.name)}">${esc(s.name)} ${txt}</span>`;
   }).join('');
   return chips ? `<div class="rcpt">${chips}</div>` : '';
@@ -999,19 +1016,19 @@ const plain = (t, n = 80) => { const s = String(t).replace(/\s+/g, ' ').trim(); 
 function quote(m) {
   if (m.replyTo == null) return '';
   const o = (S.messages[S.current] || []).find((x) => x.id === m.replyTo);
-  return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(o.fromId ? (S.sessions[o.fromId]?.name || o.from) : 'Bạn')}</b>: ${esc(plain(o.text))}` : `tin #${m.replyTo}`}</button>`;
+  return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(o.fromId ? (S.sessions[o.fromId]?.name || o.from) : t('you'))}</b>: ${esc(plain(o.text))}` : t('quote.msg', { id: m.replyTo })}</button>`;
 }
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
-    logBody.innerHTML = `<div class="empty"><h2>Tạo phòng đầu tiên</h2>Phòng là nơi các Claude nói chuyện với nhau và với bạn. Tạo một phòng, rồi thêm các Claude đang chạy ở cột trái vào.<br><button class="btn primary" id="emptyNew">${I.plus} Tạo phòng</button></div>`;
+    logBody.innerHTML = `<div class="empty"><h2>${t('empty.firstRoom.title')}</h2>${t('empty.firstRoom.body')}<br><button class="btn primary" id="emptyNew">${I.plus} ${t('rooms.new')}</button></div>`;
     $('emptyNew').onclick = () => showNewRoom(); return;
   }
   const ms = S.messages[S.current] || [];
   if (!ms.length) {
     const n = members(S.current).length;
-    logBody.innerHTML = `<div class="empty"><h2>#${esc(S.current)} chưa có tin nhắn</h2>${n ? 'Gõ @tên bên dưới để giao việc cho một Claude, hoặc nhắn không tag để cả phòng cùng nghe.' : 'Thêm Claude vào phòng bằng nút + ở cột trái, hoặc copy lệnh mời rồi dán vào tab Claude.'}<br><button class="btn primary" id="emptyInvite">${I.copy} Copy lệnh mời Claude</button></div>`;
-    $('emptyInvite').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.'); return;
+    logBody.innerHTML = `<div class="empty"><h2>${t('empty.room.title', { name: esc(S.current) })}</h2>${n ? t('empty.room.withMembers') : t('empty.room.noMembers')}<br><button class="btn primary" id="emptyInvite">${I.copy} ${t('invite.copy')}</button></div>`;
+    $('emptyInvite').onclick = () => copy(inviteText(S.current), t('invite.copied')); return;
   }
   let html = '', prev = null, prevDay = '';
   const last = lastWakes(ms);
@@ -1025,7 +1042,7 @@ function renderLog() {
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : 'Bạn'}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="Đổi nickname" aria-label="Đổi nickname ${esc(who)}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? '<span class="donebadge">xong phần việc</span>' : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -1034,11 +1051,11 @@ function renderLog() {
     if (m.scrollHeight <= 260) return;
     const id = m.dataset.mid, open = S.expanded.has(id);   // re-renders keep "Xem thêm" open
     if (!open) m.classList.add('clamp');
-    const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = open ? 'Thu gọn' : 'Xem thêm';
+    const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = open ? t('msg.less') : t('msg.more');
     b.onclick = () => {
       const clamped = m.classList.toggle('clamp');
       if (clamped) S.expanded.delete(id); else S.expanded.add(id);
-      b.textContent = clamped ? 'Xem thêm' : 'Thu gọn';
+      b.textContent = clamped ? t('msg.more') : t('msg.less');
     };
     m.after(b);
   });
@@ -1056,8 +1073,8 @@ function renderPresence() {
   const order = { busy: 0, waiting: 1, idle: 2, offline: 3 };
   el.innerHTML = '';
   for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
-    const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = `Gọi @${s.name}`;
-    const act = s.status === 'busy' ? (s.activity || 'đang làm') : LABEL[s.status];
+    const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = t('presence.call', { name: s.name });
+    const act = s.status === 'busy' ? (s.activity || t('status.busy')) : LABEL[s.status];
     c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b><span class="act">${esc(act)}</span>`;
     c.onclick = () => insertMention(s.name);
     el.append(c);
@@ -1069,16 +1086,16 @@ function renderNotes() {
   $('notesCount').textContent = list.length;
   $('npRoom').textContent = S.current || '';
   const el = $('notesList');
-  if (!list.length) { el.innerHTML = '<div class="empty" style="padding:24px 8px"><h2 style="font-size:15px">Chưa có gì được chốt</h2>Khi các Claude thống nhất giao thức, cổng, ai sửa file nào… chúng sẽ tự ghi vào đây. Tab Claude mở trước khi cập nhật plugin cần reload để có tool room_note.</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="empty" style="padding:24px 8px"><h2 style="font-size:15px">' + t('notes.empty.title') + '</h2>' + t('notes.empty.body') + '</div>'; return; }
   el.innerHTML = list.map((n) => S.editingNote === n.id
-    ? `<div class="note"><span class="num">${n.id}</span><div class="nt"><textarea data-edit="${n.id}">${esc(n.text)}</textarea><div class="row" style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px"><button class="btn" data-cancel>Hủy</button><button class="btn primary" data-save="${n.id}">Lưu</button></div></div></div>`
-    : `<div class="note"><span class="num">${n.id}</span><div class="nt"><div class="msg">${md(n.text)}</div><div class="meta">${n.byId ? esc(S.sessions[n.byId]?.name || n.by) : 'Bạn'} · ${time(n.ts)}</div></div><div class="na"><button data-ed="${n.id}" title="Sửa" aria-label="Sửa mục ${n.id}">${I.edit}</button><button data-del="${n.id}" title="Xóa" aria-label="Xóa mục ${n.id}">${I.trash}</button></div></div>`).join('');
+    ? `<div class="note"><span class="num">${n.id}</span><div class="nt"><textarea data-edit="${n.id}">${esc(n.text)}</textarea><div class="row" style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px"><button class="btn" data-cancel>${t('common.cancel')}</button><button class="btn primary" data-save="${n.id}">${t('common.save')}</button></div></div></div>`
+    : `<div class="note"><span class="num">${n.id}</span><div class="nt"><div class="msg">${md(n.text)}</div><div class="meta">${n.byId ? esc(S.sessions[n.byId]?.name || n.by) : t('you')} · ${time(n.ts)}</div></div><div class="na"><button data-ed="${n.id}" title="${t('common.edit')}" aria-label="${t('notes.editAria', { id: n.id })}">${I.edit}</button><button data-del="${n.id}" title="${t('common.delete')}" aria-label="${t('notes.delAria', { id: n.id })}">${I.trash}</button></div></div>`).join('');
   el.querySelectorAll('[data-ed]').forEach((b) => b.onclick = () => { S.editingNote = +b.dataset.ed; renderNotes(); el.querySelector('textarea')?.focus(); });
-  el.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/notes/${b.dataset.del}/delete`, {}).then(() => toast('Đã xóa mục ' + b.dataset.del), (e) => toast(e.message)));
+  el.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/notes/${b.dataset.del}/delete`, {}).then(() => toast(t('notes.deleted', { id: b.dataset.del })), (e) => toast(e.message)));
   el.querySelector('[data-cancel]')?.addEventListener('click', () => { S.editingNote = null; renderNotes(); });
   el.querySelector('[data-save]')?.addEventListener('click', (e) => {
     const id = e.currentTarget.dataset.save, text = el.querySelector('[data-edit]').value.trim();
-    api(`/api/rooms/${enc(S.current)}/notes/${id}/edit`, { text }).then(() => { S.editingNote = null; toast('Đã lưu mục ' + id); }, (err) => toast(err.message));
+    api(`/api/rooms/${enc(S.current)}/notes/${id}/edit`, { text }).then(() => { S.editingNote = null; toast(t('notes.saved', { id })); }, (err) => toast(err.message));
   });
 }
 
@@ -1147,7 +1164,7 @@ function connect() {
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
-  const hubState = (ok) => { const h = $('hubState'), t = `Hub: ${ok ? 'đã kết nối' : 'mất kết nối'}`; h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = t; h.setAttribute('aria-label', t); };
+  const hubState = (ok) => { const h = $('hubState'), txt = t(ok ? 'hub.connected' : 'hub.disconnected'); h.innerHTML = `<span class="led ${ok ? 'idle' : 'waiting'}"></span>`; h.title = txt; h.setAttribute('aria-label', txt); };
   es.onerror = () => hubState(false);
   es.onopen = () => hubState(true);
 }
@@ -1156,11 +1173,11 @@ function connect() {
 const mention = { open: false, items: [], i: 0, start: 0 };
 function closeMention() { mention.open = false; $('mentionMenu').classList.remove('open'); }
 function updateMention() {
-  const t = $('text'), before = t.value.slice(0, t.selectionStart);
+  const ta = $('text'), before = ta.value.slice(0, ta.selectionStart);
   const m = before.match(/(?:^|[\s(,;])@([A-Za-z0-9_-]*)$/);
   if (!m || !S.current) return closeMention();
   const q = m[1].toLowerCase();
-  const opts = [...members(S.current).map((s) => ({ name: s.name, sub: LABEL[s.status], s })), { name: 'all', sub: 'cả phòng' }, { name: 'you', sub: 'bạn' }]
+  const opts = [...members(S.current).map((s) => ({ name: s.name, sub: LABEL[s.status], s })), { name: 'all', sub: t('mention.all') }, { name: 'you', sub: t('mention.you') }]
     .filter((o) => o.name.toLowerCase().startsWith(q) && o.name !== 'you');
   if (!opts.length) return closeMention();
   Object.assign(mention, { open: true, items: opts, i: Math.min(mention.i, opts.length - 1), start: before.length - m[1].length - 1 });
@@ -1194,7 +1211,7 @@ function updateCost() {
   const total = targets.reduce((a, s) => a + (s.ctx || 0), 0);
   if (!targets.length || !total) { el.className = ''; el.textContent = ''; return; }
   el.className = 'show' + (total >= 300e3 ? ' warn' : '');
-  el.textContent = `Đánh thức ${targets.map((s) => s.name + (s.ctx ? ' (' + fmtK(s.ctx) + ')' : '')).join(', ')} · đọc lại ~${fmtK(total)} ngữ cảnh: ≈${fmtK(total * 0.1)} token nếu cache còn ấm, tới ~${fmtK(total * 1.25)} nếu đã nguội.`;
+  el.textContent = t('cost.wake', { names: targets.map((s) => s.name + (s.ctx ? ' (' + fmtK(s.ctx) + ')' : '')).join(', '), total: fmtK(total), warm: fmtK(total * 0.1), cold: fmtK(total * 1.25) });
 }
 $('text').addEventListener('input', () => { autosize(); updateMention(); updateCost(); });
 $('text').addEventListener('click', updateMention);
@@ -1214,9 +1231,9 @@ $('composer').onsubmit = async (e) => {
     $('text').value = ''; autosize(); updateCost(); setReply(null);
     S.stick = true; pinBottom();   // your own message: always show it
     const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
-    if (r.unknownMentions.length) note(new Error(`Không có Claude nào tên ${r.unknownMentions.map((n) => '@' + n).join(', ')} trong phòng nên tin này không đánh thức ai.`));
-    else if (dead.length) note(new Error(`${dead.join(', ')} đã tắt. Tab đã đóng hẳn thì hub tự gọi dậy ở chế độ nền; nếu không, bấm "Gọi dậy" ở cột trái hoặc dưới tin nhắn.`));
-    else if (!members(S.current).length) note(new Error('Phòng chưa có Claude nào: bấm + cạnh một Claude ở cột trái để thêm.'));
+    if (r.unknownMentions.length) note(new Error(t('composer.unknown', { names: r.unknownMentions.map((n) => '@' + n).join(', ') })));
+    else if (dead.length) note(new Error(t('composer.dead', { names: dead.join(', ') })));
+    else if (!members(S.current).length) note(new Error(t('composer.noMembers')));
     else note();
   } catch (err) { note(err); }
 };
@@ -1228,10 +1245,10 @@ $('newRoom').onsubmit = (e) => {
   e.preventDefault();
   const name = $('roomName').value.trim().toLowerCase().replace(/\s+/g, '-');
   if (!name) return;
-  api('/api/rooms', { name }).then(() => { $('roomName').value = ''; $('newRoom').classList.remove('open'); select(name); toast(`Đã tạo #${name}`); }, (err) => toast(err.message));
+  api('/api/rooms', { name }).then(() => { $('roomName').value = ''; $('newRoom').classList.remove('open'); select(name); toast(t('rooms.created', { name })); }, (err) => toast(err.message));
 };
 $('roomName').onkeydown = (e) => { if (e.key === 'Escape') $('newRoom').classList.remove('open'); };
-$('inviteBtn').onclick = () => copy(inviteText(S.current), 'Đã copy lệnh mời. Dán vào tab Claude bất kỳ.');
+$('inviteBtn').onclick = () => copy(inviteText(S.current), t('invite.copied'));
 $('membersBtn').onclick = (e) => membersMenu(e.currentTarget);
 $('notesBtn').onclick = () => { $('notesPanel').classList.toggle('open'); renderNotes(); };
 $('npClose').onclick = () => $('notesPanel').classList.remove('open');
@@ -1240,7 +1257,7 @@ $('noteNew').onsubmit = (e) => {
   e.preventDefault();
   const text = $('noteText').value.trim();
   if (!text || !S.current) return;
-  api(`/api/rooms/${enc(S.current)}/notes`, { text }).then(() => { $('noteText').value = ''; $('noteNew').hidden = true; $('noteManual').hidden = false; toast('Đã ghi vào biên bản'); }, (err) => toast(err.message));
+  api(`/api/rooms/${enc(S.current)}/notes`, { text }).then(() => { $('noteText').value = ''; $('noteNew').hidden = true; $('noteManual').hidden = false; toast(t('notes.added')); }, (err) => toast(err.message));
 };
 $('noteToggle').onclick = () => { $('noteManual').hidden = true; $('noteNew').hidden = false; $('noteText').focus(); };
 $('noteCancel').onclick = () => { $('noteNew').hidden = true; $('noteManual').hidden = false; };
@@ -1270,8 +1287,8 @@ S.viewErr = {};
 /** A view whose data failed to load: say what failed and the usual fix (a hub still running older code answers 404). */
 function viewFail(tab, e) {
   S.viewErr[tab] = e.message === 'not found' || /404/.test(e.message)
-    ? 'Hub đang chạy chưa có API cho màn hình này (code cũ, nạp lúc hub khởi động). Khởi động lại hub rồi tải lại trang.'
-    : 'Không tải được dữ liệu: ' + e.message;
+    ? t('view.oldHub')
+    : t('view.loadFail', { msg: e.message });
   ({ workers: renderWorkersView, tokens: renderTokensView, settings: renderSettingsView })[tab]();
 }
 const errBox = (tab) => S.viewErr[tab] ? `<div class="verr" role="alert">${esc(S.viewErr[tab])}</div>` : '';
@@ -1279,9 +1296,9 @@ S.providers = []; S.roomChat = []; S.swept = null;
 let wkFilter = 'all'; try { wkFilter = localStorage.getItem('bear-agent-manager:wkFilter') || 'all'; } catch {}
 const fmtTok = (n) => (n = Number(n) || 0) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
 const fmtBytes = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
-const tierBadge = (t) => t ? `<span class="tier ${t}">${t === 'free' ? 'free' : 'trả phí'}</span>` : '';
-const HEALTH = { ok: ['idle', 'key hoạt động'], bad: ['waiting', 'không phản hồi lúc kiểm tra'], unknown: ['', 'chưa kiểm tra'] };
-const RC_KIND = { worker: 'worker', revive: 'gọi dậy nền', empty: 'rỗng', test: 'test', unknown: 'khác' };
+const tierBadge = (tr) => tr ? `<span class="tier ${tr}">${tr === 'free' ? 'free' : t('tier.paid')}</span>` : '';
+const HEALTH = { get ok() { return ['idle', t('health.ok')]; }, get bad() { return ['waiting', t('health.bad')]; }, get unknown() { return ['', t('health.unknown')]; } };
+const RC_KIND = lazy({ worker: 'rcKind.worker', revive: 'rcKind.revive', empty: 'rcKind.empty', test: 'rcKind.test', unknown: 'rcKind.unknown' });
 /** Two clicks instead of a confirm dialog (dialogs do not work inside VS Code webviews). */
 function armed(b, ask, fn) {
   if (!b.classList.contains('armed')) {
@@ -1304,57 +1321,57 @@ function renderWorkersView() {
   const provs = S.providers.map((p) => {
     const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
     const ready = p.enabled && p.hasKey;
-    const state = !p.enabled ? 'đang tắt' : !p.hasKey ? 'chưa có key' : ht;
-    return `<div class="prov${ready ? '' : ' off'}" title="${esc(p.baseUrl)}"><span class="led ${ready ? ledCls : ''}"></span><div><div class="pn">${esc(p.label)} ${tierBadge(p.tier)}</div><div class="ps">${esc(state)}${p.hasKey ? ' · key ' + esc(p.keyHint) : ''}</div></div></div>`;
-  }).join('') || '<div class="vempty">Chưa đọc được danh sách nhà cung cấp.</div>';
+    const state = !p.enabled ? t('prov.off') : !p.hasKey ? t('prov.noKey') : ht;
+    return `<div class="prov${ready ? '' : ' off'}" title="${esc(p.baseUrl)}"><span class="led ${ready ? ledCls : ''}"></span><div><div class="pn">${esc(p.label)} ${tierBadge(p.tier)}</div><div class="ps">${esc(state)}${p.hasKey ? t('prov.keyHint', { hint: esc(p.keyHint) }) : ''}</div></div></div>`;
+  }).join('') || `<div class="vempty">${t('prov.unreadable')}</div>`;
   const runRows = running.map((w) => {
     const [icon, label] = KIND[w.kind] || KIND.worker;
-    const who = [hirer(w.by) && 'thuê bởi ' + hirer(w.by), base(w.dir)].filter(Boolean).join(' · ');
-    return `<tr><td title="${esc(label)}">${icon}</td><td class="task" title="${esc(w.task || label)}"><span class="cut">${esc(w.task || label)}</span><span class="cut sub" title="${esc(w.dir)}">${esc(who)}</span></td><td><span class="cut">${esc(w.model || 'đang khởi động')}</span></td><td>${w.canEdit ? 'được sửa file' : 'chỉ đọc'}</td><td class="num">${dur(Date.now() - w.startedAt)}</td><td><button class="kill" data-kill="${w.pid}" title="Dừng ${esc(label)} (pid ${w.pid})">Dừng</button></td></tr>`;
+    const who = [hirer(w.by) && t('worker.hiredBy', { name: hirer(w.by) }), base(w.dir)].filter(Boolean).join(' · ');
+    return `<tr><td title="${esc(label)}">${icon}</td><td class="task" title="${esc(w.task || label)}"><span class="cut">${esc(w.task || label)}</span><span class="cut sub" title="${esc(w.dir)}">${esc(who)}</span></td><td><span class="cut">${esc(w.model || t('worker.starting'))}</span></td><td>${w.canEdit ? t('worker.canEdit') : t('worker.readOnly')}</td><td class="num">${dur(Date.now() - w.startedAt)}</td><td><button class="kill" data-kill="${w.pid}" title="${t('worker.stopTitle', { label: esc(label), pid: w.pid })}">${t('worker.stop')}</button></td></tr>`;
   }).join('');
-  const FILTERS = { all: 'Tất cả', worker: 'worker', osin: 'osin', failed: 'Lỗi', hub: 'Hub tự chạy' };
+  const FILTERS = { all: t('filter.all'), worker: 'worker', osin: 'osin', failed: t('filter.failed'), hub: t('filter.hub') };
   const keep = { all: () => true, worker: (r) => r.kind === 'worker', osin: (r) => r.kind === 'osin', failed: (r) => r.status === 'failed', hub: (r) => r.by === 'hub' }[wkFilter] || (() => true);
   const recRows = recent.filter(keep).map((r) => {
     const [icon, label] = KIND[r.kind] || KIND.worker;
-    const by = r.by === 'hub' ? 'hub tự chạy' : hirer(r.by) && 'thuê bởi ' + hirer(r.by);
+    const by = r.by === 'hub' ? t('worker.byHub') : hirer(r.by) && t('worker.hiredBy', { name: hirer(r.by) });
     // A failed run (red edge) shows its error where the hirer would be; a running one says so.
-    const sub = r.status === 'failed' ? `<span class="cut sub err" title="${esc(r.error)}">lỗi: ${esc(r.error || 'không rõ')}</span>`
-      : `<span class="cut sub">${esc([r.status === 'running' && 'đang chạy', by].filter(Boolean).join(' · '))}</span>`;
+    const sub = r.status === 'failed' ? `<span class="cut sub err" title="${esc(r.error)}">${esc(t('worker.errLine', { err: r.error || t('worker.unknownErr') }))}</span>`
+      : `<span class="cut sub">${esc([r.status === 'running' && t('worker.runningShort'), by].filter(Boolean).join(' · '))}</span>`;
     return `<tr class="${r.status}"><td title="${esc(label)}">${icon}</td><td class="task" title="${esc(r.result || r.task)}"><span class="cut">${esc(r.task || label)}</span>${sub}</td><td class="num">${r.durationMs != null ? dur(r.durationMs) : ''}</td><td><span class="cut">${esc(r.model)}</span><span class="sub">${esc(r.provider || '')} ${tierBadge(r.tier)}</span></td><td class="num">${fmtTok(r.usage?.in)} / ${fmtTok(r.usage?.out)}</td></tr>`;
   }).join('');
   // room_chat: transcripts moved out of each repo's chat list
   const byRepo = {};
   for (const e of S.roomChat) { const g = byRepo[e.project] ??= { n: 0, size: 0, kinds: {} }; g.n++; g.size += e.size; g.kinds[e.kind] = (g.kinds[e.kind] || 0) + 1; }
   const repoRows = Object.entries(byRepo).sort((a, b) => b[1].n - a[1].n).map(([p, g]) => `<tr><td title="${esc(p)}">${esc(p)}</td><td class="num">${g.n}</td><td>${Object.entries(g.kinds).map(([k, n]) => `${RC_KIND[k] || k} ${n}`).join(', ')}</td><td class="num">${fmtBytes(g.size)}</td></tr>`).join('');
-  const latest = S.roomChat.slice(0, 20).map((e) => `<tr><td class="task" title="${esc(e.title)}"><span class="cut">${esc(e.title || e.file)}</span></td><td>${esc(e.project)}</td><td>${RC_KIND[e.kind] || e.kind}</td><td class="num">${fmtBytes(e.size)}</td><td class="num">${new Date(e.mtime).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</td></tr>`).join('');
+  const latest = S.roomChat.slice(0, 20).map((e) => `<tr><td class="task" title="${esc(e.title)}"><span class="cut">${esc(e.title || e.file)}</span></td><td>${esc(e.project)}</td><td>${RC_KIND[e.kind] || e.kind}</td><td class="num">${fmtBytes(e.size)}</td><td class="num">${new Date(e.mtime).toLocaleString(loc(), { dateStyle: 'short', timeStyle: 'short' })}</td></tr>`).join('');
   const parent = (f) => base(String(f).replace(/[\\/][^\\/]+$/, ''));
   const swept = !S.swept ? '' : S.swept.length
-    ? `<p class="small">Sẽ chuyển ${S.swept.length} transcript. Chỉ chuyển, không xoá; chat thật, chat đang mở và file vừa sửa trong 10 phút không bao giờ bị đụng.</p>` + table(['File', 'Loại', 'Repo'], S.swept.slice(0, 50).map((x) => `<tr><td>${esc(x.file)}</td><td>${RC_KIND[x.kind] || x.kind}</td><td class="muted" title="${esc(x.from)}">${esc(parent(x.from))}</td></tr>`).join(''))
-    : '<p class="small">Không có transcript nào cần chuyển.</p>';
+    ? `<p class="small">${t('sweep.preview', { n: S.swept.length })}</p>` + table(['File', t('col.kind'), 'Repo'], S.swept.slice(0, 50).map((x) => `<tr><td>${esc(x.file)}</td><td>${RC_KIND[x.kind] || x.kind}</td><td class="muted" title="${esc(x.from)}">${esc(parent(x.from))}</td></tr>`).join(''))
+    : `<p class="small">${t('sweep.none')}</p>`;
   $('view-workers').innerHTML = `<div class="vw">
     
     ${errBox('workers')}
-    <p class="lede">Claude Code chạy nền trên API giá rẻ hoặc miễn phí, do các chat thuê để đọc nhiều hoặc dọn dẹp. Theo dõi, dừng, và xem chúng tốn bao nhiêu token ở đây.</p>
-    <h2>Nhà cung cấp <span class="aside">${running.length}/${cap} worker đang chạy</span></h2>
+    <p class="lede">${t('workers.lede')}</p>
+    <h2>${t('prov.title')} <span class="aside">${t('workers.runningOf', { running: running.length, cap })}</span></h2>
     <div class="provs">${provs}</div>
-    <h2>Đang chạy</h2>
-    ${runRows ? table(['', 'Việc', 'Model', 'Quyền', '#Thời gian', ''], runRows) : '<div class="vempty">Không có worker nào đang chạy.</div>'}
-    <h2>Gần đây (24 giờ) <span class="seg" role="group" aria-label="Lọc">${Object.entries(FILTERS).map(([k, l]) => `<button data-filter="${k}" aria-pressed="${k === wkFilter}">${l}</button>`).join('')}</span></h2>
-    ${recRows ? table(['', 'Việc', '#Thời lượng', 'Model', '#Token vào / ra'], recRows) : '<div class="vempty">Không có lượt chạy nào khớp bộ lọc.</div>'}
-    <h2>Transcript đã gom <span class="aside"><button class="btn" id="rcPreview">Xem trước</button> <button class="btn danger" id="rcSweep">Dọn ngay</button></span></h2>
-    <p class="small muted">Transcript do room và worker sinh ra được chuyển khỏi danh sách chat của từng repo vào ~/.bear-agent-manager/room_chat.</p>
+    <h2>${t('workers.running.h')}</h2>
+    ${runRows ? table(['', t('col.task'), 'Model', t('col.perm'), '#' + t('col.time'), ''], runRows) : `<div class="vempty">${t('workers.emptyRunning')}</div>`}
+    <h2>${t('workers.recent')} <span class="seg" role="group" aria-label="${t('common.filter')}">${Object.entries(FILTERS).map(([k, l]) => `<button data-filter="${k}" aria-pressed="${k === wkFilter}">${l}</button>`).join('')}</span></h2>
+    ${recRows ? table(['', t('col.task'), '#' + t('col.duration'), 'Model', '#' + t('col.tokInOut')], recRows) : `<div class="vempty">${t('workers.noMatch')}</div>`}
+    <h2>${t('rc.title')} <span class="aside"><button class="btn" id="rcPreview">${t('rc.preview')}</button> <button class="btn danger" id="rcSweep">${t('rc.sweep')}</button></span></h2>
+    <p class="small muted">${t('rc.note')}</p>
     ${swept}
-    ${repoRows ? table(['Repo', '#Transcript', 'Loại', '#Dung lượng'], repoRows) + '<h2>Mới nhất</h2>' + table(['Câu hỏi đầu tiên', 'Repo', 'Loại', '#Dung lượng', '#Thời gian'], latest) : '<div class="vempty">Chưa gom transcript nào. Bấm Xem trước để biết sẽ chuyển những gì.</div>'}
+    ${repoRows ? table(['Repo', '#' + t('col.transcripts'), t('col.kind'), '#' + t('col.size')], repoRows) + `<h2>${t('rc.latest')}</h2>` + table([t('col.firstQ'), 'Repo', t('col.kind'), '#' + t('col.size'), '#' + t('col.time')], latest) : `<div class="vempty">${t('rc.empty')}</div>`}
   </div>`;
 }
 $('view-workers').addEventListener('click', (e) => {
   const f = e.target.closest('[data-filter]');
   if (f) { wkFilter = f.dataset.filter; try { localStorage.setItem('bear-agent-manager:wkFilter', wkFilter); } catch {} renderWorkersView(); return; }
   const k = e.target.closest('[data-kill]');
-  if (k) return armed(k, 'Dừng?', () => api(`/api/workers/${k.dataset.kill}/kill`, {}).then(() => toast('Đã dừng worker'), (err) => toast(err.message)));
+  if (k) return armed(k, t('worker.stopConfirm'), () => api(`/api/workers/${k.dataset.kill}/kill`, {}).then(() => toast(t('worker.stopped')), (err) => toast(err.message)));
   if (e.target.closest('#rcPreview')) return api('/api/room-chat/sweep', { apply: false }).then((r) => { S.swept = r; renderWorkersView(); }, (err) => toast(err.message));
   const sw = e.target.closest('#rcSweep');
-  if (sw) armed(sw, 'Bấm lần nữa để dọn', () => api('/api/room-chat/sweep', { apply: true }).then((r) => { S.swept = null; toast(`Đã chuyển ${r.length} transcript vào room_chat`); loadWorkersView(); }, (err) => toast(err.message)));
+  if (sw) armed(sw, t('rc.sweepAgain'), () => api('/api/room-chat/sweep', { apply: true }).then((r) => { S.swept = null; toast(t('rc.swept', { n: r.length })); loadWorkersView(); }, (err) => toast(err.message)));
 });
 
 /* ---------- Token tab ---------- */
@@ -1374,21 +1391,21 @@ function acctChip(s) {
 }
 function claudeProBlock() {
   const cu = S.cu;
-  const head = `<h2>Claude Pro <button class="btn" id="cuRefresh" style="margin-left:10px;padding:3px 10px;font-size:12px" title="Đọc lại mức dùng ngay">Làm mới</button></h2>`;
-  if (!cu) return head + '<div class="vempty">Đang tải…</div>';
-  if (cu.error) return head + `<div class="vempty">Không đọc được mức dùng: ${esc(cu.error)}</div>`;
-  if (!cu.accounts.length) return head + '<div class="vempty">Chưa thấy tài khoản Claude nào đăng nhập trên máy này.</div>';
+  const head = `<h2>Claude Pro <button class="btn" id="cuRefresh" style="margin-left:10px;padding:3px 10px;font-size:12px" title="${t('usage.refreshTip')}">${t('common.refresh')}</button></h2>`;
+  if (!cu) return head + `<div class="vempty">${t('common.loading')}</div>`;
+  if (cu.error) return head + `<div class="vempty">${t('usage.error', { err: esc(cu.error) })}</div>`;
+  if (!cu.accounts.length) return head + `<div class="vempty">${t('usage.noAccounts')}</div>`;
   return head + cu.accounts.map((a) => `<div class="chartbox" style="display:grid;gap:8px;margin-bottom:10px"><div class="small"><b>${esc(a.label)}</b> · ${esc(a.email || '?')}${a.plan ? ' · ' + esc(a.plan) : ''}</div>
-    ${a.fiveHour ? usageBar('5 giờ', a.fiveHour.pct, a.fiveHour.resetsAt) : ''}${a.sevenDay ? usageBar('Tuần', a.sevenDay.pct, a.sevenDay.resetsAt) : ''}
-    ${a.usageError ? `<div class="small muted">${a.fiveHour || a.sevenDay ? 'Số liệu cũ. ' : ''}${esc(a.usageError)}</div>` : ''}
-    ${a.fetchedAt ? `<div class="small muted">cập nhật ${new Date(a.fetchedAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}</div>` : ''}</div>`).join('');
+    ${a.fiveHour ? usageBar(t('usage.5h'), a.fiveHour.pct, a.fiveHour.resetsAt) : ''}${a.sevenDay ? usageBar(t('usage.week'), a.sevenDay.pct, a.sevenDay.resetsAt) : ''}
+    ${a.usageError ? `<div class="small muted">${a.fiveHour || a.sevenDay ? t('usage.stale') : ''}${esc(a.usageError)}</div>` : ''}
+    ${a.fetchedAt ? `<div class="small muted">${t('usage.updated', { at: new Date(a.fetchedAt).toLocaleTimeString(loc(), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }) })}</div>` : ''}</div>`).join('');
 }
 const VN_TIME = { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' };
 /** One usage bar (5 h or weekly window of a Claude account); colour steps at 70 % and 90 % with the % as text. */
 const usageBar = (label, pct, resetsAt) => {
   const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
   const lvl = p >= 90 ? 'hi' : p >= 70 ? 'mid' : 'lo';
-  return `<div class="ubar"><span class="ul">${label}</span><span class="ut"><span class="uf ${lvl}" style="width:${p}%"></span></span><span class="up">${p}%</span><span class="ur">${resetsAt ? 'reset ' + new Date(resetsAt).toLocaleString('vi-VN', VN_TIME) : ''}</span></div>`;
+  return `<div class="ubar"><span class="ul">${label}</span><span class="ut"><span class="uf ${lvl}" style="width:${p}%"></span></span><span class="up">${p}%</span><span class="ur">${resetsAt ? t('usage.reset', { at: new Date(resetsAt).toLocaleString(loc(), VN_TIME) }) : ''}</span></div>`;
 };
 /** Every day of the range, so a quiet day still shows as an empty slot. */
 function fillDays(byDay, days) {
@@ -1408,13 +1425,13 @@ function barChart(days) {
   const bars = days.map((d, i) => {
     const x = i * bw + (bw - w) / 2, hf = y(d.free), hp = y(d.paid), gap = hf && hp ? 2 : 0;
     const label = `${d.day.slice(8)}/${d.day.slice(5, 7)}`;
-    return `<g><title>${label}: free ${fmtTok(d.free)}, trả phí ${fmtTok(d.paid)}</title>
+    return `<g><title>${t('chart.day', { label, free: fmtTok(d.free), paid: fmtTok(d.paid) })}</title>
       <rect x="${x - (bw - w) / 2}" y="0" width="${bw}" height="${H}" fill="transparent"/>
       ${hf ? `<rect x="${x}" y="${H - hf}" width="${w}" height="${hf}" rx="${hp ? 0 : 3}" fill="var(--c-free)"/>` : ''}
       ${hp ? `<rect x="${x}" y="${H - hf - gap - hp}" width="${w}" height="${hp}" rx="3" fill="var(--c-paid)"/>` : ''}
       ${i % lbl === 0 ? `<text x="${x + w / 2}" y="${H + 16}" text-anchor="middle">${label}</text>` : ''}</g>`;
   }).join('');
-  return `<svg id="tkChart" viewBox="0 0 ${W} ${H + 22}" role="img" aria-label="Token worker theo ngày, free và trả phí">
+  return `<svg id="tkChart" viewBox="0 0 ${W} ${H + 22}" role="img" aria-label="${t('chart.aria')}">
     <line x1="0" y1="${top}" x2="${W}" y2="${top}" class="grid"/><text x="0" y="${top - 4}" class="ax">${fmtTok(max)}</text>
     <line x1="0" y1="${H}" x2="${W}" y2="${H}" class="base"/>${bars}</svg>`;
 }
@@ -1425,33 +1442,33 @@ function loadTokens() {
 }
 function renderTokensView() {
   if (S.tab !== 'tokens') return;
-  const t = S.tokens;
-  const RANGES = { 1: '24 giờ', 7: '7 ngày', 30: '30 ngày' };
-  const head = `<p class="lede">Token worker đã dùng theo tầng, nhà cung cấp và model, cùng độ lớn ngữ cảnh của từng chat. Ngữ cảnh chat là ước lượng hiện tại, không phải hoá đơn.</p>
-    <span class="seg" role="group" aria-label="Khoảng thời gian">${Object.entries(RANGES).map(([d, l]) => `<button data-days="${d}" aria-pressed="${Number(d) === S.tkDays}">${l}</button>`).join('')}</span>`;
-  if (!t) { $('view-tokens').innerHTML = `<div class="vw">${head}${errBox('tokens') || '<div class="vempty" style="margin-top:16px">Đang tải…</div>'}</div>`; return; }
+  const tk = S.tokens;
+  const RANGES = { 1: t('range.24h'), 7: t('range.7d'), 30: t('range.30d') };
+  const head = `<p class="lede">${t('tokens.lede')}</p>
+    <span class="seg" role="group" aria-label="${t('range.label')}">${Object.entries(RANGES).map(([d, l]) => `<button data-days="${d}" aria-pressed="${Number(d) === S.tkDays}">${l}</button>`).join('')}</span>`;
+  if (!tk) { $('view-tokens').innerHTML = `<div class="vw">${head}${errBox('tokens') || `<div class="vempty" style="margin-top:16px">${t('common.loading')}</div>`}</div>`; return; }
   const sum = (b) => b.in + b.out;
-  const total = sum(t.total), freeShare = total ? Math.round(sum(t.byTier.free) / total * 100) : 0;
-  const heavy = t.chats.filter((c) => c.ctx >= 300e3).length;
+  const total = sum(tk.total), freeShare = total ? Math.round(sum(tk.byTier.free) / total * 100) : 0;
+  const heavy = tk.chats.filter((c) => c.ctx >= 300e3).length;
   const kpis = [
-    [fmtTok(total), 'token worker (vào + ra)'],
-    [total ? freeShare + '%' : '–', 'chạy trên tầng free'],
-    [`${t.total.runs}`, `lượt chạy${t.total.failed ? `, ${t.total.failed} lỗi` : ''}`],
-    [`${heavy}`, 'chat có ngữ cảnh từ 300k'],
+    [fmtTok(total), t('kpi.tokens')],
+    [total ? freeShare + '%' : '–', t('kpi.free')],
+    [`${tk.total.runs}`, tk.total.failed ? t('kpi.runsFailed', { n: tk.total.failed }) : t('kpi.runs')],
+    [`${heavy}`, t('kpi.heavy')],
   ].map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
-  const days = fillDays(t.byDay, S.tkDays);
-  const chart = t.total.runs
-    ? `<div class="chartbox"><div class="legend"><span><i style="background:var(--c-free)"></i>free</span><span><i style="background:var(--c-paid)"></i>trả phí</span></div>${barChart(days)}
-       <details class="small"><summary>Xem dạng bảng</summary>${table(['Ngày', '#Free', '#Trả phí'], days.map((d) => `<tr><td>${d.day}</td><td class="num">${fmtTok(d.free)}</td><td class="num">${fmtTok(d.paid)}</td></tr>`).join(''))}</details></div>`
-    : `<div class="vempty">Chưa có worker nào chạy trong ${RANGES[S.tkDays] || S.tkDays + ' ngày'}.</div>`;
+  const days = fillDays(tk.byDay, S.tkDays);
+  const chart = tk.total.runs
+    ? `<div class="chartbox"><div class="legend"><span><i style="background:var(--c-free)"></i>free</span><span><i style="background:var(--c-paid)"></i>${t('tier.paid')}</span></div>${barChart(days)}
+       <details class="small"><summary>${t('tokens.asTable')}</summary>${table([t('col.day'), '#Free', '#' + t('tier.paid')], days.map((d) => `<tr><td>${d.day}</td><td class="num">${fmtTok(d.free)}</td><td class="num">${fmtTok(d.paid)}</td></tr>`).join(''))}</details></div>`
+    : `<div class="vempty">${t('tokens.noRuns', { range: RANGES[S.tkDays] || t('range.days', { n: S.tkDays }) })}</div>`;
   const bucketRows = (m) => Object.entries(m).sort((a, b) => sum(b[1]) - sum(a[1])).map(([k, b]) => `<tr><td>${esc(k)}</td><td class="num">${b.runs}</td><td class="num">${fmtTok(b.in)}</td><td class="num">${fmtTok(b.out)}</td><td class="num">${fmtTok(b.cacheRead)}</td><td class="num">${b.failed || ''}</td></tr>`).join('');
-  const BH = ['', '#Lượt', '#Vào', '#Ra', '#Đọc cache', '#Lỗi'];
-  const chats = t.chats.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.repo)}</td><td class="num"><span class="ctx ${c.ctx < 100e3 ? 'lo' : c.ctx < 300e3 ? 'mid' : 'hi'}">${fmtK(c.ctx)}</span></td><td>${LABEL[c.status] || esc(c.status)}</td><td class="small muted">${c.ctx >= 300e3 ? 'nên /compact hoặc giao osin làm hồ sơ bàn giao' : ''}</td></tr>`).join('');
+  const BH = ['', '#' + t('col.runs'), '#' + t('col.in'), '#' + t('col.out'), '#' + t('col.cacheRead'), '#' + t('col.errors')];
+  const chats = tk.chats.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.repo)}</td><td class="num"><span class="ctx ${c.ctx < 100e3 ? 'lo' : c.ctx < 300e3 ? 'mid' : 'hi'}">${fmtK(c.ctx)}</span></td><td>${LABEL[c.status] || esc(c.status)}</td><td class="small muted">${c.ctx >= 300e3 ? t('tokens.heavyHint') : ''}</td></tr>`).join('');
   $('view-tokens').innerHTML = `<div class="vw">${claudeProBlock()}${head}
     <div class="kpis">${kpis}</div>
-    <h2>Theo ngày</h2>${chart}
-    <div class="cols"><div><h2>Theo nhà cung cấp</h2>${table(['Nhà cung cấp', ...BH.slice(1)], bucketRows(t.byProvider)) }</div><div><h2>Theo model</h2>${table(['Model', ...BH.slice(1)], bucketRows(t.byModel))}</div></div>
-    <h2>Ngữ cảnh các chat</h2>${chats ? table(['Chat', 'Repo', '#Ngữ cảnh', 'Trạng thái', ''], chats) : '<div class="vempty">Chưa có chat nào báo kích thước ngữ cảnh.</div>'}
+    <h2>${t('tokens.byDay')}</h2>${chart}
+    <div class="cols"><div><h2>${t('tokens.byProvider')}</h2>${table([t('prov.title'), ...BH.slice(1)], bucketRows(tk.byProvider)) }</div><div><h2>${t('tokens.byModel')}</h2>${table(['Model', ...BH.slice(1)], bucketRows(tk.byModel))}</div></div>
+    <h2>${t('tokens.chats')}</h2>${chats ? table([t('col.chat'), 'Repo', '#' + t('col.context'), t('col.state'), ''], chats) : `<div class="vempty">${t('tokens.noChats')}</div>`}
   </div>`;
 }
 $('view-tokens').addEventListener('click', (e) => {
@@ -1465,7 +1482,7 @@ $('view-tokens').addEventListener('click', (e) => {
 
 /* ---------- Cài đặt tab ---------- */
 S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = '';
-const MODES = { force: 'Ép dùng', auto: 'Tự quyết', ban: 'Cấm' };
+const MODES = lazy({ force: 'mode.force', auto: 'mode.auto', ban: 'mode.ban' });
 const normAgent = (n) => String(n || '').trim().toLowerCase();
 const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 /** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
@@ -1488,7 +1505,7 @@ function skillsBlock() {
   const list = [...agents.entries()].map(([k, m]) => {
     const n = Object.keys(st.agentSkills[k] || {}).length, s = m.id && S.sessions[m.id];
     return `<button class="agent" data-agent="${esc(k)}" aria-pressed="${k === S.skAgent}"><span class="led ${s ? s.status : ''}"></span><span class="an">${esc(m.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`;
-  }).join('') || '<div class="vempty">Chưa có agent nào trong hub.</div>';
+  }).join('') || `<div class="vempty">${t('agents.none')}</div>`;
   const rules = st.agentSkills[S.skAgent] || {};
   const q = S.skQuery.toLowerCase();
   const groups = {};
@@ -1499,141 +1516,141 @@ function skillsBlock() {
     const mode = own?.mode || 'auto';
     // force on a whole plugin would push every one of its skills at once: only exact skills can be forced.
     const btns = (wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban']).map((m) => `<button data-rule="${m}" data-skill="${esc(name)}" aria-pressed="${mode === m}" class="m-${m}">${MODES[m]}</button>`).join('');
-    const when = mode === 'force' ? `<select data-when="${esc(name)}" aria-label="Khi nào ép"><option value="every"${own.when === 'every' ? ' selected' : ''}>mỗi tin</option><option value="first"${own.when === 'first' ? ' selected' : ''}>tin đầu phiên</option></select>` : '';
-    return `<tr><td><span class="cut sk">${wildcard ? 'cả plugin' : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${wildcard ? 'không Ép được cả plugin: hãy Ép từng skill' : inherited ? 'theo cả plugin: ' + MODES[inherited.mode] : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
+    const when = mode === 'force' ? `<select data-when="${esc(name)}" aria-label="${t('rule.when')}"><option value="every"${own.when === 'every' ? ' selected' : ''}>${t('rule.every')}</option><option value="first"${own.when === 'first' ? ' selected' : ''}>${t('rule.first')}</option></select>` : '';
+    return `<tr><td><span class="cut sk">${wildcard ? t('rule.wholePlugin') : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${wildcard ? t('rule.noForcePlugin') : inherited ? t('rule.inherited', { mode: MODES[inherited.mode] }) : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
   };
   const ruled = (plugin) => Object.keys(rules).some((n) => n.startsWith(plugin + ':') || (!plugin && !n.includes(':')));
   // Default: only this agent's rules. Typing searches every skill (to add a rule); "Hiện tất cả" lists them all.
   const desc = new Map(sk.skills.map((s) => [s.name, s.description]));
   const names = Object.keys(rules);
   const mine = names.length
-    ? table(['Skill', '', 'Chế độ'], names.map((n) => ruleRow(n, desc.get(n) || '', n.endsWith(':*'))).join(''))
-    : '<div class="vempty">Agent này chưa có rule nào: mọi skill đang Tự quyết. Tìm một skill bên dưới để thêm rule.</div>';
+    ? table(['Skill', '', t('col.mode')], names.map((n) => ruleRow(n, desc.get(n) || '', n.endsWith(':*'))).join(''))
+    : `<div class="vempty">${t('rule.none')}</div>`;
   const browse = q || S.skAll;
   const tables = !browse ? '' : Object.entries(groups).sort(([a], [b]) => Number(ruled(b)) - Number(ruled(a)) || a.localeCompare(b)).map(([plugin, items]) =>
-    `<h3>${plugin ? esc(plugin) : 'Skill riêng (~/.claude/skills)'}</h3>` + table(['Skill', '', 'Chế độ'], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('') || '<div class="vempty">Không có skill nào khớp.</div>';
+    `<h3>${plugin ? esc(plugin) : t('rule.ownSkills')}</h3>` + table(['Skill', '', t('col.mode')], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('') || `<div class="vempty">${t('rule.noMatch')}</div>`;
   return `<div class="skgrid"><div class="agents">${list}</div><div>
     ${S.skAgent ? `${mine}
-    <div class="skfind"><input class="search" id="skQuery" placeholder="Thêm rule: tìm skill…" value="${esc(S.skQuery)}" aria-label="Thêm rule: tìm skill"><button class="btn" id="skAll" aria-pressed="${!!S.skAll}">${S.skAll ? 'Ẩn bớt' : 'Hiện tất cả skill'}</button></div>
-    ${tables}` : '<div class="vempty">Chọn một agent ở bên trái.</div>'}
+    <div class="skfind"><input class="search" id="skQuery" placeholder="${t('rule.search')}" value="${esc(S.skQuery)}" aria-label="${t('rule.searchAria')}"><button class="btn" id="skAll" aria-pressed="${!!S.skAll}">${S.skAll ? t('rule.hide') : t('rule.showAll')}</button></div>
+    ${tables}` : `<div class="vempty">${t('rule.pick')}</div>`}
   </div></div>`;
 }
-const CMODES = { auto: 'Claude Code tự quyết', hold: 'Giữ tới ngưỡng', handoff: 'Compact + chèn hồ sơ' };
+const CMODES = lazy({ auto: 'cmode.auto', hold: 'cmode.hold', handoff: 'cmode.handoff' });
 /** Per-agent compaction (T18/T18b): one row per agent, saved as soon as a field changes. */
 function compactBlock() {
   const ac = S.settings.agentCompact || {};
   const names = [...new Set([...S.skills.members.map((m) => normAgent(m.name)), ...Object.keys(ac)])].filter(Boolean);
-  if (!names.length) return '<div class="vempty">Chưa có agent nào trong hub.</div>';
+  if (!names.length) return `<div class="vempty">${t('agents.none')}</div>`;
   const rows = names.map((n) => {
     const r = ac[n] || { mode: 'auto' };
     return `<tr data-cagent="${esc(n)}"><td>${esc(n)}</td>
-      <td><select data-cmode aria-label="Tự compact của ${esc(n)}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
-      <td><input type="number" class="numin" data-cpct min="10" max="85" value="${r.pct ?? ''}" placeholder="${r.mode === 'hold' ? '70' : 'mặc định'}" aria-label="Ngưỡng % của ${esc(n)}"></td>
-      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="Compact trước khi gọi dậy ${esc(n)}"></td>
-      <td><input type="text" data-rtools value="${esc((S.settings.reviveTools?.[n] || []).join(', '))}" placeholder="chỉ đọc" aria-label="Tool ghi thêm khi gọi dậy ${esc(n)}"></td></tr>`;
+      <td><select data-cmode aria-label="${t('compact.aria.mode', { n: esc(n) })}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
+      <td><input type="number" class="numin" data-cpct min="10" max="85" value="${r.pct ?? ''}" placeholder="${r.mode === 'hold' ? '70' : t('common.default')}" aria-label="${t('compact.aria.pct', { n: esc(n) })}"></td>
+      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="${t('compact.aria.wake', { n: esc(n) })}"></td>
+      <td><input type="text" data-rtools value="${esc((S.settings.reviveTools?.[n] || []).join(', '))}" placeholder="${t('worker.readOnly')}" aria-label="${t('compact.aria.tools', { n: esc(n) })}"></td></tr>`;
   }).join('');
-  return `<div class="setbox"><p class="small muted note">Giữ tới ngưỡng: chặn auto-compact tới khi ngữ cảnh đạt % của context window (tối đa 85%; /compact gõ tay không bao giờ bị chặn). Compact + chèn hồ sơ: sau compact, agent nhận lại hồ sơ bàn giao và biên bản phòng. Compact khi gọi dậy: agent đã tắt được compact trước khi đọc tin mới (từ ngưỡng %, hoặc 150k nếu để trống). Tool thêm khi gọi dậy: mặc định agent bị gọi dậy chỉ đọc file và dùng room; điền tên tool (vd Edit, Write) để cho ghi file. Chat đang mở cần Reload Window để có hook mới.</p>
-    ${table(['Agent', 'Tự compact', 'Ngưỡng %', 'Compact khi gọi dậy', 'Tool thêm khi gọi dậy'], rows)}</div>`;
+  return `<div class="setbox"><p class="small muted note">${t('compact.note')}</p>
+    ${table(['Agent', t('compact.col.mode'), t('compact.col.pct'), t('compact.col.wake'), t('compact.col.tools')], rows)}</div>`;
 }
 async function saveCompact(tr) {
   const pct = tr.querySelector('[data-cpct]').value.trim();
   const rule = { mode: tr.querySelector('[data-cmode]').value, wakeCompact: tr.querySelector('[data-cwake]').checked, ...(pct ? { pct: Number(pct) } : {}) };
   const tools = tr.querySelector('[data-rtools]').value.split(/[\s,]+/).filter(Boolean);
-  try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule }, reviveTools: { [tr.dataset.cagent]: tools } }, 'PUT'); toast('Đã lưu'); }
+  try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule }, reviveTools: { [tr.dataset.cagent]: tools } }, 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
   renderSettingsView();
 }
 /** worker.ps1 fills empty model lists with Intern ids only for Intern; any other provider without models is skipped. */
 const isIntern = (p) => /intern-ai\.org\.cn/.test(p.baseUrl);
-const mph = (p) => p.models.read.length || p.models.edit.length || isIntern(p) ? ' placeholder="mặc định của Intern"' : ' placeholder="chưa khai báo: provider này sẽ bị bỏ qua" class="warn"';
+const mph = (p) => p.models.read.length || p.models.edit.length || isIntern(p) ? ` placeholder="${t('prov.ph.intern')}"` : ` placeholder="${t('prov.ph.none')}" class="warn"`;
 function providerCard(p) {
   const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
   return `<form class="pcard" data-prov="${esc(p.id)}">
-    <div class="ph"><span class="led ${p.enabled && p.hasKey ? ledCls : ''}" title="${esc(ht)}"></span><b>${esc(p.label)}</b> ${tierBadge(p.tier)}<span class="spacer"></span><label class="inline"><input type="checkbox" name="enabled"${p.enabled ? ' checked' : ''}> Bật</label></div>
+    <div class="ph"><span class="led ${p.enabled && p.hasKey ? ledCls : ''}" title="${esc(ht)}"></span><b>${esc(p.label)}</b> ${tierBadge(p.tier)}<span class="spacer"></span><label class="inline"><input type="checkbox" name="enabled"${p.enabled ? ' checked' : ''}> ${t('common.on')}</label></div>
     <label>Base URL<input name="baseUrl" value="${esc(p.baseUrl)}" spellcheck="false"></label>
-    <div class="two"><label>Xác thực<select name="auth"><option value="api-key"${p.auth === 'api-key' ? ' selected' : ''}>x-api-key</option><option value="auth-token"${p.auth === 'auth-token' ? ' selected' : ''}>Bearer token</option></select></label>
-    <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? 'đã lưu ' + esc(p.keyHint) + ' (để trống = giữ)' : 'chưa có key'}"></label></div>
-    <div class="two"><label>Model đọc<input name="read" value="${esc(p.models.read.join(', '))}"${mph(p)}></label><label>Model sửa code<input name="edit" value="${esc(p.models.edit.join(', '))}"${mph(p)}></label></div>
-    <div class="pf"><button class="btn primary">Lưu</button>${p.hasKey ? '<button type="button" class="btn" data-clearkey>Xoá key</button>' : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : '<button type="button" class="btn danger" data-delprov>Xoá nhà cung cấp</button>'}</div>
+    <div class="two"><label>${t('prov.auth')}<select name="auth"><option value="api-key"${p.auth === 'api-key' ? ' selected' : ''}>x-api-key</option><option value="auth-token"${p.auth === 'auth-token' ? ' selected' : ''}>Bearer token</option></select></label>
+    <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? t('prov.keySaved', { hint: esc(p.keyHint) }) : t('prov.noKey')}"></label></div>
+    <div class="two"><label>${t('prov.modelRead')}<input name="read" value="${esc(p.models.read.join(', '))}"${mph(p)}></label><label>${t('prov.modelEdit')}<input name="edit" value="${esc(p.models.edit.join(', '))}"${mph(p)}></label></div>
+    <div class="pf"><button class="btn primary">${t('common.save')}</button>${p.hasKey ? `<button type="button" class="btn" data-clearkey>${t('prov.clearKey')}</button>` : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : `<button type="button" class="btn danger" data-delprov>${t('prov.delete')}</button>`}</div>
   </form>`;
 }
 /** Skill tab: per-agent skill rules; shares Cài đặt's data, so every settings re-render lands here too. */
 function renderSkillsView() {
-  $('view-skills').innerHTML = `<div class="vw">${!S.settings || !S.skills ? errBox('settings') || '<div class="vempty">Đang tải…</div>'
-    : `<h2>Skill theo agent</h2><p class="small muted">Ép dùng: nhắc agent gọi skill (mỗi tin hoặc chỉ tin đầu phiên). Cấm: nhắc không dùng. Tự quyết: không nhắc gì. Ép dùng chỉ chọn được cho từng skill, không cho cả plugin.</p>
+  $('view-skills').innerHTML = `<div class="vw">${!S.settings || !S.skills ? errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`
+    : `<h2>${t('skills.title')}</h2><p class="small muted">${t('skills.note')}</p>
     ${skillsBlock()}`}</div>`;
 }
-const ROUTES = { read: 'Đọc / khảo sát', edit: 'Sửa file', osin: 'Osin (bàn giao, rút gọn, dọn biên bản)' };
+const ROUTES = lazy({ read: 'route.read', edit: 'route.edit', osin: 'route.osin' });
 /** P1b: per turn type, an off switch plus a provider and model ("Tự động" = free first, then each provider's own chain). */
 function routesBlock() {
   const rows = Object.entries(ROUTES).map(([k, l]) => {
     const r = S.settings.workerRoutes?.[k] ?? { enabled: true, provider: 'auto', model: 'auto' }, p = S.providers.find((x) => x.id === r.provider);
     const models = p ? [...new Set([...(p.models?.read ?? []), ...(p.models?.edit ?? []),...(r.model !== 'auto' ? [r.model] : [])])] : [];
-    const opt = (v, t, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(t)}</option>`;
-    return `<tr><td>${l}</td><td><input type="checkbox" class="switch" data-set="workerRoutes.${k}.enabled"${r.enabled ? ' checked' : ''} aria-label="Bật loại lượt ${esc(l)}"></td>
-      <td><select data-set="workerRoutes.${k}.provider" aria-label="Nhà cung cấp cho ${esc(l)}">${opt('auto', 'Tự động', r.provider)}${S.providers.map((x) => opt(x.id, x.label, r.provider)).join('')}</select></td>
-      <td><select data-set="workerRoutes.${k}.model" aria-label="Model cho ${esc(l)}"${p ? '' : ' disabled'}>${opt('auto', 'Tự động', r.model)}${models.map((m) => opt(m, m, r.model)).join('')}</select></td></tr>`;
+    const opt = (v, text, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(text)}</option>`;
+    return `<tr><td>${l}</td><td><input type="checkbox" class="switch" data-set="workerRoutes.${k}.enabled"${r.enabled ? ' checked' : ''} aria-label="${t('route.aria.on', { l: esc(l) })}"></td>
+      <td><select data-set="workerRoutes.${k}.provider" aria-label="${t('route.aria.prov', { l: esc(l) })}">${opt('auto', t('common.auto'), r.provider)}${S.providers.map((x) => opt(x.id, x.label, r.provider)).join('')}</select></td>
+      <td><select data-set="workerRoutes.${k}.model" aria-label="${t('route.aria.model', { l: esc(l) })}"${p ? '' : ' disabled'}>${opt('auto', t('common.auto'), r.model)}${models.map((m) => opt(m, m, r.model)).join('')}</select></td></tr>`;
   }).join('');
-  return `<h2>Phân việc</h2><div class="setbox"><p class="small muted note">Chọn ai chạy từng loại lượt worker. Tự động: tầng free trước, rồi chuỗi model của từng nhà cung cấp. Nhà cung cấp chọn mà không dùng được (tắt, thiếu key) thì worker rơi về Tự động và ghi một dòng vào log lượt. Tham số -Provider / -Model khi gọi worker luôn thắng. Công tắc Cho phép worker/osin ở trên vẫn là công tắc tổng.</p>
-    ${table(['Loại lượt', 'Bật', 'Nhà cung cấp', 'Model'], rows)}</div>`;
+  return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
+    ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = { general: 'Chung', worker: 'Worker', lead: 'Trưởng phòng', compact: 'Compact', providers: 'Nhà cung cấp', account: 'Tài khoản' };
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', compact: 'sub.compact', providers: 'sub.providers', account: 'sub.account' });
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
   const st = S.settings;
-  if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || '<div class="vempty">Đang tải…</div>'}</div>`; return; }
+  if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`}</div>`; return; }
   const aj = st.autoJobs, ar = S.archive?.last;
   const arOn = st.archive.enabled ?? !!st.archive.dir;
-  const arState = !arOn ? (st.archive.dir ? 'Đang tắt; thư mục vẫn được giữ.' : 'Đang tắt. Điền thư mục rồi bật công tắc.') : !S.archive?.dir ? 'Chưa chọn thư mục.' : !ar ? 'Chưa chạy lượt nào kể từ khi hub khởi động; lượt kế tiếp trong vòng 10 phút.'
-    : ar.ok ? `Lần gần nhất ${time(ar.at)}: chép ${ar.copiedFiles} file mới.` : `Không sao lưu được: ${esc(ar.reason)}`;
+  const arState = !arOn ? (st.archive.dir ? t('archive.offKept') : t('archive.offEmpty')) : !S.archive?.dir ? t('archive.noDir') : !ar ? t('archive.notYet')
+    : ar.ok ? t('archive.last', { at: time(ar.at), n: ar.copiedFiles }) : t('archive.fail', { reason: esc(ar.reason) });
   const P = {
-    general: `    <p class="lede">Đổi là lưu ngay vào ~/.bear-agent-manager/settings.json; mọi chat và worker trên máy dùng chung.</p>
+    general: `    <p class="lede">${t('settings.lede')}</p>
     <h2>${t('settings.language')}</h2>
     <div class="setbox"><label class="setrow"><span><b>${t('settings.language')}</b><small>${t('settings.language.hint')}</small></span><select data-set="language">${[['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']].map(([v, l]) => `<option value="${v}"${(st.language ?? 'auto') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
-    <h2>Chuyển sang máy khác</h2>
-    <div class="setbox"><p class="small muted note">Xuất skill, agents, CLAUDE.md, settings.json, memory của từng project, cài đặt hub và danh sách plugin vào <code>${esc(S.machine?.dir || '')}</code>. Không bao giờ xuất file đăng nhập. Trên máy mới: mở Claude Code và gõ <b>/bear-setup</b>.</p>
-      <label class="setrow"><span><b>Kèm key của worker</b><small>Thư mục xuất sẽ chứa key (providers.json, khối env): đừng chia sẻ thư mục đó.</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
-      <div class="pf"><button class="btn primary" id="machineExport">Xuất cấu hình máy</button><span class="small muted">${S.machine?.last ? `Lần gần nhất ${time(S.machine.last.at)}: ${S.machine.last.items} mục${S.machine.last.withKeys ? ', có key' : ''}.` : 'Chưa xuất lần nào kể từ khi hub chạy.'}</span></div>
+    <h2>${t('machine.title')}</h2>
+    <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
+      <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
+      <div class="pf"><button class="btn primary" id="machineExport">${t('machine.export')}</button><span class="small muted">${S.machine?.last ? t('machine.last', { at: time(S.machine.last.at), n: S.machine.last.items, keys: S.machine.last.withKeys ? t('machine.withKeys') : '' }) : t('machine.never')}</span></div>
       ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
     <h2>Hub</h2>
-    <div class="setbox"><p class="small muted note">Nạp lại code mới của hub sau khi sửa. Hub thử nạp code mới trước; lỗi thì giữ nguyên hub đang chạy. Agent đang chờ tự nối lại sau vài giây.</p>
-      <div class="pf"><button class="btn" id="hubRestart">Khởi động lại hub</button></div></div>
-    <h2>Thông tin</h2>
-    <p class="small muted">Dữ liệu hub: ~/.bear-agent-manager · transcript đã gom: ~/.bear-agent-manager/room_chat · sao lưu: ${esc(st.archive.dir || 'tắt')}</p>
+    <div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
+      <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>
+    <h2>${t('info.title')}</h2>
+    <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>
 `,
     worker: `    <h2>Worker</h2><div class="setbox">
-      ${sw('skills.worker.enabled', st.skills.worker.enabled, 'Cho phép worker', 'Tắt thì hub từ chối mọi lượt worker; chat phải tự làm.')}
-      ${sw('skills.osin.enabled', st.skills.osin.enabled, 'Cho phép osin', 'Worker dọn dẹp: hồ sơ bàn giao, rút gọn tin nhắn, dọn biên bản.')}
-      ${sw('allowPaidFallback', st.allowPaidFallback, 'Tự chuyển sang tầng trả phí khi tầng free hết quota')}
-      ${num('workerCap', st.workerCap, 'Số worker chạy cùng lúc', 'Trên cả máy, 1–16. API free giới hạn chung theo phút.', 1, 16)}
-      ${sw('roomChat.autoSweep', st.roomChat.autoSweep, 'Tự dọn transcript vào room_chat mỗi 10 phút', 'Xem trước danh sách ở tab Worker trước khi bật.')}
+      ${sw('skills.worker.enabled', st.skills.worker.enabled, t('set.worker.on'), t('set.worker.on.hint'))}
+      ${sw('skills.osin.enabled', st.skills.osin.enabled, t('set.osin.on'), t('set.osin.on.hint'))}
+      ${sw('allowPaidFallback', st.allowPaidFallback, t('set.paid'))}
+      ${num('workerCap', st.workerCap, t('set.cap'), t('set.cap.hint'), 1, 16)}
+      ${sw('roomChat.autoSweep', st.roomChat.autoSweep, t('set.sweep'), t('set.sweep.hint'))}
     </div>` + routesBlock(),
-    lead: `    <h2>Trưởng phòng</h2><div class="setbox">
-      <label class="setrow"><span><b>Tự mở trưởng phòng</b><small>Khi phòng mới tạo hoặc mất trưởng phòng, hub mở một terminal Claude với lời nhắn gõ sẵn; bạn bấm Enter thì nó vào phòng và làm ★. Mỗi phòng chỉ tự mở một lần, tốn quota của acc Claude trên máy.</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
-      ${sw('archive.enabled', arOn, 'Sao lưu chat', 'Chép phần mới của mọi chat sang thư mục bên dưới mỗi 10 phút và khi một chat đóng. Không bao giờ xoá gì.')}
-      <label class="setrow"><span><b>Thư mục sao lưu</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
+    lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
+      <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
+      ${sw('archive.enabled', arOn, t('set.archive'), t('set.archive.hint'))}
+      <label class="setrow"><span><b>${t('set.archive.dir')}</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
     </div>
-    <h2>Hub tự chạy osin</h2><div class="setbox">
-      <p class="small muted note">Nội dung chat và tin nhắn được gửi lên API của nhà cung cấp worker. Các lượt này không có quyền dùng tool nào.</p>
-      ${sw('autoJobs.handoff.enabled', aj.handoff.enabled, 'Làm hồ sơ bàn giao khi chat quá dài')}
-      ${num('autoJobs.handoff.thresholdK', aj.handoff.thresholdK, 'Ngưỡng ngữ cảnh (nghìn token)', '', 50, 2000)}
-      ${sw('autoJobs.digest.enabled', aj.digest.enabled, 'Rút gọn tin nhắn dài trong phòng')}
-      ${num('autoJobs.digest.minChars', aj.digest.minChars, 'Từ bao nhiêu ký tự', '', 1000, 100000)}
-      ${sw('autoJobs.notes.enabled', aj.notes.enabled, 'Đề xuất dọn biên bản phòng', 'Chỉ đề xuất, không bao giờ tự xoá.')}
-      ${num('autoJobs.notes.minNotes', aj.notes.minNotes, 'Khi biên bản có từ (mục)', '', 5, 500)}
-      ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, 'Tối đa số lượt mỗi ngày', '', 0, 200)}
+    <h2>${t('set.auto.title')}</h2><div class="setbox">
+      <p class="small muted note">${t('set.auto.note')}</p>
+      ${sw('autoJobs.handoff.enabled', aj.handoff.enabled, t('set.handoff'))}
+      ${num('autoJobs.handoff.thresholdK', aj.handoff.thresholdK, t('set.handoff.k'), '', 50, 2000)}
+      ${sw('autoJobs.digest.enabled', aj.digest.enabled, t('set.digest'))}
+      ${num('autoJobs.digest.minChars', aj.digest.minChars, t('set.digest.min'), '', 1000, 100000)}
+      ${sw('autoJobs.notes.enabled', aj.notes.enabled, t('set.notes'), t('set.notes.hint'))}
+      ${num('autoJobs.notes.minNotes', aj.notes.minNotes, t('set.notes.min'), '', 5, 500)}
+      ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, t('set.maxRuns'), '', 0, 200)}
     </div>`,
-    compact: `    <h2>Tự compact theo agent</h2>
+    compact: `    <h2>${t('compact.title')}</h2>
     ${compactBlock()}`,
-    providers: `    <h2>Nhà cung cấp worker</h2>
+    providers: `    <h2>${t('prov.workerTitle')}</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
-    <form class="addprov" id="addProv"><input name="pid" placeholder="id, ví dụ intern-3" pattern="[a-z0-9-]{2,32}" required aria-label="id nhà cung cấp"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="Tầng"><option value="free">free</option><option value="paid">trả phí</option></select><button class="btn">${I.plus} Thêm nhà cung cấp</button></form>`,
-    account: `    <h2>Tài khoản Claude Pro</h2>
-    <div class="setbox"><p class="small note"><b>Mức dùng 5h/tuần: <a href="#tokens" data-gotab="tokens">xem tab Token</a></b></p><p class="small muted note">Chuyển tài khoản (chờ Task 10): lưu từng tài khoản đang đăng nhập, chuyển qua lại bằng hai lần bấm, xem mức dùng 5 giờ và theo tuần. Thêm tài khoản: lưu tài khoản hiện tại, gõ /login trong Claude bằng tài khoản khác, rồi lưu lần nữa. Sau khi chuyển phải Reload Window ở mọi cửa sổ VS Code và Antigravity (Ctrl+Shift+P → Developer: Reload Window). Token chỉ nằm trên máy này, hub không bao giờ gửi token ra giao diện.</p>
-      <div class="pf"><button class="btn" disabled>Lưu tài khoản hiện tại</button></div></div>`,
+    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
+    account: `    <h2>${t('acct.title')}</h2>
+    <div class="setbox"><p class="small note"><b>${t('acct.usage')}</b></p><p class="small muted note">${t('acct.note')}</p>
+      <div class="pf"><button class="btn" disabled>${t('acct.save')}</button></div></div>`,
   };
-  const bar = `<span class="seg" role="group" aria-label="Nhóm cài đặt" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
+  const bar = `<span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
 }
@@ -1641,7 +1658,7 @@ async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
   try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
-  renderSettingsView();
+  if (el.dataset.set === 'language') renderEverything(); else renderSettingsView();
 }
 async function saveRule(skill, rule) {
   try { S.settings = await api('/api/settings', { agentSkills: { [S.skAgent]: { [skill]: rule } } }, 'PUT'); }
@@ -1653,7 +1670,7 @@ async function saveProvider(form) {
   const patch = { enabled: form.enabled.checked, baseUrl: form.baseUrl.value.trim(), auth: form.auth.value,
     models: { read: splitList(form.read.value), edit: splitList(form.edit.value) } };
   if (form.key.value.trim()) patch.key = form.key.value.trim();   // empty = keep the saved key
-  try { await api(`/api/providers/${enc(id)}`, patch, 'PUT'); toast('Đã lưu ' + id); loadSettingsView(); }
+  try { await api(`/api/providers/${enc(id)}`, patch, 'PUT'); toast(t('prov.saved', { id })); loadSettingsView(); }
   catch (e) { toast(e.message); }
 }
 for (const sv of [$('view-settings'), $('view-skills')]) {
@@ -1672,18 +1689,18 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     e.preventDefault();
     const f = e.target;
     if (f.dataset.prov) return saveProvider(f);
-    if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast('Đã thêm, giờ điền key'); loadSettingsView(); }, (err) => toast(err.message));
+    if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast(t('prov.added')); loadSettingsView(); }, (err) => toast(err.message));
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
     if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
     if (e.target.closest('#hubRestart')) {
-      return api('/api/restart', {}).then(() => { toast('Hub đang khởi động lại…'); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
+      return api('/api/restart', {}).then(() => { toast(t('hub.restarting')); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
     }
     if (e.target.closest('#machineExport')) {
       return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
         S.machine = { ...S.machine, last: r };
-        toast(`Đã xuất ${r.items} mục vào ${r.dir}`);
+        toast(t('machine.exported', { n: r.items, dir: r.dir }));
         renderSettingsView();
       }, (err) => toast(err.message));
     }
@@ -1696,9 +1713,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (r) return saveRule(r.dataset.skill, r.dataset.rule === 'auto' ? null : { mode: r.dataset.rule, when: (S.settings.agentSkills[S.skAgent]?.[r.dataset.skill]?.when) || 'every' });
     const f = e.target.closest('[data-prov]');
     if (!f) return;
-    if (e.target.closest('[data-clearkey]')) return api(`/api/providers/${enc(f.dataset.prov)}`, { key: null }, 'PUT').then(() => { toast('Đã xoá key'); loadSettingsView(); }, (err) => toast(err.message));
+    if (e.target.closest('[data-clearkey]')) return api(`/api/providers/${enc(f.dataset.prov)}`, { key: null }, 'PUT').then(() => { toast(t('prov.keyCleared')); loadSettingsView(); }, (err) => toast(err.message));
     const d = e.target.closest('[data-delprov]');
-    if (d) armed(d, 'Bấm lần nữa để xoá', () => api(`/api/providers/${enc(f.dataset.prov)}`, undefined, 'DELETE').then(() => { toast('Đã xoá ' + f.dataset.prov); loadSettingsView(); }, (err) => toast(err.message)));
+    if (d) armed(d, t('common.pressAgainDelete'), () => api(`/api/providers/${enc(f.dataset.prov)}`, undefined, 'DELETE').then(() => { toast(t('prov.deleted', { id: f.dataset.prov })); loadSettingsView(); }, (err) => toast(err.message)));
   });
 }
 
@@ -1727,24 +1744,24 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hi
 $('log').addEventListener('contextmenu', (e) => {
   const g = e.target.closest('.group'); if (!g || e.target.closest('a,pre,code,input,textarea')) return;
   e.preventDefault(); closeMenu();
-  zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true"><button class="zx" aria-label="Đóng">✕</button>${g.outerHTML}</div>`;
+  zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true"><button class="zx" aria-label="${t('common.close')}">✕</button>${g.outerHTML}</div>`;
   zoom.hidden = false;
 });
 
 // reply: hover a message -> floating "Trả lời"; quote bar above the composer; quote box click -> jump to the original
 S.reply = null;
-const rplBtn = document.createElement('button'); rplBtn.id = 'rplBtn'; rplBtn.type = 'button'; rplBtn.textContent = '↩ Trả lời'; document.body.appendChild(rplBtn);
+const rplBtn = document.createElement('button'); rplBtn.id = 'rplBtn'; rplBtn.type = 'button'; rplBtn.dataset.i18n = 'reply.btn'; rplBtn.textContent = t('reply.btn'); document.body.appendChild(rplBtn);
 let rplFor = null;
 function setReply(m) {
-  S.reply = m ? { id: m.id, name: m.fromId ? (S.sessions[m.fromId]?.name || m.from) : 'Bạn', text: plain(m.text) } : null;
+  S.reply = m ? { id: m.id, name: m.fromId ? (S.sessions[m.fromId]?.name || m.from) : t('you'), text: plain(m.text) } : null;
   const bar = $('replyBar');
   bar.hidden = !S.reply;
-  bar.innerHTML = S.reply ? `<span>↩ Trả lời <b>${esc(S.reply.name)}</b>: ${esc(S.reply.text)}</span><button type="button" aria-label="Huỷ trả lời">✕</button>` : '';
+  bar.innerHTML = S.reply ? `<span>${t('reply.to', { name: `<b>${esc(S.reply.name)}</b>` })}: ${esc(S.reply.text)}</span><button type="button" aria-label="${t('reply.cancel')}">✕</button>` : '';
   if (!S.reply) return;
   bar.querySelector('button').onclick = () => setReply(null);
-  const t = $('text');
-  if (m.fromId && !t.value.includes('@' + S.reply.name)) { t.value = `@${S.reply.name} ` + t.value; autosize(); }
-  t.focus();
+  const ta = $('text');
+  if (m.fromId && !ta.value.includes('@' + S.reply.name)) { ta.value = `@${S.reply.name} ` + ta.value; autosize(); }
+  ta.focus();
 }
 $('log').addEventListener('mouseover', (e) => {
   const el = e.target.closest('.msg[data-mid]'); if (!el) return;
@@ -1760,10 +1777,10 @@ rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log')) rplBtn.s
 rplBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = 'none'; if (m) setReply(m); };
 $('log').addEventListener('click', (e) => {
   const q = e.target.closest('.quote'); if (!q) return;
-  const t = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`);
-  if (!t) return toast('Tin gốc không còn trong danh sách đang tải');
-  S.stick = false; t.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+  const tg = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`);
+  if (!tg) return toast(t('reply.gone'));
+  S.stick = false; tg.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  tg.classList.remove('flash'); void tg.offsetWidth; tg.classList.add('flash');
 });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.reply) setReply(null); });
 
@@ -1775,6 +1792,7 @@ const urlTheme = new URLSearchParams(location.search).get('theme');
 if (themeOk(urlTheme)) savedTheme = urlTheme;
 if (!themeOk(savedTheme)) savedTheme = 'auto';
 setTheme(savedTheme);
+renderEverything = () => { applyStatic(); renderAll(); renderWorkersView(); renderTokensView(); renderSettingsView(); };
 renderAll();
 connect();
 loadClaudeUsage();   // account chips on the Phòng tab

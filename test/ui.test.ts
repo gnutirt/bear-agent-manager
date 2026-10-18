@@ -41,7 +41,7 @@ test('theme picker: every option has a palette block (or is auto/light)', async 
   try {
     const html = await (await fetch(hub.url + '/')).text();
     const sel = html.match(/<select[^>]*id="themes"[\s\S]*?<\/select>/)![0];
-    const opts = [...sel.matchAll(/<option value="([a-z]+)">/g)].map((m) => m[1]);
+    const opts = [...sel.matchAll(/<option value="([a-z]+)"/g)].map((m) => m[1]);
     assert.ok(opts.length >= 10, 'many themes');
     for (const t of opts.filter((o) => !['auto', 'light'].includes(o))) assert.ok(html.includes(`:root[data-theme=${t}]`), `no palette for ${t}`);
     for (const s of ['id="fonts"', "addEventListener('contextmenu'", 'id = \'zoom\'']) assert.ok(html.includes(s), `missing ${s}`);
@@ -89,7 +89,7 @@ test('token tab: range, KPIs, stacked chart with a table view, Claude Pro usage 
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/claude-usage'", 'function claudeProBlock', 'id="cuRefresh"', 'function acctChip', 'Asia/Ho_Chi_Minh', 'Xem dạng bảng', '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/claude-usage'", 'function claudeProBlock', 'id="cuRefresh"', 'function acctChip', 'Asia/Ho_Chi_Minh', "t('tokens.asTable')", '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
 
@@ -97,7 +97,7 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', 'Reload Window', 'Ép dùng', 'Cấm', 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
   } finally { await hub.close(); }
 });
@@ -114,7 +114,7 @@ test('settings tab: machine export button, keys only when the switch is on', asy
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ["'/api/machine'", "'/api/machine/export'", 'id="machineExport"', 'id="machineKeys"', 'withKeys: !!S.machineWithKeys', '/bear-setup']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ["'/api/machine'", "'/api/machine/export'", 'id="machineExport"', 'id="machineKeys"', 'withKeys: !!S.machineWithKeys']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
 
@@ -125,7 +125,7 @@ test('receipts: each member gets a chip only on the newest message that woke it,
     const grab = (name: string) => html.match(new RegExp(String.raw`function ${name}\([\s\S]*?\n}\n`))![0];
     const S = { sessions: { a: { name: 'fw', status: 'offline', cursor: 0 }, b: { name: 'web', status: 'idle', cursor: 5 } } };
     const esc = (x: string) => x;
-    const { lastWakes, receipts } = new Function('S', 'esc', `${grab('lastWakes')}${grab('receipts')}return { lastWakes, receipts };`)(S, esc);
+    const { lastWakes, receipts } = new Function('S', 'esc', 't', `${grab('lastWakes')}${grab('receipts')}return { lastWakes, receipts };`)(S, esc, (k: string) => k);
     const list = [{ id: 1, wake: ['a'] }, { id: 2, wake: ['a', 'b'] }, { id: 3, fromId: 'b', wake: [] }];
     const last = lastWakes(list);
     assert.equal(receipts(list[0], list, last), '', 'older message that woke an offline agent: no chip');
@@ -140,7 +140,7 @@ test('settings sub-tabs, Claude usage first in the Token tab, text button to mak
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['data-sub="${k}"', "general: 'Chung'", "lead: 'Trưởng phòng'", "account: 'Tài khoản'", 'Phong trưởng phòng', 'Bỏ trưởng phòng']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['data-sub="${k}"', "general: 'sub.general'", "lead: 'sub.lead'", "account: 'sub.account'", "t('members.lead')", "t('members.unlead')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes('<div class="vw">${claudeProBlock()}${head}'), 'Claude usage comes before the worker token KPIs');
   } finally { await hub.close(); }
 });
