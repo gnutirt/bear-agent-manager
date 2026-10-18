@@ -394,3 +394,26 @@ test('topics: a reply keeps its topic; members follow by sending or being @-ed; 
   assert.equal(st.history('r', 0, 100, 'ui').length, 3);
   assert.throws(() => st.post('r', null, 'x', undefined, undefined, 'Bad Topic'), (e: StoreError) => e.status === 400);
 });
+
+test('sweep judges a session with a pid by its process: alive stays busy past 3 minutes, gone is offline and ended at once', () => {
+  let t = 1_000_000;
+  const st = new Store(tmp(), () => t);
+  st.register({ id: 'a1', cwd: path.join('D:', 'web'), pid: 111 });
+  st.register({ id: 'b1', cwd: path.join('D:', 'api'), pid: 222 });
+  st.register({ id: 'c1', cwd: path.join('D:', 'doc') });   // no pid: the 3-minute rule
+  st.setStatus('a1', 'busy', 'Bash npm test');
+  const alive = new Set([111]);
+  t += 600_000;   // a 10-minute tool call sends no hook
+  const changed = st.sweep(() => false, t, (pid) => alive.has(pid)).map((s) => s.id).sort();
+  assert.deepEqual(changed, ['b1', 'c1']);
+  assert.equal(st.session('a1').status, 'busy');
+  assert.equal(st.session('b1').ended, true);
+  assert.ok(!st.session('c1').ended);
+  alive.clear();
+  st.sweep(() => false, t, (pid) => alive.has(pid));
+  assert.equal(st.session('a1').status, 'offline');
+  // a pid quiet for more than 6 hours may have been reused: back to the time rule, the live pid is not trusted
+  st.register({ id: 'd1', cwd: path.join('D:', 'old'), pid: 333 });
+  t += 7 * 3600_000;
+  assert.deepEqual(st.sweep(() => false, t, () => true).map((s) => s.id), ['d1']);
+});

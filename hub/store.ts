@@ -50,6 +50,9 @@ export const SESSION_NAME = /^[A-Za-z0-9_-]{1,32}$/;
 const RESERVED = new Set(['all', 'you']);
 const STATUSES = new Set<Status>(['busy', 'idle', 'waiting', 'offline']);
 const STALE_MS = 180_000;
+const MAX_PID_QUIET_MS = 6 * 3600_000;
+/** Whether a process exists (signal 0 only checks; EPERM means it exists but belongs to someone else). */
+export const pidAlive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } };
 const PRUNE_MS = 24 * 3600_000;
 const MAX_TEXT = 8000;
 
@@ -575,11 +578,21 @@ export class Store {
     return this.messages.filter((m) => m.room === room && m.id > after && (!topic || (m.topic ?? 'chung') === topic)).slice(-Math.max(1, Math.min(limit, 500)));
   }
 
-  /** Marks stale, disconnected sessions offline; prunes long-offline sessions in no room. */
-  sweep(isConnected: (id: string) => boolean, now = this.now()): Session[] {
+  /**
+   * Marks stale, disconnected sessions offline; prunes long-offline sessions in no room. With the claude pid the hooks
+   * send, a session is judged by its process: alive = still working (a long tool or answer sends no hook for minutes,
+   * it must not look closed), gone = offline and ended at once (a killed tab sends no SessionEnd). Without a pid, or
+   * when the pid has been quiet for MAX_PID_QUIET_MS (it may have been reused), the old 3-minute rule applies.
+   */
+  sweep(isConnected: (id: string) => boolean, now = this.now(), isAlive: (pid: number) => boolean = pidAlive): Session[] {
     const changed: Session[] = [];
     for (const s of Object.values(this.state.sessions)) {
       if (isConnected(s.id)) continue;
+      if (s.status !== 'offline' && s.pid && now - s.lastSeen < MAX_PID_QUIET_MS) {
+        if (isAlive(s.pid)) continue;
+        s.status = 'offline'; s.activity = ''; s.ended = true; changed.push(s);
+        continue;
+      }
       if (s.status !== 'offline' && now - s.lastSeen > STALE_MS) { s.status = 'offline'; s.activity = ''; changed.push(s); }
       else if (s.status === 'offline' && Object.keys(s.rooms).length === 0 && now - s.lastSeen > PRUNE_MS) delete this.state.sessions[s.id];
     }
