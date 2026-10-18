@@ -88,3 +88,15 @@ test('plugin copies: a shim copy is not a version mismatch while the hub names i
   assert.equal(versionInfo('0.4.0', null, null, pluginCopies([cfg]), g, true, true).mismatch, false);
   assert.equal(versionInfo('0.4.0', null, null, pluginCopies([cfg]), g, true, false).mismatch, true, 'no named source: the copy runs its own old code');
 });
+
+test('plugin copies: an old project-scope install next to a newer user install is stale, not a mismatch', () => {
+  const cfg = tmp(), at = (v: string) => path.join(cfg, 'plugins', 'cache', 'x', 'bear-agent-manager', v);
+  for (const v of ['0.2.0', '0.3.0']) { fs.mkdirSync(path.join(at(v), '.claude-plugin'), { recursive: true }); fs.writeFileSync(path.join(at(v), '.claude-plugin', 'plugin.json'), JSON.stringify({ version: v })); }
+  fs.writeFileSync(path.join(cfg, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'bear-agent-manager@x': [
+    { scope: 'user', installPath: at('0.3.0'), version: '0.3.0' }, { scope: 'project', projectPath: 'C:/Users/x', installPath: at('0.2.0'), version: '0.2.0' }] } }));
+  const copies = pluginCopies([cfg]);
+  assert.deepEqual(copies.map((c) => [c.version, !!c.stale, c.scope]), [['0.3.0', false, 'user'], ['0.2.0', true, 'project']]);
+  const g = { git: true, remoteOk: true, clean: true };
+  assert.equal(versionInfo('0.3.0', null, null, copies, g, true).mismatch, false);
+  assert.equal(versionInfo('0.4.0', null, null, copies, g, true).mismatch, true, 'the newest copy is still older than the hub');
+});
