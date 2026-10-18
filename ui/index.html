@@ -63,6 +63,16 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 :root:is([data-theme=glass],[data-theme=glasslight]) :is(#side,header,#tabs,.group,#composer,.tblwrap,.chartbox,.pcard,.setbox,#menu,#mentionMenu,.prov,#notesPanel,#zoom .zbox){-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 8px 24px rgba(10,10,40,.25)}
 :root[data-theme=glass] .group:hover{background:rgba(255,255,255,.2)}
 :root[data-theme=glass] select option,:root[data-theme=glass] .vw select option{background:#2A2560;color:#fff}
+/* glass: crisp-edged shapes drift slowly behind the panels, so the blur has detail to bend; the panels get a bright rim and a diagonal sheen */
+:root:is([data-theme=glass],[data-theme=glasslight]) body::before{content:'';position:fixed;inset:-12%;z-index:-1;pointer-events:none;animation:glassDrift 46s ease-in-out infinite alternate}
+@keyframes glassDrift{from{transform:translate3d(-2%,-1%,0) rotate(0)}to{transform:translate3d(3%,2.5%,0) rotate(7deg)}}
+@media (prefers-reduced-motion:reduce){:root:is([data-theme=glass],[data-theme=glasslight]) body::before{animation:none}}
+:root[data-theme=glass] body::before{background:radial-gradient(circle 150px at 9% 38%,#FF4FA3 0 62%,transparent 64%),radial-gradient(circle 110px at 22% 80%,#FFC24A 0 60%,transparent 62%),radial-gradient(circle 210px at 64% 9%,#27E0FF 0 58%,transparent 60%),radial-gradient(circle 170px at 92% 46%,#8B6CFF 0 60%,transparent 62%),radial-gradient(circle 130px at 48% 97%,#34F5A5 0 58%,transparent 60%),radial-gradient(circle 90px at 77% 82%,#FF7A59 0 60%,transparent 62%),radial-gradient(circle 70px at 36% 30%,rgba(255,255,255,.45) 0 55%,transparent 58%)}
+:root[data-theme=glasslight] body::before{background:radial-gradient(circle 150px at 9% 38%,#FFFFFF 0 62%,transparent 66%),radial-gradient(circle 120px at 22% 80%,#AEB6C6 0 60%,transparent 63%),radial-gradient(circle 210px at 64% 9%,#FFFFFF 0 58%,transparent 62%),radial-gradient(circle 170px at 92% 46%,#9AA3B5 0 60%,transparent 63%),radial-gradient(circle 130px at 48% 97%,#C4CAD6 0 58%,transparent 62%),radial-gradient(circle 80px at 77% 82%,#7F889B 0 60%,transparent 63%)}
+html:root[data-theme=glass] :is(#side,header,#tabs,#composer,.setbox,.pcard,.tblwrap,.chartbox,.prov,#notesPanel,#menu,#mentionMenu,#zoom .zbox){background:linear-gradient(135deg,rgba(255,255,255,.26),rgba(255,255,255,.06) 55%,rgba(255,255,255,.15));border-color:rgba(255,255,255,.42);-webkit-backdrop-filter:blur(26px) saturate(200%) brightness(1.08);backdrop-filter:blur(26px) saturate(200%) brightness(1.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),inset 1px 0 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(255,255,255,.1),0 14px 40px rgba(6,4,40,.4)}
+html:root[data-theme=glass] .group{-webkit-backdrop-filter:blur(26px) saturate(200%) brightness(1.08);backdrop-filter:blur(26px) saturate(200%) brightness(1.08)}
+html:root[data-theme=glasslight] :is(#side,header,#tabs,#composer,.setbox,.pcard,#menu,#mentionMenu){background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(255,255,255,.34) 60%,rgba(255,255,255,.55));-webkit-backdrop-filter:blur(26px) saturate(150%) brightness(1.04);backdrop-filter:blur(26px) saturate(150%) brightness(1.04)}
+html:root[data-theme=glasslight] .group{background:linear-gradient(135deg,rgba(255,255,255,.78),color-mix(in srgb,var(--c) 8%,rgba(255,255,255,.4)));-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%)}
 .themes{display:block;width:calc(100% - 24px);margin:8px 12px 14px;padding:7px 10px;border:1px solid var(--side-line);border-radius:10px;background:var(--side-2);color:var(--side-strong);font-size:12.5px;font-weight:600}
 .themes option{background:var(--side);color:var(--side-strong)}
 #fonts{margin-top:-6px}
@@ -304,6 +314,32 @@ header .spacer{flex:1}
 .msg code{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:5px;padding:1px 5px}
 .msg pre{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:8px;padding:10px 12px;overflow-x:auto;margin:6px 0;white-space:pre}
 .msg pre code{background:none;padding:0}
+.msg{line-height:1.62}.msg b,.msg strong{font-weight:650}
+.msg .mh{margin:14px 0 6px;line-height:1.3;letter-spacing:-.005em}.msg>.mh:first-child{margin-top:2px}
+.msg .mh1{font-size:19px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.msg .mh2{font-size:16.5px;padding-left:10px;border-left:3px solid var(--accent)}
+.msg .mh3{font-size:14.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+.msg .mh4{font-size:13.5px;color:var(--mute);font-weight:650}
+.msg ul ul,.msg ol ol,.msg ul ol,.msg ol ul{margin:2px 0}
+.msg li.ok::marker{color:#16A34A}.msg li.bad::marker{color:#E5484D}.msg li.warn::marker{color:#D97706}
+.msg li.task{list-style:none;margin-left:-20px}.msg .chk{display:inline-block;width:15px;height:15px;border:1.5px solid var(--mute);border-radius:4px;vertical-align:-2px;margin-right:8px;position:relative}
+.msg .chk.on{background:var(--accent);border-color:var(--accent)}.msg .chk.on::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.msg li.task.done{color:var(--mute)}
+.msg b.st{display:inline-block;padding:0 8px;border-radius:999px;font-size:.88em;line-height:1.55;font-weight:700}
+.msg b.st.ok{color:#15803D;background:rgba(34,197,94,.16)}.msg b.st.bad{color:#DC2626;background:rgba(239,68,68,.15)}.msg b.st.warn{color:#B45309;background:rgba(245,158,11,.18)}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.ok{color:#86EFAC;background:rgba(34,197,94,.24)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.bad{color:#FCA5A5;background:rgba(239,68,68,.26)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.warn{color:#FCD34D;background:rgba(245,158,11,.26)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg li.ok::marker{color:#4ADE80}
+.msg hr{border:0;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:12px 0}
+.msg blockquote{background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:6px 14px;color:inherit}
+.msg code{color:color-mix(in srgb,var(--accent) 70%,var(--text))}
+.msg .cb{margin:8px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--code)}
+.msg .cbh{display:flex;align-items:center;justify-content:space-between;padding:3px 6px 3px 12px;font:600 11.5px var(--mono);color:var(--mute);text-transform:lowercase;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--text) 4%,transparent)}
+.msg .cbc{font-size:11.5px;font-weight:600;color:var(--mute);padding:2px 9px;border-radius:6px}.msg .cbc:hover{background:var(--hover);color:var(--text)}
+.msg .cb pre{margin:0;border-radius:0;background:none}.msg pre code{color:inherit}
+.msg .tblm{margin:8px 0;overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.msg table{border-collapse:collapse;width:100%;font-size:.93em}
+.msg th{background:color-mix(in srgb,var(--text) 6%,transparent);text-align:left;font-weight:650;white-space:nowrap}
+.msg th,.msg td{padding:6px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.msg tr:last-child td{border-bottom:0}.msg tbody tr:nth-child(even){background:color-mix(in srgb,var(--text) 3%,transparent)}.msg tbody tr:hover{background:var(--hover)}
 .mention{background:var(--accent-soft);color:var(--accent);font-weight:600;border-radius:5px;padding:0 4px}
 .mention.me{background:var(--me-line);color:#1B2233}
 .day{display:flex;align-items:center;gap:12px;color:var(--mute);font-size:12px;font-weight:600;margin:14px 0 8px}
@@ -816,46 +852,88 @@ const time = (ts) => new Date(ts).toLocaleTimeString(loc(), { hour: '2-digit', m
 const dayOf = (ts) => new Date(ts).toLocaleDateString(loc(), { weekday: 'long', day: 'numeric', month: 'numeric' });
 
 /* Small markdown renderer: fenced code, headings, lists, quotes, bold/italic, inline code, links, @mentions. */
+/** A bold word that opens with a status ("Xong", "Lỗi", "Cảnh báo"...) becomes a coloured chip so reports can be scanned. */
+const statusRe = {};
+const statusClass = (x) => {
+  if (x.length > 48 || !I18N.loaded) return '';
+  for (const [k, src] of [['ok', t('md.status.ok')], ['bad', t('md.status.bad')], ['warn', t('md.status.warn')]]) {
+    const key = uiLang() + k;
+    const re = statusRe[key] ??= new RegExp('^(?:' + src + ')(?![\p{L}\p{N}])', 'iu');
+    if (re.test(x.trim())) return k;
+  }
+  return '';
+};
 function inline(s) {
   const codes = [];
   s = esc(s).replace(/`([^`]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`);
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/__([^_]+)__/g, '<b>$1</b>')
+  s = s.replace(/\*\*([^*]+)\*\*/g, (m, x) => { const c = statusClass(x); return c ? `<b class="st ${c}">${x}</b>` : `<b>${x}</b>`; }).replace(/__([^_]+)__/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
     .replace(/(^|[\s(,;])@([A-Za-z0-9_-]+)/g, (m, p, n) => `${p}<span class="mention${n.toLowerCase() === 'you' ? ' me' : ''}">@${n}</span>`);
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[+i]}</code>`);
 }
-function md(t) {
-  const lines = String(t).replace(/\r/g, '').split('\n');
-  let out = '', list = null, para = [];
+function md(src) {
+  const lines = String(src).replace(/\r/g, '').split('\n');
+  let out = '', stack = [], para = [];
   const flushPara = () => { if (para.length) { out += `<p>${para.map(inline).join('<br>')}</p>`; para = []; } };
-  const closeList = () => { if (list) { out += `</${list}>`; list = null; } };
+  const closeLists = () => { while (stack.length) out += `</li></${stack.pop().kind}>`; };
+  const cells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
+  const isSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && l.includes('-') && (l.includes('|') || /^\s*:?-{3,}/.test(l));
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
-    const fence = l.match(/^\s*```/);
+    const fence = l.match(/^\s*```\s*([\w+#.-]*)/);
     if (fence) {
-      flushPara(); closeList();
+      flushPara(); closeLists();
       const code = [];
       while (++i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i]);
-      out += `<pre><code>${esc(code.join('\n'))}</code></pre>`;
+      out += `<div class="cb"><div class="cbh"><span>${esc(fence[1] || 'text')}</span><button type="button" class="cbc" data-copycode title="${t('code.copy')}" aria-label="${t('code.copy')}">${t('code.copy')}</button></div><pre><code>${esc(code.join('\n'))}</code></pre></div>`;
       continue;
     }
+    // GitHub-style table: a header row with pipes followed by a --- separator row
+    if (l.includes('|') && i + 1 < lines.length && lines[i + 1].includes('-') && lines[i + 1].includes('|') && isSep(lines[i + 1])) {
+      flushPara(); closeLists();
+      const head = cells(l), al = cells(lines[i + 1]).map((c) => (/^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : ''));
+      const td = (c, k, tag) => `<${tag}${al[k] ? ` style="text-align:${al[k]}"` : ''}>${inline(c)}</${tag}>`;
+      let rows = '';
+      while (i + 2 < lines.length && lines[i + 2].trim() && lines[i + 2].includes('|')) { i++; rows += `<tr>${cells(lines[i + 1]).map((c, k) => td(c, k, 'td')).join('')}</tr>`; }
+      i++;
+      out += `<div class="tblm"><table><thead><tr>${head.map((c, k) => td(c, k, 'th')).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      continue;
+    }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { flushPara(); closeLists(); out += '<hr>'; continue; }
     let m;
-    if ((m = l.match(/^\s*([-*+•])\s+(.*)$/)) || (m = l.match(/^\s*(\d+)[.)]\s+(.*)$/))) {
+    if ((m = l.match(/^(\s*)([-*+•])\s+(.*)$/)) || (m = l.match(/^(\s*)(\d+)[.)]\s+(.*)$/))) {
       flushPara();
-      const kind = /\d/.test(m[1]) ? 'ol' : 'ul';
-      if (list !== kind) { closeList(); out += `<${kind}>`; list = kind; }
-      out += `<li>${inline(m[2])}</li>`;
+      const kind = /\d/.test(m[2]) ? 'ol' : 'ul', ind = m[1].replace(/\t/g, '    ').length;
+      let body = m[3], cls = '';
+      const task = body.match(/^\[([ xX])\]\s+(.*)$/);
+      if (task) { body = `<span class="chk${task[1] === ' ' ? '' : ' on'}" aria-hidden="true"></span>` + inline(task[2]); cls = task[1] === ' ' ? ' class="task"' : ' class="task done"'; }
+      else {
+        body = inline(body);
+        const stt = /^(?:✅|✔️?|☑️?|🟢)/.test(m[3]) ? 'ok' : /^(?:❌|🔴|⛔|✖️?)/.test(m[3]) ? 'bad' : /^(?:⚠️?|🟡|🟠)/.test(m[3]) ? 'warn' : '';
+        if (stt) cls = ` class="${stt}"`;
+      }
+      while (stack.length && stack[stack.length - 1].indent > ind) out += `</li></${stack.pop().kind}>`;
+      const top = stack[stack.length - 1];
+      if (!top || ind > top.indent) { out += `<${kind}><li${cls}>`; stack.push({ kind, indent: ind }); }
+      else if (top.kind === kind) out += `</li><li${cls}>`;
+      else { out += `</li></${top.kind}><${kind}><li${cls}>`; top.kind = kind; }
+      out += body;
       continue;
     }
-    if ((m = l.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); closeList(); out += `<div class="mh mh${m[1].length}">${inline(m[2])}</div>`; continue; }
-    if ((m = l.match(/^>\s?(.*)$/))) { flushPara(); closeList(); out += `<blockquote>${inline(m[1])}</blockquote>`; continue; }
-    if (!l.trim()) { flushPara(); closeList(); continue; }
-    if (list && /^\s{2,}\S/.test(l)) { out = out.replace(/<\/li>$/, `<br>${inline(l.trim())}</li>`); continue; }
-    closeList(); para.push(l);
+    let h;
+    if ((h = l.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); closeLists(); out += `<div class="mh mh${h[1].length}">${inline(h[2])}</div>`; continue; }
+    if ((h = l.match(/^>\s?(.*)$/))) {
+      flushPara(); closeLists();
+      const q = [h[1]]; while (i + 1 < lines.length && /^>\s?/.test(lines[i + 1])) q.push(lines[++i].replace(/^>\s?/, ''));
+      out += `<blockquote>${q.map(inline).join('<br>')}</blockquote>`; continue;
+    }
+    if (!l.trim()) { flushPara(); closeLists(); continue; }
+    if (stack.length && /^\s{2,}\S/.test(l)) { out += `<br>${inline(l.trim())}`; continue; }
+    closeLists(); para.push(l);
   }
-  flushPara(); closeList();
+  flushPara(); closeLists();
   return out;
 }
 
@@ -1441,6 +1519,10 @@ function attachHtml(m) {
       : `<a class="afile" href="${esc(u)}" download="${esc(a.name)}" title="${esc(a.name)}"><span class="ficon">📎</span><span class="an"><b>${esc(a.name)}</b><small>${esc(a.mime || '')} · ${fmtSize(a.size || 0)}</small></span></a>`;
   }).join('')}</div>`;
 }
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-copycode]'); if (!b) return;
+  copy(b.closest('.cb')?.querySelector('code')?.textContent || '', t('code.copied'));
+});
 $('log').addEventListener('click', (e) => {
   const b = e.target.closest('[data-zoomimg]'); if (!b) return;
   zoom.innerHTML = `<div class="zbox zimg" role="dialog" aria-modal="true"><button class="zx" aria-label="${t('common.close')}">✕</button><img src="${esc(b.dataset.zoomimg)}" alt=""></div>`;
