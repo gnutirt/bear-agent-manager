@@ -20,6 +20,9 @@ export function killTree(c: ChildProcess): void {
   else c.kill();
 }
 
+/** Tests: pretend a background claude runs for this session. */
+export const adoptBackground = (id: string, child: ChildProcess): void => { live.set(id, child); };
+
 /** True while a background claude (a wake that stays alive) runs for this session. */
 export const isBackground = (id: string): boolean => live.has(id);
 

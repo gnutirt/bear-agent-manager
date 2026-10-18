@@ -56,7 +56,7 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
 
 export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string };
 export type Hub = { url: string; port: number; token: string; store: Store; close(): Promise<void> };
-type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout };
+type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean };   // headless: the waiter of a background wake, not of a tab
 
 export function publicSession(s: Session): PublicSession {
   return { id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '' };
@@ -444,8 +444,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     setImmediate(() => runArchive(s.id));
   }
 
+  /** A tab of the member opened by hand while its background wake still runs: two claudes on one chat. The background one goes. */
+  function tabCameUp(sid: string) {
+    if (!stopRevive(sid)) return;
+    const s = store.session(sid);
+    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.replaced', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
+  }
+
   function wait(id: string, url: URL, res: http.ServerResponse) {
     const sid = store.session(id).id;
+    const headless = url.searchParams.get('headless') === '1';
+    const tab = waiters.get(sid);
+    if (headless && tab && !tab.headless) return json(res, 200, { superseded: true });   // a tab already waits: the background process steps aside and ends
+    if (!headless) tabCameUp(sid);
     const wasOffline = store.session(sid).status === 'offline';
     store.touch(sid);
     if (wasOffline) emitSession(store.session(sid));
@@ -458,7 +469,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (waiters.get(sid)?.res === res) waiters.delete(sid);
       json(res, 200, { messages: [] });
     }, seconds * 1000);
-    waiters.set(sid, { res, timer });
+    waiters.set(sid, { res, timer, headless });
     res.on('close', () => {
       if (waiters.get(sid)?.res === res) { clearTimeout(timer); waiters.delete(sid); }
     });
@@ -1135,6 +1146,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);
+      if (b.headless !== true && b.id) { try { tabCameUp(store.session(String(b.id)).id); } catch { /* unknown session yet */ } }
       let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
       if (b.ide) s = store.setIde(s.id, String(b.ide));
       if (b.title) s = setTitleKeepingRules(s.id, String(b.title));

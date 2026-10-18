@@ -669,5 +669,5 @@ export const vi: Record<string, string> = {
   'sys.usage.updated': 'cập nhật lúc {at}',
   'sys.usage.times': ', {n} lần từ {first}',
   'relay.badge': '↩ chat riêng',
-  'sys.tab.replaced': 'Tab của {name} đã mở: hub đóng tiến trình nền của {name} để không chạy hai claude trên một chat.',
+  'sys.tab.replaced': 'Tab của {name} đã mở: hub đóng tiến trình nền để không chạy hai claude trên một chat.',
 };

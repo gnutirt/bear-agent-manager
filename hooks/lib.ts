@@ -30,7 +30,7 @@ export async function readInput(): Promise<HookInput> {
 export function register(input: HookInput, extra: { ide?: string; title?: string } = {}) {
   return api<{ session: { name: string; rooms: string[] } }>('/api/sessions/register', {
     body: {
-      id: input.session_id, cwd: input.cwd, source: input.source, configDir: process.env.CLAUDE_CONFIG_DIR ?? '', pid: process.ppid,   // hooks run as `node` + args, so the parent is claude itself
+      id: input.session_id, cwd: input.cwd, source: input.source, configDir: process.env.CLAUDE_CONFIG_DIR ?? '', pid: process.ppid, headless: process.env.BEAR_AGENT_HEADLESS === '1' || undefined,   // hooks run as `node` + args, so the parent is claude itself; headless: a background wake of the hub, not a tab
       transcript: input.transcript_path ?? '', ide: extra.ide || undefined, title: extra.title || readTitle(input.transcript_path) || undefined,
       ctx: readContextTokens(input.transcript_path) || undefined,
     },
