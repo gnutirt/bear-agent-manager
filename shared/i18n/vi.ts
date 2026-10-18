@@ -460,4 +460,7 @@ export const vi: Record<string, string> = {
   'lib.applyTo': 'Áp cho:',
   'lib.applied': 'Đã áp gói cho {agent}',
   'lib.tooMany': 'Agent này đang ép {n} skill: mỗi lượt đều tốn token cho từng lời nhắc. Nên giữ dưới 15.',
+  'ver.update': 'Cập nhật',
+  'ver.updateConfirm': 'Cập nhật lên v{v}? Hub sẽ khởi động lại.',
+  'ver.updated': 'Đã cập nhật lên v{to}, hub đang khởi động lại…',
 };

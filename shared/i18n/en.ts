@@ -460,4 +460,7 @@ export const en: Record<string, string> = {
   'lib.applyTo': 'Apply to:',
   'lib.applied': 'Applied the pack to {agent}',
   'lib.tooMany': 'This agent forces {n} skills: every turn pays tokens for each reminder. Keep it under 15.',
+  'ver.update': 'Update',
+  'ver.updateConfirm': 'Update to v{v}? The hub will restart.',
+  'ver.updated': 'Updated to v{to}, the hub is restarting…',
 };

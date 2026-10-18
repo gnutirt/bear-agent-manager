@@ -1774,12 +1774,12 @@ function renderSkillsView() {
     ${skillsBlock()}${skillLibBlock()}`}</div>`;
 }
 /* ---------- skill library (S3): filter by role, install / remove per account, apply a role pack to an agent ---------- */
-S.lib = { skills: null, packs: null, err: '', role: 'all', q: '', license: '', acct: '' };
+S.lib = { rolesInfo: [], skills: null, packs: null, err: '', role: 'all', q: '', license: '', acct: '' };
 const LIB_ROLES = { banking: 'lib.role.banking', slides: 'lib.role.slides', training: 'lib.role.training', general: 'lib.role.general' };
 const libList = (d) => Array.isArray(d) ? d : Array.isArray(d?.skills) ? d.skills : null;
 function loadSkillLib() {
   Promise.all([api('/api/skill-library'), api('/api/skill-packs')]).then(([sk, pk]) => {
-    S.lib.skills = libList(sk); S.lib.packs = Array.isArray(pk) ? pk : Array.isArray(pk?.packs) ? pk.packs : [];
+    S.lib.skills = libList(sk); S.lib.rolesInfo = Array.isArray(sk?.roles) ? sk.roles : []; S.lib.packs = Array.isArray(pk) ? pk : Array.isArray(pk?.packs) ? pk.packs : [];
     S.lib.err = S.lib.skills ? '' : t('lib.noHub'); renderSkillsView();
   }, (e) => { S.lib.skills = null; S.lib.err = /not found|404/i.test(e.message) ? t('lib.noHub') : e.message; renderSkillsView(); });
 }
@@ -1797,7 +1797,7 @@ function skillLibBlock() {
   const q = L.q.toLowerCase();
   const licenses = [...new Set(L.skills.map((s) => s.license).filter(Boolean))].sort();
   const shown = L.skills.filter((s) => (L.role === 'all' || (s.roles || [s.category]).includes(L.role)) && (!L.license || s.license === L.license) && (!q || `${s.name} ${s.description}`.toLowerCase().includes(q)));
-  const chips = roles.map((r) => `<button type="button" class="chipf" data-librole="${r}" aria-pressed="${r === L.role}">${r === 'all' ? t('filter.all') : t(LIB_ROLES[r])}</button>`).join('');
+  const chips = roles.map((r) => `<button type="button" class="chipf" data-librole="${r}" aria-pressed="${r === L.role}">${r === 'all' ? t('filter.all') : t(LIB_ROLES[r])} <small>${r === 'all' ? L.skills.length : (L.rolesInfo.find((x) => x.id === r)?.count ?? '')}</small></button>`).join('');
   const isIn = (s) => (s.installed || []).some((d) => sameDir(d, acct));
   const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span></div><p>${esc(plain(s.description || '', 140))}</p><div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
   const agents = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => a.indexOf(v) === i);
@@ -2126,7 +2126,9 @@ $('verBtn').onclick = (e) => {
       ${v.mismatch ? `<div class="verr small">${t('ver.mismatch')}</div>${plugins}` : ''}
       ${v.newer ? `<div class="small muted">${reason ? t(reason) : ''} ${t('ver.howTo')}</div>` : ''}
     </div>
-    <div class="mfoot">${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
+    <div class="mfoot">${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}${v.newer && v.canApply ? `<button class="btn sm primary" data-vupdate>${t('ver.update')}</button>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
+    const up = m.querySelector('[data-vupdate]');
+    if (up) up.onclick = () => armed(up, t('ver.updateConfirm', { v: v.latest }), () => api('/api/update', {}).then((r) => { closeMenu(); toast(t('ver.updated', { to: r.to || v.latest })); setTimeout(() => location.reload(), 8000); }, (e) => toast(e.message)));
     m.querySelector('[data-vcheck]')?.addEventListener('click', () => api('/api/version/check', {}).then((r) => { S.ver = r; renderVersion(); closeMenu(); toast(r.newer ? t('ver.available', { v: r.latest }) : t('ver.upToDate')); }, (err) => toast(err.message)));
   });
 };
