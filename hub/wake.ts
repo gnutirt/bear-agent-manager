@@ -48,3 +48,27 @@ export function planWakes(accounts: AccountUsage[], cfg: WakeCfg, have: Record<s
   }
   return out;
 }
+
+/**
+ * Whether the chat's last turn died on a usage limit: the newest assistant line is Claude Code's synthetic API error
+ * for a rate limit. Such a chat keeps its process (an editor tab) but never reaches the Stop hook: alive but deaf.
+ */
+export function endedOnLimit(file: string | undefined): boolean {
+  try {
+    if (!file) return false;
+    const fd = fs.openSync(file, 'r');
+    try {
+      const size = fs.fstatSync(fd).size, len = Math.min(size, 256 * 1024), buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      for (const line of buf.toString('utf8').split('\n').reverse()) {
+        if (!line.includes('"assistant"')) continue;
+        try {
+          const j = JSON.parse(line);
+          if (j.type !== 'assistant') continue;
+          return !!j.isApiErrorMessage && (j.error === 'rate_limit' || Number(j.apiErrorStatus) === 429 || !!j.quotaLimits);
+        } catch { /* torn line */ }
+      }
+    } finally { fs.closeSync(fd); }
+  } catch { /* unreadable */ }
+  return false;
+}
