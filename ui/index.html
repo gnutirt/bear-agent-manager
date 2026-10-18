@@ -92,6 +92,15 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 .fres:hover{background:var(--hover)}.fres time{color:var(--mute);font-size:12px;white-space:nowrap}.fres b{font-size:13px;white-space:nowrap}
 .fres span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}
 .fres mark{background:color-mix(in srgb,var(--busy) 45%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+#topicBar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--panel)}#topicBar[hidden]{display:none}
+.tchip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--text);font-size:13px;font-weight:600;cursor:pointer}
+.tchip:hover{border-color:var(--accent)}.tchip[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tchip small{font-weight:600;color:var(--mute)}.tchip[aria-selected=true] small{color:rgba(255,255,255,.8)}
+.tchip .tun{background:#E5484D;color:#fff;border-radius:999px;padding:0 6px;font-size:11px;line-height:17px;font-weight:700}
+.tbtn{flex:none;height:34px;padding:0 10px;border-radius:10px;color:var(--accent);font-weight:700;font-size:13px;background:var(--accent-soft);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbtn:hover{filter:brightness(.97)}
+.ttag{font-size:11.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 7px;cursor:pointer}
+.tmenu{display:flex;flex-direction:column;gap:4px;min-width:240px}.tmenu .tchip{justify-content:space-between;border-radius:10px}.tmenu form{display:flex;gap:6px;margin-top:6px}.tmenu input{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}.tmenu .small{margin-top:4px}
 #aroundBar{display:flex;align-items:center;gap:12px;justify-content:center;padding:6px 20px;background:var(--accent-soft);font-size:13px}#aroundBar[hidden]{display:none}
 /* attachments */
 #attachBtn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--mute);flex:none}
@@ -645,6 +654,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
   <div id="searchBar" hidden></div>
   <div id="aroundBar" hidden></div>
+  <div id="topicBar" hidden role="tablist" aria-label="Chủ đề của phòng" data-i18n-aria="topic.bar"></div>
   <div id="log"><div id="logBody"></div><button class="btn primary" id="newMsgs" hidden aria-label="Có tin mới, cuộn xuống tin mới nhất" data-i18n-aria="newMsgs.label">↓ Tin mới</button></div>
   <div id="presence"></div>
   <div class="compose-wrap">
@@ -652,7 +662,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div id="replyBar" hidden></div>
     <div id="attachBar" hidden></div>
     <input type="file" id="fileInput" multiple hidden>
-    <form id="composer"><button type="button" id="attachBtn" title="Đính kèm ảnh hoặc file" data-i18n-ta="attach.add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude" data-i18n-ph="composer.ph"></textarea><button id="send" aria-label="Gửi" data-i18n-aria="composer.send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
+    <form id="composer"><button type="button" id="topicBtn" class="tbtn" hidden></button><button type="button" id="attachBtn" title="Đính kèm ảnh hoặc file" data-i18n-ta="attach.add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude" data-i18n-ph="composer.ph"></textarea><button id="send" aria-label="Gửi" data-i18n-aria="composer.send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
     <div id="cost"></div>
     <div id="notice"></div>
     <div class="hint" data-i18n-html="composer.hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
@@ -1126,13 +1136,51 @@ function quote(m) {
   const o = (S.messages[S.current] || []).find((x) => x.id === m.replyTo);
   return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(o.fromId ? (S.sessions[o.fromId]?.name || o.from) : t('you'))}</b>: ${esc(plain(o.text))}` : t('quote.msg', { id: m.replyTo })}</button>`;
 }
+/* ---------- topics (GĐ2): chips filter the chat, the composer picks where to send, unread counts per topic ---------- */
+S.topics = {}; S.tfilter = {}; S.ctopic = {}; S.tunread = {};
+const TOPIC_RE = /^[a-z0-9-]{1,32}$/;
+const topicOf = (m) => m.topic || 'chung';
+const topicList = (r) => S.topics[r] || [];
+async function loadTopics(r) { if (r) { S.topics[r] = await api(`/api/rooms/${enc(r)}/topics`).catch(() => S.topics[r] || []); if (r === S.current) renderTopics(); } }
+function noteTopic(m) {   // keep counts live from the SSE stream
+  const l = S.topics[m.room]; if (!l) return;
+  const k = topicOf(m), e = l.find((x) => x.topic === k);
+  if (e) { e.count++; e.last = m.id; } else l.push({ topic: k, count: 1, last: m.id, follows: true });
+}
+function setTopicFilter(k) {
+  const r = S.current; S.tfilter[r] = k; if (k) { S.ctopic[r] = k; delete (S.tunread[r] || {})[k]; } else S.tunread[r] = {};
+  S.stick = true; renderLog(); renderTopics();
+}
+function renderTopics() {
+  const r = S.current, list = topicList(r), cur = S.tfilter[r] || '', bar = $('topicBar'), btn = $('topicBtn');
+  const multi = list.length > 1 || cur || (S.ctopic[r] && S.ctopic[r] !== 'chung');
+  bar.hidden = !multi; btn.hidden = !r;
+  const send = S.ctopic[r] || 'chung';
+  btn.textContent = '#' + send; btn.title = t('topic.btn', { name: send }); btn.setAttribute('aria-label', btn.title);
+  if (!multi) { bar.innerHTML = ''; return; }
+  const un = S.tunread[r] || {}, total = list.reduce((a, x) => a + x.count, 0);
+  bar.innerHTML = `<button type="button" class="tchip" role="tab" data-topic="" aria-selected="${!cur}">${t('topic.all')} <small>${total}</small></button>` + list.map((x) => `<button type="button" class="tchip" role="tab" data-topic="${esc(x.topic)}" aria-selected="${cur === x.topic}">#${esc(x.topic)} <small>${x.count}</small>${un[x.topic] ? `<span class="tun" title="${t('topic.unread', { n: un[x.topic] })}">${un[x.topic]}</span>` : ''}</button>`).join('');
+}
+$('topicBar').addEventListener('click', (e) => { const b = e.target.closest('[data-topic]'); if (b) setTopicFilter(b.dataset.topic); });
+$('log').addEventListener('click', (e) => { const b = e.target.closest('.ttag'); if (b) setTopicFilter(b.dataset.topic); });
+$('topicBtn').onclick = (e) => {
+  const r = S.current, cur = S.ctopic[r] || 'chung', names = [...new Set(['chung', ...topicList(r).map((x) => x.topic), cur])];
+  openMenu(e.currentTarget, `<div class="mhead"><b>${t('topic.menu')}</b><span>#${esc(r)}</span></div><div class="tmenu">${names.map((k) => `<button type="button" class="tchip" data-pick="${esc(k)}" aria-selected="${k === cur}">#${esc(k)}</button>`).join('')}<form id="topicNew"><input id="topicNewIn" placeholder="${t('topic.new')}" maxlength="32" autocomplete="off" aria-label="${t('topic.new')}"><button class="btn sm primary">${t('topic.add')}</button></form><div class="small muted">${t('topic.hint')}</div></div>`, (m) => {
+    const use = (k) => { S.ctopic[r] = k; closeMenu(); renderTopics(); $('text').focus(); };
+    m.querySelectorAll('[data-pick]').forEach((b) => b.onclick = () => use(b.dataset.pick));
+    m.querySelector('#topicNew').onsubmit = (ev) => { ev.preventDefault(); const k = $('topicNewIn').value.trim().toLowerCase().replace(/^#/, ''); if (!TOPIC_RE.test(k)) return toast(t('topic.invalid')); use(k); };
+  });
+};
+
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
     logBody.innerHTML = `<div class="empty"><h2>${t('empty.firstRoom.title')}</h2>${t('empty.firstRoom.body')}<br><button class="btn primary" id="emptyNew">${I.plus} ${t('rooms.new')}</button></div>`;
     $('emptyNew').onclick = () => showNewRoom(); return;
   }
-  const ms = S.messages[S.current] || [];
+  const allMs = S.messages[S.current] || [], tf = S.tfilter[S.current] || '';
+  const ms = tf ? allMs.filter((m) => topicOf(m) === tf) : allMs;
+  if (allMs.length && !ms.length) { logBody.innerHTML = `<div class="empty"><h2>#${esc(tf)}</h2>${t('topic.empty', { name: esc(tf) })}</div>`; return; }
   if (!ms.length) {
     const n = members(S.current).length;
     logBody.innerHTML = `<div class="empty"><h2>${t('empty.room.title', { name: esc(S.current) })}</h2>${n ? t('empty.room.withMembers') : t('empty.room.noMembers')}<br><button class="btn primary" id="emptyInvite">${I.copy} ${t('invite.copy')}</button></div>`;
@@ -1157,12 +1205,12 @@ function renderLog() {
       prev = null; continue;
     }
     const tome = m.fromId && m.mentions.includes('you');
-    const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
+    const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome && topicOf(prev) === topicOf(m);
     if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -1225,7 +1273,7 @@ async function loadNotes(room) {
   if (room === S.current) renderNotes();
 }
 
-function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderPresence(); renderNotes(); if (typeof renderFind === 'function') { renderFind(); renderAround(); } }
+function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderTopics(); renderPresence(); renderNotes(); if (typeof renderFind === 'function') { renderFind(); renderAround(); } }
 
 async function select(name) {
   if (S.around && S.around !== name) { delete S.messages[S.around]; S.around = null; }   // a partial view of the old room is not kept
@@ -1233,6 +1281,7 @@ async function select(name) {
   try { localStorage.setItem('bear-agent-manager:room', name); } catch {}
   if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
   if (name && !S.notes[name]) await loadNotes(name);
+  if (name && !S.topics[name]) loadTopics(name);
   note(); renderAll();
   if (name) $('text').focus();
 }
@@ -1261,9 +1310,12 @@ function connect() {
   es.addEventListener('msg', (e) => {
     const m = JSON.parse(e.data);
     const list = S.messages[m.room];
-    if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) list.push(m);   // while an old part of the room is shown, new messages wait for "back to latest"
-    if (m.room === S.current && S.around !== m.room) renderLog();
-    else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
+    if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
+    if (m.room === S.current && S.around !== m.room) {
+      const tf = S.tfilter[m.room];
+      if (tf && topicOf(m) !== tf) { const u = (S.tunread[m.room] ??= {}); u[topicOf(m)] = (u[topicOf(m)] || 0) + 1; }
+      renderLog(); renderTopics();
+    } else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
   es.addEventListener('session', (e) => {
     const s = JSON.parse(e.data); S.sessions[s.id] = s;
@@ -1401,9 +1453,10 @@ $('composer').onsubmit = async (e) => {
   const text = $('text').value.trim() || ready.map((a) => '📎 ' + a.name).join('\n');
   if (!text || !S.current) return;
   try {
-    const body = { text, ...(S.reply ? { replyTo: S.reply.id } : {}), ...(ready.length ? { attachments: ready.map((a) => a.id) } : {}) };
+    const ct = S.ctopic[S.current], body = { text, ...(S.reply ? { replyTo: S.reply.id } : {}), ...(ct && ct !== 'chung' ? { topic: ct } : {}), ...(ready.length ? { attachments: ready.map((a) => a.id) } : {}) };
     const r = await api(`/api/rooms/${enc(S.current)}/messages`, body);
     $('text').value = ''; S.attach = []; renderAttachBar(); autosize(); updateCost(); setReply(null);
+    if (S.tfilter[S.current] && S.tfilter[S.current] !== (ct || 'chung')) setTopicFilter(ct || 'chung');   // your own message must stay visible: follow it into its topic
     S.stick = true; pinBottom();   // your own message: always show it
     const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
     if (r.unknownMentions.length) note(new Error(t('composer.unknown', { names: r.unknownMentions.map((n) => '@' + n).join(', ') })));
