@@ -352,6 +352,7 @@ header .spacer{flex:1}
 .msg .cbc{font-size:11.5px;font-weight:600;color:var(--mute);padding:2px 9px;border-radius:6px}.msg .cbc:hover{background:var(--hover);color:var(--text)}
 .msg .cb pre{margin:0;border-radius:0;background:none}.msg pre code{color:inherit}
 .lic.jur{background:rgba(245,158,11,.2);color:#B45309;margin-left:4px}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;vertical-align:-1px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -593,6 +594,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 /* one bordered card per section: a table inside a card keeps only its row lines */
 .setbox .tblwrap,.chartbox .tblwrap,.pcard .tblwrap{border:0;border-radius:0;background:none}
 .setbox .note{margin:10px 0 4px}
+.setbox p.note{display:block}.setbox .pf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .pcard input.warn{border-color:#F5A524}.pcard input.warn::placeholder{color:#B7791F}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
@@ -1910,7 +1912,7 @@ const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
 function loadSettingsView() {
   Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine')]).then(([s, p, sk, ar, mc]) => {
-    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc;
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
     S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
@@ -2116,6 +2118,31 @@ function dataBlock() {
   const rows = d.entries.map((e) => `<tr><td><b>${esc(DATA_NAMES[e.name] || e.name)}</b><div class="small muted mono" style="word-break:break-all" title="${esc(e.path)}">${esc(e.path)}</div></td><td>${e.exists ? `${fmtSize(e.bytes)}<div class="small muted">${t('data.files', { n: e.files })}</div>` : `<span class="muted">${t('data.missing')}</span>`}</td><td><button class="btn sm" data-opendata="${esc(e.name)}"${e.exists ? '' : ' disabled'}>${t('data.open')}</button></td></tr>`).join('');
   return `<p class="small muted">${t('data.note')}</p><div class="small"><b>${esc(d.home)}</b> · ${t('data.total', { size: fmtSize(d.total.bytes), files: d.total.files })}</div><table class="tbl">${rows}</table><div class="row" style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-opendata="">${t('data.openAll')}</button><button class="btn sm" data-datarefresh>${t('data.refresh')}</button></div>`;
 }
+/** Machine export runs in the hub in the background (POST 202, then GET /api/machine until running is null); the last result also survives a hub restart (read from manifest.json). */
+const fmtWhen = (ts) => new Date(ts).toLocaleString(loc(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+function machineStatusHtml() {
+  const m = S.machine;
+  if (m?.running) {
+    const r = m.running;
+    return `<span class="spin" aria-hidden="true"></span> ${t('machine.running', { copied: r.copied ?? 0, skipped: r.skipped ?? 0, item: r.item ? ' · ' + esc(String(r.item).slice(-60)) : '' })}`;
+  }
+  const l = m?.last;
+  if (!l) return `<span class="muted">${t('machine.never')}</span>`;
+  if (l.ok === false) return `<span class="bad">${esc(t('machine.failed', { at: fmtWhen(l.at), err: l.error || '?' }))}</span>`;
+  const detail = l.copied != null ? t('machine.detail', { copied: l.copied, skipped: l.skipped ?? 0, s: Math.round((l.ms || 0) / 100) / 10 }) : '';
+  return `<span class="muted">${t('machine.okLast', { at: fmtWhen(l.at), n: l.items, keys: l.withKeys ? t('machine.withKeys') : '', detail })}${l.fromManifest ? t('machine.fromManifest') : ''}</span>`;
+}
+let machineTimer = 0;
+function paintMachine() {
+  const st = $('machineStatus'), b = $('machineExport');
+  if (st) st.innerHTML = machineStatusHtml();
+  if (b) { b.disabled = !!S.machine?.running; b.textContent = S.machine?.running ? t('machine.exporting') : t('machine.export'); }
+}
+function pollMachine() {
+  clearTimeout(machineTimer);
+  if (!S.machine?.running) return;
+  machineTimer = setTimeout(() => api('/api/machine').then((m) => { S.machine = m; paintMachine(); }, () => {}).then(pollMachine), 1000);
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -2123,7 +2150,7 @@ function renderSettingsView() {
   if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`}</div>`; return; }
   const aj = st.autoJobs, ar = S.archive?.last;
   const arOn = st.archive.enabled ?? !!st.archive.dir;
-  const arState = !arOn ? (st.archive.dir ? t('archive.offKept') : t('archive.offEmpty')) : !S.archive?.dir ? t('archive.noDir') : !ar ? t('archive.notYet')
+  const arState = !arOn ? (st.archive.dir ? t('archive.offKept') : t('archive.offEmpty')) : !st.archive.dir ? t('archive.noDir') : !ar ? t('archive.notYet')
     : ar.ok ? t('archive.last', { at: time(ar.at), n: ar.copiedFiles }) : t('archive.fail', { reason: esc(ar.reason) });
   const P = {
     general: `    <p class="lede">${t('settings.lede')}</p>
@@ -2132,7 +2159,7 @@ function renderSettingsView() {
     <h2>${t('machine.title')}</h2>
     <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
       <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
-      <div class="pf"><button class="btn primary" id="machineExport">${t('machine.export')}</button><span class="small muted">${S.machine?.last ? t('machine.last', { at: time(S.machine.last.at), n: S.machine.last.items, keys: S.machine.last.withKeys ? t('machine.withKeys') : '' }) : t('machine.never')}</span></div>
+      <div class="pf"><button class="btn primary" id="machineExport"${S.machine?.running ? ' disabled' : ''}>${S.machine?.running ? t('machine.exporting') : t('machine.export')}</button><span id="machineStatus" class="small" aria-live="polite">${machineStatusHtml()}</span></div>
       ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
     <h2>Hub</h2>
     <div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
@@ -2242,10 +2269,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     }
     if (e.target.closest('#machineExport')) {
       return api('/api/machine/export', { withKeys: !!S.machineWithKeys }).then((r) => {
-        S.machine = { ...S.machine, last: r };
-        toast(t('machine.exported', { n: r.items, dir: r.dir }));
-        renderSettingsView();
-      }, (err) => toast(err.message));
+        S.machine = { ...S.machine, running: { at: Date.now(), n: 0, item: '', copied: 0, skipped: 0 } };
+        toast(t('machine.started', { dir: r.dir || S.machine?.dir || '' }));
+        paintMachine(); pollMachine();
+      }, (err) => { if (/running|already/i.test(err.message)) { S.machine = { ...S.machine, running: S.machine?.running || { at: Date.now(), n: 0, item: '', copied: 0, skipped: 0 } }; paintMachine(); pollMachine(); return toast(t('machine.already')); } toast(err.message); });
     }
     const go = e.target.closest('[data-gotab]');
     if (go) { e.preventDefault(); showTab(go.dataset.gotab); return; }
