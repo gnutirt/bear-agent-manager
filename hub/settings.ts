@@ -22,8 +22,10 @@ export type Settings = {
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
+  permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
+  closeLimitedTab: boolean;   // a tab stuck after a usage limit is closed at wake time so the agent comes back in the background
   relayChat: boolean;   // safety net: an answer an agent left in its own chat after a room wake is posted to the room
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
@@ -36,9 +38,24 @@ const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, lo: number, hi: number) => (v == null || !Number.isFinite(Number(v)) ? d : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
 export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase();
 
+export const PERM_MODES = ['bypass', 'acceptEdits', 'default', 'plan'] as const;
+export type PermMode = (typeof PERM_MODES)[number];
+export type PermRule = { mode: PermMode; allow: string[]; deny: string[] };
+export type Permissions = { default: PermRule; perAgent: Record<string, Partial<PermRule>> };
+/** One tool spec for --allowedTools / --disallowedTools ("Edit", "Bash(git push:*)", "mcp__x__y"). No quotes or shell characters: it ends up on a command line. */
+const TOOL_SPEC = /^[A-Za-z][\w .:*()\/\\@,-]{0,119}$/;
+const toolList = (v: unknown, cur: string[]) => (Array.isArray(v) ? [...new Set(v.map((t) => String(t).trim()).filter((t) => TOOL_SPEC.test(t)))].slice(0, 60) : cur);
+
+/** The rule for one agent: its own entry over the default; an agent that only has the old reviveTools list keeps that choice (default mode + those tools). */
+export function permFor(s: Settings, agent: string): PermRule {
+  const k = normAgent(agent), d = s.permissions.default, o = s.permissions.perAgent[k];
+  if (!o && s.reviveTools[k]?.length) return { mode: 'default', allow: s.reviveTools[k], deny: d.deny };
+  return { mode: o?.mode ?? d.mode, allow: o?.allow ?? d.allow, deny: o?.deny ?? d.deny };
+}
+
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -93,6 +110,25 @@ export function patchSettings(s: Settings, p: any): Settings {
       if (list.length) rt[k] = list; else delete rt[k];
     }
   }
+  const perm: Permissions = { default: { ...s.permissions.default }, perAgent: { ...s.permissions.perAgent } };
+  if (p?.permissions && typeof p.permissions === 'object') {
+    const pd = p.permissions.default;
+    if (pd && typeof pd === 'object') {
+      perm.default = { mode: PERM_MODES.includes(pd.mode) ? pd.mode : perm.default.mode, allow: toolList(pd.allow, perm.default.allow), deny: toolList(pd.deny, perm.default.deny) };
+    }
+    if (p.permissions.perAgent && typeof p.permissions.perAgent === 'object') {
+      for (const [name, v] of Object.entries<any>(p.permissions.perAgent)) {
+        const k = normAgent(name);
+        if (!k) continue;
+        if (v === null) { delete perm.perAgent[k]; continue; }
+        const cur = perm.perAgent[k] ?? {}, next: Partial<PermRule> = { ...cur };
+        if (PERM_MODES.includes(v?.mode)) next.mode = v.mode; else if (v?.mode === null) delete next.mode;
+        if (Array.isArray(v?.allow)) next.allow = toolList(v.allow, []); else if (v?.allow === null) delete next.allow;
+        if (Array.isArray(v?.deny)) next.deny = toolList(v.deny, []); else if (v?.deny === null) delete next.deny;
+        if (Object.keys(next).length) perm.perAgent[k] = next; else delete perm.perAgent[k];
+      }
+    }
+  }
   const am = { ...s.agentModel };
   if (p?.agentModel && typeof p.agentModel === 'object') {
     for (const [name, v] of Object.entries<any>(p.agentModel)) {
@@ -122,12 +158,14 @@ export function patchSettings(s: Settings, p: any): Settings {
     },
     agentSkills: agents,
     agentCompact: compact,
+    permissions: perm,
     reviveTools: rt,
     agentModel: am,
     lead,
     workerRoutes: routes,
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
     relayChat: bool(p?.relayChat, s.relayChat ?? true),
+    closeLimitedTab: bool(p?.closeLimitedTab, s.closeLimitedTab ?? true),
     language: ['auto', 'vi', 'en'].includes(p?.language) ? p.language : s.language ?? 'auto',
     openTabOnWake: bool(p?.openTabOnWake, s.openTabOnWake ?? false),
     updates: { check: bool(p?.updates?.check, s.updates?.check ?? true) },

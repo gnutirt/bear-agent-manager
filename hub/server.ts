@@ -12,7 +12,7 @@ import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider
 import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
+import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
@@ -26,10 +26,10 @@ import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
-import { Store, StoreError, type Session, type Status } from './store.ts';
+import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
-import { accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
+import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
@@ -240,9 +240,39 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return g.dirty ? { error: `${s.name} has ${g.dirty} uncommitted file(s); pass force to go on`, dirty: g.dirty, files: g.files } : null;
   }
 
+  // ---- alive but deaf: a tab whose turn died on a usage limit never reaches the Stop hook, so no @ reaches it ----
+  const unsticking = new Set<string>();
+  const waitTold = new Map<string, number>();   // session -> reset time already announced (one notice per limit)
+  /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
+  async function unstick(s: Session) {
+    if (unsticking.has(s.id)) return;
+    unsticking.add(s.id);
+    const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+    try {
+      const cfg = loadSettings(opts.dir, envCap);
+      const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
+      if (until > Date.now()) {
+        const key = `s:${s.id}`, have = (store.state.wakeAt ??= {});
+        if (!have[key]) { have[key] = { at: until + cfg.lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
+        if (waitTold.get(s.id) !== until) { waitTold.set(s.id, until); say(tr('sys.limit.waiting', { name: s.name, at: clock(have[key].at) })); }
+        return;
+      }
+      if (!cfg.closeLimitedTab) { say(tr('sys.limit.stuck', { name: s.name })); return; }
+      try { await terminateSession(s); }
+      catch (e) {
+        if (s.pid && pidAlive(s.pid)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return; }
+        emitSession(store.markEnded(s.id));   // the process is already gone
+      }
+      say(tr('sys.limit.unstuck', { name: s.name }));
+      deliver(s.id);   // ended now: the normal wake path revives it
+    } finally { unsticking.delete(s.id); }
+  }
+
   const batching = new Set<string>();
   function deliver(sid: string) {
     if (!waiters.has(sid)) {
+      const st = store.session(sid);
+      if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) { void unstick(st); return; }
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
       if (autoRevive && store.session(sid).ended && !revive(sid) && !reviving.has(sid)) autoOpenTab(sid);
       return;
@@ -301,13 +331,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const before = readContextTokens(s.transcript);
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript));
     let compacted = false;
-    const cfg = loadSettings(opts.dir, envCap), tools = cfg.reviveTools[normAgent(s.name)], model = cfg.agentModel[normAgent(s.name)];
+    const cfg = loadSettings(opts.dir, envCap), perm = permFor(cfg, s.name), model = cfg.agentModel[normAgent(s.name)];
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
     emitSession(store.setStatus(s.id, 'busy', tr(compactFirst ? 'sys.act.compact' : 'sys.act.reviving')));
-    const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so ${tools ? `use only read tools and ${tools.join(', ')}` : 'only read files'} and reply.`;
+    const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send. It is ${clock(Date.now(), { day: 'numeric', month: 'numeric' })} now (you have no clock in the background). ${perm.mode === 'bypass' ? 'You run with full permissions (the owner chose this in Settings > Permissions); work in your folder and report in the room.' : `You cannot ask the user for permissions now, so ${perm.allow.length ? `use only read tools and ${perm.allow.join(', ')}` : 'only read files'} and reply.`}`;
     let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
       .then(async () => {
@@ -319,7 +349,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
-        const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, ...(tools ? { tools } : {}) }));
+        const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, perm }));
         if (typeof code === 'number' && code !== 0) failure = `${tr('sys.wake.exit', { code })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
@@ -683,7 +713,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (a === b) return;
     const s = loadSettings(opts.dir, envCap);
     let moved = false;
-    for (const map of [s.agentSkills, s.agentCompact, s.reviveTools, s.agentModel] as Record<string, unknown>[]) {
+    for (const map of [s.agentSkills, s.agentCompact, s.reviveTools, s.agentModel, s.permissions.perAgent] as Record<string, unknown>[]) {
       if (!map[a] || map[b]) continue;   // never overwrite rules the new name already has
       map[b] = map[a];
       delete map[a];

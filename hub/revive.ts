@@ -2,7 +2,9 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number };
+export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm };
+/** What a hub-started claude may do (settings.permissions of that agent). */
+export type Perm = { mode: string; allow: string[]; deny: string[] };
 export type CompactJob = Omit<ReviveJob, 'text'>;
 
 const MAX_RUN_MS = 4 * 3_600_000;   // a woken agent lives over many turns while messages keep coming; this only stops a stuck one
@@ -30,7 +32,23 @@ export function stopRevive(id: string): boolean {
   return true;
 }
 
-function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, extraTools: string[] = [], model?: string, idleMin?: number): Promise<number> {
+/** Arguments of `claude --resume <id> -p`: the permission mode and tool lists of the agent (no perm: read-only default plus the room tools). */
+export function claudeArgs(id: string, perm: Perm | undefined, model?: string): string[] {
+  const a = ['--resume', id, '-p', '--output-format', 'text'];
+  const mode = perm?.mode ?? 'default';
+  if (mode === 'bypass') a.push('--dangerously-skip-permissions');
+  else {
+    if (mode === 'acceptEdits' || mode === 'plan') a.push('--permission-mode', mode);
+    a.push('--allowedTools', ...TOOLS, ...(perm?.allow ?? []));
+  }
+  if (perm?.deny?.length) a.push('--disallowedTools', ...perm.deny);
+  if (model) a.push('--model', model);
+  return a;
+}
+/** cmd.exe (shell: true) splits an unquoted argument at spaces and reads parentheses: quote those; the settings validation already refuses quotes and shell operators. */
+const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a) ? `"${a}"` : a);
+
+function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, perm?: Perm, model?: string, idleMin?: number): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
   delete env.BEAR_AGENT_HEADLESS;
@@ -39,8 +57,8 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   if (idleMin) { env.BEAR_AGENT_HEADLESS = '1'; env.BEAR_AGENT_IDLE_MIN = String(idleMin); }
   fs.mkdirSync(job.logDir, { recursive: true });
   const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
-  fs.writeSync(log, `\n${new Date().toISOString()} ${label} ${job.id} in ${job.cwd}\n`);
-  const child = spawn('claude', ['--resume', job.id, '-p', '--output-format', 'text', '--allowedTools', ...TOOLS, ...extraTools, ...(model ? ['--model', model] : [])], {
+  fs.writeSync(log, `\n${new Date().toISOString()} ${label} ${job.id} in ${job.cwd} [perm: ${perm?.mode ?? 'default'}${perm?.allow?.length ? ` +${perm.allow.length}` : ''}${perm?.deny?.length ? ` -${perm.deny.length}` : ''}]\n`);
+  const child = spawn('claude', claudeArgs(job.id, perm, model).map(shellArg), {
     cwd: fs.existsSync(job.cwd) ? job.cwd : undefined,
     env,
     shell: process.platform === 'win32', // resolves claude.cmd / claude.exe on PATH; args contain no user text
@@ -62,7 +80,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
  * room messages. The prompt goes through stdin, so no message text is ever on a command line.
  */
 export function spawnRevive(job: ReviveJob): Promise<number> {
-  return resumeTurn(job, job.text, 'revive', MAX_RUN_MS, job.tools, job.model, job.idleMin);
+  return resumeTurn(job, job.text, 'revive', MAX_RUN_MS, job.perm ?? (job.tools ? { mode: 'default', allow: job.tools, deny: [] } : undefined), job.model, job.idleMin);
 }
 
 /**
@@ -70,5 +88,5 @@ export function spawnRevive(job: ReviveJob): Promise<number> {
  * session id (Claude Code 2.1.300, tested on a throwaway session: 54k -> 3.7k, ~1 min).
  */
 export function spawnCompact(job: CompactJob): Promise<number> {
-  return resumeTurn(job, '/compact', 'compact', MAX_COMPACT_MS, [], job.model);
+  return resumeTurn(job, '/compact', 'compact', MAX_COMPACT_MS, undefined, job.model);
 }

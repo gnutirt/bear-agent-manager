@@ -107,3 +107,33 @@ test('lead.idleMin: 30 by default, kept between 1 and 240', () => {
   assert.equal(patchSettings(d, { lead: { idleMin: 999 } }).lead.idleMin, 240);
   assert.equal(patchSettings(patchSettings(d, { lead: { idleMin: 90 } }), { lead: { delegate: false } }).lead.idleMin, 90);
 });
+
+test('permissions: bypass by default, per agent override, bad modes and shell characters refused, old reviveTools kept', async () => {
+  const { permFor } = await import('../hub/settings.ts');
+  const d = defaultSettings(4);
+  assert.deepEqual(d.permissions, { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} });
+  assert.deepEqual(permFor(d, 'Coder'), { mode: 'bypass', allow: [], deny: [] });
+  let s = patchSettings(d, { permissions: { default: { mode: 'acceptEdits', deny: ['Bash(git push:*)', 'Bash(x & y)', 'a"b', 'Bash(rm -rf:*)'] } } });
+  assert.equal(s.permissions.default.mode, 'acceptEdits');
+  assert.deepEqual(s.permissions.default.deny, ['Bash(git push:*)', 'Bash(rm -rf:*)']);   // the `&` and quote entries are dropped
+  assert.equal(patchSettings(s, { permissions: { default: { mode: 'yolo' } } }).permissions.default.mode, 'acceptEdits');
+  s = patchSettings(s, { permissions: { perAgent: { ' Boss ': { mode: 'plan', allow: ['Edit'] } } } });
+  assert.deepEqual(permFor(s, 'boss'), { mode: 'plan', allow: ['Edit'], deny: ['Bash(git push:*)', 'Bash(rm -rf:*)'] });
+  assert.equal(permFor(s, 'other').mode, 'acceptEdits');
+  s = patchSettings(s, { permissions: { perAgent: { boss: null } } });
+  assert.deepEqual(s.permissions.perAgent, {});
+  // an agent that only has the old reviveTools list keeps that choice
+  const old = patchSettings(d, { reviveTools: { dev: ['Edit', 'Write'] } });
+  assert.deepEqual(permFor(old, 'dev'), { mode: 'default', allow: ['Edit', 'Write'], deny: [] });
+  assert.equal(permFor(old, 'zed').mode, 'bypass');
+});
+
+test('claudeArgs: bypass skips permissions, default keeps the read-only tools plus allow, deny always last', async () => {
+  const { claudeArgs } = await import('../hub/revive.ts');
+  assert.deepEqual(claudeArgs('s1', { mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, 'opus'),
+    ['--resume', 's1', '-p', '--output-format', 'text', '--dangerously-skip-permissions', '--disallowedTools', 'Bash(git push:*)', '--model', 'opus']);
+  const def = claudeArgs('s1', { mode: 'default', allow: ['Edit'], deny: [] });
+  assert.ok(def.includes('--allowedTools') && def.includes('Edit') && def.includes('Read') && !def.includes('--dangerously-skip-permissions'));
+  assert.ok(claudeArgs('s1', { mode: 'acceptEdits', allow: [], deny: [] }).join(' ').includes('--permission-mode acceptEdits'));
+  assert.ok(claudeArgs('s1', undefined).includes('Grep'), 'no perm: the old read-only default');
+});
