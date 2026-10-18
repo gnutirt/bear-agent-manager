@@ -13,6 +13,7 @@ import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { applyShare, listAccounts as listConfigAccounts, planShare } from './accounts.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
+import { autostartState, setAutostart } from './autostart.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -92,6 +93,8 @@ export type HubOptions = {
   compactRevive?: (job: CompactJob) => Promise<number> | number;
   /** D3 new agent without an editor (stubbed in tests). */
   spawnAgent?: (job: AgentJob) => Promise<number> | number;
+  /** Startup folder for the sign-in script (tests use a temp one). */
+  startupDir?: string;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
   batchMs?: number;
   /** Resume closed sessions automatically when mentioned (default off: a cold resume re-reads the whole chat). */
@@ -1054,6 +1057,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       try { applyShare(plan, primary); } catch (e) { return json(res, 500, { error: (e as Error).message, plan }); }
       console.log(`[accounts] chats ${b.on !== false ? 'shared' : 'unshared'}: ${plan.map((a) => `${a.do} ${a.path ?? a.from}`).join('; ')}`);
       return json(res, 200, { plan, done: true, ...listConfigAccounts(accountDirs(), primary) });
+    }
+    // D3: start the hub at sign-in (off by default; on/off only with confirm from the UI)
+    if (m === 'GET' && p === '/api/autostart') return json(res, 200, autostartState(opts.startupDir));
+    if (m === 'POST' && p === '/api/autostart') {
+      const b = await readBody(req);
+      if (b.confirm !== true) return json(res, 200, { ...autostartState(opts.startupDir), done: false });
+      try { return json(res, 200, { ...setAutostart(b.on === true, process.execPath, ROOT, opts.startupDir), done: true }); }
+      catch (e) { return json(res, 400, { error: (e as Error).message }); }
     }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).

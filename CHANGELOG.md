@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Start the hub at sign-in (D3, Windows): `GET /api/autostart` → `{supported, on, file}`; `POST /api/autostart {on, confirm: true}` writes or deletes one hidden-start script in the user's own Startup folder (no admin rights). Off by default; without confirm nothing changes. Other systems: unsupported, start with `npm run hub`. Needs hub restart.
 - New agents without an editor (D3): `POST /api/agents {name, cwd, room, account?, prompt?}` starts `claude -p --session-id <uuid>` in the background in that folder (permissions from the Permissions tab, the waiter keeps it alive for `lead.idleMin` between messages), registered under its name and already in the room; the chat is saved like any other, so it opens in an editor later. A folder no chat has used needs `confirm: true` (409 `needConfirm` before). Needs hub restart.
 - Shared chats between editors (D1, hub): `GET /api/accounts` lists the Claude config dirs of the machine (the default one first; login known only by whether its file exists, never read) and whether they share chats (`shared`: the others' projects/ is a junction to the default one's). `POST /api/accounts/share {on}` returns the plan; with `confirm: true` it carries it out: a projects/ folder with chats is renamed to `projects.pre-share-<date>` (never deleted) before the junction is made, turning off removes only the junction. Refused (409) while any claude process runs. Needs hub restart.
 ## 0.4.0 - 2026-10-18
