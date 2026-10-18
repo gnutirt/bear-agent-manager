@@ -102,7 +102,9 @@ export function usageAlerts(accounts: AccountUsage[], sent: string[]): { key: st
     for (const w of ['fiveHour', 'sevenDay'] as const) {
       const u = a[w];
       if (!u || u.pct < ALERT_AT[w]) continue;
-      const key = `${a.email || a.configDirs[0]}|${w}|${u.resetsAt ?? ''}`;
+      // resets_at jitters by a few ms between polls (12:59:59.99 / 13:00:00.07): round to 10 minutes or every poll is a new key
+      const cycle = u.resetsAt ? Math.round(Date.parse(u.resetsAt) / 600_000) : '';
+      const key = `${a.email || a.configDirs[0]}|${w}|${cycle}`;
       if (sent.includes(key)) continue;
       const reset = u.resetsAt ? `, reset ${new Date(u.resetsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' })}` : '';
       out.push({ key, account: a, text: `@you Claude Pro ${a.label} (${maskEmail(a.email)}) đã dùng ${Math.round(u.pct)}% hạn mức ${w === 'fiveHour' ? '5 giờ' : 'tuần'}${reset}.` });

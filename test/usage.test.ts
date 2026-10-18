@@ -76,6 +76,9 @@ test('usageAlerts: 80% of 5 h and 90% of the week, once per cycle; a new resets_
   assert.deepEqual(usageAlerts([a], first.map((x) => x.key)), []);
   assert.equal(usageAlerts([{ ...a, fiveHour: { pct: 81, resetsAt: '2026-10-16T20:00:00Z' } }], first.map((x) => x.key)).length, 1);
   assert.equal(usageAlerts([{ ...a, sevenDay: { pct: 90, resetsAt: 'x' } }], first.map((x) => x.key)).length, 1);
+  const w = (resetsAt: string) => [{ ...a, fiveHour: { pct: 99, resetsAt }, sevenDay: null }];
+  const k = usageAlerts(w('2026-10-19T05:59:59.990Z'), []).map((x) => x.key);
+  assert.deepEqual(usageAlerts(w('2026-10-19T06:00:00.070Z'), k), [], 'reset time jitter is the same cycle');
 });
 
 test('GET /api/claude-usage never returns or logs a token, also on errors; credential files are only read', async () => {
