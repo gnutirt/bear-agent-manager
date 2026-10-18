@@ -372,4 +372,7 @@ export const en: Record<string, string> = {
   'reply.to': '↩ Reply to {name}',
   'reply.cancel': 'Cancel reply',
   'reply.gone': 'The original message is no longer in the loaded list',
+  'rcKind.worker': 'worker',
+  'rcKind.test': 'test',
+  'msg.toYou': 'for you',
 };

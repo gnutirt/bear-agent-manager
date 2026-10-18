@@ -372,4 +372,7 @@ export const vi: Record<string, string> = {
   'reply.to': '↩ Trả lời {name}',
   'reply.cancel': 'Huỷ trả lời',
   'reply.gone': 'Tin gốc không còn trong danh sách đang tải',
+  'rcKind.worker': 'worker',
+  'rcKind.test': 'test',
+  'msg.toYou': 'gọi bạn',
 };

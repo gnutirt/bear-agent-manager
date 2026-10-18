@@ -228,7 +228,7 @@ header .spacer{flex:1}
 .group.you{flex-direction:row-reverse;margin-left:auto;max-width:78%;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 @media (prefers-reduced-motion:reduce){.group,.group:hover{transform:none;transition:none}}
 .group.you .head{flex-direction:row-reverse}
-.group.tome .head::after{content:"gọi bạn";margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
+.group.tome .head::after{content:attr(data-to-you);margin-left:auto;font-size:11.5px;font-weight:700;color:#1B2233;background:var(--me-line);border-radius:6px;padding:0 7px}
 .group .body{flex:1;min-width:0}
 .group .head{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
 .group .head b{font-size:14.5px}
@@ -530,7 +530,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div class="brand">
     <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M17 9h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-3"/></svg></span>
     <span class="bname" title="Bear Agent Manager">Bear Agent</span>
-    <span class="hub-state" id="hubState" title="Hub: đã kết nối" aria-label="Hub: đã kết nối"><span class="led idle"></span></span>
+    <span class="hub-state" id="hubState" title="Hub" aria-label="Hub"><span class="led idle"></span></span>
   </div>
   <div class="side-scroll">
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
@@ -1042,7 +1042,7 @@ function renderLog() {
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }

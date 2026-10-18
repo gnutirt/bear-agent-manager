@@ -56,6 +56,23 @@ test('reply: quote bar, floating button, replyTo sent with the message, quote bo
   } finally { await hub.close(); }
 });
 
+test('i18n: every key the UI uses exists, and no Vietnamese text is left outside data-i18n fallbacks and comments', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const { vi } = await import('../shared/i18n/vi.ts');
+    const used = new Set<string>();
+    for (const m of html.matchAll(/\bt\('([\w.]+)'/g)) used.add(m[1]);
+    for (const m of html.matchAll(/data-i18n[\w-]*="([\w.]+)"/g)) used.add(m[1]);
+    for (const m of html.matchAll(/: '([a-zA-Z]+(?:\.[a-zA-Z0-9]+)+)'/g)) if (m[1] in vi || /^(rcKind|status|mode|cmode|route|sub)\./.test(m[1])) used.add(m[1]);
+    assert.deepEqual([...used].filter((k) => !(k in vi)), [], 'keys used but missing from vi.ts');
+    const VN = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđĐ]/;
+    const body = html.replace(/<style>[\s\S]*?<\/style>/, '').split('\n').filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l) && !/\/\/[^'"`]*$/.test(l.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, '')));
+    const bad = body.filter((l) => VN.test(l.replace(/Tiếng Việt/g, '')) && !/data-i18n/.test(l)).map((l) => l.trim().slice(0, 80));
+    assert.deepEqual(bad, [], 'hard-coded Vietnamese outside the dictionary');
+  } finally { await hub.close(); }
+});
+
 test('inline script never calls $() before declaring it (a TDZ error blanks the whole page)', async () => {
   const { hub } = await makeHub();
   try {
