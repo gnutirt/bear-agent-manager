@@ -371,6 +371,21 @@ header .spacer{flex:1}
 .tacts .iconbtn{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--mute)}.tacts .iconbtn:hover{background:var(--hover);color:var(--text)}.tacts .iconbtn svg{width:14px;height:14px}
 .tempty{color:var(--mute);font-size:12.5px;padding:8px 4px}
 @media (max-width:900px){.tboard{grid-template-columns:repeat(4,260px)}.tform{grid-template-columns:1fr}}
+
+.roomtools{display:flex;align-items:center;gap:10px;padding:6px 20px;border-bottom:1px solid var(--line);background:var(--panel)}.roomtools #topicBar{flex:1;padding:0;border:0;background:none;min-width:0}.roomtools #topicBar[hidden]{display:none}.roomtools .sysseg{margin-left:auto}
+.sysseg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}.sysseg button{padding:4px 10px;font-size:12.5px;color:var(--mute);font-weight:600}.sysseg button[aria-pressed=true]{background:var(--accent);color:#fff}.sysseg button:not([aria-pressed=true]):hover{background:var(--hover);color:var(--text)}
+.rail{position:relative;margin:4px 0 8px;padding-left:34px}.rail:before{content:'';position:absolute;left:11px;top:6px;bottom:6px;width:2px;border-radius:2px;background:color-mix(in srgb,var(--text) 14%,transparent)}
+.rail .n{position:absolute;left:-34px;top:5px;width:24px;height:24px;border-radius:50%;background:var(--panel);display:grid;place-items:center;border:2px solid color-mix(in srgb,var(--text) 16%,transparent);color:var(--mute)}.rail .n svg{width:12px;height:12px}
+.rail .done>.n{border-color:color-mix(in srgb,#22C55E 65%,transparent);color:#22C55E}.rail .warn>.n{border-color:color-mix(in srgb,#F59E0B 65%,transparent);color:#F59E0B}.rail .error>.n{border-color:color-mix(in srgb,#EF4444 65%,transparent);color:#EF4444}
+.ev{position:relative;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:5px 0;font-size:13px;color:var(--mute)}.ev .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ev.open .t{white-space:normal}.ev .t b{color:var(--text);font-weight:600}.ev .t p{margin:0;display:inline}
+.ev.long{cursor:pointer}.ev time{font-size:12px;opacity:.85;white-space:nowrap}.ev .x{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--hover);font-size:11.5px;font-weight:700;color:var(--mute)}
+.ev .act{padding:1px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--text);background:var(--panel)}.ev .act:hover{border-color:var(--accent)}.ev .evbody{flex:0 0 100%;color:var(--text);font-size:13.5px;padding:2px 0 4px}
+.rail .card{position:relative;margin:6px 0;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--text) 3%,transparent)}.rail .card .n{top:11px}
+.rail .card .row{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--mute)}.rail .card .row b{color:var(--text);font-weight:600}.rail .card small{color:var(--mute);font-size:12px}
+.meter{height:6px;border-radius:99px;background:color-mix(in srgb,var(--text) 14%,transparent);overflow:hidden;margin:8px 0 4px}.meter i{display:block;height:100%;background:linear-gradient(90deg,#22C55E,#F59E0B 70%,#EF4444);transition:width .4s}
+.rail .relay{position:relative;margin:8px 0;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:4px 12px 12px 4px;background:color-mix(in srgb,var(--c) 5%,transparent);padding:8px 14px 9px}.rail .relay .n{top:10px}
+.relay .rh{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute);margin-bottom:2px}.relay .rh b{color:var(--c);font-weight:650;font-size:13.5px}.relay .rh time{margin-left:auto}
+.relay.clamp .rbody{max-height:3.4em;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}.relay .more{margin-top:3px;font-size:12.5px;font-weight:600;color:var(--accent)}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -746,7 +761,10 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
   <div id="searchBar" hidden></div>
   <div id="aroundBar" hidden></div>
+  <div id="roomTools" class="roomtools">
   <div id="topicBar" hidden role="tablist" aria-label="Chủ đề của phòng" data-i18n-aria="topic.bar"></div>
+  <span class="seg sysseg" id="sysSeg" role="group" aria-label="Tin hệ thống" data-i18n-aria="sys.label" data-i18n-ta="sys.tip" title="Ẩn: chỉ giữ lỗi và chat riêng của agent. Gọn: mỗi tin một dòng. Đầy đủ: mở rộng hết."><button type="button" data-sys="off" data-i18n="sys.off">Ẩn</button><button type="button" data-sys="compact" data-i18n="sys.compact">Gọn</button><button type="button" data-sys="full" data-i18n="sys.full">Đầy đủ</button></span>
+  </div>
   <div id="log"><div id="logBody"></div><button class="btn primary" id="newMsgs" hidden aria-label="Có tin mới, cuộn xuống tin mới nhất" data-i18n-aria="newMsgs.label">↓ Tin mới</button></div>
   <div id="presence"></div>
   <div class="compose-wrap">
@@ -1376,6 +1394,51 @@ $('topicBtn').onclick = (e) => {
   });
 };
 
+/* ---------- system layer: hub notices (sys {type, level, agent?, ref?}) drawn as a quiet rail; mode Hide | Compact | Full ---------- */
+S.sysMode = (() => { try { const v = localStorage.getItem('bear-agent-manager:sysmode'); return v === 'off' || v === 'full' ? v : 'compact'; } catch { return 'compact'; } })();
+const SYS_SVG = { ok: '<path d="M3 8.5l3.2 3L13 4.5"/>', x: '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>', warn: '<path d="M8 3v6M8 12.3v.2"/>', lines: '<path d="M3 5h10M5 8h6M7 11h2"/>', bolt: '<path d="M9.5 2.5l-5 6h4l-1 5 5-6h-4z"/>', clock: '<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/>', tab: '<rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/><path d="M2.5 6.5h11"/>', up: '<path d="M8 12.5V4M4.5 7.5L8 4l3.5 3.5"/>', disk: '<rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M5.5 3v3.5h5V3"/>', star: '<path d="M8 2.5l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.3 4.6 13l.7-3.8L2.5 6.5l3.8-.5z"/>', info: '<path d="M8 7v4.5M8 4.5v.2"/>', back: '<path d="M6 4L3 7l3 3M3 7h6a4 4 0 0 1 4 4"/>' };
+function sysNode(m) {
+  const s = m.sys || {};
+  const k = s.level === 'done' ? 'ok' : s.level === 'error' ? 'x' : s.level === 'warn' ? 'warn' : ({ compact: 'lines', wake: 'bolt', usage: 'clock', tab: 'tab', task: 'ok', update: 'up', backup: 'disk', lead: 'star', relay: 'back' })[s.type] || 'info';
+  return `<span class="n" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${SYS_SVG[k]}</svg></span>`;
+}
+/** A usage reading ("<account> ... 81% ...") of the hub: the account label, the percentage and the reset time, language-neutral. */
+function usageOf2(m) {
+  if (m.sys?.type !== 'usage') return null;
+  const pct = String(m.text).match(/(\d{1,3})%/), label = String(m.text).match(/^(?:@you\s+)?(.*?\))/);
+  if (!pct || !label) return null;
+  const reset = [...String(m.text).matchAll(/\d{1,2}:\d{2}(?:\s+\d{1,2}\/\d{1,2})?/g)].pop()?.[0] || '';
+  return { pct: Math.min(100, +pct[1]), label: label[1], reset };
+}
+function usageCard(m, u, hist) {
+  const first = hist[0], tip = hist.map((h) => `${time(h.ts)} ${h.pct}%`).join('\n');
+  return `<div class="card ${u.pct >= 90 ? 'warn' : ''}" title="${esc(tip)}">${sysNode(m)}<div class="row"><b>${esc(u.label)}</b><span style="flex:1"></span><b>${u.pct}%</b></div><div class="meter"><i style="width:${u.pct}%"></i></div><small>${u.reset ? t('sys.usage.reset', { at: esc(u.reset) }) + ' · ' : ''}${t('sys.usage.updated', { at: time(m.ts) })}${hist.length > 1 ? t('sys.usage.times', { n: hist.length, first: time(first.ts) }) : ''}</small></div>`;
+}
+function sysRow(m, run) {
+  const text = String(m.text).replace(/^@you\s+/, ''), lines = text.split('\n'), long = lines.length > 1 || text.length > 170;
+  const open = S.sysMode === 'full' || S.expanded.has('s' + m.id);
+  const when = run ? `${time(run[0].ts)}–${time(run[run.length - 1].ts)}` : time(m.ts);
+  const ag = m.sys?.agent && Object.values(S.sessions).find((x) => x.name === m.sys.agent);
+  const btn = ag && ag.status === 'offline' && ['usage', 'wake'].includes(m.sys.type) && m.sys.level !== 'info' ? `<button type="button" class="act" data-sysopen="${esc(ag.id)}">${t('members.openTab')}</button>` : '';
+  const body = open && long ? `<div class="evbody msg noclamp">${md(lines.slice(1).join('\n') || text)}</div>` : '';
+  return `<div class="ev ${m.sys?.level || 'info'}${long ? ' long' : ''}${open ? ' open' : ''}" data-sysid="${m.id}">${sysNode(m)}<span class="t">${inline(lines[0])}${run ? `<span class="x">×${run.length}</span>` : ''}</span>${btn}<time>${when}</time>${body}</div>`;
+}
+function relayCard(m) {
+  const text = String(m.text), name = m.sys?.agent || m.from, open = S.sysMode === 'full' || S.expanded.has('s' + m.id), long = text.length > 220 || text.split('\n').length > 3;
+  return `<div class="relay${long && !open ? ' clamp' : ''}" style="--c:${color(m.fromId || name)}">${sysNode(m)}<div class="rh"><b>${esc(name)}</b><span>${t('relay.badge')}</span><time>${time(m.ts)}</time></div><div class="rbody msg noclamp">${md(text)}</div>${long ? `<button type="button" class="more" data-sysmore="${m.id}">${open ? t('sys.less') : t('sys.more')}</button>` : ''}</div>`;
+}
+function renderSysSeg() { document.querySelectorAll('#sysSeg [data-sys]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sys === S.sysMode))); }
+$('sysSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-sys]'); if (!b) return; S.sysMode = b.dataset.sys; try { localStorage.setItem('bear-agent-manager:sysmode', S.sysMode); } catch {} renderSysSeg(); S.stick = false; renderLog(); });
+$('log').addEventListener('click', (e) => {
+  const open = e.target.closest('[data-sysopen]'); if (open) return openTab(open.dataset.sysopen);
+  const more = e.target.closest('[data-sysmore]');
+  const row = more ? null : e.target.closest('.ev.long');
+  const id = more ? more.dataset.sysmore : row && !e.target.closest('a, button') ? row.dataset.sysid : null;
+  if (!id) return;
+  const key = 's' + id; if (S.expanded.has(key)) S.expanded.delete(key); else S.expanded.add(key);
+  S.stick = false; renderLog();
+});
+
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
@@ -1392,22 +1455,37 @@ function renderLog() {
   }
   let html = '', prev = null, prevDay = '';
   const last = lastWakes(ms);
-  const sysRuns = new Map();   // first id of a run of identical system lines -> the run; later ids -> 0
+  // system layer (mockup approved): quiet rail items, one usage card per account, relay cards under the agent's name
+  const mode = S.sysMode, relayOf = (m) => m.sys?.type === 'relay';
+  const shownSys = (m) => m.kind === 'system' && (mode !== 'off' || relayOf(m) || m.sys?.level === 'error');
+  const sysRuns = new Map();   // first id of a run of identical notices -> the run; later ids -> 0
+  const usageLast = new Map(), usageSeen = new Map(), usageHist = new Map();
   for (let i = 0; i < ms.length; i++) {
-    if (ms[i].kind !== 'system') continue;
-    let j = i; while (j + 1 < ms.length && ms[j + 1].kind === 'system' && ms[j + 1].text === ms[i].text) j++;
-    if (j > i) { sysRuns.set(ms[i].id, ms.slice(i, j + 1)); for (let k = i + 1; k <= j; k++) sysRuns.set(ms[k].id, 0); i = j; }
+    const m = ms[i];
+    if (!shownSys(m)) continue;
+    const u = usageOf2(m);
+    if (u) { usageLast.set(u.label, m.id); (usageHist.get(u.label) || usageHist.set(u.label, []).get(u.label)).push({ ts: m.ts, pct: u.pct }); continue; }
+    if (relayOf(m)) continue;
+    let j = i; while (j + 1 < ms.length && ms[j + 1].kind === 'system' && !relayOf(ms[j + 1]) && !usageOf2(ms[j + 1]) && ms[j + 1].text === m.text) j++;
+    if (j > i) { sysRuns.set(m.id, ms.slice(i, j + 1)); for (let k = i + 1; k <= j; k++) sysRuns.set(ms[k].id, 0); i = j; }
   }
+  let rail = false;
+  const openRail = () => { if (!rail) { html += '<div class="rail">'; rail = true; } };
+  const closeRail = () => { if (rail) { html += '</div>'; rail = false; } };
   for (const m of ms) {
     const day = dayOf(m.ts);
-    if (day !== prevDay) { html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
+    if (day !== prevDay) { closeRail(); html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
     if (m.kind === 'system') {
-      // identical system lines in a row (e.g. repeated usage warnings) collapse into one line with ×n; click lists the times
+      if (!shownSys(m)) continue;
       const run = sysRuns.get(m.id);
-      if (run === 0) { prev = null; continue; }
-      html += run ? `<details class="sysline sysrun"><summary>${md(m.text)} <span class="x">×${run.length}</span></summary><div class="small muted">${run.map((x) => time(x.ts)).join(' · ')}</div></details>` : `<div class="sysline">${md(m.text)}</div>`;
+      if (run === 0) continue;
+      const u = usageOf2(m);
+      if (u && usageLast.get(u.label) !== m.id) continue;   // only the latest reading of an account is drawn
+      openRail();
+      html += u ? usageCard(m, u, usageHist.get(u.label)) : relayOf(m) ? relayCard(m) : sysRow(m, run);
       prev = null; continue;
     }
+    closeRail();
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome && topicOf(prev) === topicOf(m);
     if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
@@ -1418,8 +1496,9 @@ function renderLog() {
     }
     prev = m;
   }
+  closeRail();
   logBody.innerHTML = html;
-  logBody.querySelectorAll('.msg').forEach((m) => {
+  logBody.querySelectorAll('.msg:not(.noclamp)').forEach((m) => {
     if (m.scrollHeight <= 260) return;
     const id = m.dataset.mid, open = S.expanded.has(id);   // re-renders keep "Xem thêm" open
     if (!open) m.classList.add('clamp');
@@ -1477,7 +1556,7 @@ async function loadNotes(room) {
   if (room === S.current) renderNotes();
 }
 
-function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderTopics(); renderPresence(); renderNotes(); if (typeof renderFind === 'function') { renderFind(); renderAround(); } }
+function renderAll() { renderSysSeg(); renderRooms(); renderSessions(); renderHeader(); renderLog(); renderTopics(); renderPresence(); renderNotes(); if (typeof renderFind === 'function') { renderFind(); renderAround(); } }
 
 async function select(name) {
   if (S.around && S.around !== name) { delete S.messages[S.around]; S.around = null; }   // a partial view of the old room is not kept

@@ -77,7 +77,7 @@ test('identical consecutive system lines collapse into one with a count', async 
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['sysRuns', 'class="sysline sysrun"', '×${run.length}']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['sysRuns', 'function sysRow', '×${run.length}']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
 

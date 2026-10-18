@@ -18,3 +18,15 @@ Mọi chuỗi giao diện và thông báo hub dùng đúng bảng này (`shared/
 | hạn mức | usage limit | Phần quota Claude Pro dùng trong cửa sổ 5 giờ hoặc tuần. |
 | cài đặt | settings | `~/.bear-agent-manager/settings.json`, dùng chung cho cả máy. |
 | sao lưu | backup | Bản chép các chat sang thư mục do người dùng chọn; không bao giờ xoá gì. |
+
+## Tin hệ thống (mẫu chuẩn)
+
+Hub đăng tin hệ thống với `sys: {type, level, agent?, ref?}`; giao diện vẽ trên một đường ray riêng, không giống tin người. Chế độ xem: Ẩn (chỉ lỗi và chat riêng của agent) · Gọn (một dòng) · Đầy đủ (mở rộng).
+
+| Loại (`type`) | Cách hiển thị | Ví dụ |
+|---|---|---|
+| usage | một thẻ cho mỗi tài khoản, thanh %, cập nhật tại chỗ | Claude Pro (n***@gmail.com) 86%, làm mới lúc 02:00 |
+| relay | thẻ mang tên agent, "↩ chat riêng", tối đa 600 ký tự, "Xem thêm" | truong-phong trả lời trong chat riêng |
+| wake, tab | một dòng, mức theo `level`; nút "Mở tab" khi tab đã đóng | frontend hết hạn mức, hub dậy lại lúc 20:30 |
+| compact, task, update, backup, lead, info | một dòng; cùng loại liền nhau gộp ×n kèm khoảng giờ | frontend đã compact 588k → 10k |
+| error (mọi loại có `level: error`) | một dòng, nút đỏ; luôn hiện kể cả chế độ Ẩn | Sao lưu chat không chạy được |
