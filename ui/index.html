@@ -72,6 +72,17 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 #menu .vbody{padding:8px 10px;display:grid;gap:8px;font-size:13px}
 #menu .vnotes{max-height:160px;overflow:auto;white-space:pre-wrap;font-size:12.5px;color:var(--mute);background:var(--code);border-radius:8px;padding:8px 10px}
 #menu .vbody .verr{margin:0;padding:8px 10px}
+/* search in the room */
+#searchBar{margin:0;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--panel)}#searchBar[hidden]{display:none}
+#searchBar .frow{display:flex;gap:8px;align-items:center;max-width:1480px;margin:0 auto}
+#searchBar input{flex:1;min-width:0;padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+#searchBar select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);max-width:190px}
+.fresults{max-width:1480px;margin:8px auto 0;max-height:240px;overflow:auto;display:grid;gap:2px}
+.fres{display:flex;gap:10px;align-items:baseline;text-align:left;padding:6px 8px;border-radius:8px;min-width:0}
+.fres:hover{background:var(--hover)}.fres time{color:var(--mute);font-size:12px;white-space:nowrap}.fres b{font-size:13px;white-space:nowrap}
+.fres span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}
+.fres mark{background:color-mix(in srgb,var(--busy) 45%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+#aroundBar{display:flex;align-items:center;gap:12px;justify-content:center;padding:6px 20px;background:var(--accent-soft);font-size:13px}#aroundBar[hidden]{display:none}
 /* attachments */
 #attachBtn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--mute);flex:none}
 #attachBtn:hover{background:var(--hover);color:var(--text)}#attachBtn svg{width:18px;height:18px}
@@ -332,6 +343,7 @@ header .spacer{flex:1}
 #menu .mem .mmodel{flex:1;min-width:0;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--mono)}
 #menu .mem .av .led{border-color:var(--panel)}
 #menu .btn.iconbtn{padding:4px 7px}
+#menu .dirtytag{font-size:11.5px;font-weight:700;color:#A16207;background:color-mix(in srgb,#F5A524 24%,transparent);border-radius:6px;padding:2px 7px;white-space:nowrap;cursor:help}
 #menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
 /* glass themes: message cards are real frosted glass (agent-tinted sheen, bright rim, depth) */
 html:root[data-theme=glass] .group{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 26%,rgba(255,255,255,.20)),rgba(255,255,255,.05) 70%);border-color:rgba(255,255,255,.38);
@@ -616,10 +628,13 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="uchips" id="uchips"></div>
     <div class="stack" id="stack"></div>
     <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng" data-i18n-title="notes.tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg><span data-i18n="notes.title">Biên bản</span> <span id="notesCount">0</span></button>
+    <button class="btn" id="searchBtn" hidden type="button" title="Tìm trong phòng (Ctrl+F)" data-i18n-ta="search.title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
   </header>
   <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
+  <div id="searchBar" hidden></div>
+  <div id="aroundBar" hidden></div>
   <div id="log"><div id="logBody"></div><button class="btn primary" id="newMsgs" hidden aria-label="Có tin mới, cuộn xuống tin mới nhất" data-i18n-aria="newMsgs.label">↓ Tin mới</button></div>
   <div id="presence"></div>
   <div class="compose-wrap">
@@ -909,12 +924,20 @@ function membersMenu(anchor) {
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     const sess = (id) => S.sessions[id];
     // End / Compact stop the chat's tab (VS Code / Antigravity tab dies and must be reopened): two clicks, wording warns when it is busy
+    // a dirty working tree (uncommitted files in the agent's folder) makes the confirmation say so and sends force:true
+    const dirtyOf = (id) => S.git?.[id]?.repo ? S.git[id].dirty : 0;
     const guarded = (btn, id, doIt, ask) => btn.onclick = () => {
-      const s = sess(id);
-      armed(btn, s?.status === 'busy' ? t('members.confirmBusy') : ask, () => doIt(id).then((r) => { closeMenu(); toast(r); }, (e) => toast(e.message)));
+      const s = sess(id), n = dirtyOf(id);
+      armed(btn, n ? t('members.confirmDirty', { n }) : s?.status === 'busy' ? t('members.confirmBusy') : ask, () => doIt(id, n > 0).then((r) => { closeMenu(); toast(r); }, (e) => toast(e.message)));
     };
-    m.querySelectorAll('[data-end]').forEach((b) => guarded(b, b.dataset.end, (id) => api(`/api/sessions/${enc(id)}/terminate`, {}).then(() => t('members.ended', { name: sess(id)?.name })), t('members.confirm')));
-    m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id) => api(`/api/sessions/${enc(id)}/compact`, { revive: true }).then(() => t('members.compacting', { name: sess(id)?.name })), t('members.confirm')));
+    m.querySelectorAll('[data-end]').forEach((b) => guarded(b, b.dataset.end, (id, force) => api(`/api/sessions/${enc(id)}/terminate`, force ? { force: true } : {}).then(() => t('members.ended', { name: sess(id)?.name })), t('members.confirm')));
+    m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id, force) => api(`/api/sessions/${enc(id)}/compact`, { revive: true, ...(force ? { force: true } : {}) }).then(() => t('members.compacting', { name: sess(id)?.name })), t('members.confirm')));
+    S.git = S.git || {};
+    for (const s of ms) api(`/api/sessions/${enc(s.id)}/git`).then((g) => {
+      S.git[s.id] = g;
+      if (!g.repo || !g.dirty) return;
+      m.querySelector(`[data-compact="${CSS.escape(s.id)}"]`)?.before(Object.assign(document.createElement('span'), { className: 'dirtytag', textContent: t('members.dirty', { n: g.dirty }), title: (g.files || []).join('\n') }));
+    }, () => {});   // old hub without /git: no warning
     m.querySelectorAll('[data-model]').forEach((i) => i.onchange = () => api(`/api/sessions/${enc(i.dataset.model)}/model`, { model: i.value.trim() }).then((r) => toast(t(r.model ? 'members.model.saved' : 'members.model.cleared', { model: r.model })), (e) => toast(e.message)));
     m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { closeMenu(); toast(t('members.removed')); }, (e) => toast(e.message)));
   });
@@ -1058,7 +1081,7 @@ function renderHeader() {
   const lead = r?.lead ? S.sessions[r.lead] : null;
   $('meta').textContent = r ? `${ms.length} Claude${busy ? t('header.busy', { n: busy }) : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
   $('stack').innerHTML = ms.slice(0, 8).map((s) => `<button type="button" class="mb ${s.status}" data-name="${esc(s.name)}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</button>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
-  $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = !r;
+  $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = $('searchBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
   $('text').disabled = !r;
@@ -1192,10 +1215,11 @@ async function loadNotes(room) {
   if (room === S.current) renderNotes();
 }
 
-function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderPresence(); renderNotes(); }
+function renderAll() { renderRooms(); renderSessions(); renderHeader(); renderLog(); renderPresence(); renderNotes(); if (typeof renderFind === 'function') { renderFind(); renderAround(); } }
 
 async function select(name) {
-  S.current = name; S.unread[name] = 0; S.stick = true;
+  if (S.around && S.around !== name) { delete S.messages[S.around]; S.around = null; }   // a partial view of the old room is not kept
+  S.current = name; S.unread[name] = 0; S.stick = true; S.find.days = null; S.find.results = null; S.find.q = '';
   try { localStorage.setItem('bear-agent-manager:room', name); } catch {}
   if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
   if (name && !S.notes[name]) await loadNotes(name);
@@ -1227,8 +1251,8 @@ function connect() {
   es.addEventListener('msg', (e) => {
     const m = JSON.parse(e.data);
     const list = S.messages[m.room];
-    if (list && !list.some((x) => x.id === m.id)) list.push(m);
-    if (m.room === S.current) renderLog();
+    if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) list.push(m);   // while an old part of the room is shown, new messages wait for "back to latest"
+    if (m.room === S.current && S.around !== m.room) renderLog();
     else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
   es.addEventListener('session', (e) => {
@@ -1963,6 +1987,63 @@ const tagByName = (name) => { if (name && name !== t('you')) { closeMenu(); inse
 $('stack').addEventListener('click', (e) => { const mb = e.target.closest('.mb'); if (mb) tagByName(mb.dataset.name); });
 $('log').addEventListener('click', (e) => { const b = e.target.closest('.head > b[data-name]'); if (b) tagByName(b.dataset.name); });
 $('menu').addEventListener('click', (e) => { const n = e.target.closest('.mem .mn b[data-name]'); if (n) tagByName(n.dataset.name); });
+
+/* ---------- search in the room + jump by day (G2) ---------- */
+S.find = { open: false, q: '', results: null, days: null, msg: '' };
+let findTimer = 0;
+const noSearch = (d) => Array.isArray(d) || !d || !Array.isArray(d.messages);   // an old hub ignores ?q= and answers with a plain list
+const hl = (text, q) => { const s = esc(plain(text, 160)); if (!q) return s; const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;'), 'gi'); return s.replace(re, (x) => `<mark>${x}</mark>`); };
+function renderFind() {
+  const bar = $('searchBar'), f = S.find;
+  bar.hidden = !f.open || !S.current;
+  if (bar.hidden) return;
+  const days = (f.days || []).slice().reverse().map((d) => `<option value="${d.firstId}">${esc(d.day)} (${d.count})</option>`).join('');
+  const rows = f.results == null ? '' : f.results.length ? f.results.map((m) => `<button type="button" class="fres" data-jump="${m.id}"><time>${esc(dayOf(m.ts))} ${esc(time(m.ts))}</time><b>${m.fromId ? esc(S.sessions[m.fromId]?.name || m.from) : esc(t('you'))}</b><span>${hl(m.text, f.q)}</span></button>`).join('') : `<div class="small muted">${t('search.none')}</div>`;
+  const keep = bar.querySelector('#searchQ') === document.activeElement;
+  bar.innerHTML = `<div class="frow"><input id="searchQ" type="search" value="${esc(f.q)}" placeholder="${t('search.ph')}" aria-label="${t('search.title')}" autocomplete="off"><select id="searchDay" aria-label="${t('search.day')}"><option value="">${t('search.day')}</option>${days}</select><button type="button" class="btn" id="searchX" aria-label="${t('common.close')}">✕</button></div>${f.msg ? `<div class="small muted">${esc(f.msg)}</div>` : ''}<div class="fresults">${rows}</div>`;
+  if (keep) { const q = $('searchQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+async function openFind() {
+  S.find.open = true; renderFind(); $('searchQ').focus();
+  if (S.find.days == null) api(`/api/rooms/${enc(S.current)}/days`).then((d) => { S.find.days = Array.isArray(d) ? d : []; renderFind(); }, () => { S.find.days = []; });
+}
+function closeFind() { S.find.open = false; renderFind(); }
+async function runFind() {
+  const q = S.find.q.trim(); S.find.msg = '';
+  if (!q) { S.find.results = null; return renderFind(); }
+  try {
+    const d = await api(`/api/rooms/${enc(S.current)}/messages?q=${enc(q)}&limit=50`);
+    if (noSearch(d)) { S.find.results = null; S.find.msg = t('search.noHub'); } else { S.find.results = d.messages.slice().reverse(); if (d.hasMore) S.find.msg = t('search.more'); }
+  } catch (e) { S.find.msg = e.message; }
+  renderFind();
+}
+/** Loads the part of the room around message id (an old one), shows it and flashes it; "back to latest" restores the normal view. */
+async function jumpTo(id) {
+  const room = S.current;
+  try {
+    const d = await api(`/api/rooms/${enc(room)}/messages?from=${Math.max(1, id - 40)}&to=${id + 60}&limit=200`);
+    if (noSearch(d)) return toast(t('search.noHub'));
+    S.messages[room] = d.messages; S.around = room; S.stick = false; renderLog(); renderAround();
+    const el = logBody.querySelector(`.msg[data-mid="${id}"]`);
+    if (el) { el.scrollIntoView({ block: 'center' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  } catch (e) { toast(e.message); }
+}
+function renderAround() {
+  const b = $('aroundBar'); b.hidden = S.around !== S.current;
+  b.innerHTML = b.hidden ? '' : `<span>${t('search.old')}</span><button type="button" class="btn sm primary" id="aroundBack">${t('search.back')}</button>`;
+}
+$('aroundBar').addEventListener('click', async (e) => {
+  if (!e.target.closest('#aroundBack')) return;
+  const room = S.current; S.around = null;
+  S.messages[room] = await api(`/api/rooms/${enc(room)}/messages?limit=300`).catch(() => []);
+  S.stick = true; renderLog(); renderAround();
+});
+$('searchBtn').onclick = () => (S.find.open ? closeFind() : openFind());
+$('searchBar').addEventListener('input', (e) => { if (e.target.id !== 'searchQ') return; S.find.q = e.target.value; clearTimeout(findTimer); findTimer = setTimeout(runFind, 300); });
+$('searchBar').addEventListener('change', (e) => { if (e.target.id === 'searchDay' && e.target.value) { jumpTo(+e.target.value); e.target.value = ''; } });
+$('searchBar').addEventListener('click', (e) => { if (e.target.closest('#searchX')) return closeFind(); const j = e.target.closest('[data-jump]'); if (j) jumpTo(+j.dataset.jump); });
+$('searchBar').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFind(); });
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && S.tab === 'rooms' && S.current) { e.preventDefault(); openFind(); } });
 
 // version (V2): "v0.2.0" at the bottom of the sidebar; a dot when GitHub has a newer release; click for notes, "check now" and update guidance
 S.ver = null;
