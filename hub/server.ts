@@ -18,6 +18,7 @@ import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, remove
 import { worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
+import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -974,7 +975,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const sess = store.state.sessions[sid];
       if (sess && /^(compact|clear)$/.test(url.searchParams.get('source') ?? '') && s.agentCompact[normAgent(sess.name)]) {
         const notes = Object.keys(sess.rooms ?? {}).map((r) => ({ room: r, texts: store.state.rooms[r] ? store.notes(r).map((n) => n.text) : [] }));
-        const extra = compactContext(opts.dir, sid, notes, Math.max(0, 9_900 - text.length), lang());
+        const openTasks = Object.keys(sess.rooms ?? {}).filter((r) => store.state.rooms[r]).map((r) => {   // open tasks: the agent's own, or all of them for the room lead
+          const lead = store.state.rooms[r].lead === sess.id, lines = openTasksText(opts.dir, r, lead ? undefined : sess.name);
+          return lines ? `#${r}:\n${lines}` : '';
+        }).filter(Boolean).join('\n');
+        const extra = compactContext(opts.dir, sid, notes, Math.max(0, 9_900 - text.length), lang(), openTasks);
         if (extra) return json(res, 200, { text: [text, extra].filter(Boolean).join('\n') });
       }
       return json(res, 200, { text });
@@ -1193,6 +1198,81 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
 
+    // ---- K1 tasklist of a room: only the lead (or the owner of the repo from the UI) adds, assigns and deletes; an agent updates its own tasks ----
+    const tm = p.match(/^\/api\/rooms\/([^/]+)\/tasks(?:\/(import|\d+)(?:\/(delete))?)?$/);
+    if (tm) {
+      const room = decodeURIComponent(tm[1]), sub = tm[2];
+      store.room(room);   // 404 for an unknown room
+      if (m === 'GET' && !sub) return json(res, 200, listTasks(opts.dir, room, { status: url.searchParams.get('status') ?? '', owner: url.searchParams.get('owner') ?? '' }));
+      if (m === 'POST') {
+        const b = await readBody(req);
+        const who = b.sessionId ? store.session(String(b.sessionId)) : null;   // null: the UI of the repo owner
+        const leadId = store.state.rooms[room]?.lead ?? null;
+        const isLead = !who || !leadId || who.id === leadId;
+        const emitTasks = () => broadcast('tasks', { room, tasks: listTasks(opts.dir, room) });
+        const memberName = (o: unknown) => {
+          const name = String(o ?? '').trim().toLowerCase();
+          if (!name) return '';
+          const mem = store.members(room).find((x) => x.name.toLowerCase() === name);
+          if (!mem) throw new StoreError(400, `${o} is not a member of #${room}`);
+          return mem.name;
+        };
+        // Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated)
+        const assign = (t: Task) => {
+          const extra = `${t.detail ? `\n${t.detail}` : ''}${t.doneWhen ? `\n${tr('sys.task.doneWhen', { text: t.doneWhen })}` : ''}${t.fromMsg ? ` ${tr('sys.task.src', { id: t.fromMsg })}` : ''}`;
+          const r = store.post(room, who?.id ?? null, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }));
+          broadcast('msg', r.message);
+          emitRoom(room);
+          for (const id of r.message.wake) deliver(store.resolve(id));
+        };
+        if (!sub) {
+          if (!isLead) throw new StoreError(403, 'only the room lead adds tasks');
+          const owner = memberName(b.owner);
+          const t = addTask(opts.dir, room, { ...b, owner });
+          emitTasks();
+          if (t.owner) assign(t);
+          return json(res, 200, t);
+        }
+        if (sub === 'import') {
+          if (!isLead) throw new StoreError(403, 'only the room lead imports todo files');
+          const file = String(b.file ?? '');
+          if (!['todoplan.md', 'todobug.md'].includes(file)) throw new StoreError(400, 'file must be todoplan.md or todobug.md');
+          const lead = leadId ? store.state.sessions[leadId] : undefined;
+          if (!lead?.cwd) throw new StoreError(409, `#${room} has no lead folder to read ${file} from`);
+          let text = '';
+          try { text = fs.readFileSync(path.join(lead.cwd, file), 'utf8'); } catch { throw new StoreError(404, `${file} not found in ${lead.cwd}`); }
+          const added = importTodo(opts.dir, room, text);
+          if (added.length) emitTasks();
+          return json(res, 200, { added: added.length, tasks: added });
+        }
+        const id = Number(sub);
+        if (tm[3] === 'delete') {
+          if (!isLead) throw new StoreError(403, 'only the room lead deletes tasks');
+          deleteTask(opts.dir, room, id);
+          emitTasks();
+          return json(res, 200, { ok: true });
+        }
+        const cur = listTasks(opts.dir, room).find((x) => x.id === id);
+        if (!cur) throw new StoreError(404, `task #${id} not found`);
+        if (!isLead) {
+          const mine = !!who && (cur.owner ?? '').toLowerCase() === who.name.toLowerCase();
+          const touches = Object.keys(b).filter((k) => !['sessionId', 'status', 'note', 'commit'].includes(k) && b[k] !== undefined);
+          if (!mine || touches.length) throw new StoreError(403, mine ? 'only the room lead changes the title, owner or details' : `task #${id} is not yours`);
+        }
+        const patch = { ...b, ...(b.owner !== undefined ? { owner: memberName(b.owner) } : {}) };
+        const { task, before } = updateTask(opts.dir, room, id, patch);
+        emitTasks();
+        if (task.owner && task.owner !== before.owner && task.status !== 'done') assign(task);
+        if (task.status === 'done' && before.status !== 'done') {
+          try {
+            broadcast('msg', store.postSystem(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
+            emitRoom(room);
+          } catch { /* room gone */ }
+        }
+        return json(res, 200, task);
+      }
+    }
+
     mm = p.match(/^\/api\/rooms\/([^/]+)\/notes(?:\/(\d+)\/(edit|delete))?$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
@@ -1273,6 +1353,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (dirty) return json(res, 409, dirty);
         let handoff = '';
         try { handoff = fs.readFileSync(path.join(opts.dir, 'handoffs', `${lead.id}.md`), 'utf8'); } catch { /* none yet */ }
+        const open = openTasksText(opts.dir, room);
+        if (open) handoff = `${tr('compact.tasks')}\n${open}\n\n${handoff.trim()}`.trim();
         if (!lead.ended && lead.status !== 'offline') await terminateSession(lead);
         store.setLead(room, null);
         emitRoom(room);

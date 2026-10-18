@@ -15,6 +15,7 @@ export const TOOLS = [
   { name: 'room_send', description: 'Post a message to a room. @name wakes that agent, @all wakes everyone, @you addresses the human user. A message with no mention wakes nobody (others see it later as context).', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' }, replyTo: { type: 'number', description: 'Id of the message you answer (shown as #id in deliveries); it must be in the same room' }, topic: { type: 'string', description: 'Sub-topic of the room, [a-z0-9-]{1,32}; default chung. Only members who follow a topic (sent into it, were @-ed in it, or follow it) get its messages in full. A reply stays in its original topic.' }, attachments: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of files on this machine to attach (screenshots, logs, PDFs; max 20, 25 MB each). The hub copies them into the room; others get a 📎 line with the path and open it with Read only if needed.' } }, ['text']) },
   { name: 'room_read', description: 'Read recent messages of a room.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, limit: { type: 'number', description: 'Default 30, max 200' }, topic: { type: 'string', description: 'Only this topic (default: every topic)' } }) },
   { name: 'room_topics', description: 'List the topics of a room with message counts and whether you follow them; pass topic and follow to follow or unfollow one. Messages in topics you do not follow reach you as a one-line count.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, topic: { type: 'string' }, follow: { type: 'boolean', description: 'true to follow, false to unfollow' } }) },
+  { name: 'room_tasks', description: 'The task list of a room (work is handed out one task at a time). action "list" (optional status todo|doing|blocked|done, owner), "next" (take the next todo task assigned to you and mark it doing), "update" (id plus status, note, commit; you can only change your own tasks), "add" (room lead only: title, optional detail, doneWhen, fromMsg = id of the owner\'s message, owner = member name to assign it to). When you finish a task set status done with the git commit hash.', inputSchema: obj({ action: { type: 'string', description: 'list | next | update | add' }, room: { type: 'string', description: 'Defaults to your only room' }, id: { type: 'number' }, title: { type: 'string' }, detail: { type: 'string' }, doneWhen: { type: 'string' }, fromMsg: { type: 'number' }, owner: { type: 'string' }, status: { type: 'string' }, note: { type: 'string' }, commit: { type: 'string' } }, ['action']) },
   { name: 'room_set_name', description: 'Set your display name in bear-agent-manager (what others @mention). Letters, digits, - and _; max 32.', inputSchema: obj({ name: { type: 'string' } }, ['name']) },
   { name: 'room_note', description: 'Record a lasting agreement in the room notes ("biên bản"): API contracts, ports, file ownership, decisions. Every member, in any repo, receives the notes when they change. Keep each note one fact.', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['text']) },
   { name: 'room_notes', description: 'Read the room notes (agreements the room relies on).', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' } }) },
@@ -91,6 +92,36 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       }
       const list = await api<{ topic: string; count: number; follows: boolean }[]>(`/api/rooms/${enc(room)}/topics?session=${enc(sid)}`);
       return [`Topics of #${room}:`, ...list.map((t) => `  ${t.topic}: ${t.count} message(s)${t.follows ? ', you follow it' : ''}`)].join('\n');
+    }
+    case 'room_tasks': {
+      const room = await pickRoom(args.room);
+      type T = { id: number; title: string; detail?: string; doneWhen?: string; fromMsg?: number; owner?: string; status: string; commit?: string; note?: string };
+      const line = (t: T) => `  #${t.id} [${t.status}] ${t.title}${t.owner ? ` (${t.owner})` : ''}${t.commit ? ` · ${t.commit.slice(0, 9)}` : ''}`;
+      const full = (t: T) => [`#${t.id} [${t.status}] ${t.title}${t.owner ? ` (${t.owner})` : ''}`, ...(t.detail ? [t.detail] : []), ...(t.doneWhen ? [`Done when: ${t.doneWhen}`] : []), ...(t.fromMsg ? [`Source message #${t.fromMsg} (room_read to see it)`] : [])].join('\n');
+      const action = String(args.action ?? 'list');
+      if (action === 'list') {
+        const q = new URLSearchParams();
+        if (args.status) q.set('status', String(args.status));
+        if (args.owner) q.set('owner', String(args.owner));
+        const list = await api<T[]>(`/api/rooms/${enc(room)}/tasks?${q}`);
+        return list.length ? [`Tasks of #${room}:`, ...list.map(line)].join('\n') : `#${room} has no tasks${q.size ? ' matching that' : ' yet'}.`;
+      }
+      if (action === 'next') {
+        const mine = (await me()).name;
+        const todo = await api<T[]>(`/api/rooms/${enc(room)}/tasks?status=todo&owner=${enc(mine)}`);
+        if (!todo.length) return 'No task is waiting for you.';
+        const t = await api<T>(`/api/rooms/${enc(room)}/tasks/${todo[0].id}`, { body: { sessionId: sid, status: 'doing' } });
+        return `Your next task (now doing):\n${full(t)}`;
+      }
+      if (action === 'add') {
+        const t = await api<T>(`/api/rooms/${enc(room)}/tasks`, { body: { sessionId: sid, title: args.title, detail: args.detail, doneWhen: args.doneWhen, fromMsg: args.fromMsg, owner: args.owner } });
+        return `Added task #${t.id}${t.owner ? ` for ${t.owner}` : ''}.`;
+      }
+      if (action === 'update') {
+        const t = await api<T>(`/api/rooms/${enc(room)}/tasks/${Number(args.id)}`, { body: { sessionId: sid, status: args.status, note: args.note, commit: args.commit } });
+        return `Task #${t.id} is now ${t.status}.`;
+      }
+      throw new Error('action must be list, next, update or add');
     }
     case 'room_set_name': {
       const r = await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}/rename`, { body: { name: String(args.name ?? '') } });

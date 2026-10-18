@@ -44,12 +44,13 @@ export function wantsWakeCompact(rule: AgentCompact | undefined, ctx: number, mo
 export const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
 
 /** Text SessionStart(compact|clear) adds: the agent's newest handoff file + its rooms' notes, cut to the limit. */
-export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS, lang: Lang = 'vi'): string {
+export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS, lang: Lang = 'vi', openTasks = ''): string {
   let handoff = '';
   try { handoff = fs.readFileSync(path.join(home, 'handoffs', `${sessionId}.md`), 'utf8').trim(); } catch { /* none yet */ }
   const roomNotes = notes.filter((n) => n.texts.length).map((n) => `${t(lang, 'compact.notes', { room: n.room })}\n${n.texts.map((t) => `- ${t}`).join('\n')}`).join('\n\n');
-  if ((!handoff && !roomNotes) || max < 200) return '';
+  const tasks = openTasks.trim() ? `${t(lang, 'compact.tasks')}\n${openTasks.trim()}` : '';
+  if ((!handoff && !roomNotes && !tasks) || max < 200) return '';
   const head = `${t(lang, 'compact.head')}\n\n`;
-  const text = head + [handoff, roomNotes].filter(Boolean).join('\n\n');
+  const text = head + [tasks, handoff, roomNotes].filter(Boolean).join('\n\n');
   return text.length <= max ? text : text.slice(0, max - 20) + `\n${t(lang, 'compact.cut')}`;
 }
