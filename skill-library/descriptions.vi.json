@@ -105,5 +105,18 @@
   "notebook-designer": "Quyết định và tạo notebook Jupyter cho phần thực hành khi cần.",
   "practical-work": "Thiết kế bài thực hành: lập trình, phân tích dữ liệu, cấu hình, thiết kế hệ thống.",
   "session-designer": "Thiết kế chi tiết một buổi học: mục tiêu, nội dung, ví dụ, lịch theo phút.",
-  "slide-designer": "Lập đặc tả slide bài giảng rồi dựng thành slide."
+  "slide-designer": "Lập đặc tả slide bài giảng rồi dựng thành slide.",
+  "managing-liquidity-risk": "Quản lý rủi ro thanh khoản: dự báo dòng tiền, kiểm tra sức chịu đựng, kế hoạch dự phòng.",
+  "analyzing-liquidity-risk": "Đánh giá thanh khoản danh mục: kiểm tra sức chịu đựng khi rút vốn, ước tính tác động thị trường.",
+  "conducting-stress-testing": "Thực hiện kiểm tra sức chịu đựng theo kịch bản và đánh giá ảnh hưởng tới vốn, lợi nhuận.",
+  "managing-treasury-management-services": "Phân tích dịch vụ quản lý ngân quỹ cho khách hàng doanh nghiệp: thu chi hộ, quản lý tiền mặt.",
+  "modeling-default-and-recovery-analysis": "Mô hình hoá vỡ nợ và tỷ lệ thu hồi nợ.",
+  "evaluating-sustainability-linked-loans": "Đánh giá khoản vay gắn với mục tiêu bền vững (ESG): chỉ tiêu, cơ chế điều chỉnh lãi suất.",
+  "evaluating-green-bonds": "Đánh giá trái phiếu xanh: sử dụng vốn, khung tiêu chuẩn, báo cáo tác động.",
+  "analyzing-esg-integration": "Phân tích việc tích hợp yếu tố ESG vào quyết định đầu tư và tín dụng.",
+  "revealjs": "Tạo slide HTML bằng reveal.js: chủ đề, bố cục nhiều cột, biểu đồ, ghi chú người trình bày.",
+  "marp-slide": "Tạo slide Marp từ Markdown với 7 chủ đề, xuất HTML, PDF, PPTX.",
+  "quiz-maker": "Tạo câu hỏi trắc nghiệm, đúng sai, điền khuyết, nối cặp kèm đáp án và giải thích.",
+  "vn-phong-chong-rua-tien": "Phòng, chống rửa tiền theo pháp luật Việt Nam (Luật 14/2022/QH15): KYC, đánh giá rủi ro, giao dịch phải báo cáo.",
+  "vn-phan-loai-no": "Phân loại nợ theo NHNN (Thông tư 31/2024/TT-NHNN, 5 nhóm nợ): xếp nhóm, chuyển nhóm, đối chiếu CIC."
 }

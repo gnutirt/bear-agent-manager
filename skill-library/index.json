@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 107,
+  "count": 120,
   "skills": [
     {
       "name": "3-statement-model",
@@ -251,6 +251,32 @@
       "licenseFile": "banking/casemark/LICENSE"
     },
     {
+      "name": "analyzing-esg-integration",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/analyzing-esg-integration",
+      "description": "Integrates ESG factors into investment analysis with scoring methodology and impact measurement. Use when implementing ESG integration, scoring ESG factors, or measuring sustainability impact.",
+      "descVi": "Phân tích việc tích hợp yếu tố ESG vào quyết định đầu tư và tín dụng.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
+      "name": "analyzing-liquidity-risk",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/analyzing-liquidity-risk",
+      "description": "Assesses portfolio liquidity with redemption stress testing and market impact estimation. Use when analyzing liquidity risk, stress testing redemptions, or evaluating market impact.",
+      "descVi": "Đánh giá thanh khoản danh mục: kiểm tra sức chịu đựng khi rút vốn, ước tính tác động thị trường.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
       "name": "analyzing-trade-finance-instruments",
       "category": "banking",
       "roles": [
@@ -304,6 +330,19 @@
       "licenseFile": "banking/casemark/LICENSE"
     },
     {
+      "name": "conducting-stress-testing",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/conducting-stress-testing",
+      "description": "Designs and executes portfolio and enterprise stress tests with scenario specification and result analysis. Use when stress testing portfolios, designing stress scenarios, or analyzing stress test results.",
+      "descVi": "Thực hiện kiểm tra sức chịu đựng theo kịch bản và đánh giá ảnh hưởng tới vốn, lợi nhuận.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
       "name": "drafting-credit-memos",
       "category": "banking",
       "roles": [
@@ -312,6 +351,32 @@
       "path": "banking/casemark/drafting-credit-memos",
       "description": "Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations.",
       "descVi": "Soạn tờ trình tín dụng: phân tích khách hàng, đánh giá rủi ro, lý do đề xuất.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
+      "name": "evaluating-green-bonds",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/evaluating-green-bonds",
+      "description": "Structures green bond analysis with use-of-proceeds verification, impact reporting, and ICMA alignment. Use when evaluating green bonds, verifying green credentials, or analyzing sustainable debt.",
+      "descVi": "Đánh giá trái phiếu xanh: sử dụng vốn, khung tiêu chuẩn, báo cáo tác động.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
+      "name": "evaluating-sustainability-linked-loans",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/evaluating-sustainability-linked-loans",
+      "description": "Structures SLL analysis with KPI assessment, margin ratchet evaluation, and ambition verification. Use when evaluating sustainability-linked loans, assessing SLL KPIs, or analyzing margin ratchets.",
+      "descVi": "Đánh giá khoản vay gắn với mục tiêu bền vững (ESG): chỉ tiêu, cơ chế điều chỉnh lãi suất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -460,6 +525,19 @@
       "licenseFile": "banking/casemark/LICENSE"
     },
     {
+      "name": "managing-liquidity-risk",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/managing-liquidity-risk",
+      "description": "Structures liquidity risk management with cash flow projections, stress testing, and contingency planning. Use when managing liquidity risk, projecting cash needs, or developing liquidity contingency plans.",
+      "descVi": "Quản lý rủi ro thanh khoản: dự báo dòng tiền, kiểm tra sức chịu đựng, kế hoạch dự phòng.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
       "name": "managing-loan-documentation-review",
       "category": "banking",
       "roles": [
@@ -533,6 +611,32 @@
       "path": "banking/casemark/managing-private-banking-reviews",
       "description": "Structures private banking relationship reviews with service assessment, fee analysis, and strategy evaluation. Use when reviewing banking relationships, analyzing fees, or evaluating service quality.",
       "descVi": "Rà soát quan hệ khách hàng ngân hàng tư nhân: dịch vụ, phí, chiến lược.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
+      "name": "managing-treasury-management-services",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/managing-treasury-management-services",
+      "description": "Structures treasury management product analysis with cash management, payment solutions, and fee optimization. Use when evaluating treasury services, analyzing cash management needs, or optimizing banking relationships.",
+      "descVi": "Phân tích dịch vụ quản lý ngân quỹ cho khách hàng doanh nghiệp: thu chi hộ, quản lý tiền mặt.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE"
+    },
+    {
+      "name": "modeling-default-and-recovery-analysis",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/modeling-default-and-recovery-analysis",
+      "description": "Builds default probability and recovery rate models with industry data, structural analysis, and loss-given-default estimation. Use when modeling credit losses, estimating recovery values, or analyzing default scenarios.",
+      "descVi": "Mô hình hoá vỡ nợ và tỷ lệ thu hồi nợ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -1097,6 +1201,32 @@
       "licenseFile": "banking/second-line/LICENSE"
     },
     {
+      "name": "vn-phan-loai-no",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/vietnam/vn-phan-loai-no",
+      "description": "Hỗ trợ phân loại nợ và tài sản có theo quy định của Ngân hàng Nhà nước Việt Nam — xếp khoản vay vào 5 nhóm nợ, rà soát việc chuyển nhóm, đối chiếu kết quả của ngân hàng với kết quả CIC, soạn báo cáo chất lượng tín dụng và căn cứ trích lập dự phòng. Dùng skill này mỗi khi người dùng nhắc tới phân loại nợ, nhóm nợ, nợ xấu, nợ quá hạn, nợ cần chú ý, cơ cấu lại thời hạn trả nợ, Thông tư 31/2024/TT-NHNN, Thông tư 11/2021/TT-NHNN, trích lập dự phòng rủi ro, hoặc hỏi một khoản vay thuộc nhóm nào, kể cả khi họ không nêu số hiệu văn bản.",
+      "descVi": "Phân loại nợ theo NHNN (Thông tư 31/2024/TT-NHNN, 5 nhóm nợ): xếp nhóm, chuyển nhóm, đối chiếu CIC.",
+      "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
+      "license": "MIT",
+      "licenseFile": "banking/vietnam/LICENSE"
+    },
+    {
+      "name": "vn-phong-chong-rua-tien",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/vietnam/vn-phong-chong-rua-tien",
+      "description": "Hỗ trợ công việc phòng, chống rửa tiền (PCRT/AML) theo pháp luật Việt Nam cho ngân hàng và tổ chức tín dụng — nhận biết khách hàng (KYC), đánh giá và phân loại rủi ro khách hàng, rà soát giao dịch đáng ngờ, giao dịch phải báo cáo, lưu giữ hồ sơ, soạn quy định nội bộ hoặc báo cáo PCRT. Dùng skill này mỗi khi người dùng nhắc tới rửa tiền, PCRT, AML, KYC, Luật 14/2022/QH15, Nghị định 19/2023, Thông tư 09/2023/TT-NHNN, giao dịch đáng ngờ, Cục Phòng, chống rửa tiền, hoặc hỏi một khách hàng/giao dịch có phải báo cáo không, kể cả khi họ không nói chữ \"rửa tiền\".",
+      "descVi": "Phòng, chống rửa tiền theo pháp luật Việt Nam (Luật 14/2022/QH15): KYC, đánh giá rủi ro, giao dịch phải báo cáo.",
+      "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
+      "license": "MIT",
+      "licenseFile": "banking/vietnam/LICENSE"
+    },
+    {
       "name": "internal-comms",
       "category": "general",
       "roles": [
@@ -1135,6 +1265,20 @@
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "general/anthropic/skill-creator/LICENSE.txt"
+    },
+    {
+      "name": "marp-slide",
+      "category": "slides",
+      "roles": [
+        "slides",
+        "training"
+      ],
+      "path": "slides/agent-toolkit/marp-slide",
+      "description": "Create professional Marp presentation slides with 7 beautiful themes (default, minimal, colorful, dark, gradient, tech, business). Use when users request slide creation, presentations, or Marp documents. Supports custom themes, image layouts, and \"make it look good\" requests with automatic quality improvements.",
+      "descVi": "Tạo slide Marp từ Markdown với 7 chủ đề, xuất HTML, PDF, PPTX.",
+      "source": "https://github.com/softaworks/agent-toolkit",
+      "license": "MIT",
+      "licenseFile": "slides/agent-toolkit/LICENSE"
     },
     {
       "name": "deck-refresh",
@@ -1257,6 +1401,20 @@
       "source": "https://github.com/zarazhangrui/frontend-slides",
       "license": "MIT",
       "licenseFile": "slides/frontend-slides/LICENSE"
+    },
+    {
+      "name": "revealjs",
+      "category": "slides",
+      "roles": [
+        "slides",
+        "training"
+      ],
+      "path": "slides/revealjs-skill/revealjs",
+      "description": "Create polished, professional reveal.js presentations. Use when the user asks to create slides, a presentation, a deck, or a slideshow. Supports themes, multi-column layouts, code highlighting, animations, speaker notes, and custom styling. Generates HTML + CSS with no build step required.",
+      "descVi": "Tạo slide HTML bằng reveal.js: chủ đề, bố cục nhiều cột, biểu đồ, ghi chú người trình bày.",
+      "source": "https://github.com/ryanbbrown/revealjs-skill",
+      "license": "MIT",
+      "licenseFile": "slides/revealjs-skill/LICENSE"
     },
     {
       "name": "course-training-skills",
@@ -1411,6 +1569,19 @@
       "license": "MIT",
       "licenseFile": "training/course-training-skills/LICENSE",
       "bundle": "training/course-training-skills"
+    },
+    {
+      "name": "quiz-maker",
+      "category": "training",
+      "roles": [
+        "training"
+      ],
+      "path": "training/onewave/quiz-maker",
+      "description": "Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations.",
+      "descVi": "Tạo câu hỏi trắc nghiệm, đúng sai, điền khuyết, nối cặp kèm đáp án và giải thích.",
+      "source": "https://github.com/onewave-ai/claude-skills",
+      "license": "MIT",
+      "licenseFile": "training/onewave/LICENSE"
     }
   ]
 }

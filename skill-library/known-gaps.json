@@ -30,5 +30,11 @@
   },
   "slides/anthropic-financial-services/ppt-template-creator": {
     "assets/template.pptx": "Output path: the skill copies the user's template here when it builds a new skill."
+  },
+  "slides/agent-toolkit/marp-slide": {
+    "image.png": "Placeholder in Marp syntax examples, not a real file.",
+    "diagram.png": "Placeholder in Marp syntax examples, not a real file.",
+    "assets/template-": "Filename prefix (template-<theme>.md), the files exist.",
+    "assets/theme-": "Filename prefix (theme-<name>.css), the files exist."
   }
 }

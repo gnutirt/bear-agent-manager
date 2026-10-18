@@ -1,11 +1,46 @@
 {
-  "conducting-credit-committee-presentations": ["banking", "slides"],
-  "pptx-author": ["slides", "banking"],
-  "pitch-deck": ["slides", "banking"],
-  "xlsx-author": ["banking", "general"],
-  "brand-guidelines": ["slides", "training"],
-  "theme-factory": ["slides", "training"],
-  "frontend-slides": ["slides", "training"],
-  "slide-designer": ["training", "slides"],
-  "internal-comms": ["general", "training"]
+  "conducting-credit-committee-presentations": [
+    "banking",
+    "slides"
+  ],
+  "pptx-author": [
+    "slides",
+    "banking"
+  ],
+  "pitch-deck": [
+    "slides",
+    "banking"
+  ],
+  "xlsx-author": [
+    "banking",
+    "general"
+  ],
+  "brand-guidelines": [
+    "slides",
+    "training"
+  ],
+  "theme-factory": [
+    "slides",
+    "training"
+  ],
+  "frontend-slides": [
+    "slides",
+    "training"
+  ],
+  "slide-designer": [
+    "training",
+    "slides"
+  ],
+  "internal-comms": [
+    "general",
+    "training"
+  ],
+  "revealjs": [
+    "slides",
+    "training"
+  ],
+  "marp-slide": [
+    "slides",
+    "training"
+  ]
 }

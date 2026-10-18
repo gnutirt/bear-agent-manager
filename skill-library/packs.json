@@ -3,7 +3,9 @@
     "id": "banking-core",
     "vi": "Ngân hàng — cốt lõi",
     "en": "Banking — core",
-    "roles": ["banking"],
+    "roles": [
+      "banking"
+    ],
     "skills": [
       "assessing-credit-risk",
       "drafting-credit-memos",
@@ -18,11 +20,38 @@
     "when": "every"
   },
   {
+    "id": "banking-vn",
+    "vi": "Ngân hàng — quy định Việt Nam",
+    "en": "Banking — Vietnam rules",
+    "roles": [
+      "banking"
+    ],
+    "skills": [
+      "vn-phan-loai-no",
+      "vn-phong-chong-rua-tien",
+      "assessing-credit-risk",
+      "drafting-credit-memos",
+      "managing-loan-portfolio-monitoring",
+      "managing-liquidity-risk"
+    ],
+    "mode": "auto",
+    "when": "every"
+  },
+  {
     "id": "slides-core",
     "vi": "Slide — cốt lõi",
     "en": "Slides — core",
-    "roles": ["slides"],
-    "skills": ["frontend-slides", "pptx-author", "ppt-template-creator", "deck-refresh", "theme-factory", "brand-guidelines"],
+    "roles": [
+      "slides"
+    ],
+    "skills": [
+      "frontend-slides",
+      "pptx-author",
+      "ppt-template-creator",
+      "deck-refresh",
+      "theme-factory",
+      "brand-guidelines"
+    ],
     "mode": "auto",
     "when": "every"
   },
@@ -30,8 +59,16 @@
     "id": "training-core",
     "vi": "Đào tạo — cốt lõi",
     "en": "Training — core",
-    "roles": ["training"],
-    "skills": ["course-training-skills", "frontend-slides", "theme-factory", "internal-comms"],
+    "roles": [
+      "training"
+    ],
+    "skills": [
+      "course-training-skills",
+      "frontend-slides",
+      "theme-factory",
+      "internal-comms",
+      "quiz-maker"
+    ],
     "mode": "auto",
     "when": "every"
   },
@@ -39,8 +76,14 @@
     "id": "general-core",
     "vi": "Chung — cốt lõi",
     "en": "General — core",
-    "roles": ["general"],
-    "skills": ["skill-creator", "internal-comms", "mcp-builder"],
+    "roles": [
+      "general"
+    ],
+    "skills": [
+      "skill-creator",
+      "internal-comms",
+      "mcp-builder"
+    ],
     "mode": "auto",
     "when": "every"
   }
