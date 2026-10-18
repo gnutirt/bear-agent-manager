@@ -170,9 +170,16 @@ input,textarea{font:inherit;color:inherit}
 .brand .logo svg{width:16px;height:16px}
 .brand .bname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hub-state{margin-left:auto;display:flex;align-items:center;padding:4px}
+/* slim scrollbars: a thin rounded thumb that stays out of the way until you hover the scrolling area */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--mute) 38%,transparent) transparent}
+*:hover{scrollbar-color:color-mix(in srgb,var(--mute) 62%,transparent) transparent}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--mute) 34%,transparent);border-radius:999px;border:3px solid transparent;background-clip:padding-box;min-height:36px}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--mute) 70%,transparent);background-clip:padding-box;border:2px solid transparent}
+#side *{scrollbar-color:color-mix(in srgb,var(--side-mute) 40%,transparent) transparent}#side ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--side-mute) 40%,transparent);background-clip:padding-box}
 .side-scroll{flex:1;overflow-y:auto;padding:4px 8px 16px}
 .sec{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 6px;color:var(--side-mute);font-size:12.5px;font-weight:600}
-.repo-filter{max-width:55%;font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--side-mute);border-radius:6px;padding:1px 4px}
+.repo-filter{flex:1;min-width:0;max-width:112px;margin-left:6px;font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--side-mute);border-radius:6px;padding:1px 4px}
 .sec button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
 .sec button:hover{background:var(--side-2);color:var(--side-strong)}
 .room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text)}
@@ -192,8 +199,17 @@ input,textarea{font:inherit;color:inherit}
 .sess .who{flex:1;min-width:0}
 .sess .nm{display:flex;align-items:center;gap:6px;color:var(--side-strong);font-weight:600;font-size:13.5px}
 .sess .nm span.n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sess .sub{font-size:12px;color:var(--side-mute);display:flex;flex-wrap:wrap;align-items:center;gap:1px 5px;min-width:0;margin-top:1px}
-.sess .sub>span:last-child{flex:1 1 70px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .sub{font-size:12px;color:var(--side-mute);display:flex;align-items:center;gap:6px;min-width:0;margin-top:2px;white-space:nowrap}
+.sess .sub .rp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.st{display:inline-block;flex:none;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:18px}
+.st-busy{color:color-mix(in srgb,#F59E0B 40%,var(--side-strong));background:rgba(245,165,36,.3)}.st-idle{color:color-mix(in srgb,#22C55E 45%,var(--side-strong));background:rgba(34,197,94,.22)}.st-waiting{color:color-mix(in srgb,#3B82F6 50%,var(--side-strong));background:rgba(59,130,246,.24)}.st-offline{color:var(--side-mute);background:rgba(128,138,160,.2)}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) :is(.st-busy,.st-idle,.st-waiting){filter:none}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .st-busy{color:#FCD34D}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .st-idle{color:#86EFAC}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .st-waiting{color:#93C5FD}
+#sesstip{position:fixed;z-index:60;width:300px;max-width:calc(100vw - 16px);padding:12px 14px;border-radius:14px;background:var(--panel);color:var(--text);border:1px solid var(--line);box-shadow:var(--shadow);font-size:12.5px;pointer-events:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+#sesstip[hidden]{display:none}#sesstip .tn{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}#sesstip .tt{color:var(--mute);margin:2px 0 6px}
+#sesstip .tr{display:flex;flex-direction:column;gap:0;margin-top:6px}#sesstip .tr span{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em}#sesstip .tr b{font-weight:500;word-break:break-word}
+#sesstip .tc{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.sec .sectoggle{white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;padding:2px 6px;border-radius:6px;font:inherit;font-weight:600;color:inherit}.sec .sectoggle:hover{background:var(--side-2);color:var(--side-strong)}.sec .sectoggle .caret{font-size:11px;width:10px}.seccount{opacity:.7;font-weight:500}
 .sess .acts{display:flex;gap:2px;align-items:center}
 .sess .acts [data-a=rename],.sess .acts [data-a=lead]{opacity:0}
 .sess:hover .acts [data-a=lead],.sess:hover .acts [data-a=rename],.sess .acts [data-a=rename]:focus-visible{opacity:1}
@@ -326,7 +342,7 @@ header .spacer{flex:1}
 .msg .chk.on{background:var(--accent);border-color:var(--accent)}.msg .chk.on::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .msg li.task.done{color:var(--mute)}
 .msg b.st{display:inline-block;padding:0 8px;border-radius:999px;font-size:.88em;line-height:1.55;font-weight:700}
-.msg b.st.ok{color:#15803D;background:rgba(34,197,94,.16)}.msg b.st.bad{color:#DC2626;background:rgba(239,68,68,.15)}.msg b.st.warn{color:#B45309;background:rgba(245,158,11,.18)}
+.msg b.st.ok{color:color-mix(in srgb,#22C55E 55%,var(--text));background:rgba(34,197,94,.18)}.msg b.st.bad{color:color-mix(in srgb,#EF4444 60%,var(--text));background:rgba(239,68,68,.18)}.msg b.st.warn{color:color-mix(in srgb,#F59E0B 55%,var(--text));background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.ok{color:#86EFAC;background:rgba(34,197,94,.24)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.bad{color:#FCA5A5;background:rgba(239,68,68,.26)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg b.st.warn{color:#FCD34D;background:rgba(245,158,11,.26)}:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .msg li.ok::marker{color:#4ADE80}
 .msg hr{border:0;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:12px 0}
 .msg blockquote{background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:6px 14px;color:inherit}
@@ -654,7 +670,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
-    <div class="sec"><span data-i18n="sessions.title">Claude đang chạy</span> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
+    <div class="sec"><button type="button" id="sessToggle" class="sectoggle" aria-expanded="true"><span class="caret">▾</span> <span data-i18n="sessions.title">Claude đang chạy</span> <span id="sessCount" class="seccount"></span></button> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
     <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy" data-i18n-title="workers.cap.tip">0/4</span></div>
     <div id="workers"></div>
@@ -1088,12 +1104,12 @@ function renderRooms() {
 
 function sessionRow(s) {
   const inRoom = S.current && room(S.current)?.members.includes(s.id);
-  const d = document.createElement('div'); d.className = 'sess';
+  const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id;
   const rooms = s.rooms.length ? ' · ' + s.rooms.map((r) => '#' + r).join(' ') : '';
   const nameHtml = S.renaming === s.id
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
-  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
+  d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub"><span class="st st-${s.status}">${LABEL[s.status]}</span><span class="rp">${esc(repo(s.cwd))}</span></div></div>
     <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? t('members.unlead') : t('sessions.setLead')}" aria-label="${t('room.lead')}">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="${t('sessions.rename')}" aria-label="${t('sessions.rename')}">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="${t('sessions.wakeTip')}">${t('sessions.wake')}</button><button class="add wake" data-a="opentab" title="${t('members.openTab.tip')}">${t('members.openTab')}</button><button data-a="forget" title="${t('sessions.forget')}" aria-label="${t('sessions.forget')}">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
   d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
@@ -1115,16 +1131,36 @@ function sessionRow(s) {
   return d;
 }
 
+S.sessOpen = (() => { try { return localStorage.getItem('bear-agent-manager:sessOpen') !== '0'; } catch { return true; } })();
+$('sessToggle').onclick = () => { S.sessOpen = !S.sessOpen; try { localStorage.setItem('bear-agent-manager:sessOpen', S.sessOpen ? '1' : '0'); } catch {} renderSessions(); };
+/** Hover card for a sidebar row: the details that used to change the row every few seconds (current tool, folder, account...). */
+const sessTip = document.createElement('div'); sessTip.id = 'sesstip'; sessTip.hidden = true; document.body.append(sessTip);
+let sessTipTimer = 0;
+function showSessTip(row) {
+  const s = S.sessions[row.dataset.sid]; if (!s) return;
+  const rows = [[t('sessions.tip.doing'), s.status === 'busy' ? (s.activity || t('status.busy')) : LABEL[s.status]], [t('sessions.tip.dir'), s.cwd], [t('sessions.tip.rooms'), (s.rooms || []).map((x) => '#' + x).join(' ') || '-']];
+  sessTip.innerHTML = `<div class="tn"><b>${esc(s.name)}</b><span class="st st-${s.status}">${LABEL[s.status]}</span></div>${s.title ? `<div class="tt">${esc(s.title)}</div>` : ''}${rows.map(([k, v]) => `<div class="tr"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}<div class="tc">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}${ctxBadge(s)}</div>`;
+  sessTip.hidden = false;
+  const r = row.getBoundingClientRect(), h = sessTip.offsetHeight;
+  sessTip.style.left = Math.min(r.right + 10, innerWidth - sessTip.offsetWidth - 8) + 'px';
+  sessTip.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+}
+const hideSessTip = () => { clearTimeout(sessTipTimer); sessTip.hidden = true; };
+$('sessions').addEventListener('mouseover', (e) => { const row = e.target.closest('.sess'); if (!row || e.target.closest('.acts, input')) return hideSessTip(); clearTimeout(sessTipTimer); sessTipTimer = setTimeout(() => showSessTip(row), 220); });
+$('sessions').addEventListener('mouseleave', hideSessTip);
+$('sessions').addEventListener('mousedown', hideSessTip);
+document.querySelector('.side-scroll')?.addEventListener('scroll', hideSessTip, { passive: true });
 function renderSessions() {
   const el = $('sessions'); el.innerHTML = '';
-  const order = { busy: 0, waiting: 1, idle: 2, offline: 3 };
   const repos = [...new Set(Object.values(S.sessions).map((s) => repo(s.cwd)).filter(Boolean))].sort();
   const f = $('repoFilter');
   if (S.repo && !repos.includes(S.repo)) S.repo = '';
   f.innerHTML = `<option value="">${t('sessions.allRepos')}</option>` + repos.map((r) => `<option${r === S.repo ? ' selected' : ''}>${esc(r)}</option>`).join('');
   f.onchange = () => { S.repo = f.value; try { localStorage.repoFilter = S.repo; } catch {} renderSessions(); };
-  const all = Object.values(S.sessions).filter((s) => !S.repo || repo(s.cwd) === S.repo).sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
+  const all = Object.values(S.sessions).filter((s) => !S.repo || repo(s.cwd) === S.repo).sort((a, b) => a.name.localeCompare(b.name));
   const live = all.filter((s) => s.status !== 'offline'), off = all.filter((s) => s.status === 'offline');
+  const tg = $('sessToggle'); tg.setAttribute('aria-expanded', String(S.sessOpen)); tg.querySelector('.caret').textContent = S.sessOpen ? '▾' : '▸'; $('sessCount').textContent = live.length ? `(${live.length})` : '';
+  el.hidden = !S.sessOpen;
   if (!live.length) el.innerHTML = `<div class="side-empty">${t('sessions.empty')}</div>`;
   for (const s of live) el.append(sessionRow(s));
   if (off.length) {

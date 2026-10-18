@@ -599,4 +599,7 @@ export const vi: Record<string, string> = {
   'set.relayChat.hint': 'Khi một agent được gọi từ phòng mà trả lời chỉ trong khung chat riêng (không room_send), hub tự đăng câu cuối vào phòng dưới dạng tin hệ thống gửi @you, không đánh thức ai.',
   'sys.lead.cleared': '@you Hub đã dừng trưởng phòng {name} và mở một terminal Claude mới ở {cwd}{who}, kèm hồ sơ bàn giao. Bấm Enter trong cửa sổ đó để phiên mới vào phòng và làm trưởng phòng.',
   'lead.handoffHead': 'Hồ sơ bàn giao của trưởng phòng trước:',
+  'sessions.tip.doing': 'Đang làm',
+  'sessions.tip.dir': 'Thư mục',
+  'sessions.tip.rooms': 'Phòng',
 };

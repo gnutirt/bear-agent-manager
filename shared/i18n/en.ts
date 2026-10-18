@@ -599,4 +599,7 @@ export const en: Record<string, string> = {
   'set.relayChat.hint': 'When an agent called from the room answers only in its own chat (no room_send), the hub posts its last answer into the room as a system line to @you, waking nobody.',
   'sys.lead.cleared': '@you Hub stopped the lead {name} and opened a fresh Claude terminal in {cwd}{who} with its handoff. Press Enter in that window so the new session joins the room and becomes the lead.',
   'lead.handoffHead': 'Handoff of the previous lead:',
+  'sessions.tip.doing': 'Doing',
+  'sessions.tip.dir': 'Folder',
+  'sessions.tip.rooms': 'Rooms',
 };
