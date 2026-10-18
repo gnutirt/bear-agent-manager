@@ -11,6 +11,7 @@ import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
+import { applyShare, listAccounts as listConfigAccounts, planShare } from './accounts.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -1032,6 +1033,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       fs.mkdirSync(dir, { recursive: true });
       (opts.openFolder ?? openFolder)(dir);
       return json(res, 200, { ok: true, path: dir });
+    }
+    // ---- accounts (D1): the Claude config dirs of this machine and whether they share their chats ----
+    const accountDirs = () => {
+      let siblings: string[] = [];
+      try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)); } catch { /* none */ }
+      return [...usageDirs(), ...siblings];
+    };
+    if (m === 'GET' && p === '/api/accounts') return json(res, 200, listConfigAccounts(accountDirs(), path.join(usageHome, '.claude')));
+    if (m === 'POST' && p === '/api/accounts/share') {
+      // Without confirm: only the plan. With it: refused while any claude runs (it may be writing in projects/).
+      const b = await readBody(req), primary = path.join(usageHome, '.claude');
+      const plan = planShare(accountDirs(), primary, b.on !== false);
+      if (b.confirm !== true || !plan.length) return json(res, 200, { plan, done: false });
+      const running = (await listProcs()).filter((pr) => /(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(pr.cmd));
+      if (running.length) return json(res, 409, { error: tr('sys.accounts.busy', { n: running.length }), running: running.map((pr) => pr.pid), plan });
+      try { applyShare(plan, primary); } catch (e) { return json(res, 500, { error: (e as Error).message, plan }); }
+      console.log(`[accounts] chats ${b.on !== false ? 'shared' : 'unshared'}: ${plan.map((a) => `${a.do} ${a.path ?? a.from}`).join('; ')}`);
+      return json(res, 200, { plan, done: true, ...listConfigAccounts(accountDirs(), primary) });
     }
     if (m === 'GET' && p === '/api/version') return json(res, 200, await versionNow());
     if (m === 'POST' && p === '/api/version/check') { await checkUpdates(true); return json(res, 200, await versionNow()); }

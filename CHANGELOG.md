@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Shared chats between editors (D1, hub): `GET /api/accounts` lists the Claude config dirs of the machine (the default one first; login known only by whether its file exists, never read) and whether they share chats (`shared`: the others' projects/ is a junction to the default one's). `POST /api/accounts/share {on}` returns the plan; with `confirm: true` it carries it out: a projects/ folder with chats is renamed to `projects.pre-share-<date>` (never deleted) before the junction is made, turning off removes only the junction. Refused (409) while any claude process runs. Needs hub restart.
 ## 0.4.0 - 2026-10-18
 
 - `Session.pids` `[{pid, headless, at}]`: every claude that registered for a chat (its tab and a background wake) is remembered (live ones only, last 4). End (`terminate`) now kills all of them that are still a claude of this chat, instead of only the last registered pid, which could be the wrong one. Needs hub restart.

@@ -509,6 +509,7 @@ export const vi: Record<string, string> = {
   'sys.limit.unstuck': '{name} kẹt sau khi hết hạn mức: hub đóng tiến trình kẹt và gọi dậy lại ở chế độ nền.',
   'sys.limit.stuck': '@you {name} kẹt sau khi hết hạn mức và không nhận tin: mở tab của nó và gõ tiếp.',
   'sys.relay.more': '(xem đủ trong chat của {name})',
+  'sys.accounts.busy': 'Đang có {n} tiến trình claude chạy: đóng hết các chat (VS Code, Antigravity, agent nền) rồi thử lại, vì chúng có thể đang ghi vào thư mục chat.',
   'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',
   'sys.stop.unknown': 'không rõ',
   'sys.stop.limit': '@you {name} hết hạn mức gói. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',

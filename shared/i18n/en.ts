@@ -509,6 +509,7 @@ export const en: Record<string, string> = {
   'sys.limit.unstuck': '{name} was stuck after a usage limit: the hub closed the stuck process and wakes it in the background.',
   'sys.limit.stuck': '@you {name} is stuck after a usage limit and takes no messages: open its tab and type to go on.',
   'sys.relay.more': '(full text in the chat of {name})',
+  'sys.accounts.busy': '{n} claude processes are running: close every chat (VS Code, Antigravity, background agents) and try again, they may be writing to the chat folder.',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',
