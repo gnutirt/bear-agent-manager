@@ -147,7 +147,8 @@ test('receipts: each member gets a chip only on the newest message that woke it,
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    const grab = (name: string) => html.match(new RegExp(String.raw`function ${name}\([\s\S]*?\n}\n`))![0];
+    // \r?: a Windows checkout with core.autocrlf has CRLF line ends
+    const grab = (name: string) => html.match(new RegExp(String.raw`function ${name}\([\s\S]*?\r?\n}\r?\n`))![0];
     const S = { sessions: { a: { name: 'fw', status: 'offline', cursor: 0 }, b: { name: 'web', status: 'idle', cursor: 5 } } };
     const esc = (x: string) => x;
     const { lastWakes, receipts } = new Function('S', 'esc', 't', `${grab('lastWakes')}${grab('receipts')}return { lastWakes, receipts };`)(S, esc, (k: string) => k);
