@@ -88,6 +88,17 @@
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:7788/hooks/stop-failure",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

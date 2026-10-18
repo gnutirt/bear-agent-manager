@@ -1,4 +1,26 @@
+import fs from 'node:fs';
 import type { AccountUsage } from './usage.ts';
+
+/** Epoch ms when the subscription limit that stopped this chat lifts, read from the newest `quotaLimits` line of its transcript (0 = none found). */
+export function quotaResetFromTranscript(file: string | undefined): { until: number; type: string } | null {
+  try {
+    if (!file) return null;
+    const fd = fs.openSync(file, 'r');
+    try {
+      const size = fs.fstatSync(fd).size, len = Math.min(size, 256 * 1024), buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      for (const line of buf.toString('utf8').split('\n').reverse()) {
+        if (!line.includes('quotaLimits')) continue;
+        try {
+          const q = JSON.parse(line).quotaLimits;
+          const sec = Number(q?.resetsAt);
+          if (Number.isFinite(sec) && sec > 0) return { until: sec * 1000, type: String(q.rateLimitType ?? '') };
+        } catch { /* torn line */ }
+      }
+    } finally { fs.closeSync(fd); }
+  } catch { /* unreadable */ }
+  return null;
+}
 
 export type WakeCfg = { enabled: boolean; atPct: number; afterResetMin: number };
 export type WakeEntry = { at: number; tries: number };   // at = epoch ms the account should be checked and its agents woken

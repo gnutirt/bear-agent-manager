@@ -21,7 +21,7 @@ import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './co
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
 import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir } from './lead.ts';
-import { accountKey, blockedUntil, planWakes } from './wake.ts';
+import { accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
@@ -376,6 +376,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (rule && sess.transcript) startAutoJobs([{ kind: 'handoff', sessionId: sess.id, transcript: sess.transcript, name: sess.name }]);
         break;
       }
+      case 'stop-failure': {
+        // A turn that ended in an API error never reaches the Stop hook, so the agent is in no waiter: say why and book the wake.
+        const sess = store.session(id), err = String(b.error ?? '');
+        const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+        if (err !== 'rate_limit') { say(`${sess.name}: lượt bị dừng bởi lỗi API (${err || 'không rõ'}).`); status('idle', ''); break; }
+        const q = quotaResetFromTranscript(String(b.transcript_path ?? sess.transcript ?? ''));
+        const hhmm = q ? new Date(q.until).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }) : '';
+        if (q) {
+          sess.limited = q;
+          const have = (store.state.wakeAt ??= {});
+          have[`s:${sess.id}`] = { at: q.until + loadSettings(opts.dir, envCap).lead.wake.afterResetMin * 60_000, tries: 0 };
+          store.save();
+          scheduleWake(`s:${sess.id}`);
+        }
+        say(`@you ${sess.name} hết hạn mức gói${hhmm ? `, dùng lại được lúc ${hhmm}` : ''}. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.`);
+        status('idle', hhmm ? `hết hạn mức tới ${hhmm}` : 'hết hạn mức');
+        break;
+      }
       case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
       case 'notify': status('waiting', String(b.message ?? 'needs permission')); break;
       case 'end': emitSession(store.markEnded(id)); setImmediate(() => runArchive(store.session(id).id)); break;
@@ -450,7 +468,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Booked time reached: still above the threshold -> try again in 5 minutes (6 times, then tell @you); reset -> post as the user, mentioning only this account's agents (its lead alone when it has one). */
   async function fireWake(key: string) {
     const have = store.state.wakeAt ?? {}, e = have[key];
-    if (!e || !usage) return;
+    if (!e) return;
+    if (key.startsWith('s:')) {   // one session stopped by its limit (StopFailure): ask it to continue, as the user
+      delete have[key];
+      const s = store.state.sessions[key.slice(2)];
+      if (s) { delete s.limited; }
+      store.save();
+      if (!s) return;
+      for (const r of Object.keys(s.rooms)) {
+        try {
+          const posted = store.post(r, null, `@${s.name} hết hạn mức đã qua, làm tiếp việc đang dở.`);
+          broadcast('msg', posted.message);
+          emitRoom(r);
+          for (const id of posted.message.wake) deliver(store.resolve(id));
+        } catch { /* room gone */ }
+      }
+      return;
+    }
+    if (!usage) return;
     const cfg = loadSettings(opts.dir, envCap).lead.wake;
     const acc = (await usage.read(usageDirs(), true)).find((a) => accountKey(a) === key);
     const rooms = acc ? accountRooms(acc) : [];

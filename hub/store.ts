@@ -22,6 +22,7 @@ export type Session = {
   titleNamed?: boolean;          // name already derived from the title once
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
+  limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
 };
