@@ -424,4 +424,9 @@ export const vi: Record<string, string> = {
   'compact.search': 'Tìm agent…',
   'compact.showOffline': 'Hiện cả agent đã tắt ({n})',
   'compact.hideOffline': 'Chỉ agent đang chạy',
+  'attach.add': 'Đính kèm ảnh hoặc file',
+  'attach.uploading': 'Đang tải lên…',
+  'attach.remove': 'Bỏ đính kèm',
+  'attach.wait': 'Đang tải file lên, chờ một chút rồi gửi',
+  'attach.noHub': 'Hub chưa hỗ trợ đính kèm, cần cập nhật và restart hub',
 };

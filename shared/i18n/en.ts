@@ -424,4 +424,9 @@ export const en: Record<string, string> = {
   'compact.search': 'Search agents…',
   'compact.showOffline': 'Show offline agents ({n})',
   'compact.hideOffline': 'Running agents only',
+  'attach.add': 'Attach an image or file',
+  'attach.uploading': 'Uploading…',
+  'attach.remove': 'Remove attachment',
+  'attach.wait': 'A file is still uploading, wait a moment and send again',
+  'attach.noHub': 'This hub does not support attachments yet: update and restart the hub',
 };

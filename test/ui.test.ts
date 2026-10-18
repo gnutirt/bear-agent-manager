@@ -52,7 +52,7 @@ test('reply: quote bar, floating button, replyTo sent with the message, quote bo
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['id="replyBar"', "id = 'rplBtn'", '{ text, replyTo: S.reply.id }', 'data-goto=', 'm.replyTo']) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['id="replyBar"', "id = 'rplBtn'", 'replyTo: S.reply.id', 'data-goto=', 'm.replyTo']) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
 

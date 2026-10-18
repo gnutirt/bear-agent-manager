@@ -72,6 +72,20 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 #menu .vbody{padding:8px 10px;display:grid;gap:8px;font-size:13px}
 #menu .vnotes{max-height:160px;overflow:auto;white-space:pre-wrap;font-size:12.5px;color:var(--mute);background:var(--code);border-radius:8px;padding:8px 10px}
 #menu .vbody .verr{margin:0;padding:8px 10px}
+/* attachments */
+#attachBtn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--mute);flex:none}
+#attachBtn:hover{background:var(--hover);color:var(--text)}#attachBtn svg{width:18px;height:18px}
+#attachBar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px}#attachBar[hidden]{display:none}
+.att,.afile{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);max-width:260px;font-size:12.5px;text-decoration:none;color:inherit}
+.att img{width:38px;height:38px;object-fit:cover;border-radius:8px}.att.bad{border-color:#E5484D}
+.att .an,.afile .an{display:flex;flex-direction:column;min-width:0}.att b,.afile b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.att small,.afile small{color:var(--mute)}
+.att button{width:22px;height:22px;border-radius:6px;color:var(--mute)}.att button:hover{background:var(--hover)}
+.compose-wrap.drop #composer{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.atts{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
+.aimg{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--code);cursor:zoom-in;line-height:0}
+.aimg img{max-width:260px;max-height:200px;object-fit:cover;display:block}
+.afile:hover{border-color:var(--accent)}
+#zoom .zbox.zimg{width:auto;max-width:96vw;padding:14px}#zoom .zimg img{max-width:100%;max-height:84vh;display:block;border-radius:10px}
 /* reply: floating button on the hovered message, quote bar above the composer, quote box inside a reply */
 #rplBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
 #rplBtn:hover{background:var(--accent);color:#fff}
@@ -611,7 +625,9 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div class="compose-wrap">
     <div id="mentionMenu" role="listbox"></div>
     <div id="replyBar" hidden></div>
-    <form id="composer"><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude" data-i18n-ph="composer.ph"></textarea><button id="send" aria-label="Gửi" data-i18n-aria="composer.send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
+    <div id="attachBar" hidden></div>
+    <input type="file" id="fileInput" multiple hidden>
+    <form id="composer"><button type="button" id="attachBtn" title="Đính kèm ảnh hoặc file" data-i18n-ta="attach.add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button><textarea id="text" rows="1" placeholder="Nhắn vào phòng… gõ @ để gọi một Claude" data-i18n-ph="composer.ph"></textarea><button id="send" aria-label="Gửi" data-i18n-aria="composer.send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></form>
     <div id="cost"></div>
     <div id="notice"></div>
     <div class="hint" data-i18n-html="composer.hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
@@ -1109,11 +1125,11 @@ function renderLog() {
     }
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
-    if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`);
+    if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = s ? s.name : m.from;
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -1266,7 +1282,58 @@ function insertMention(name) {
   const t = $('text'); const sep = t.value && !/\s$/.test(t.value) ? ' ' : '';
   t.value += sep + '@' + name + ' '; autosize(); t.focus();
 }
-function autosize() { const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 180) + 'px'; $('send').disabled = !t.value.trim(); }
+function autosize() { const ta = $('text'); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'; $('send').disabled = !ta.value.trim() && !(S.attach || []).some((a) => a.id); }
+
+/* ---------- attachments (A2): paste, drop or pick files; uploaded raw to POST /api/rooms/:r/files, sent as attachments:[id] ---------- */
+S.attach = [];
+const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const fileUrl = (room, id) => `/api/rooms/${enc(room)}/files/${enc(id)}?token=${enc(TOKEN)}`;
+function renderAttachBar() {
+  const bar = $('attachBar');
+  bar.hidden = !S.attach.length;
+  bar.innerHTML = S.attach.map((a, i) => `<div class="att ${a.error ? 'bad' : ''}" title="${esc(a.error || a.name)}">${a.preview ? `<img src="${a.preview}" alt="">` : '<span class="ficon">📎</span>'}<span class="an"><b>${esc(a.name)}</b><small>${a.error ? esc(a.error) : a.id ? fmtSize(a.size) : t('attach.uploading')}</small></span><button type="button" data-rmatt="${i}" aria-label="${t('attach.remove')}">✕</button></div>`).join('');
+  autosize();
+}
+async function addFiles(files) {
+  if (!S.current) return;
+  const room = S.current;
+  for (const f of [...files]) {
+    const a = { name: f.name || 'image.png', size: f.size, mime: f.type || 'application/octet-stream', preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : '' };
+    S.attach.push(a); renderAttachBar();
+    try {
+      const r = await fetch(`/api/rooms/${enc(room)}/files`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-room-token': TOKEN, 'x-file-name': enc(a.name), 'x-file-type': a.mime }, body: f });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 404) throw new Error(t('attach.noHub'));
+      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+      Object.assign(a, d);
+    } catch (e) { a.error = e.message; toast(e.message); }
+    renderAttachBar();
+  }
+}
+$('attachBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = (e) => { addFiles(e.target.files); e.target.value = ''; };
+$('attachBar').addEventListener('click', (e) => { const b = e.target.closest('[data-rmatt]'); if (b) { const [a] = S.attach.splice(+b.dataset.rmatt, 1); if (a?.preview) URL.revokeObjectURL(a.preview); renderAttachBar(); } });
+$('text').addEventListener('paste', (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } });
+const dropZone = document.querySelector('.compose-wrap'), dropAreas = [dropZone, $('log')];
+for (const z of dropAreas) {
+  z.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); dropZone.classList.add('drop'); } });
+  z.addEventListener('dragleave', (e) => { if (!e.relatedTarget || !z.contains(e.relatedTarget)) dropZone.classList.remove('drop'); });
+  z.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); dropZone.classList.remove('drop'); addFiles(e.dataTransfer.files); } });
+}
+/** Attachments of one message: image thumbnails (click to enlarge) and file cards (click to download). Names are untrusted: escaped. */
+function attachHtml(m) {
+  if (!m.attachments?.length) return '';
+  return `<div class="atts">${m.attachments.map((a) => {
+    const u = fileUrl(m.room || S.current, a.id), isImg = /^image\//.test(a.mime || '');
+    return isImg ? `<button type="button" class="aimg" data-zoomimg="${esc(u)}" title="${esc(a.name)}"><img src="${esc(u)}" alt="${esc(a.name)}" loading="lazy"></button>`
+      : `<a class="afile" href="${esc(u)}" download="${esc(a.name)}" title="${esc(a.name)}"><span class="ficon">📎</span><span class="an"><b>${esc(a.name)}</b><small>${esc(a.mime || '')} · ${fmtSize(a.size || 0)}</small></span></a>`;
+  }).join('')}</div>`;
+}
+$('log').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-zoomimg]'); if (!b) return;
+  zoom.innerHTML = `<div class="zbox zimg" role="dialog" aria-modal="true"><button class="zx" aria-label="${t('common.close')}">✕</button><img src="${esc(b.dataset.zoomimg)}" alt=""></div>`;
+  zoom.hidden = false;
+});
 
 function wakeTargets(text) {
   const ms = members(S.current);
@@ -1295,11 +1362,14 @@ $('text').addEventListener('keydown', (e) => {
 });
 $('composer').onsubmit = async (e) => {
   e.preventDefault();
-  const text = $('text').value.trim();
+  const ready = S.attach.filter((a) => a.id);
+  if (S.attach.some((a) => !a.id && !a.error)) return toast(t('attach.wait'));
+  const text = $('text').value.trim() || ready.map((a) => '📎 ' + a.name).join('\n');
   if (!text || !S.current) return;
   try {
-    const r = await api(`/api/rooms/${enc(S.current)}/messages`, S.reply ? { text, replyTo: S.reply.id } : { text });
-    $('text').value = ''; autosize(); updateCost(); setReply(null);
+    const body = { text, ...(S.reply ? { replyTo: S.reply.id } : {}), ...(ready.length ? { attachments: ready.map((a) => a.id) } : {}) };
+    const r = await api(`/api/rooms/${enc(S.current)}/messages`, body);
+    $('text').value = ''; S.attach = []; renderAttachBar(); autosize(); updateCost(); setReply(null);
     S.stick = true; pinBottom();   // your own message: always show it
     const dead = r.message.wake.map((id) => S.sessions[id]).filter((s) => s && s.status === 'offline').map((s) => s.name);
     if (r.unknownMentions.length) note(new Error(t('composer.unknown', { names: r.unknownMentions.map((n) => '@' + n).join(', ') })));
