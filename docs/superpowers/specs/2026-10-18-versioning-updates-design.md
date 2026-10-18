@@ -29,6 +29,6 @@ Không làm: tự cập nhật không hỏi; tự chạy script tải về; cậ
 - V3 (@coder, sau V1): `POST /api/update` theo thứ tự an toàn ở trên (+ test trên repo git tạm).
 - V4 (@coder): `scripts/release.mjs` + mục "Cách phát hành" trong README. Chủ repo chạy lần đầu phát hành 0.3.0 khi đủ tính năng.
 
-## Câu hỏi cho chủ repo
+## Cách cài trên máy này (trưởng phòng chốt 2026-10-18, chủ repo giao tự quyết)
 
-Plugin trên máy này được cài thế nào: Claude Code marketplace hay git checkout trực tiếp? Câu trả lời quyết định nút "Cập nhật" tự áp dụng được (V3) hay chỉ hiện hướng dẫn.
+Marketplace cục bộ trỏ thẳng thư mục `D:\Antigravity\bear-agent-manager` (`source=directory`, trong `~/.claude/plugins/known_marketplaces.json`); Claude Code giữ một bản chép 0.2.0 ở `plugins/cache/bear-agent-manager-local` và hook/MCP chạy từ bản chép đó. Hệ quả cho V3: `git merge --ff-only` trong thư mục nguồn chỉ cập nhật hub (hub chạy từ thư mục nguồn); hook và MCP trong bản chép chỉ đổi sau khi chạy cập nhật plugin của Claude Code. Nút "Cập nhật" vì vậy tự áp dụng phần thư mục git sạch, rồi hiện đúng lệnh cập nhật plugin cho phần bản chép (và nhắc mở lại các chat để nạp hook mới). Máy khác cài từ marketplace GitHub chỉ nhận hướng dẫn cập nhật plugin. V1 phải báo riêng hai phiên bản: `current` của hub và phiên bản của bản chép plugin (đọc `plugin.json` trong thư mục cài mà hook đang dùng), cảnh báo khi lệch nhau.
