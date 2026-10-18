@@ -390,7 +390,7 @@ header .spacer{flex:1}
 #mentionMenu .opt small{color:var(--mute);margin-left:auto}
 
 /* ---------- popover menu + toast ---------- */
-#menu{position:fixed;z-index:50;min-width:230px;max-width:320px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none}
+#menu{position:fixed;z-index:50;min-width:230px;max-width:320px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none;max-height:calc(100vh - 16px);overflow-y:auto}
 #menu.open{display:block}
 #menu .item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border-radius:8px;font-size:13.5px}
 #menu .item:hover{background:var(--hover)}
@@ -414,6 +414,8 @@ header .spacer{flex:1}
 #menu .mem .mi small{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #menu .mem .macts{display:flex;gap:6px;flex:none}
 #menu .item.mem{flex-wrap:wrap}
+#menu .mcard .mhd{cursor:pointer;border-radius:10px}#menu .mcard .mhd::after{content:'▸';margin-left:auto;color:var(--mute);font-size:12px}#menu .mcard.open .mhd::after{content:'▾'}
+#menu .mcard .mbody[hidden]{display:none}
 #menu .item.mem.mcard{display:block;border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin:8px 0;background:color-mix(in srgb,var(--text) 2%,transparent)}
 #menu .mcard .mhd{display:flex;align-items:center;gap:12px}
 #menu .mblk{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
@@ -1070,16 +1072,23 @@ function membersMenu(anchor) {
   openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
     <div class="item mem mcard ${s.status}">
       <div class="mhd">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span></div>
+      <div class="mbody" hidden>
       <section class="mblk"><h4>${t('members.blk.role')}</h4><div class="mrow"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out} ${t('members.leave')}</button></div></section>
       <section class="mblk"><h4>${t('members.blk.model')}</h4><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false"></section>
       <section class="mblk" data-mtop="${esc(s.id)}" hidden></section>
       <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button class="btn sm" data-goskill="${esc(normAgent(s.name))}">${t('members.goSkill')}</button>${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}</div></section>
       <section class="mblk danger"><h4>${t('members.blk.danger')}</h4><div class="mrow"><button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button>${isLead(s.id) ? `<button class="btn sm danger" data-clearlead="${esc(s.id)}" title="${t('members.clearLead.tip')}">${t('members.clearLead')}</button>` : ''}</div></section>
+      </div>
     </div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     fillFollows(m);
+    m.querySelectorAll('.mcard').forEach((card) => {
+      const body = card.querySelector('.mbody'), open = (on) => { card.classList.toggle('open', on); body.hidden = !on; };
+      card.querySelector('.mhd').onclick = (e) => { if (!e.target.closest('[data-name]')) open(body.hidden); };
+      if (ms.length === 1) open(true);
+    });
     m.querySelectorAll('[data-goskill]').forEach((b) => b.onclick = () => { S.skAgent = b.dataset.goskill; closeMenu(); showTab('skills'); loadSkillUse(S.skAgent); });
     m.querySelectorAll('[data-opentab]').forEach((b) => b.onclick = () => { closeMenu(); openTab(b.dataset.opentab); });
     const sess = (id) => S.sessions[id];
