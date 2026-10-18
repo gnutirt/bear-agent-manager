@@ -1896,6 +1896,18 @@ function routesBlock() {
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
 const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account' });
+/** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
+function loadData() {
+  api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
+}
+const DATA_NAMES = lazy({ rooms: 'data.name.rooms', room_chat: 'data.name.room_chat', handoffs: 'data.name.handoffs', trash: 'data.name.trash' });
+function dataBlock() {
+  const d = S.dataInfo;
+  if (!d) { loadData(); return `<p class="small muted">${t('data.loading')}</p>`; }
+  if (d.error) return `<p class="small bad">${esc(t('data.error', { err: d.error }))}</p><button class="btn sm" data-datarefresh>${t('data.refresh')}</button>`;
+  const rows = d.entries.map((e) => `<tr><td><b>${esc(DATA_NAMES[e.name] || e.name)}</b><div class="small muted mono" style="word-break:break-all" title="${esc(e.path)}">${esc(e.path)}</div></td><td>${e.exists ? `${fmtSize(e.bytes)}<div class="small muted">${t('data.files', { n: e.files })}</div>` : `<span class="muted">${t('data.missing')}</span>`}</td><td><button class="btn sm" data-opendata="${esc(e.name)}"${e.exists ? '' : ' disabled'}>${t('data.open')}</button></td></tr>`).join('');
+  return `<p class="small muted">${t('data.note')}</p><div class="small"><b>${esc(d.home)}</b> · ${t('data.total', { size: fmtSize(d.total.bytes), files: d.total.files })}</div><table class="tbl">${rows}</table><div class="row" style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-opendata="">${t('data.openAll')}</button><button class="btn sm" data-datarefresh>${t('data.refresh')}</button></div>`;
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -1954,6 +1966,8 @@ function renderSettingsView() {
       ${sw('archive.enabled', arOn, t('set.archive'), t('set.archive.hint'))}
       <label class="setrow"><span><b>${t('set.archive.dir')}</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
     </div>
+    <h2>${t('data.title')}</h2>
+    ${dataBlock()}
     <h2>${t('info.title')}</h2>
     <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
     compact: `    <h2>${t('compact.title')}</h2>
@@ -2009,7 +2023,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; return renderSettingsView(); }
+    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; return renderSettingsView(); }
+    if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
+    const od = e.target.closest('[data-opendata]');
+    if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
     if (e.target.closest('#hubRestart')) {
       return api('/api/restart', {}).then(() => { toast(t('hub.restarting')); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
     }
