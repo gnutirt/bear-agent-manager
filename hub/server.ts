@@ -12,7 +12,7 @@ import { summarize } from './tokens.ts';
 import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
-import { DICTS, systemLang } from '../shared/i18n.ts';
+import { loadDicts, systemLang } from '../shared/i18n.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
@@ -720,7 +720,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, lastExport);
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
-    if (m === 'GET' && p === '/api/i18n') return json(res, 200, { setting: loadSettings(opts.dir, envCap).language, system: systemLang(), dicts: DICTS });
+    if (m === 'GET' && p === '/api/i18n') return json(res, 200, { setting: loadSettings(opts.dir, envCap).language, system: systemLang(), dicts: await loadDicts() });
     if (m === 'GET' && p === '/api/claude-usage') {
       if (!usage) return json(res, 200, { accounts: [] });
       const accounts = await usage.read(usageDirs(), url.searchParams.get('refresh') === '1');
