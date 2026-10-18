@@ -98,3 +98,12 @@ test('lead duties: delegate, distribute, handoffOnDone on by default, booleans o
   assert.deepEqual([s.lead.delegate, s.lead.distribute, s.lead.handoffOnDone, s.lead.wake.enabled], [false, true, true, true]);
   assert.equal(patchSettings(s, { lead: { wake: { atPct: 80 } } }).lead.delegate, false);
 });
+
+test('lead.idleMin: 30 by default, kept between 1 and 240', () => {
+  const d = defaultSettings(4);
+  assert.equal(d.lead.idleMin, 30);
+  assert.equal(patchSettings(d, { lead: { idleMin: 90 } }).lead.idleMin, 90);
+  assert.equal(patchSettings(d, { lead: { idleMin: 0 } }).lead.idleMin, 1);
+  assert.equal(patchSettings(d, { lead: { idleMin: 999 } }).lead.idleMin, 240);
+  assert.equal(patchSettings(patchSettings(d, { lead: { idleMin: 90 } }), { lead: { delegate: false } }).lead.idleMin, 90);
+});

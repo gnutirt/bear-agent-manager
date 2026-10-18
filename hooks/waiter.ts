@@ -5,7 +5,9 @@ import { api, ApiError, ensureHub, hubUp, sleep } from '../shared/client.ts';
 import { formatDelivery, ideFromCommand, isOneShotCommand, parentCommandLine, readInput, register } from './lib.ts';
 
 // Must stay below the hook's 604800 s timeout in hooks.json.
-const LIFETIME_MS = (604_800 - 600) * 1000;
+// A background wake (hub/revive.ts) sets BEAR_AGENT_IDLE_MIN: every Stop starts a new waiter, so this is "idle minutes after the last turn".
+const idleMin = Number(process.env.BEAR_AGENT_IDLE_MIN);
+const LIFETIME_MS = process.env.BEAR_AGENT_HEADLESS === '1' && idleMin > 0 ? Math.min(idleMin, 240) * 60_000 : (604_800 - 600) * 1000;
 const TRANSCRIPT_POLL_MS = 2000;
 
 const input = await readInput().catch(() => null);
@@ -44,7 +46,8 @@ if (input.hook_event_name === 'Stop') {
 while (Date.now() - started < LIFETIME_MS) {
   let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; superseded?: boolean };
   try {
-    r = await api(`/api/sessions/${id}/wait?timeout=50`, { timeoutMs: 65_000 });
+    const left = Math.max(1, Math.min(50, Math.ceil((LIFETIME_MS - (Date.now() - started)) / 1000)));   // never poll past the idle limit
+    r = await api(`/api/sessions/${id}/wait?timeout=${left}`, { timeoutMs: 65_000 });
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       await register(input, { ide }).catch(() => {});

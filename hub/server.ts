@@ -31,7 +31,7 @@ import type { Message } from './routing.ts';
 import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
-import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -319,7 +319,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
-        const code = await Promise.resolve(runRevive({ ...job, text, ...(tools ? { tools } : {}) }));
+        const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, ...(tools ? { tools } : {}) }));
         if (typeof code === 'number' && code !== 0) failure = `${tr('sys.wake.exit', { code })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
@@ -362,6 +362,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!proc || !/(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(proc.cmd)) throw new StoreError(409, `${s.name}: pid ${s.pid} is not a running claude`);
     if (proc.started && proc.started > s.lastSeen + 5000) throw new StoreError(409, `${s.name}: pid ${s.pid} started after this session was last seen (pid reused)`);
     await killProc(s.pid);
+    stopRevive(s.id);
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
     emitSession(store.markEnded(s.id));
@@ -1023,6 +1024,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (m === 'POST' && action === 'open-tab') {
         const s = store.session(id);
         if (waiters.has(s.id) || (s.status !== 'offline' && !s.ended)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        stopRevive(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });
       }

@@ -276,3 +276,23 @@ test('B skill usage: a Skill tool call is recorded per agent, other tools are no
     assert.equal((await call('/api/skill-usage?agent=nobody')).uses.length, 0);
   } finally { await hub.close(); }
 });
+
+test('A background wake: HEADLESS + IDLE_MIN make the waiter give up after the idle time (exit 0), a message before that still exits 2', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/sessions/register', { id: 'bg1', cwd: 'C:\bgwork' });
+    await call('/api/sessions/bg1/rename', { name: 'bgwork' });
+    await call('/api/rooms/proj/join', { sessionId: 'bg1' });
+    const bg = { ...e, BEAR_AGENT_HEADLESS: '1', BEAR_AGENT_IDLE_MIN: '0.04' };   // 2.4 s
+    const t0 = Date.now();
+    const idle = await runHook('waiter.ts', { session_id: 'bg1', cwd: 'C:\bgwork', hook_event_name: 'Stop' }, bg).done;
+    assert.equal(idle.code, 0);
+    assert.ok(Date.now() - t0 < 15_000, `waited ${Date.now() - t0} ms`);
+    const w = runHook('waiter.ts', { session_id: 'bg1', cwd: 'C:\bgwork', hook_event_name: 'Stop' }, { ...e, BEAR_AGENT_HEADLESS: '1', BEAR_AGENT_IDLE_MIN: '30' });
+    await new Promise((r) => setTimeout(r, 1500));
+    await call('/api/rooms/proj/messages', { text: '@bgwork again' });
+    const r = await w.done;
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /@bgwork again/);
+  } finally { await hub.close(); }
+});
