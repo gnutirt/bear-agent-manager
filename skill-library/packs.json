@@ -31,16 +31,7 @@
     "vi": "Đào tạo — cốt lõi",
     "en": "Training — core",
     "roles": ["training"],
-    "skills": [
-      "course-training-skills",
-      "course-outline",
-      "session-designer",
-      "activity-designer",
-      "assessment-designer",
-      "slide-designer",
-      "instructor-guide",
-      "course-reviewer"
-    ],
+    "skills": ["course-training-skills", "frontend-slides", "theme-factory", "internal-comms"],
     "mode": "auto",
     "when": "every"
   },

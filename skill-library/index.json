@@ -10,6 +10,7 @@
       ],
       "path": "banking/anthropic-financial-services/3-statement-model",
       "description": "Complete, populate and fill out 3-statement financial model templates (Income Statement, Balance Sheet, Cash Flow Statement) . Use when asked to fill out model templates, complete existing model frameworks, populate financial models with data, complete a partially filled IS/BS/CF framework, or link integrated financial statements within an existing template structure. Triggers include requests to fill in, complete, or populate a 3-statement model template",
+      "descVi": "Lập và điền mô hình 3 báo cáo tài chính (kết quả kinh doanh, cân đối kế toán, lưu chuyển tiền tệ).",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -22,6 +23,7 @@
       ],
       "path": "banking/anthropic-financial-services/accrual-schedule",
       "description": "Build the period-end accrual schedule — for each accrual, compute the entry, cite the support, and draft the JE. Use during month-end close; the JE is a draft for controller approval, not a posting.",
+      "descVi": "Lập bảng trích trước cuối kỳ: tính bút toán, dẫn chứng từ, soạn bút toán nhật ký.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -34,6 +36,7 @@
       ],
       "path": "banking/anthropic-financial-services/audit-xls",
       "description": "Audit a spreadsheet for formula accuracy, errors, and common mistakes. Scopes to a selected range, a single sheet, or the entire model (including financial-model integrity checks like BS balance, cash tie-out, and logic sanity). Triggers on \"audit this sheet\", \"check my formulas\", \"find formula errors\", \"QA this spreadsheet\", \"sanity check this\", \"debug model\", \"model check\", \"model won't balance\", \"something's off in my model\", \"model review\".",
+      "descVi": "Rà soát bảng tính tìm lỗi công thức và lỗi thường gặp.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -46,6 +49,7 @@
       ],
       "path": "banking/anthropic-financial-services/break-trace",
       "description": "Root-cause a reconciliation break to its source transaction or posting — follow the audit trail from the break row back to the originating entry on each side and state what differs and why. Use after gl-recon has classified a break.",
+      "descVi": "Truy nguyên nhân chênh lệch đối soát về giao dịch hoặc bút toán gốc.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -58,6 +62,7 @@
       ],
       "path": "banking/anthropic-financial-services/clean-data-xls",
       "description": "Clean up messy spreadsheet data — trim whitespace, fix inconsistent casing, convert numbers-stored-as-text, standardize dates, remove duplicates, and flag mixed-type columns. Use when data is messy, inconsistent, or needs prep before analysis. Triggers on \"clean this data\", \"clean up this sheet\", \"normalize this data\", \"fix formatting\", \"dedupe\", \"standardize this column\", \"this data is messy\".",
+      "descVi": "Làm sạch dữ liệu bảng tính: khoảng trắng, chữ hoa thường, số lưu dạng chữ, định dạng ngày.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -70,6 +75,7 @@
       ],
       "path": "banking/anthropic-financial-services/comps-analysis",
       "description": "Build institutional-grade comparable company analyses with operating metrics, valuation multiples, and statistical benchmarking in Excel/spreadsheet format.",
+      "descVi": "Phân tích công ty so sánh: chỉ số hoạt động, hệ số định giá, thống kê.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -82,6 +88,7 @@
       ],
       "path": "banking/anthropic-financial-services/dcf-model",
       "description": "Real DCF (Discounted Cash Flow) model creation for equity valuation. Retrieves financial data from SEC filings and analyst reports, builds comprehensive cash flow projections with proper WACC calculations, performs sensitivity analysis, and outputs professional Excel models with executive summaries. Use when users need to value a company using DCF methodology, request intrinsic value analysis, or ask for detailed financial modeling with growth projections and terminal value calculations.",
+      "descVi": "Lập mô hình chiết khấu dòng tiền (DCF) để định giá cổ phiếu.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -94,6 +101,7 @@
       ],
       "path": "banking/anthropic-financial-services/dd-checklist",
       "description": "Generate and track comprehensive due diligence checklists tailored to the target company's sector, deal type, and complexity. Covers all major workstreams with request lists, status tracking, and red flag escalation. Use when kicking off diligence, organizing a data room review, or tracking outstanding items. Triggers on \"dd checklist\", \"due diligence tracker\", \"diligence request list\", \"what do we still need\", or \"data room review\".",
+      "descVi": "Lập và theo dõi danh mục thẩm định (due diligence) theo ngành và loại thương vụ.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -106,6 +114,7 @@
       ],
       "path": "banking/anthropic-financial-services/gl-recon",
       "description": "Reconcile general ledger to subledger for a trade date or period — match at the position or transaction level, surface breaks, and classify each break by likely cause. Use for daily or month-end recon runs across asset classes.",
+      "descVi": "Đối soát sổ cái với sổ chi tiết theo ngày hoặc kỳ, ở mức vị thế hoặc giao dịch.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -118,6 +127,7 @@
       ],
       "path": "banking/anthropic-financial-services/ic-memo",
       "description": "Draft a structured investment committee memo for PE deal approval. Synthesizes due diligence findings, financial analysis, and deal terms into a professional IC-ready document. Use when preparing for investment committee, writing up a deal, or creating a formal recommendation. Triggers on \"write IC memo\", \"investment committee memo\", \"deal write-up\", \"prepare IC materials\", or \"recommendation memo\".",
+      "descVi": "Soạn tờ trình hội đồng đầu tư: tổng hợp thẩm định, tài chính, rủi ro, đề xuất.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -130,6 +140,7 @@
       ],
       "path": "banking/anthropic-financial-services/kyc-doc-parse",
       "description": "Parse an investor or client onboarding packet into structured KYC fields — identity, ownership, control, source of funds, and document inventory. Use as the first step of KYC screening; output feeds the rules engine.",
+      "descVi": "Bóc tách hồ sơ mở tài khoản thành các trường KYC: danh tính, sở hữu, kiểm soát, nguồn tiền.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -142,6 +153,7 @@
       ],
       "path": "banking/anthropic-financial-services/kyc-rules",
       "description": "Apply the firm's KYC/AML rules grid to a parsed onboarding record — assign a risk rating, list every rule outcome with the rule cited, and flag what's missing or escalation-worthy. Use after kyc-doc-parse; this skill decides nothing, it scores and routes.",
+      "descVi": "Áp bộ quy tắc KYC/AML lên hồ sơ đã bóc tách: xếp hạng rủi ro, liệt kê kết quả từng quy tắc.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -154,6 +166,7 @@
       ],
       "path": "banking/anthropic-financial-services/morning-note",
       "description": "Draft concise morning meeting notes summarizing overnight developments, trade ideas, and key events for coverage stocks. Designed for the 7am morning meeting format — tight, opinionated, actionable. Triggers on \"morning note\", \"morning meeting\", \"what happened overnight\", \"trade idea\", \"morning call prep\", or \"daily note\".",
+      "descVi": "Soạn ghi chú họp sáng: diễn biến qua đêm, ý tưởng giao dịch, sự kiện chính.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -166,6 +179,7 @@
       ],
       "path": "banking/anthropic-financial-services/roll-forward",
       "description": "Build a roll-forward schedule for a balance-sheet account — beginning balance plus activity less reversals equals ending balance, with each component tied to GL. Use for month-end close packages and audit support.",
+      "descVi": "Lập bảng biến động số dư tài khoản: đầu kỳ, phát sinh, cuối kỳ.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -178,6 +192,7 @@
       ],
       "path": "banking/anthropic-financial-services/sector-overview",
       "description": "Create comprehensive industry and sector landscape reports covering market dynamics, competitive positioning, key players, and thematic trends. Use for client requests, sector initiations, thematic research pieces, or internal knowledge building. Triggers on \"sector overview\", \"industry report\", \"market landscape\", \"sector analysis\", \"industry deep dive\", or \"thematic research\".",
+      "descVi": "Báo cáo tổng quan ngành: động lực thị trường, cạnh tranh, xu hướng.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -190,6 +205,7 @@
       ],
       "path": "banking/anthropic-financial-services/variance-commentary",
       "description": "Write flux commentary for every P&L and balance-sheet line over threshold — current vs prior period and vs budget, with the driver explained from underlying activity. Use for the month-end close package and management reporting.",
+      "descVi": "Viết giải trình biến động cho các dòng KQKD và CĐKT vượt ngưỡng so với kỳ trước và kế hoạch.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -203,6 +219,7 @@
       ],
       "path": "banking/anthropic-financial-services/xlsx-author",
       "description": "Produce a .xlsx file on disk (headless) instead of driving a live Excel workbook — for managed-agent sessions with no open Office app.",
+      "descVi": "Tạo file .xlsx trực tiếp trên đĩa, không cần mở Excel.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "banking/anthropic-financial-services/LICENSE"
@@ -215,6 +232,7 @@
       ],
       "path": "banking/casemark/analyzing-banking-system-health",
       "description": "Structures banking system assessment with capital adequacy, asset quality, and systemic risk evaluation. Use when analyzing banking systems, assessing financial stability, or evaluating systemic risk.",
+      "descVi": "Đánh giá sức khoẻ hệ thống ngân hàng: an toàn vốn, chất lượng tài sản, rủi ro hệ thống.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -227,6 +245,7 @@
       ],
       "path": "banking/casemark/analyzing-digital-lending-platforms",
       "description": "Evaluates digital lending models with credit model assessment, funding structure, and regulatory analysis. Use when analyzing online lenders, evaluating credit models, or assessing lending platform risk.",
+      "descVi": "Đánh giá mô hình cho vay số: mô hình tín dụng, nguồn vốn, pháp lý.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -239,6 +258,7 @@
       ],
       "path": "banking/casemark/analyzing-trade-finance-instruments",
       "description": "Evaluates trade finance structures with letters of credit, supply chain financing, and receivables factoring for cross-border commerce. Use when analyzing trade finance, evaluating LC structures, or assessing supply chain financing.",
+      "descVi": "Đánh giá công cụ tài trợ thương mại: thư tín dụng (L/C), tài trợ chuỗi cung ứng, bao thanh toán.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -251,6 +271,7 @@
       ],
       "path": "banking/casemark/assessing-credit-risk",
       "description": "Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality.",
+      "descVi": "Thẩm định khả năng trả nợ của khách hàng vay: phân tích tài chính, ngành, yếu tố định tính.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -263,6 +284,7 @@
       ],
       "path": "banking/casemark/auditing-aml-transactions",
       "description": "Screens transaction data for suspicious patterns using red flag typologies and structures SAR narrative elements. Use when reviewing transactions for AML, identifying suspicious activity, or drafting SAR narratives.",
+      "descVi": "Sàng lọc giao dịch đáng ngờ theo dấu hiệu rửa tiền và dựng nội dung báo cáo giao dịch đáng ngờ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -276,6 +298,7 @@
       ],
       "path": "banking/casemark/conducting-credit-committee-presentations",
       "description": "Structures credit committee packages with borrower analysis, risk assessment, structuring proposal, and recommendation documentation. Use when preparing credit committee materials, presenting loan opportunities, or documenting credit decisions.",
+      "descVi": "Soạn bộ trình hội đồng tín dụng: phân tích khách hàng, rủi ro, cấu trúc, đề xuất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -288,6 +311,7 @@
       ],
       "path": "banking/casemark/drafting-credit-memos",
       "description": "Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations.",
+      "descVi": "Soạn tờ trình tín dụng: phân tích khách hàng, đánh giá rủi ro, lý do đề xuất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -300,6 +324,7 @@
       ],
       "path": "banking/casemark/managing-bank-regulatory-reporting",
       "description": "Structures regulatory report preparation including Call Reports, FR Y-9C, and other required filings. Use when preparing bank regulatory reports, filing Call Reports, or managing regulatory submissions.",
+      "descVi": "Chuẩn bị báo cáo gửi cơ quan quản lý ngân hàng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -312,6 +337,7 @@
       ],
       "path": "banking/casemark/managing-commercial-loan-underwriting",
       "description": "Structures commercial loan underwriting with financial spreading, cash flow analysis, and risk rating. Use when underwriting commercial loans, analyzing borrower financials, or assigning risk ratings.",
+      "descVi": "Thẩm định khoản vay doanh nghiệp: phân tích báo cáo tài chính, dòng tiền, xếp hạng rủi ro.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -324,6 +350,7 @@
       ],
       "path": "banking/casemark/managing-commercial-real-estate-lending",
       "description": "Structures CRE loan underwriting with property valuation, cash flow analysis, and environmental review. Use when underwriting CRE loans, analyzing property cash flows, or evaluating loan collateral.",
+      "descVi": "Thẩm định cho vay bất động sản thương mại: định giá, dòng tiền, môi trường.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -336,6 +363,7 @@
       ],
       "path": "banking/casemark/managing-construction-lending",
       "description": "Structures construction loan analysis with draw schedules, budget tracking, and completion risk assessment. Use when managing construction loans, tracking draw requests, or monitoring construction progress.",
+      "descVi": "Phân tích cho vay xây dựng: lịch giải ngân, theo dõi ngân sách, rủi ro hoàn thành.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -348,6 +376,7 @@
       ],
       "path": "banking/casemark/managing-correspondent-banking",
       "description": "Structures correspondent banking analysis with relationship assessment, risk evaluation, and regulatory requirements. Use when managing correspondent relationships, evaluating partner banks, or assessing correspondent risk.",
+      "descVi": "Đánh giá quan hệ ngân hàng đại lý: rủi ro và yêu cầu pháp lý.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -360,6 +389,7 @@
       ],
       "path": "banking/casemark/managing-credit-approval-packages",
       "description": "Creates credit approval memoranda with borrower analysis, deal structure, and risk mitigation documentation. Use when preparing credit packages, documenting loan recommendations, or presenting to credit committee.",
+      "descVi": "Soạn hồ sơ phê duyệt tín dụng: khách hàng, cấu trúc khoản vay, biện pháp giảm rủi ro.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -372,6 +402,7 @@
       ],
       "path": "banking/casemark/managing-credit-portfolio-risk",
       "description": "Structures credit portfolio analysis with concentration metrics, correlation assessment, and stress testing. Use when managing credit portfolios, measuring concentration risk, or stress testing credit exposure.",
+      "descVi": "Phân tích rủi ro danh mục tín dụng: tập trung, tương quan, kiểm tra sức chịu đựng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -384,6 +415,7 @@
       ],
       "path": "banking/casemark/managing-credit-risk-models",
       "description": "Evaluates and monitors credit risk models (PD, LGD, EAD) with calibration and discrimination metrics. Use when validating credit models, assessing model performance, or calibrating default models.",
+      "descVi": "Đánh giá và theo dõi mô hình rủi ro tín dụng (PD, LGD, EAD).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -396,6 +428,7 @@
       ],
       "path": "banking/casemark/managing-deposit-operations",
       "description": "Structures deposit product analysis with pricing, retention analytics, and regulatory compliance. Use when analyzing deposits, evaluating pricing strategies, or managing deposit compliance.",
+      "descVi": "Phân tích sản phẩm tiền gửi: lãi suất, giữ chân khách hàng, tuân thủ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -408,6 +441,7 @@
       ],
       "path": "banking/casemark/managing-fraud-operations-banking",
       "description": "Structures banking fraud detection with transaction monitoring, investigation, and recovery documentation. Use when detecting banking fraud, investigating suspicious activity, or managing fraud cases.",
+      "descVi": "Phát hiện gian lận ngân hàng: giám sát giao dịch, điều tra, thu hồi.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -420,6 +454,7 @@
       ],
       "path": "banking/casemark/managing-interest-rate-risk-banking",
       "description": "Structures bank interest rate risk analysis with EVE, NII sensitivity, and gap analysis. Use when managing bank IRR, modeling NII sensitivity, or analyzing repricing gaps.",
+      "descVi": "Phân tích rủi ro lãi suất ngân hàng: EVE, độ nhạy NII, khe hở kỳ hạn.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -432,6 +467,7 @@
       ],
       "path": "banking/casemark/managing-loan-documentation-review",
       "description": "Reviews loan agreements with covenant extraction, terms analysis, and compliance requirement identification. Use when reviewing loan documents, extracting covenants, or analyzing credit agreement terms.",
+      "descVi": "Rà soát hợp đồng vay: trích điều khoản cam kết, phân tích điều kiện, yêu cầu tuân thủ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -444,6 +480,7 @@
       ],
       "path": "banking/casemark/managing-loan-loss-provisioning",
       "description": "Structures CECL/ACL estimation with model methodology, qualitative factors, and forecast integration. Use when calculating loan loss provisions, implementing CECL, or estimating credit losses.",
+      "descVi": "Ước tính dự phòng rủi ro tín dụng (CECL/ACL): phương pháp, yếu tố định tính, dự báo.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -456,6 +493,7 @@
       ],
       "path": "banking/casemark/managing-loan-portfolio-monitoring",
       "description": "Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists.",
+      "descVi": "Theo dõi danh mục cho vay: xu hướng chất lượng nợ, danh sách cảnh báo, mức tập trung.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -468,6 +506,7 @@
       ],
       "path": "banking/casemark/managing-loan-syndication-processes",
       "description": "Coordinates leveraged loan syndication from mandate through closing with lender marketing, commitment tracking, and flex analysis. Use when syndicating loans, managing lender groups, or tracking commitment levels.",
+      "descVi": "Điều phối cho vay hợp vốn từ nhận uỷ nhiệm tới ký kết.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -480,6 +519,7 @@
       ],
       "path": "banking/casemark/managing-open-banking-integration",
       "description": "Structures open banking API integration with data sharing, consent management, and security requirements. Use when implementing open banking, managing API integrations, or evaluating data sharing frameworks.",
+      "descVi": "Tích hợp API ngân hàng mở: chia sẻ dữ liệu, quản lý đồng ý, bảo mật.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -492,6 +532,7 @@
       ],
       "path": "banking/casemark/managing-private-banking-reviews",
       "description": "Structures private banking relationship reviews with service assessment, fee analysis, and strategy evaluation. Use when reviewing banking relationships, analyzing fees, or evaluating service quality.",
+      "descVi": "Rà soát quan hệ khách hàng ngân hàng tư nhân: dịch vụ, phí, chiến lược.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -504,6 +545,7 @@
       ],
       "path": "banking/casemark/structuring-asset-based-lending",
       "description": "Designs ABL facilities with borrowing base calculations, collateral eligibility criteria, and field exam requirements. Use when structuring ABL facilities, calculating borrowing availability, or analyzing collateral pools.",
+      "descVi": "Thiết kế khoản vay dựa trên tài sản (ABL): hạn mức tính theo tài sản, tiêu chí tài sản bảo đảm.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE"
@@ -516,6 +558,7 @@
       ],
       "path": "banking/finance-skills/account-opening-compliance",
       "description": "Embed compliance controls into account opening and verify regulatory readiness. Use when designing CIP/KYC identity verification gates, implementing OFAC and sanctions screening at onboarding, collecting beneficial ownership certification for entity or trust accounts, building risk-based approval tiers that route applications by risk level, defining compliance screening requirements and exception tracking, adding senior investor protections (FINRA Rules 2165/4512) or trusted contact procedures, establishing CDD risk ratings and ongoing monitoring triggers, or preparing account opening procedures for SEC or FINRA examination. For the operational pipeline these controls plug into, see account-opening-workflow.",
+      "descVi": "Gắn kiểm soát tuân thủ vào quy trình mở tài khoản (định danh, KYC).",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -528,6 +571,7 @@
       ],
       "path": "banking/finance-skills/account-opening-workflow",
       "description": "Design and operate back-office account opening pipelines from application intake through custodian submission and activation. Use when building account opening automation, reducing NIGO rejection rates from custodians or clearing firms, defining document requirements for trusts, entities, IRAs, or estate accounts, setting up multi-custodian account opening across Schwab, Fidelity, or Pershing, troubleshooting account opening failures or processing delays, or benchmarking cycle times and first-submission acceptance rates. For risk-based approval tiers and compliance screening requirements, see account-opening-compliance.",
+      "descVi": "Thiết kế và vận hành quy trình mở tài khoản từ tiếp nhận hồ sơ tới nộp lưu ký.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -540,6 +584,7 @@
       ],
       "path": "banking/finance-skills/anti-money-laundering",
       "description": "Guide BSA/AML compliance program design, ongoing transaction monitoring, and FinCEN reporting for broker-dealers, banks, and investment advisers. Use when the user asks about suspicious activity reports, currency transaction reports, OFAC screening, structuring detection, ongoing risk-rating reviews and escalation, or FinCEN requirements. Also trigger when users mention 'large cash deposit', 'sanctions check', 'money laundering red flags', 'unusual transaction patterns', 'wire to a foreign country', 'SDN list', 'tipping off a client about a SAR', 'AML audit', 'correspondent account due diligence', or ask whether a transaction needs to be reported. (For onboarding identity verification, CIP/CDD, beneficial ownership, and initial customer risk rating, use know-your-customer.)",
+      "descVi": "Thiết kế chương trình phòng chống rửa tiền, giám sát giao dịch và báo cáo.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -552,6 +597,7 @@
       ],
       "path": "banking/finance-skills/counterparty-risk",
       "description": "Guide counterparty credit risk measurement and management for OTC and securities trading, organized around three workflows: assessing a new counterparty, responding to a credit-deterioration event, and executing a default close-out. Use when measuring current or potential future exposure to a counterparty, setting or reviewing counterparty credit limits, evaluating ISDA Master Agreement netting and close-out mechanics, designing CSA collateral terms or uncleared margin compliance (VM/IM, SIMM), assessing central clearing mandates under Dodd-Frank or EMIR and CCP default waterfalls, monitoring creditworthiness via CDS spreads or ratings, quantifying wrong-way risk, or computing EAD, SA-CCR, and CVA. For Reg T and FINRA Rule 4210 brokerage margin see margin-operations; for settlement risk, DVP, and CLS see settlement-clearing.",
+      "descVi": "Đo lường và quản lý rủi ro tín dụng đối tác trong giao dịch OTC và chứng khoán.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -564,6 +610,7 @@
       ],
       "path": "banking/finance-skills/financial-statements",
       "description": "Analyze financial statements for investment decisions: derive EBITDA and free cash flow (FCFF/FCFE) from the income statement and cash flow statement, compute ROIC, margins, and DuPont ROE decomposition, and assess quality of earnings via accruals and working capital trends. Use when the user asks about 'reading a 10-K', 'income statement vs cash flow statement', 'how to calculate free cash flow', 'FCFF vs FCFE', 'EBITDA adjustments', 'ROIC vs WACC', 'DuPont analysis', 'quality of earnings', 'accruals ratio', 'cash conversion cycle', 'revenue recognition red flags', 'deferred taxes', or 'cost basis and embedded capital gains'. Also trigger for fundamental analysis questions like whether reported earnings are backed by cash, whether a company creates value above its cost of capital, or the tax consequences of selling an appreciated position.",
+      "descVi": "Phân tích báo cáo tài chính: EBITDA, dòng tiền tự do (FCFF/FCFE), chỉ số.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -576,6 +623,7 @@
       ],
       "path": "banking/finance-skills/know-your-customer",
       "description": "Guide customer onboarding identification, due diligence, and profile maintenance under FINRA Rule 2090, the CIP rules, and the FinCEN CDD Rule. Use when the user asks about onboarding identity verification, beneficial ownership collection for entity accounts, enhanced due diligence for PEPs or high-risk customers at account opening, assigning the initial customer risk rating, KYC refresh triggers, or documentary vs non-documentary verification. Also trigger when users mention 'account opening requirements', 'who is the beneficial owner', 'new client identity check', 'how often to update KYC', 'essential facts for the account', 'foreign customer onboarding', or ask what information must be gathered before opening an account. (For ongoing transaction monitoring, SAR filing, and surveillance-driven risk re-rating, use anti-money-laundering.)",
+      "descVi": "Định danh, thẩm định và cập nhật hồ sơ khách hàng (KYC).",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -588,6 +636,7 @@
       ],
       "path": "banking/finance-skills/lending",
       "description": "Analyze lending products including mortgages, HELOCs, and personal loans with amortization and comparison tools. Use when the user asks about mortgage comparison, fixed vs ARM rates, loan qualification, amortization schedules, extra payments, or buying points. Also trigger when users mention 'monthly payment calculation', '15-year vs 30-year mortgage', 'PMI', 'APR vs interest rate', 'HELOC', 'home equity', 'should I buy down the rate', 'biweekly payments', or ask how much house they can afford.",
+      "descVi": "Phân tích sản phẩm cho vay (thế chấp, tín chấp, hạn mức) kèm bảng trả nợ và so sánh.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -600,6 +649,7 @@
       ],
       "path": "banking/finance-skills/operational-risk",
       "description": "Guide identification, measurement, and management of operational risk in trading and brokerage operations. Use when designing trade error detection and correction procedures, investigating trade breaks and reconciliation failures, classifying loss events under Basel taxonomy, developing key risk indicators (KRIs) and dashboards, responding to system outages or data feed failures or order routing errors, conducting root cause analysis after a trade error or operational incident, planning business continuity and disaster recovery for trading desks, preparing for FINRA or SEC operational risk examinations, or assessing technology risk in OMS and market data systems. Also covers fat-finger errors, error account P&L, and corrective action tracking.",
+      "descVi": "Nhận diện, đo lường và quản lý rủi ro hoạt động.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -612,6 +662,7 @@
       ],
       "path": "banking/finance-skills/reconciliation",
       "description": "Design and operate reconciliation processes across portfolio management, custodian, and clearing systems. Use when building a daily position, cash, or transaction reconciliation process, investigating discrepancies between internal records and custodian records, diagnosing recurring break patterns from corporate actions or pricing differences, setting tolerance thresholds for position, cash, or market value matching, implementing three-way reconciliation, designing break investigation workflows with aging and escalation, normalizing multi-custodian feeds from Schwab, Fidelity, or Pershing, reconciling cost basis or accrued income, or preparing for examinations on books and records accuracy.",
+      "descVi": "Thiết kế và vận hành quy trình đối soát giữa các hệ thống quản lý, lưu ký, bù trừ.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -624,6 +675,7 @@
       ],
       "path": "banking/finance-skills/time-value-of-money",
       "description": "Calculate present value, future value, NPV, IRR for projects and loans, loan payments, and amortization schedules across all compounding conventions. Use when the user asks about discounting cash flows, valuing an annuity or perpetuity, comparing investments with different timing, building a mortgage amortization table, evaluating whether a project is worth pursuing, or solving for the rate that equates cash flows (project IRR, loan IRR, yield on an investment). Also trigger when users mention 'what is it worth today', 'how much will I have in 20 years', 'monthly payment on a loan', 'discount rate', 'Gordon growth model', 'effective annual rate', 'continuous compounding', or ask how to compare a lump sum versus a stream of payments. For portfolio money-weighted return (dollar-weighted IRR on an investor's contributions and withdrawals), use return-calculations instead.",
+      "descVi": "Tính giá trị hiện tại, tương lai, NPV, IRR, số tiền trả góp và bảng trả nợ.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
       "licenseFile": "banking/finance-skills/LICENSE"
@@ -636,6 +688,7 @@
       ],
       "path": "banking/kyc-analyst/onboarding",
       "description": "Full KYC customer onboarding with mandatory Step 0 independent verification (5+1 searches), 17 sequential stagegates requiring explicit analyst consent, deterministic four-factor risk scoring, case folder auto-creation, 4-sheet Excel dashboard, 17-section PDF report, and immutable audit trail. Covers UK/EU (AMLD5), US (FinCEN CDD), and MENA jurisdictions.",
+      "descVi": "Quy trình KYC đầy đủ khi tiếp nhận khách hàng mới, có bước xác minh độc lập.",
       "source": "https://github.com/vyayasan/kyc-analyst",
       "license": "MIT",
       "licenseFile": "banking/kyc-analyst/LICENSE"
@@ -648,6 +701,7 @@
       ],
       "path": "banking/kyc-analyst/refresh",
       "description": "Periodic customer refresh with re-verification of original due diligence to detect material changes and maintain compliance with ongoing due diligence requirements. Triggers include time-based review (annual HIGH risk, 2-3 year intervals for MEDIUM/LOW), risk-based escalation (score changes, business pivots), and event-based alerts (sanctions, adverse media, regulatory actions).",
+      "descVi": "Cập nhật định kỳ hồ sơ khách hàng, xác minh lại để phát hiện thay đổi trọng yếu.",
       "source": "https://github.com/vyayasan/kyc-analyst",
       "license": "MIT",
       "licenseFile": "banking/kyc-analyst/LICENSE"
@@ -660,6 +714,7 @@
       ],
       "path": "banking/kyc-analyst/risk-assessment",
       "description": "Deterministic heuristic risk scoring using a four-factor weighted model (Geographic 30%, Customer 35%, Product 25%, Channel 10%) aligned with Basel III, EBA Guidelines, FATF standards, and FinCEN guidance. Bands: LOW (0-20), MEDIUM (21-60), HIGH (61-80), CRITICAL (81-100).",
+      "descVi": "Chấm điểm rủi ro khách hàng theo mô hình 4 yếu tố có trọng số.",
       "source": "https://github.com/vyayasan/kyc-analyst",
       "license": "MIT",
       "licenseFile": "banking/kyc-analyst/LICENSE"
@@ -672,6 +727,7 @@
       ],
       "path": "banking/kyc-analyst/screening",
       "description": "Comprehensive sanctions and PEP screening against 12+ databases (OFAC, EU, UK, UN, INTERPOL) with false positive assessment, HITL decision gates, and regulatory-compliant documentation.",
+      "descVi": "Sàng lọc danh sách cấm vận và người có ảnh hưởng chính trị (PEP), xử lý trùng khớp giả.",
       "source": "https://github.com/vyayasan/kyc-analyst",
       "license": "MIT",
       "licenseFile": "banking/kyc-analyst/LICENSE"
@@ -684,6 +740,7 @@
       ],
       "path": "banking/kyc-analyst/transaction-monitoring",
       "description": "AML transaction monitoring for ongoing customer relationships. Identifies suspicious patterns including structuring, layering, and unusual activity. Assesses against regulatory thresholds and prepares Suspicious Activity Reports (SARs) with HITL decision gates.",
+      "descVi": "Giám sát giao dịch phòng chống rửa tiền cho khách hàng hiện hữu.",
       "source": "https://github.com/vyayasan/kyc-analyst",
       "license": "MIT",
       "licenseFile": "banking/kyc-analyst/LICENSE"
@@ -696,6 +753,7 @@
       ],
       "path": "banking/second-line/banking-risk-compliance/bank-fintech-partnership-review",
       "description": "Produces the bank-side principal-supervisory partnership pack on a US bank-fintech relationship. Carries six named sections (service description and risk classification; risk-based diligence summary; contract gaps; customer-facing controls under Reg O / Reg W / Reg E / Reg DD; termination and wind-down readiness; recommended owner actions) plus a Reg O / Reg W / Reg E / Reg DD applicability summary the bank attests to. Audience is the partnership owner, the chief risk officer, the chief compliance officer, the BSA officer, the head of vendor management, the head of deposit operations, the general counsel, and the OCC / FRB / FDIC supervisory team that examines the relationship as a bank service-provider arrangement.",
+      "descVi": "Rà soát quan hệ hợp tác ngân hàng và fintech từ phía ngân hàng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -708,6 +766,7 @@
       ],
       "path": "banking/second-line/banking-risk-compliance/banking-supervision-readiness",
       "description": "Produces the substantive supervision-readiness pack a US bank or bank holding company hands the OCC, FRB, or FDIC examiner-in-charge at the entry meeting and carries through the cycle. Organises preparation around the CAMELS components (or the BHC rated components for a holding-company cycle), the examiner-letter response posture (MRA, MRIA, supervisory recommendation, consent-order article), the MRA / MRIA closure cross-walk with sustained-operation evidence, the Heightened Standards readiness view for covered banks, and the topical examiner-readiness slices (BSA / AML, IT, fair lending, third-party risk) that the cycle scope brings into play. Audience is the head of supervisory affairs, the chief compliance officer, the chief risk officer, the BSA officer, and the examination coordinator.",
+      "descVi": "Chuẩn bị hồ sơ cho đợt thanh tra, giám sát ngân hàng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -720,6 +779,7 @@
       ],
       "path": "banking/second-line/banking-risk-compliance/credit-risk-governance",
       "description": "Produces the second-line credit risk governance review pack a US bank's chief credit officer or chief risk officer carries to the credit risk committee or hands the OCC, FRB, or FDIC examiner reviewing credit administration. Organises the artifact around credit policy alignment, underwriting framework, risk-rating discipline, concentration governance, allowance methodology oversight (ACL / CECL), Reg O and Reg W applicability for insider and affiliated credit, second-line challenge of first-line lending decisions, and (for covered banks) the Heightened Standards posture for credit risk. Audience is the chief credit officer, chief risk officer, head of credit risk review, ALLL / ACL governance committee, audit committee, and examiner-in-charge for a credit-administration scope cycle.",
+      "descVi": "Rà soát quản trị rủi ro tín dụng ở tuyến phòng thủ thứ hai.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -732,6 +792,7 @@
       ],
       "path": "banking/second-line/banking-risk-compliance/deposit-operations-controls",
       "description": "Drafts the second-line deposit-operations control matrix for a US bank: account opening and CIP, beneficial-ownership collection at deposit channels, account-opening and advertising disclosures, EFT and ATM controls under the consumer-EFT regime, funds-availability holds and exception-hold notification, NSF and overdraft fee disclosure under the truth-in-savings regime, garnishments and levies, escheatment and dormant-account governance, deposit-insurance coverage representation under the federal misrepresentation rule, FBO-account ledgering and pass-through deposit-insurance recordkeeping for sponsor-bank fintech programs, exception handling, access controls, and evidence retention. Audience is the deposit-operations director, the bank's compliance officer, the BSA officer, internal audit, and the federal banking examiner reading the matrix line-by-line.",
+      "descVi": "Lập ma trận kiểm soát nghiệp vụ tiền gửi.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -744,6 +805,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/aml-model-monitoring",
       "description": "Reviews ongoing-monitoring evidence for an AML transaction-monitoring system, scoping which components of the stack sit inside the model-risk perimeter under the joint interagency model-risk supervisory guidance and which are deterministic rules outside it. Reads data quality, customer segmentation drift, scenario inventory and tuning evidence, below-the-line testing, alert volume and productivity trends, threshold-change governance, and validation evidence; produces a second-line monitoring memo that opens with a model-scoping read and a program-level review, carries the monitoring evidence in named structured sections, and closes with material findings, evidence-needed items, and recommended decision checkpoints with named owners. Does not approve scenario changes, set thresholds, sign off on validation conclusions, or QA individual SAR decisions.",
+      "descVi": "Rà soát bằng chứng giám sát định kỳ của hệ thống phát hiện giao dịch rửa tiền.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -756,6 +818,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/cdd-risk-review",
       "description": "Quality-reviews a customer due diligence file (new account, periodic refresh, or event-driven refresh) against the four CDD pillars and named CDD examination expectations. Reads customer identification, beneficial ownership identification and verification, the nature-and-purpose / expected-activity profile, the customer risk rating and its drivers, and the ongoing-monitoring trigger set; produces a second-line review memo with material gaps, evidence-needed items, EDD-trigger posture, and recommended decision checkpoints with named owners. Does not approve onboarding, set or change the customer risk rating, file a SAR, or close or exit the relationship.",
+      "descVi": "Kiểm tra chất lượng hồ sơ thẩm định khách hàng (CDD).",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -768,6 +831,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/edd-escalation-pack",
       "description": "Drafts an enhanced due diligence escalation pack for a higher-risk customer profile (PEP, private banking, foreign correspondent, cash-intensive business, complex ownership, MSB-affiliated, sanctions-adjacent, high-risk jurisdiction nexus, or event-driven trigger). The pack assembles beneficial-ownership chain, derogatory information, source of wealth and source of funds, customer rationale, expected versus actual activity, sanctions-screening posture, conduct-risk indicators, ongoing-monitoring plan, and decision options for the EDD committee. Produces a review artifact only; the EDD committee or designated approver makes the relationship decision.",
+      "descVi": "Soạn hồ sơ trình thẩm định tăng cường (EDD) cho khách hàng rủi ro cao.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -780,6 +844,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/negative-news-triage",
       "description": "Triages an adverse-media or negative-news hit set against a specific customer or entity for identity confidence, source reliability, recency, materiality to financial-crime risk, and downstream routing. Produces a triage memo and a structured triage record that downstream artifacts (cdd-risk-review refresh, edd-escalation-pack, sar-decision-qa, sanctions-screening-qa) can consume. Does not change customer ratings, file SARs, exit relationships, or re-tune monitoring scenarios.",
+      "descVi": "Phân loại tin tức bất lợi về khách hàng: độ chắc chắn danh tính, mức nghiêm trọng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -792,6 +857,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/sanctions-screening-qa",
       "description": "Quality-reviews a sanctions screening program against named regulatory frames: list-management governance, customer and transaction screening configuration, match-logic and fuzzy-threshold tuning, list-update timeliness, alert disposition documentation, false-positive rationale, escalation paths, 50 Percent Rule and sectoral-sanctions handling, and cyber-evasion exposure. Reads each sampled alert disposition for documented rationale, decision-maker independence, and 50%-rule assessment; produces a second-line QA memo with material findings, evidence-needed items, and recommended decision checkpoints with named owners. Does not approve list configuration, tune match logic, file blocking or rejection reports, close alerts, or make match-or-no-match decisions.",
+      "descVi": "Kiểm tra chất lượng chương trình sàng lọc cấm vận.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -804,6 +870,7 @@
       ],
       "path": "banking/second-line/financial-crime-governance/sar-decision-qa",
       "description": "Quality-reviews a SAR or no-SAR decision file against named SAR rules and the FFIEC SAR examination expectations. Reads the alert chronology, investigation steps, evidence considered, disposition, decision rationale, continuing-activity posture, and confidentiality controls; produces a QA memo with material gaps, reviewer findings, and a routing recommendation to the named decision forum. Does not file, decline to file, amend, or close any SAR; SAR filing is a regulated act reserved to the BSA officer or designee.",
+      "descVi": "Kiểm tra chất lượng quyết định có hay không báo cáo giao dịch đáng ngờ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -816,6 +883,7 @@
       ],
       "path": "banking/second-line/payments-fintech-compliance/fintech-partner-controls",
       "description": "Drafts the fintech-side controls evidence pack a sponsor bank's third-party risk function expects in its file: control inventory mapped to Reg E error-resolution timing, NACHA Operating Rules obligations the program operator owes upstream, FBO subledger reconciliation, sponsor-bank reporting cadence, customer-facing disclosure adherence (Reg E §1005.7-§1005.11, Reg DD), money-transmitter / MSB BSA posture where applicable, contract-clause adherence evidence under the program agreement, and a 12-month incident-history summary. Output is a Word memo plus an Excel control inventory, review-ready for the fintech's own second line and for production to the sponsor bank's TPRM team or to a state-MTL examiner.",
+      "descVi": "Soạn bộ bằng chứng kiểm soát fintech nộp cho ngân hàng đối tác.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -828,6 +896,7 @@
       ],
       "path": "banking/second-line/payments-fintech-compliance/open-banking-data-controls",
       "description": "Drafts a controls inventory and self-evidence pack for consumer-permissioned data sharing under the named US personal-financial-data-rights frame. The pack covers data-provider duties (covered-data scope, developer-interface availability and security, consumer authorisation, scope and duration limits, revocation propagation, third-party screening) and data-recipient duties (consumer authorisation, collection and use limits, retention, deletion-on-revocation, reauthorisation, downstream sharing). The artifact aligns to industry-standard tokenised data-sharing patterns and to the migration off credential-based screen scraping. Audience is the data-provider fintech, the data-recipient fintech (account aggregator, PFM, lender, BNPL, payroll-on-demand), or the sponsor-bank programme acting as either, plus the second-line or advisory team supporting them.",
+      "descVi": "Lập danh mục kiểm soát chia sẻ dữ liệu khách hàng theo ngân hàng mở.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -840,6 +909,7 @@
       ],
       "path": "banking/second-line/payments-fintech-compliance/payment-operations-incident-review",
       "description": "Drafts the incident-review pack for a payments-operations event at a fintech program operator, BaaS platform, money transmitter, neobank, wallet, BIN sponsor, or payments processor. The pack carries an incident summary, customer-impact population, named-rail and sponsor-bank notification triggers, root cause, affected transaction population by rail, remediation actions, sponsor-bank reporting, and the regulator-facing artifact list. Output is review-ready for the program operator's second line and for production to the sponsor bank, the named payment-rail authorities (where applicable), and the regulator-facing incident file.",
+      "descVi": "Soạn hồ sơ rà soát sự cố vận hành thanh toán.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -852,6 +922,7 @@
       ],
       "path": "banking/second-line/payments-fintech-compliance/payments-risk-assessment",
       "description": "Drafts a payments risk assessment for a fintech, money transmitter, BaaS platform, neobank, wallet, or sponsor-bank program: a matrix-shaped artifact denominated by rail (ACH, Same Day ACH, wire, card debit / credit, FedNow, RTP, P2P, check, cross-border correspondent, virtual-currency on-ramp), by customer segment (consumer, SMB, payroll-on-demand, gig, BNPL, cross-border remittance, high-risk vertical), and by US-state and corridor geography. Carries fraud, BSA / AML, sanctions, operational resilience, third-party / sponsor-bank dependence, customer-harm / UDAAP, and reporting-control views, with concentration sub-tables for sponsor-bank, processor, and BIN-sponsor exposure. Output suits a sponsor-bank annual review, a state MTL exam preparation file, an internal audit kickoff, or an enterprise risk committee read-out.",
+      "descVi": "Đánh giá rủi ro hoạt động thanh toán của fintech, ví điện tử, ngân hàng số.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -864,6 +935,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/control-matrix",
       "description": "Builds the named-row risk-control matrix that maps obligations to control objectives, control activities, owners, frequency, evidence pointers, test methods, last-test results, and open issues. Foundational primitive: compliance-testing samples against it, vendor-diligence and exit-plan reference it, exam-brief reads it, model-card-builder pulls its controls section from it. Risk function and compliance function both consume the same matrix.",
+      "descVi": "Lập ma trận rủi ro và kiểm soát: nghĩa vụ, mục tiêu, hoạt động kiểm soát, người phụ trách.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -876,6 +948,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/evidence-binder",
       "description": "Assembles the evidence binder index for a regulatory exam, internal audit fieldwork pack, model-validation evidence pack, vendor-review pack, committee evidence pack, or issue-remediation file. One row per artifact, with system-of-record provenance, control and obligation linkage, sufficiency call, and reviewer sign-off. Reconciles a request list against the evidence on hand and surfaces the gaps before the reviewer does.",
+      "descVi": "Lập mục lục hồ sơ bằng chứng cho thanh tra, kiểm toán nội bộ, thẩm định mô hình.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -888,6 +961,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/human-review-gates",
       "description": "Builds the named-gate matrix for an artifact, decision, or workflow: gate name, stage in workflow, trigger, required reviewers (with independence), required inputs, decision criteria, stop conditions, escalation path, documentation requirement, frequency, and source anchor. Foundational primitive: every output-builder skill in the repo emits an artifact that runs through one or more of these gates, and the skill exists so the gates themselves get built once and reused. Output is a gate matrix plus a one-page narrative an AI governance committee, vendor onboarding committee, model risk committee, or issue-rating committee can adopt as charter language.",
+      "descVi": "Lập ma trận các điểm cần người duyệt trong một quy trình.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -900,6 +974,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/issue-writeup",
       "description": "Drafts a single issue write-up using the condition / criteria / cause / effect (CCCE) structure plus severity rationale, remediation, named owner, target date, closure evidence, and evidence-gap flag. Foundational primitive: exception-analysis chains it after a control-test exception, audit findings consume it as the issue artifact, regulator-response files cite it, and the issue log keys off it. The output is a one-issue artifact written in the shape an audit committee, regulator, or issue-tracking system will accept.",
+      "descVi": "Viết một phát hiện theo cấu trúc hiện trạng, tiêu chí, nguyên nhân, ảnh hưởng, kèm mức độ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -912,6 +987,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/obligation-mapping",
       "description": "Converts any source document (rule text, supervisory guidance, exam manual, exam request list, supervisory letter, regulator speech, internal policy, third-party SLA, contract clause) into a structured obligation register: one row per obligation, traced to source by section, with applicability, control objective, evidence required, owner, status, and open questions. Foundational primitive: control-matrix anchors its rows on this output, policy-gap-review triangulates against it, evidence-binder pulls evidence asks from it, exam-brief reads it, and almost every downstream second-line skill reaches for an obligation register at some point.",
+      "descVi": "Chuyển văn bản quy định thành danh sách nghĩa vụ cần tuân thủ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -924,6 +1000,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/policy-gap-review",
       "description": "Reviews a firm policy or procedure (or a small set of related policy artefacts) against a named, dated benchmark of obligations or supervisory expectations and produces a gap matrix. One row per gap, with classification (missing / partial / weak / inconsistent / outdated), severity with rationale, declarative recommended edit, evidence needed beyond the text, and named owner. Foundational primitive: the gap matrix routes into `issue-writeup` for findings, into `obligation-mapping` when missing obligations surface, and into `control-matrix` when the operational dimension of the gap is a control rather than text. Audience is policy owners, compliance, and internal audit; the artifact is the gap list, not the policy redline.",
+      "descVi": "Đối chiếu chính sách, quy trình với chuẩn tham chiếu để tìm khoảng trống.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -936,6 +1013,7 @@
       ],
       "path": "banking/second-line/risk-compliance-core/scoping",
       "description": "Produces a scoping charter and a structured scope record that downstream second-line skills consume. The charter sets institution, engagement, persona, source posture, risk lens, and overlay context so other skills do not reinvent these facts each time they are called.",
+      "descVi": "Lập phạm vi công việc rà soát cho các skill tuân thủ khác dùng tiếp.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -948,6 +1026,7 @@
       ],
       "path": "banking/second-line/risk-reporting/attestation-pack",
       "description": "Drafts the periodic management attestation pack a senior officer takes into the certification meeting: scope statement, source criteria, control inventory, evidence index, exceptions with compensating-control narrative, prior-period remediation status, sub-certification chain, reviewer questions, assertion language, and sign-off block. Output is the named-section pack the attesting officer (CEO, CFO, CRO, CCO, CISO, BSA officer, head of internal audit, fund CCO, function head, process owner) and the named reviewers (legal, internal audit, external assessor, regulator) carry into the sign-off conversation.",
+      "descVi": "Soạn bộ xác nhận định kỳ của ban điều hành.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -960,6 +1039,7 @@
       ],
       "path": "banking/second-line/risk-reporting/bcbs239-gap-assessment",
       "description": "Drafts a gap assessment of the firm's risk data aggregation and risk reporting posture against the fourteen BCBS 239 principles, organised by the four BCBS groups (overarching governance and infrastructure, aggregation, reporting, supervisory review). Produces a principle-by-principle matrix with rating, direction, evidence summary, gaps, owners, and target dates that the head of risk data, head of regulatory reporting, CRO office, and internal audit can take to the data-management committee after qualified review.",
+      "descVi": "Đánh giá khoảng trống tổng hợp dữ liệu và báo cáo rủi ro theo BCBS 239.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -972,6 +1052,7 @@
       ],
       "path": "banking/second-line/risk-reporting/cyber-disclosure-readiness",
       "description": "Drafts the second-line readiness pack for SEC cybersecurity disclosure: 8-K Item 1.05 trigger and materiality workpaper for a live or suspected material incident, the 10-K Item 106 risk-management and governance disclosure for the annual filing cycle, and the disclosure controls and procedures (DCP) readiness map. The pack is what a disclosure committee, securities counsel, the CISO, and the CRO take into the materiality call and into the filing decision.",
+      "descVi": "Chuẩn bị công bố thông tin về sự cố an ninh mạng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -984,6 +1065,7 @@
       ],
       "path": "banking/second-line/risk-reporting/kri-commentary",
       "description": "Drafts second-line commentary on KRI / KCI movement and breaches for a periodic risk report. Each per-KRI block carries trend, breach status against the firm's risk appetite statement, named root cause and contributing factors, action taken and action planned with role-level owners and dates, residual-risk view, linked issues and material events, and an explicit second-line challenge note where the second-line view diverges from first-line. Output is a per-KRI commentary block ready to drop into the risk committee pack, the divisional risk pack, the regulator response, or the board memo after qualified review.",
+      "descVi": "Viết bình luận biến động và vi phạm của chỉ số rủi ro chính (KRI).",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -996,6 +1078,7 @@
       ],
       "path": "banking/second-line/risk-reporting/management-response",
       "description": "Drafts the management response to a regulator finding, an internal-audit finding, or an external-assessor observation: acceptance posture, root-cause acknowledgement, action plan with milestones and owners, interim mitigation, evidence-of-effectiveness plan, reporting cadence to the issuing party, and the linkage to the underlying issue write-up. The response is the load-bearing artifact a head of regulatory affairs, head of compliance, CRO, or general counsel takes back to the regulator or to the audit committee after qualified review.",
+      "descVi": "Soạn phản hồi của ban điều hành với phát hiện của thanh tra hoặc kiểm toán.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -1008,6 +1091,7 @@
       ],
       "path": "banking/second-line/risk-reporting/risk-committee-pack",
       "description": "Drafts the enterprise risk committee pack a CRO carries into the meeting: heat map by risk type, top risks, material risk events, KRI movement and breaches against the risk appetite statement, issues and remediation, forward-looking commentary including scenario results, and decision items. The pack is the load-bearing governance instrument the risk committee of the board (or the enterprise risk committee) uses to discharge its oversight under the firm's risk governance framework.",
+      "descVi": "Soạn bộ tài liệu họp uỷ ban rủi ro: bản đồ nhiệt, rủi ro hàng đầu, vấn đề trọng yếu.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
       "licenseFile": "banking/second-line/LICENSE"
@@ -1021,6 +1105,7 @@
       ],
       "path": "general/anthropic/internal-comms",
       "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+      "descVi": "Viết thông báo nội bộ theo các mẫu quen dùng của công ty.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "general/anthropic/internal-comms/LICENSE.txt"
@@ -1033,6 +1118,7 @@
       ],
       "path": "general/anthropic/mcp-builder",
       "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+      "descVi": "Hướng dẫn xây máy chủ MCP để LLM kết nối dịch vụ bên ngoài.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "general/anthropic/mcp-builder/LICENSE.txt"
@@ -1045,6 +1131,7 @@
       ],
       "path": "general/anthropic/skill-creator",
       "description": "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.",
+      "descVi": "Tạo skill mới, sửa skill có sẵn và đo hiệu quả skill.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "general/anthropic/skill-creator/LICENSE.txt"
@@ -1057,6 +1144,7 @@
       ],
       "path": "slides/anthropic-financial-services/deck-refresh",
       "description": "Updates a presentation with new numbers — quarterly refreshes, earnings updates, comp rolls, rebased market data. Use whenever the user asks to \"update the deck with Q4 numbers\", \"refresh the comps\", \"roll this forward\", \"swap in the new earnings\", \"change all the $485M to $512M\", or any request to swap figures across an existing deck without rebuilding it.",
+      "descVi": "Cập nhật số liệu mới vào bộ slide có sẵn (quý, kết quả kinh doanh, thị trường).",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1069,6 +1157,7 @@
       ],
       "path": "slides/anthropic-financial-services/ib-check-deck",
       "description": "Investment banking presentation quality checker. Reviews a pitch deck or client-ready presentation for (1) number consistency across slides, (2) data-narrative alignment, (3) language polish against IB standards, (4) visual and formatting QC. Use whenever the user asks to review, check, QC, proof, or do a final pass on a deck, pitch, or client materials — including requests like \"check my numbers\", \"reconcile figures across slides\", \"is this client-ready\", or \"what am I missing before I send this out\".",
+      "descVi": "Kiểm tra chất lượng bộ slide trình khách hàng: số liệu, thống nhất, trình bày.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1082,6 +1171,7 @@
       ],
       "path": "slides/anthropic-financial-services/pitch-deck",
       "description": "Populates investment banking pitch deck templates with data from source files. Use when: user provides a PowerPoint template to fill in, user has source data (Excel/CSV) to populate into slides, user mentions populating or filling a pitch deck template, or user needs to transfer data into existing slide layouts. Not for creating presentations from scratch.",
+      "descVi": "Điền dữ liệu từ file nguồn vào mẫu slide chào khách hàng.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1094,6 +1184,7 @@
       ],
       "path": "slides/anthropic-financial-services/ppt-template-creator",
       "description": "Creates self-contained PPT template SKILLS (not presentations) from user-provided PowerPoint templates. Use ONLY when a user wants to create a reusable skill from their template. For creating actual presentations, use the pptx skill instead.",
+      "descVi": "Tạo skill mẫu PowerPoint từ file mẫu .pptx của người dùng.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1107,6 +1198,7 @@
       ],
       "path": "slides/anthropic-financial-services/pptx-author",
       "description": "Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app.",
+      "descVi": "Tạo file .pptx trực tiếp trên đĩa, không cần mở PowerPoint.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1119,6 +1211,7 @@
       ],
       "path": "slides/anthropic-financial-services/teaser",
       "description": "Draft anonymous one-page company teasers for sell-side M&A processes. Creates a compelling summary without revealing the company's identity, designed to gauge buyer interest before NDA execution. Triggers on \"teaser\", \"blind teaser\", \"anonymous profile\", \"one-pager for process\", or \"draft teaser for sell-side\".",
+      "descVi": "Soạn bản giới thiệu ẩn danh một trang về công ty cho thương vụ M&A.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic-financial-services/LICENSE"
@@ -1132,6 +1225,7 @@
       ],
       "path": "slides/anthropic/brand-guidelines",
       "description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+      "descVi": "Áp màu sắc và kiểu chữ thương hiệu vào tài liệu, slide.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic/brand-guidelines/LICENSE.txt"
@@ -1145,6 +1239,7 @@
       ],
       "path": "slides/anthropic/theme-factory",
       "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+      "descVi": "Bộ chủ đề màu và phông để tạo kiểu cho slide, tài liệu, trang HTML.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
       "licenseFile": "slides/anthropic/theme-factory/LICENSE.txt"
@@ -1158,6 +1253,7 @@
       ],
       "path": "slides/frontend-slides",
       "description": "Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files. Use when the user wants to build a presentation, convert a PPT/PPTX to web, or create slides for a talk/pitch. Helps non-designers discover their aesthetic through visual exploration rather than abstract choices.",
+      "descVi": "Tạo slide HTML có hiệu ứng, hoặc chuyển từ file PowerPoint.",
       "source": "https://github.com/zarazhangrui/frontend-slides",
       "license": "MIT",
       "licenseFile": "slides/frontend-slides/LICENSE"
@@ -1170,6 +1266,7 @@
       ],
       "path": "training/course-training-skills",
       "description": "Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course.",
+      "descVi": "Thiết kế trọn khoá đào tạo: khung, lịch, hoạt động, bài tập, slide, kiểm tra, hướng dẫn giảng viên.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
       "licenseFile": "training/course-training-skills/LICENSE"
@@ -1182,9 +1279,11 @@
       ],
       "path": "training/course-training-skills/skills/activity-designer",
       "description": "Designs learning activities and training games for a session, selected by topic, audience, level, class size, session duration, delivery mode, and learning objective. Every activity must have a traceable educational purpose — never adds activities purely for engagement.",
+      "descVi": "Thiết kế hoạt động và trò chơi học tập cho một buổi học.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "assessment-designer",
@@ -1194,9 +1293,11 @@
       ],
       "path": "training/course-training-skills/skills/assessment-designer",
       "description": "Designs assessments mapped to learning objectives — diagnostic, knowledge checks, multiple choice, short answer, practical, debugging, case study, project, presentation, exit ticket, homework, and final formats — consistent with the course's overall assessment strategy. Never assesses a concept that wasn't taught.",
+      "descVi": "Thiết kế bài kiểm tra bám theo mục tiêu học tập.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "course-designer",
@@ -1206,9 +1307,11 @@
       ],
       "path": "training/course-training-skills/skills/course-designer",
       "description": "The main orchestrator. Parses course requirements, creates and maintains course state and the course manifest, invokes the specialized skills in dependency order, manages approval checkpoints in interactive mode (the default) or runs autonomously in full mode, tracks dependencies, triggers downstream regeneration on change, and runs the final quality review. Use this first for any new course request or full-course adaptation.",
+      "descVi": "Điều phối chính: phân tích yêu cầu khoá học và quản lý trạng thái khoá học.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "course-outline",
@@ -1218,9 +1321,11 @@
       ],
       "path": "training/course-training-skills/skills/course-outline",
       "description": "Designs the high-level architecture of a training course — overview, learning objectives, prerequisites, outcomes, course structure, session-by-session plan, assessment strategy, and final project — from a small set of course requirements. Does not produce session-level detail or any downstream artifact.",
+      "descVi": "Thiết kế khung khoá học: tổng quan, mục tiêu, điều kiện đầu vào, kết quả đầu ra.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "course-reviewer",
@@ -1230,9 +1335,11 @@
       ],
       "path": "training/course-training-skills/skills/course-reviewer",
       "description": "Runs final and/or scoped quality assurance across the whole course — scope, objectives, coverage, sequencing, timing, activities, practical work, assessments, slides, notebooks, instructor guide, and cross-artifact consistency. Detects contradictions between artifacts and fixes them directly when the fix is unambiguous; otherwise flags for instructor decision.",
+      "descVi": "Kiểm tra chất lượng toàn khoá: phạm vi, mục tiêu, độ bao phủ, trình tự.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "instructor-guide",
@@ -1242,9 +1349,11 @@
       ],
       "path": "training/course-training-skills/skills/instructor-guide",
       "description": "Produces instructor-facing delivery guidance per session — teaching focus, explanation guidance, questions to ask, expected answers, common misconceptions and difficulties, intervention strategies, fast-finisher activity, recovery strategy, transitions, and session recap — specific to that session's actual content, so the instructor can deliver it without redesigning it.",
+      "descVi": "Soạn hướng dẫn giảng dạy cho giảng viên theo từng buổi.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "notebook-designer",
@@ -1254,9 +1363,11 @@
       ],
       "path": "training/course-training-skills/skills/notebook-designer",
       "description": "Decides whether a session's practical work benefits from an executable Jupyter notebook, and when it does, generates real, valid .ipynb files (student and instructor versions) that match the session exactly. Never generates a notebook automatically for every technical session, and never invents content beyond what the session teaches.",
+      "descVi": "Quyết định và tạo notebook Jupyter cho phần thực hành khi cần.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "practical-work",
@@ -1266,9 +1377,11 @@
       ],
       "path": "training/course-training-skills/skills/practical-work",
       "description": "Designs practical exercises (coding, data analysis, debugging, configuration, system design, API usage, model building, experiments, case analysis, tool usage, mini projects) that match the concepts actually taught in the session, with student-facing and instructor-facing content kept strictly separate.",
+      "descVi": "Thiết kế bài thực hành: lập trình, phân tích dữ liệu, cấu hình, thiết kế hệ thống.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "session-designer",
@@ -1278,9 +1391,11 @@
       ],
       "path": "training/course-training-skills/skills/session-designer",
       "description": "Designs one session in full detail — objectives, topics, subtopics, key concepts, examples, and a timed agenda that exactly matches the session duration. Does not write activity/exercise/notebook/slide/assessment content itself, only names where each belongs in the agenda.",
+      "descVi": "Thiết kế chi tiết một buổi học: mục tiêu, nội dung, ví dụ, lịch theo phút.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     },
     {
       "name": "slide-designer",
@@ -1291,9 +1406,11 @@
       ],
       "path": "training/course-training-skills/skills/slide-designer",
       "description": "Two-stage skill. Stage 1 produces an instructional slide specification (per-slide title, purpose, content, visual recommendation, speaker notes, interaction) matching the session's actual content. Stage 2 uses an available presentation/design capability to generate a real, editable .pptx — never a flattened image deck, and never fabricated if no such capability is available.",
+      "descVi": "Lập đặc tả slide bài giảng rồi dựng thành slide.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
-      "licenseFile": "training/course-training-skills/LICENSE"
+      "licenseFile": "training/course-training-skills/LICENSE",
+      "bundle": "training/course-training-skills"
     }
   ]
 }

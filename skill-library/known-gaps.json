@@ -1,0 +1,34 @@
+{
+  "_optional": {
+    "references/firm-overlay.md": "Firm-specific overlay each second-line skill reads only when present; the firm adds it after install."
+  },
+  "banking/anthropic-financial-services/comps-analysis": {
+    "examples/comps_example.xlsx": "Not in the upstream repo; the skill works without the example."
+  },
+  "banking/kyc-analyst/refresh": {
+    "references/regulations-mena.md": "Not in the upstream repo; US and UK/EU regulation files are present."
+  },
+  "banking/second-line/banking-risk-compliance/bank-fintech-partnership-review": {
+    "references/cross-cutting/privacy.md": "Conditional overlay not shipped upstream for this skill.",
+    "references/cross-cutting/conduct.md": "Conditional overlay not shipped upstream for this skill.",
+    "references/cross-cutting/climate.md": "Conditional overlay not shipped upstream for this skill."
+  },
+  "banking/second-line/banking-risk-compliance/banking-supervision-readiness": {
+    "references/sector-overlays/": "The skill text says this folder intentionally does not exist."
+  },
+  "banking/second-line/banking-risk-compliance/deposit-operations-controls": {
+    "references/cross-cutting/cyber.md": "Conditional overlay not shipped upstream for this skill.",
+    "references/cross-cutting/privacy.md": "Conditional overlay not shipped upstream for this skill."
+  },
+  "banking/second-line/risk-compliance-core/scoping": {
+    "references/sector-overlays/": "Named as the place other skills keep overlays; not shipped for scoping upstream.",
+    "references/cross-cutting/": "Named as the place other skills keep overlays; not shipped for scoping upstream."
+  },
+  "banking/second-line/risk-reporting/bcbs239-gap-assessment": {
+    "references/cross-cutting/cyber.md": "Conditional overlay not shipped upstream for this skill.",
+    "references/cross-cutting/": "Conditional overlay folder not shipped upstream for this skill."
+  },
+  "slides/anthropic-financial-services/ppt-template-creator": {
+    "assets/template.pptx": "Output path: the skill copies the user's template here when it builds a new skill."
+  }
+}

@@ -57,16 +57,30 @@ function licenseFile(dir) {
   return null;
 }
 
+// Relative file paths a SKILL.md points at: markdown links and backticked references/, scripts/, … paths.
+export function skillRefs(text) {
+  const refs = new Set();
+  for (const m of text.matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)) refs.add(m[1]);
+  for (const m of text.matchAll(/`((?:\.\/)?(?:references|scripts|assets|templates|examples|reference|docs|resources|lib|config)\/[^`\s*<>{}#]+)/g)) refs.add(m[1]);
+  return [...refs].filter((r) => !/^(https?:|mailto:|\/|~|\$)/.test(r));
+}
+
 export function buildIndex() {
   const roleOverrides = JSON.parse(readFileSync(join(root, 'roles.json'), 'utf8'));
-  return findSkills(root).map((file) => {
-    const path = relative(root, dirname(file)).split(sep).join('/');
+  const descVi = JSON.parse(readFileSync(join(root, 'descriptions.vi.json'), 'utf8'));
+  const files = findSkills(root);
+  const dirs = files.map((f) => relative(root, dirname(f)).split(sep).join('/'));
+  return files.map((file, i) => {
+    const path = dirs[i];
     const group = Object.keys(sources).find((g) => path === g || path.startsWith(g + '/'));
     const fm = frontmatter(readFileSync(file, 'utf8'));
     const [source, license] = sources[group] ?? [null, null];
     const name = fm.name ?? path.split('/').pop();
     const category = path.split('/')[0];
-    return { name, category, roles: roleOverrides[name] ?? [category], path, description: fm.description ?? '', source, license, licenseFile: licenseFile(dirname(file)) };
+    // A skill nested inside another skill only works as part of it: installing it means installing the outer one.
+    const outer = dirs.filter((d) => path.startsWith(d + '/')).sort((a, b) => a.length - b.length)[0];
+    const entry = { name, category, roles: roleOverrides[name] ?? [category], path, description: fm.description ?? '', descVi: descVi[name] ?? '', source, license, licenseFile: licenseFile(dirname(file)) };
+    return outer ? { ...entry, bundle: outer } : entry;
   }).sort((a, b) => a.path.localeCompare(b.path));
 }
 
