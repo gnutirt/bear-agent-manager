@@ -15,7 +15,8 @@ export class AttachError extends Error {
 }
 
 const ROOM_RE = /^[\w-]{1,64}$/;
-const ID_RE = /^[0-9a-f]{8}-[\w.\- ]{1,80}$/;
+// The name part: anything sanitizeName keeps (Unicode letters included), never a separator, a reserved character or a control.
+const ID_RE = /^[0-9a-f]{8}-[^\\/:*?"<>|\x00-\x1f\x7f]{1,80}$/u;
 
 /** Room names become directory names: only word characters and dashes, never a path. */
 function roomDir(home: string, room: string): string {
@@ -24,13 +25,18 @@ function roomDir(home: string, room: string): string {
 }
 export const filesDir = (home: string, room: string) => path.join(roomDir(home, room), 'files');
 
-/** Untrusted file name -> safe base name: no directories, only [\w.\- ], at most 80 characters (extension kept), never empty or hidden. */
+/**
+ * Untrusted file name -> safe base name: no directories; Unicode letters kept ("báo cáo.pdf" stays readable);
+ * controls and the characters Windows forbids (: * ? " < > |) become "_"; no leading dots, no trailing dots or
+ * spaces (Windows drops them); at most 80 characters with the extension kept; never empty or hidden.
+ */
 export function sanitizeName(raw: string): string {
-  let n = String(raw ?? '').split(/[\\/]/).pop() ?? '';
-  n = n.replace(/[^\w.\- ]+/g, '_').trim().replace(/^\.+/, '');
-  if (n.length > 80) {
-    const ext = path.extname(n).slice(0, 12);
-    n = n.slice(0, 80 - ext.length) + ext;
+  let n = (String(raw ?? '').split(/[\\/]/).pop() ?? '').normalize('NFC');
+  n = n.replace(/[\x00-\x1f\x7f:*?"<>|]+/g, '_').trim().replace(/^\.+/, '').replace(/[. ]+$/, '');
+  const chars = Array.from(n);   // code points: a cut never splits a surrogate pair
+  if (chars.length > 80) {
+    const ext = Array.from(path.extname(n).slice(0, 12));
+    n = chars.slice(0, 80 - ext.length).join('') + ext.join('');
   }
   return n || 'file';
 }

@@ -8,6 +8,7 @@ import path from 'node:path';
 export type LibSkill = {
   name: string; category: string; roles: string[]; path: string; description: string;
   source: string; license: string; licenseFile?: string;
+  bundle?: string;   // folder of a multi-skill repo whose shared files (references/, config/...) the skill reads by relative path
 };
 export type SkillPack = { id: string; vi: string; en: string; roles: string[]; skills: string[]; mode: 'auto' | 'force'; when: 'every' | 'first' };
 export type Library = { skills: LibSkill[]; packs: SkillPack[]; roles: { id: string; count: number }[]; licenses: { id: string; count: number }[] };
@@ -27,7 +28,7 @@ function parseSkills(j: any): LibSkill[] {
     const roles = Array.isArray(s.roles) && s.roles.length ? s.roles.map(String) : [category];
     out.push({
       name, category, roles, path: str(s.path), description: str(s.description), source: str(s.source), license: str(s.license),
-      ...(s.licenseFile ? { licenseFile: str(s.licenseFile) } : {}),
+      ...(s.licenseFile ? { licenseFile: str(s.licenseFile) } : {}), ...(s.bundle ? { bundle: str(s.bundle) } : {}),
     });
   }
   return out;
@@ -108,12 +109,18 @@ export function installSkill(libDir: string, s: LibSkill, configDir: string, max
     if (!inside(path.resolve(libDir), src) || !fs.existsSync(path.join(src, 'SKILL.md'))) return { name: s.name, status: 'error', error: 'not in the library' };
     const lic = s.licenseFile ? path.resolve(libDir, s.licenseFile) : '';
     if (!lic || !inside(path.resolve(libDir), lic) || !fs.statSync(lic, { throwIfNoEntry: false })?.isFile()) return { name: s.name, status: 'error', error: 'no LICENSE in the library' };
-    const files = listFiles(src, maxBytes);
+    // A bundle skill also gets the bundle's shared files (everything but its skills/ folder), its own files on top.
+    const bundle = s.bundle ? path.resolve(libDir, s.bundle) : '';
+    if (bundle && (!inside(path.resolve(libDir), bundle) || !inside(bundle, src))) return { name: s.name, status: 'error', error: 'bad bundle' };
+    const shared = bundle ? listFiles(bundle, maxBytes).filter((f) => !/^skills[\\/]/.test(f)).map((f) => ({ from: path.join(bundle, f), to: f })) : [];
+    const own = listFiles(src, maxBytes).map((f) => ({ from: path.join(src, f), to: f }));
+    const files = [...shared.filter((x) => !own.some((o) => o.to === x.to)), ...own];
+    if (files.reduce((n, x) => n + fs.statSync(x.from).size, 0) > maxBytes) throw new Error(`larger than ${Math.round(maxBytes / 1048576)} MB`);
     // Written next to the target and renamed, so a failed copy never leaves a half skill that Claude Code would load.
     const tmp = path.join(skills, `.${s.name}.installing-${process.pid}`);
     fs.rmSync(tmp, { recursive: true, force: true });
-    for (const f of files) { fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(src, f), path.join(tmp, f)); }
-    if (!files.some((f) => /^LICEN[CS]E/i.test(f))) fs.copyFileSync(lic, path.join(tmp, 'LICENSE'));
+    for (const x of files) { fs.mkdirSync(path.dirname(path.join(tmp, x.to)), { recursive: true }); fs.copyFileSync(x.from, path.join(tmp, x.to)); }
+    if (!files.some((x) => /^LICEN[CS]E/i.test(x.to))) fs.copyFileSync(lic, path.join(tmp, 'LICENSE'));
     fs.renameSync(tmp, dest);
     return { name: s.name, status: 'installed' };
   } catch (e) { return { name: s.name, status: 'error', error: (e as Error).message }; }

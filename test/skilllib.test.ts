@@ -124,3 +124,21 @@ test('install/uninstall/apply routes follow the contract: known accounts only, p
     assert.deepEqual(await call('/api/skill-library/uninstall', { names: ['deck-maker'], configDir: cfg }), { done: ['deck-maker'], skipped: [] });
   } finally { await hub.close(); fs.rmSync(lib, { recursive: true, force: true }); }
 });
+
+test('installSkill of a bundle skill brings the bundle shared files (not its other skills) so relative references resolve', async () => {
+  const { installSkill } = await import('../hub/skilllib.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bundle-')), b = path.join(dir, 'training', 'kit');
+  for (const [f, t] of [['LICENSE', 'MIT'], ['references/a.md', 'shared'], ['skills/one/SKILL.md', 'one'], ['skills/two/SKILL.md', 'two']]) {
+    fs.mkdirSync(path.dirname(path.join(b, f)), { recursive: true });
+    fs.writeFileSync(path.join(b, f), t);
+  }
+  const skill = { name: 'one', category: 'training', roles: ['training'], path: 'training/kit/skills/one', description: '', source: 'kit', license: 'MIT', licenseFile: 'training/kit/LICENSE', bundle: 'training/kit' };
+  const cfg = path.join(dir, 'cfg');
+  assert.equal(installSkill(dir, skill, cfg).status, 'installed');
+  const got = path.join(cfg, 'skills', 'one');
+  assert.equal(fs.readFileSync(path.join(got, 'SKILL.md'), 'utf8'), 'one');
+  assert.equal(fs.readFileSync(path.join(got, 'references', 'a.md'), 'utf8'), 'shared');
+  assert.ok(!fs.existsSync(path.join(got, 'skills')));
+  assert.equal(installSkill(dir, { ...skill, name: 'x', bundle: 'slides' }, cfg).status, 'error');   // skill outside its bundle
+  fs.rmSync(dir, { recursive: true, force: true });
+});

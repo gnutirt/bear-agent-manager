@@ -12,7 +12,11 @@ const png = Buffer.from('89504e470d0a1a0a0000', 'hex');
 test('sanitizeName: no directories, only safe characters, 80 chars with the extension kept, never empty', () => {
   assert.equal(sanitizeName('..\\..\\etc/passwd'), 'passwd');
   assert.equal(sanitizeName('C:\\Users\\alice\\shot 1.png'), 'shot 1.png');
-  assert.equal(sanitizeName('<img onerror=x>.png'), '_img onerror_x_.png');
+  assert.equal(sanitizeName('<img onerror=x>.png'), '_img onerror=x_.png');
+  assert.equal(sanitizeName('báo cáo <b>.txt'), 'báo cáo _b_.txt');   // Unicode kept, only reserved characters replaced
+  assert.equal(sanitizeName('a:b*c?"d|e\u0001.md'), 'a_b_c_d_e_.md');
+  assert.equal(sanitizeName('notes. . '), 'notes');
+  assert.equal(Array.from(sanitizeName('😀'.repeat(100) + '.png')).length, 80);
   assert.equal(sanitizeName('.hidden'), 'hidden');
   assert.equal(sanitizeName(''), 'file');
   const long = sanitizeName('a'.repeat(200) + '.png');
@@ -83,4 +87,13 @@ test('moveRoomToTrash moves the whole room folder, files included, and does noth
   assert.ok(fs.existsSync(path.join(to, 'files', a.id)));
   assert.equal(fs.existsSync(path.join(home, 'rooms', 'alpha')), false);
   assert.equal(moveRoomToTrash(home, 'alpha', 124), null);
+});
+
+test('a Vietnamese file name round-trips: saved readable, found again by its id', () => {
+  const home = tmp();
+  const a = saveAttachment(home, 'web', { name: 'báo cáo tuần.pdf', mime: 'application/pdf', data: Buffer.from('%PDF') });
+  assert.match(a.id, /^[0-9a-f]{8}-báo cáo tuần\.pdf$/);
+  assert.ok(resolveAttachment(home, 'web', a.id));
+  assert.equal(resolveAttachment(home, 'web', a.id.slice(0, 9) + '../x.pdf'), null);
+  fs.rmSync(home, { recursive: true, force: true });
 });
