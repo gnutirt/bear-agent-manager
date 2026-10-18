@@ -462,7 +462,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
         const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
         if (text.length < 40) break;
-        try { broadcast('msg', store.postSystem(w.room, tr('sys.relay', { name: sess.name, text: text.length > 3000 ? text.slice(0, 3000) + ' …' : text }))); emitRoom(w.room); } catch { /* room gone */ }
+        try { broadcast('msg', store.postSystem(w.room, tr('sys.relay', { name: sess.name, text: text.length > 3000 ? text.slice(0, 3000) + ' …' : text }), sess.turnTopic?.[w.room])); emitRoom(w.room); } catch { /* room gone */ }
         break;
       }
       case 'stop-failure': {

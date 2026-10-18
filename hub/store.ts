@@ -25,6 +25,7 @@ export type Session = {
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
+  turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
 };
 const TOPIC = /^[a-z0-9-]{1,32}$/;
@@ -347,9 +348,9 @@ export class Store {
   }
 
   /** Hub notice in the room: wakes nobody and leaves the loop guard alone. */
-  postSystem(roomName: string, text: string): Message {
+  postSystem(roomName: string, text: string, topic?: string): Message {
     this.room(roomName);
-    const message: Message = { id: this.lastId() + 1, room: roomName, from: 'bear-agent-manager', fromId: null, mentions: [], text, ts: this.now(), wake: [], kind: 'system' };
+    const message: Message = { id: this.lastId() + 1, room: roomName, from: 'bear-agent-manager', fromId: null, mentions: [], text, ts: this.now(), wake: [], kind: 'system', ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${roomName}.jsonl`), JSON.stringify(message) + '\n');
     this.save();
@@ -374,8 +375,9 @@ export class Store {
     }
     const wanted = topic == null || topic === '' ? undefined : String(topic).trim().toLowerCase();
     if (wanted != null && !TOPIC.test(wanted)) throw new StoreError(400, 'topic must be 1-32 chars of a-z, 0-9 and -');
-    // A reply stays in the topic of the message it answers.
-    const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted) || undefined;
+    // A reply stays in the topic of the message it answers; an agent that names no topic answers in the topic of the
+    // message it was handed (users asked in #x expect the answer in #x); `topic: 'chung'` keeps it in #chung.
+    const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted ?? (sender ? sender.turnTopic?.[roomName] : undefined)) || undefined;
     const message: Message = {
       id: this.lastId() + 1, room: roomName, from: sender?.name ?? 'you', fromId: sender?.id ?? null,
       mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}),
@@ -569,6 +571,15 @@ export class Store {
 
   consume(id: string, upTo: number): void {
     const s = this.session(id);
+    // The topic the agent is answering in, per room: that of the newest message handed over that woke it, else the
+    // newest one from someone else. Hub notices do not count (they are always in #chung).
+    const woke: Record<string, string> = {}, seen: Record<string, string> = {};
+    for (const m of this.messages) {
+      if (m.id <= s.cursor || m.id > upTo || m.fromId === s.id || m.kind === 'system' || !(m.room in s.rooms)) continue;
+      seen[m.room] = m.topic ?? 'chung';
+      if (m.wake.includes(s.id)) woke[m.room] = m.topic ?? 'chung';
+    }
+    for (const r of Object.keys(seen)) (s.turnTopic ??= {})[r] = woke[r] ?? seen[r];
     s.cursor = Math.max(s.cursor, upTo);
     this.save();
   }
