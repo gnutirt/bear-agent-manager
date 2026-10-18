@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-10-18
+
 ### Summary of 0.3.0 (everything since 0.2.0)
 
 - **Platform:** agents called awake in the background now stay alive between turns (`lead.idleMin`); the hub knows each claude's pid (sweep, End, Compact, model change); wake when a Claude plan limit lifts (usage and per-chat StopFailure); topics inside a room, replies, attachments, room search, uncommitted-file warnings; open the tab of an offline member; clear the room lead; export and backup no longer freeze the hub; hub texts follow the chosen language; versions, GitHub update check and a release script.
