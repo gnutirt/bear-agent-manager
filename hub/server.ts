@@ -12,6 +12,7 @@ import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider
 import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { applyShare, listAccounts as listConfigAccounts, planShare } from './accounts.ts';
+import { spawnAgent, type AgentJob } from './agents.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -89,6 +90,8 @@ export type HubOptions = {
   revive?: (job: ReviveJob) => unknown;
   /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
   compactRevive?: (job: CompactJob) => Promise<number> | number;
+  /** D3 new agent without an editor (stubbed in tests). */
+  spawnAgent?: (job: AgentJob) => Promise<number> | number;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
   batchMs?: number;
   /** Resume closed sessions automatically when mentioned (default off: a cold resume re-reads the whole chat). */
@@ -1051,6 +1054,31 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       try { applyShare(plan, primary); } catch (e) { return json(res, 500, { error: (e as Error).message, plan }); }
       console.log(`[accounts] chats ${b.on !== false ? 'shared' : 'unshared'}: ${plan.map((a) => `${a.do} ${a.path ?? a.from}`).join('; ')}`);
       return json(res, 200, { plan, done: true, ...listConfigAccounts(accountDirs(), primary) });
+    }
+    if (m === 'POST' && p === '/api/agents') {
+      // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
+      const b = await readBody(req);
+      const name = String(b.name ?? '').trim(), room = String(b.room ?? ''), cwd = path.resolve(String(b.cwd ?? ''));
+      store.room(room);
+      if (!fs.statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new StoreError(400, `not a folder: ${cwd}`);
+      const known = Object.values(store.state.sessions).some((s) => s.cwd && path.resolve(s.cwd).toLowerCase() === cwd.toLowerCase());
+      if (!known && b.confirm !== true) return json(res, 409, { error: tr('sys.agent.newFolder', { cwd }), needConfirm: true });
+      const configDir = b.account ? accountDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase()) : undefined;
+      if (b.account && !configDir) throw new StoreError(400, 'account must be a Claude config dir of this machine');
+      const id = crypto.randomUUID();
+      store.register({ id, cwd, ...(configDir ? { configDir } : {}) });
+      try { store.rename(id, name); store.join(id, room); } catch (e) { store.forget(id); throw e; }
+      const cfg = loadSettings(opts.dir, envCap), perm = permFor(cfg, name), model = cfg.agentModel[normAgent(name)];
+      const text = `${tr('agent.intro', { name, room })}${b.prompt ? `\n\n${String(b.prompt).slice(0, 4000)}` : ''}`;
+      reviving.add(id);   // counts as a background run: no second spawn while it lives
+      emitSession(store.setStatus(id, 'busy', tr('sys.act.starting')));
+      emitRoom(room);
+      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, ...(configDir ? { configDir } : {}), text, logDir: opts.dir, perm, idleMin: cfg.lead.idleMin, ...(model ? { model } : {}) }))
+        .catch(() => 1)
+        .then((code) => { if (code) { try { broadcast('msg', postSys(room, tr('sys.wake.failed', { name, why: tr('sys.wake.exit', { code: Number(code) }) }))); emitRoom(room); } catch { /* room gone */ } } })
+        .finally(() => { reviving.delete(id); if (!waiters.has(id)) emitSession(store.markEnded(id)); });
+      try { broadcast('msg', postSys(room, tr('sys.agent.started', { name, cwd }), undefined, { type: 'wake', level: 'info', agent: name })); } catch { /* room gone */ }
+      return json(res, 200, { id, name, room, cwd });
     }
     if (m === 'GET' && p === '/api/version') return json(res, 200, await versionNow());
     if (m === 'POST' && p === '/api/version/check') { await checkUpdates(true); return json(res, 200, await versionNow()); }
