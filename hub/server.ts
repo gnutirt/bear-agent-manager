@@ -13,7 +13,7 @@ import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
-import { CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
+import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
@@ -105,6 +105,8 @@ export type HubOptions = {
   usageFetch?: typeof fetch | null;
   /** V1 update check against GitHub releases; null turns it off (tests). */
   versionFetch?: typeof fetch | null;
+  /** V3 POST /api/update (stubbed in tests: the real one moves this checkout). */
+  applyUpdate?: typeof applyUpdate;
   /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
   usageHome?: string;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
@@ -526,6 +528,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const check = loadSettings(opts.dir, envCap).updates.check;
     return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check);
   }
+  /** Loads the hub code in a throwaway process: '' when it loads, else the error. A syntax error must not leave the machine without a hub. */
+  const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', new URL('./server.ts', import.meta.url).href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
   let versionPoller: NodeJS.Timeout | undefined;
   if (updates) { checkUpdates().catch(() => {}); versionPoller = setInterval(() => checkUpdates().catch(() => {}), CHECK_EVERY_MS); versionPoller.unref(); }
   let usagePoller: NodeJS.Timeout | undefined;
@@ -813,10 +817,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       await refreshWorkers();
       return json(res, 200, { ok: true });
     }
+    if (m === 'POST' && p === '/api/update') {
+      // V3: only a clean checkout of the same repo with a newer release (canApply); the hub restarts by the user's hand after.
+      const v = await versionNow();
+      if (!v.canApply || !v.latest) return json(res, 409, { error: `cannot update here: ${v.reason}`, reason: v.reason });
+      const r = await (opts.applyUpdate ?? applyUpdate)(ROOT, `v${v.latest}`, tryLoadHub, (s) => console.log(`[update] ${s}`));
+      if (!r.ok) return json(res, 500, { error: r.error });
+      return json(res, 200, { ...r, restart: true, plugins: v.plugins });
+    }
     if (m === 'POST' && p === '/api/restart') {
-      // Load the new code in a throwaway process first: a syntax error must not leave the machine without a hub.
-      const href = new URL('./server.ts', import.meta.url).href;
-      const err = await new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
+      const err = await tryLoadHub();
       if (err) return json(res, 500, { error: `new code does not load, hub kept running: ${err}` });
       json(res, 200, { ok: true });
       setTimeout(opts.exit ?? (() => process.exit(0)), 300).unref();

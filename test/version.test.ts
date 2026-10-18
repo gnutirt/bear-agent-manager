@@ -99,3 +99,41 @@ test('GET /api/version and POST /api/version/check through the hub with a fake G
     assert.equal((await call<any>('/api/version')).check, false);
   } finally { await hub.close(); }
 });
+
+test('applyUpdate (V3) on temp repos: fast-forward to the tag, roll back when the new code does not load, refuse a missing or behind tag', async () => {
+  const { applyUpdate, gitState } = await import('../hub/version.ts');
+  const { execFileSync } = await import('node:child_process');
+  const base = tmp(), up = path.join(base, 'up'), here = path.join(base, 'here');
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-C', cwd, ...a], { encoding: 'utf8' }).trim();
+  fs.mkdirSync(up);
+  git(up, 'init', '-q'); git(up, 'config', 'user.email', 'alice@example.com'); git(up, 'config', 'user.name', 'alice');
+  fs.writeFileSync(path.join(up, 'a.txt'), '1'); git(up, 'add', '.'); git(up, 'commit', '-q', '-m', 'one'); git(up, 'tag', 'v0.1.0');
+  execFileSync('git', ['clone', '-q', up, here]);
+  // origin looks like the GitHub repo (as configured), git fetches from the local folder
+  git(here, 'remote', 'set-url', 'origin', 'https://github.com/alice/tool.git');
+  const upUrl = up.split(path.sep).join('/');
+  git(here, 'config', 'url.' + upUrl + '.insteadOf', 'https://github.com/alice/tool.git');
+  assert.deepEqual(await gitState(here, 'alice/tool'), { git: true, remoteOk: true, clean: true });
+  assert.equal((await gitState(base, 'alice/tool')).git, false);
+  fs.writeFileSync(path.join(up, 'a.txt'), '2'); git(up, 'commit', '-q', '-am', 'two'); git(up, 'tag', 'v0.2.0');
+  const start = git(here, 'rev-parse', 'HEAD');
+  assert.match((await applyUpdate(here, 'v9.9.9', async () => '') as any).error, /not on origin/);
+  const bad = await applyUpdate(here, 'v0.2.0', async () => 'SyntaxError: boom');
+  assert.equal(bad.ok, false);
+  assert.equal(git(here, 'rev-parse', 'HEAD'), start, 'rolled back');
+  const good = await applyUpdate(here, 'v0.2.0', async () => '');
+  assert.equal(good.ok, true);
+  assert.equal(fs.readFileSync(path.join(here, 'a.txt'), 'utf8'), '2');
+  assert.match((await applyUpdate(here, 'v0.1.0', async () => '') as any).error, /not ahead/);
+  fs.rmSync(base, { recursive: true, force: true });
+});
+
+test('POST /api/update is refused unless canApply', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  let called = false;
+  const { hub, call } = await makeHub(undefined, undefined, { applyUpdate: async () => { called = true; return { ok: true }; } });
+  try {
+    await assert.rejects(call('/api/update', {}), (e: any) => e.status === 409);
+    assert.equal(called, false);
+  } finally { await hub.close(); }
+});

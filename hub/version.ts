@@ -70,7 +70,7 @@ const git = (root: string, args: string[]) => new Promise<string>((resolve, reje
 /** Whether `git merge --ff-only` could update root: a git checkout of this repo with no uncommitted changes. */
 export async function gitState(root: string, slug: string | null): Promise<GitState> {
   try { await git(root, ['rev-parse', '--is-inside-work-tree']); } catch { return { git: false, remoteOk: false, clean: false }; }
-  const remote = await git(root, ['remote', 'get-url', 'origin']).catch(() => '');
+  const remote = await git(root, ['config', '--get', 'remote.origin.url']).catch(() => '');   // as configured (insteadOf not applied)
   const clean = (await git(root, ['status', '--porcelain', '--untracked-files=no']).catch(() => 'x')).trim() === '';
   return { git: true, remoteOk: !!slug && repoSlug(remote.trim())?.toLowerCase() === slug.toLowerCase(), clean };
 }
@@ -113,6 +113,35 @@ export class UpdateChecker {
     this.last = next;
     try { fs.mkdirSync(path.dirname(this.o.cacheFile), { recursive: true }); fs.writeFileSync(this.o.cacheFile, JSON.stringify(next)); } catch { /* memory only */ }
     return next;
+  }
+}
+
+export type UpdateResult = { ok: true; from: string; to: string; tag: string } | { ok: false; error: string };
+/**
+ * V3: fast-forwards root to tag, in this order: fetch the tags of origin, the tag must exist and be ahead of HEAD,
+ * `merge --ff-only`, then tryLoad (the new hub code must load, as for the Restart button). A failed load puts HEAD
+ * back. Only git runs here (execFile, no shell); the caller checks canApply first and restarts the hub after.
+ */
+export async function applyUpdate(root: string, tag: string, tryLoad: () => Promise<string>, log: (s: string) => void = () => {}): Promise<UpdateResult> {
+  if (!/^v\d+\.\d+\.\d+$/.test(tag)) return { ok: false, error: `bad tag ${tag}` };
+  const from = (await git(root, ['rev-parse', 'HEAD'])).trim();
+  try {
+    await git(root, ['fetch', '--tags', '--quiet', 'origin']);
+    const to = (await git(root, ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`]).catch(() => '')).trim();
+    if (!to) return { ok: false, error: `tag ${tag} is not on origin` };
+    if (to === from) return { ok: false, error: `already at ${tag}` };
+    if (await git(root, ['merge-base', '--is-ancestor', 'HEAD', to]).then(() => false, () => true)) return { ok: false, error: `${tag} is not ahead of this checkout (local commits?); update by hand` };
+    await git(root, ['merge', '--ff-only', '--quiet', to]);
+    const err = await tryLoad();
+    if (err) {
+      await git(root, ['reset', '--keep', from]);
+      log(`update to ${tag} rolled back: the new code does not load: ${err}`);
+      return { ok: false, error: `the new code does not load, kept ${from.slice(0, 7)}: ${err}` };
+    }
+    log(`updated ${from.slice(0, 7)} -> ${tag} (${to.slice(0, 7)})`);
+    return { ok: true, from, to, tag };
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message).trim().slice(0, 500) };
   }
 }
 
