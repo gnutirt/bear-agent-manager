@@ -1624,7 +1624,13 @@ function compactBlock() {
   const ac = S.settings.agentCompact || {};
   const names = [...new Set([...S.skills.members.map((m) => normAgent(m.name)), ...Object.keys(ac)])].filter(Boolean);
   if (!names.length) return `<div class="vempty">${t('agents.none')}</div>`;
-  const rows = names.map((n) => {
+  // default: only chats that are running now (or already have a rule), running first; "show offline" lists the rest
+  const live = new Set(Object.values(S.sessions).filter((s) => s.status !== 'offline').map((s) => normAgent(s.name)));
+  const q = (S.cmpQuery || '').toLowerCase();
+  const shown = names.filter((n) => (S.cmpAll || live.has(n) || ac[n]) && (!q || n.includes(q))).sort((a, b) => Number(live.has(b)) - Number(live.has(a)) || a.localeCompare(b));
+  const hidden = names.length - names.filter((n) => S.cmpAll || live.has(n) || ac[n]).length;
+  const bar = `<div class="skfind"><input class="search" id="cmpQuery" placeholder="${t('compact.search')}" value="${esc(S.cmpQuery || '')}" aria-label="${t('compact.search')}"><button class="btn" id="cmpAll" aria-pressed="${!!S.cmpAll}">${S.cmpAll ? t('compact.hideOffline') : t('compact.showOffline', { n: hidden })}</button></div>`;
+  const rows = shown.map((n) => {
     const r = ac[n] || { mode: 'auto' };
     return `<tr data-cagent="${esc(n)}"><td>${esc(n)}</td>
       <td><select data-cmode aria-label="${t('compact.aria.mode', { n: esc(n) })}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
@@ -1632,7 +1638,7 @@ function compactBlock() {
       <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="${t('compact.aria.wake', { n: esc(n) })}"></td>
       <td><input type="text" data-rtools value="${esc((S.settings.reviveTools?.[n] || []).join(', '))}" placeholder="${t('worker.readOnly')}" aria-label="${t('compact.aria.tools', { n: esc(n) })}"></td></tr>`;
   }).join('');
-  return `<div class="setbox"><p class="small muted note">${t('compact.note')}</p>
+  return `<div class="setbox"><p class="small muted note">${t('compact.note')}</p>${bar}
     ${table(['Agent', t('compact.col.mode'), t('compact.col.pct'), t('compact.col.wake'), t('compact.col.tools')], rows)}</div>`;
 }
 async function saveCompact(tr) {
@@ -1777,9 +1783,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
   });
   sv.addEventListener('input', (e) => {
-    if (e.target.id !== 'skQuery') return;
-    S.skQuery = e.target.value; renderSettingsView();
-    const q = $('skQuery'); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    const id = e.target.id; if (id !== 'skQuery' && id !== 'cmpQuery') return;
+    if (id === 'cmpQuery') S.cmpQuery = e.target.value; else S.skQuery = e.target.value;
+    renderSettingsView();
+    const q = $(id); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
   });
   sv.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1802,6 +1809,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     }
     const go = e.target.closest('[data-gotab]');
     if (go) { e.preventDefault(); showTab(go.dataset.gotab); return; }
+    if (e.target.closest('#cmpAll')) { S.cmpAll = !S.cmpAll; renderSettingsView(); return; }
     if (e.target.closest('#skAll')) { S.skAll = !S.skAll; renderSettingsView(); return; }
     const a = e.target.closest('[data-agent]');
     if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }

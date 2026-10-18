@@ -421,4 +421,7 @@ export const en: Record<string, string> = {
   'ver.release': 'View release',
   'ver.check': 'Check now',
   'usage.unknown': 'Could not read this account’s usage',
+  'compact.search': 'Search agents…',
+  'compact.showOffline': 'Show offline agents ({n})',
+  'compact.hideOffline': 'Running agents only',
 };

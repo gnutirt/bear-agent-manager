@@ -421,4 +421,7 @@ export const vi: Record<string, string> = {
   'ver.release': 'Xem bản phát hành',
   'ver.check': 'Kiểm tra ngay',
   'usage.unknown': 'Chưa đọc được mức dùng của tài khoản này',
+  'compact.search': 'Tìm agent…',
+  'compact.showOffline': 'Hiện cả agent đã tắt ({n})',
+  'compact.hideOffline': 'Chỉ agent đang chạy',
 };
