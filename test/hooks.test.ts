@@ -95,6 +95,14 @@ test('readContextTokens sums the last assistant turn input (fresh + cache read +
   ].join('\n') + '\n');
   assert.equal(readContextTokens(f), 122003);
   assert.equal(readContextTokens(path.join(dir, 'missing.jsonl')), 0);
+  // after /compact (no turn yet) the size is the boundary's postTokens, not the old turn's
+  const boundary = (meta: object) => JSON.stringify({ type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: meta });
+  fs.appendFileSync(f, boundary({ trigger: 'manual', preTokens: 122003, postTokens: 11592 }) + '\n' + JSON.stringify({ type: 'user', isCompactSummary: true, message: { content: 'summary' } }) + '\n');
+  assert.equal(readContextTokens(f), 11592);
+  fs.appendFileSync(f, JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 1, cache_read_input_tokens: 12000, cache_creation_input_tokens: 0 } } }) + '\n');
+  assert.equal(readContextTokens(f), 12001, 'a turn after the compact wins');
+  fs.appendFileSync(f, boundary({ trigger: 'auto', preTokens: 12001 }) + '\n');
+  assert.equal(readContextTokens(f), 0, 'no postTokens: unknown');
 });
 
 test('session-start registers a resumed chat (transcript exists) right away', async () => {

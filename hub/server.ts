@@ -212,6 +212,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     deliverTo(w.res, sid, p.messages);
   }
 
+  /** "344k → 12k" from the compact boundary; "chưa đo được" when the transcript has no size for after (never the same number twice). */
+  const compactSize = (before: number, transcript?: string) => {
+    const after = readContextTokens(transcript);
+    return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → chưa đo được`;
+  };
   const reviving = new Set<string>();
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
@@ -261,7 +266,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           tellRooms(`${s.name} không dậy được (${failure}). Tin vẫn chưa đọc; mở tab của ${s.name} hoặc thử lại sau.`);
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
-        if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${kTokens(before)} → ${kTokens(readContextTokens(s.transcript))}).`);
+        if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${compactSize(before, s.transcript)}).`);
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });
@@ -897,7 +902,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         emitSession(store.setStatus(s.id, 'busy', 'đang compact'));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
-          say(code === 0 ? `${s.name} đã được compact (${kTokens(before)} → ${kTokens(readContextTokens(s.transcript))}).` : `${s.name}: compact bị lỗi (mã ${code}).`);
+          say(code === 0 ? `${s.name} đã được compact (${compactSize(before, s.transcript)}).` : `${s.name}: compact bị lỗi (mã ${code}).`);
         }).finally(() => {
           reviving.delete(s.id);
           if (b.revive === true && revive(s.id)) return;

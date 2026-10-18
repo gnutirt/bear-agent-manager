@@ -25,6 +25,14 @@ function readTail(file: string | undefined): string {
 export function readContextTokens(transcript: string | undefined): number {
   const lines = readTail(transcript).split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
+    // A /compact newer than the last turn: the turns before it are gone, its postTokens is the context now
+    // (0 when an old Claude Code did not write it: unknown, never the pre-compact size).
+    if (lines[i].includes('"compact_boundary"')) {
+      try {
+        const j = JSON.parse(lines[i]);
+        if (j.subtype === 'compact_boundary') return Number(j.compactMetadata?.postTokens) || 0;
+      } catch { /* partial first line of the tail */ }
+    }
     if (!lines[i].includes('"usage"')) continue;
     try {
       const u = JSON.parse(lines[i]).message?.usage;

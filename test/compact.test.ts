@@ -104,13 +104,20 @@ test('wantsWakeCompact: only with wakeCompact on, from pct% of the window or 150
   assert.equal(wantsWakeCompact({ mode: 'hold', pct: 50, wakeCompact: true }, 99_000, m), false);
 });
 
-async function offlineAgent(compactCode: number | null, ctx: number, wake: boolean) {
+async function offlineAgent(compactCode: number | null, ctx: number, wake: boolean, postTokens: number | null = 12_000) {
   const order: string[] = [];
+  let tr = '';
   const h = await makeHub(undefined, () => { order.push('revive'); }, {
-    compactRevive: async () => { order.push('compact'); if (compactCode === null) throw new Error('spawn failed'); return compactCode; },
+    compactRevive: async () => {
+      order.push('compact');
+      if (compactCode === null) throw new Error('spawn failed');
+      // like Claude Code: /compact writes a boundary line with the size after (older versions: without postTokens)
+      if (compactCode === 0) fs.appendFileSync(tr, JSON.stringify({ type: 'system', subtype: 'compact_boundary', compactMetadata: { preTokens: ctx, ...(postTokens ? { postTokens } : {}) } }) + '\n');
+      return compactCode;
+    },
   });
   try {
-    const tr = path.join(h.dir, 'fw.jsonl');
+    tr = path.join(h.dir, 'fw.jsonl');
     fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: ctx } } }) + '\n');
     await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: tr });
     await h.call('/api/sessions/s1/rename', { name: 'fw' });
@@ -132,7 +139,9 @@ test('wake compact: off or under the threshold -> plain revive', async () => {
 test('wake compact: on and over the threshold -> /compact, then the wake, one room line with before -> after', async () => {
   const { order, msgs } = await offlineAgent(0, 343_000, true);
   assert.deepEqual(order, ['compact', 'revive']);
-  assert.ok(msgs.some((t: string) => t === 'fw được compact trước khi gọi dậy (343k → 343k).'), msgs.join(' | '));
+  assert.ok(msgs.some((t: string) => t === 'fw được compact trước khi gọi dậy (343k → 12k).'), msgs.join(' | '));
+  const old = await offlineAgent(0, 343_000, true, null);
+  assert.ok(old.msgs.some((t: string) => t === 'fw được compact trước khi gọi dậy (343k → chưa đo được).'), old.msgs.join(' | '));
 });
 
 test('wake compact: a failed or crashed compaction still wakes the agent', async () => {
