@@ -335,6 +335,9 @@ header .spacer{flex:1}
 .msg .cbh{display:flex;align-items:center;justify-content:space-between;padding:3px 6px 3px 12px;font:600 11.5px var(--mono);color:var(--mute);text-transform:lowercase;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--text) 4%,transparent)}
 .msg .cbc{font-size:11.5px;font-weight:600;color:var(--mute);padding:2px 9px;border-radius:6px}.msg .cbc:hover{background:var(--hover);color:var(--text)}
 .msg .cb pre{margin:0;border-radius:0;background:none}.msg pre code{color:inherit}
+.use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
+:root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
+.usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
 .msg .tblm{margin:8px 0;overflow-x:auto;border:1px solid var(--line);border-radius:10px}
 .msg table{border-collapse:collapse;width:100%;font-size:.93em}
 .msg th{background:color-mix(in srgb,var(--text) 6%,transparent);text-align:left;font-weight:650;white-space:nowrap}
@@ -1829,7 +1832,7 @@ $('view-tokens').addEventListener('click', (e) => {
 });
 
 /* ---------- Cài đặt tab ---------- */
-S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = '';
+S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = ''; S.skUse = {};
 const MODES = lazy({ force: 'mode.force', auto: 'mode.auto', ban: 'mode.ban' });
 const normAgent = (n) => String(n || '').trim().toLowerCase();
 const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
@@ -1839,12 +1842,43 @@ function loadSettingsView() {
   Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine')]).then(([s, p, sk, ar, mc]) => {
     S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc;
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
-    S.viewErr.settings = ''; renderSettingsView();
+    S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
   renderSettingsView();
 }
 const sw = (path, on, label, hint = '') => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="checkbox" class="switch" data-set="${path}"${on ? ' checked' : ''}></label>`;
 const num = (path, v, label, hint, min, max) => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="number" class="numin" data-set="${path}" value="${v}" min="${min}" max="${max}"></label>`;
+/** What the agent really called (GET /api/skill-usage, recorded by the hub's PreToolUse hook): "used N times, last ..." or "not used yet". */
+function loadSkillUse(agent) {
+  if (!agent) return;
+  api(`/api/skill-usage?agent=${enc(agent)}`).then((d) => { S.skUse[agent] = d?.bySkill || {}; }, () => { S.skUse[agent] = S.skUse[agent] || {}; }).then(() => { if (agent === S.skAgent) renderSkillsView(); });
+}
+const agoText = (ts) => { const m = Math.max(0, Math.round((Date.now() - ts) / 60000)); return m < 1 ? t('ago.now') : m < 60 ? t('ago.min', { n: m }) : m < 1440 ? t('ago.hour', { n: Math.round(m / 60) }) : t('ago.day', { n: Math.round(m / 1440) }); };
+const usageOf = (agent, name) => { const by = S.skUse[agent]; if (!by) return undefined; const short = name.split(':').pop(); return by[name] || by[short] || Object.entries(by).find(([k]) => k.split(':').pop() === short)?.[1] || null; };
+function usageHtml(name, mode) {
+  if (!S.skUse[S.skAgent]) return '';
+  const u = usageOf(S.skAgent, name);
+  if (u) return `<span class="cut sub use">${t('use.n', { n: u.count, when: agoText(u.last) })}</span>`;
+  return `<span class="cut sub use never">${t('use.never')}${mode === 'force' ? ` <b class="warnchip">${t('use.forceUnused')}</b>` : ''}</span>`;
+}
+function recentUse() {
+  const by = S.skUse[S.skAgent];
+  if (!by) return '';
+  const top = Object.entries(by).sort(([, a], [, b]) => b.last - a.last).slice(0, 8);
+  return `<h3>${t('use.recent')}</h3>` + (top.length ? `<div class="chips">${top.map(([k, u]) => `<span class="chipf usechip" title="${esc(k)}">${esc(k.split(':').pop())} <small>×${u.count} · ${agoText(u.last)}</small></span>`).join('')}</div>` : `<p class="small muted">${t('use.none')}</p>`);
+}
+/** Hide a skill from Claude Code for good (skillOverrides in the account's settings.json), per account; plugin skills cannot be hidden this way. */
+function hideBlock() {
+  const sk = S.skills, ov = sk?.overrides || {}, dirs = Object.keys(ov);
+  const mine = (sk?.skills || []).filter((s) => s.source === 'user');
+  const acctName = (d) => (S.cu?.accounts || []).find((a) => (a.configDirs || []).some((x) => sameDir(x, d)))?.label || repo(d);
+  const rows = mine.map((s) => `<tr><td><span class="cut sk">${esc(s.name)}</span><span class="cut sub" title="${esc(s.description)}">${esc(s.description)}</span></td>${dirs.map((d) => { const lv = ov[d]?.[s.name]; return `<td><label class="setrow" style="padding:0"><input type="checkbox" class="switch" data-hide="${esc(s.name)}" data-cfg="${esc(d)}"${lv === 'off' ? '' : ' checked'} aria-label="${esc(acctName(d))}: ${esc(s.name)}"><small>${lv && lv !== 'off' ? t('hide.level', { l: esc(lv) }) : t('hide.visible')}</small></label></td>`; }).join('')}</tr>`).join('');
+  return `<details class="hideblk"><summary><h2 style="display:inline">${t('hide.title')}</h2></summary><p class="small muted">${t('hide.note')}</p>${mine.length && dirs.length ? table(['Skill', ...dirs.map(acctName)], rows) : `<div class="vempty">${t('hide.none')}</div>`}</details>`;
+}
+$('view-skills').addEventListener('change', (e) => {
+  const c = e.target.closest('[data-hide]'); if (!c) return;
+  api('/api/skills/override', { configDir: c.dataset.cfg, name: c.dataset.hide, level: c.checked ? 'on' : 'off' }).then(() => { toast(t('hide.saved')); loadSettingsView(); }, (err) => { toast(err.message); c.checked = !c.checked; });
+});
 function skillsBlock() {
   const st = S.settings, sk = S.skills;
   const agents = new Map();
@@ -1865,7 +1899,7 @@ function skillsBlock() {
     // force on a whole plugin would push every one of its skills at once: only exact skills can be forced.
     const btns = (wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban']).map((m) => `<button data-rule="${m}" data-skill="${esc(name)}" aria-pressed="${mode === m}" class="m-${m}">${MODES[m]}</button>`).join('');
     const when = mode === 'force' ? `<select data-when="${esc(name)}" aria-label="${t('rule.when')}"><option value="every"${own.when === 'every' ? ' selected' : ''}>${t('rule.every')}</option><option value="first"${own.when === 'first' ? ' selected' : ''}>${t('rule.first')}</option></select>` : '';
-    return `<tr><td><span class="cut sk">${wildcard ? t('rule.wholePlugin') : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span></td><td class="small muted">${wildcard ? t('rule.noForcePlugin') : inherited ? t('rule.inherited', { mode: MODES[inherited.mode] }) : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
+    return `<tr><td><span class="cut sk">${wildcard ? t('rule.wholePlugin') : esc(name.split(':').pop())}</span><span class="cut sub" title="${esc(desc)}">${esc(wildcard ? name : desc)}</span>${wildcard ? '' : usageHtml(name, mode)}</td><td class="small muted">${wildcard ? t('rule.noForcePlugin') : inherited ? t('rule.inherited', { mode: MODES[inherited.mode] }) : ''}</td><td><span class="seg">${btns}</span> ${when}</td></tr>`;
   };
   const ruled = (plugin) => Object.keys(rules).some((n) => n.startsWith(plugin + ':') || (!plugin && !n.includes(':')));
   // Default: only this agent's rules. Typing searches every skill (to add a rule); "Hiện tất cả" lists them all.
@@ -1878,7 +1912,7 @@ function skillsBlock() {
   const tables = !browse ? '' : Object.entries(groups).sort(([a], [b]) => Number(ruled(b)) - Number(ruled(a)) || a.localeCompare(b)).map(([plugin, items]) =>
     `<h3>${plugin ? esc(plugin) : t('rule.ownSkills')}</h3>` + table(['Skill', '', t('col.mode')], (plugin && !q ? ruleRow(plugin + ':*', '', true) : '') + items.map((s) => ruleRow(s.name, s.description, false)).join(''))).join('') || `<div class="vempty">${t('rule.noMatch')}</div>`;
   return `<div class="skgrid"><div class="agents">${list}</div><div>
-    ${S.skAgent ? `${mine}
+    ${S.skAgent ? `${recentUse()}${mine}
     <div class="skfind"><input class="search" id="skQuery" placeholder="${t('rule.search')}" value="${esc(S.skQuery)}" aria-label="${t('rule.searchAria')}"><button class="btn" id="skAll" aria-pressed="${!!S.skAll}">${S.skAll ? t('rule.hide') : t('rule.showAll')}</button></div>
     ${tables}` : `<div class="vempty">${t('rule.pick')}</div>`}
   </div></div>`;
@@ -1932,7 +1966,7 @@ function providerCard(p) {
 function renderSkillsView() {
   $('view-skills').innerHTML = `<div class="vw">${!S.settings || !S.skills ? errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`
     : `<h2>${t('skills.title')}</h2><p class="small muted">${t('skills.note')}</p>${forceWarning()}
-    ${skillsBlock()}${skillLibBlock()}`}</div>`;
+    ${skillsBlock()}${hideBlock()}${skillLibBlock()}`}</div>`;
 }
 /* ---------- skill library (S3): filter by role, install / remove per account, apply a role pack to an agent ---------- */
 S.lib = { rolesInfo: [], skills: null, packs: null, err: '', role: 'all', q: '', license: '', acct: '' };
@@ -2145,7 +2179,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('#cmpAll')) { S.cmpAll = !S.cmpAll; renderSettingsView(); return; }
     if (e.target.closest('#skAll')) { S.skAll = !S.skAll; renderSettingsView(); return; }
     const a = e.target.closest('[data-agent]');
-    if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); return; }
+    if (a) { S.skAgent = a.dataset.agent; renderSettingsView(); loadSkillUse(S.skAgent); return; }
     const r = e.target.closest('[data-rule]');
     if (r) return saveRule(r.dataset.skill, r.dataset.rule === 'auto' ? null : { mode: r.dataset.rule, when: (S.settings.agentSkills[S.skAgent]?.[r.dataset.skill]?.when) || 'every' });
     const f = e.target.closest('[data-prov]');
