@@ -386,6 +386,13 @@ header .spacer{flex:1}
 .rail .relay{position:relative;margin:8px 0;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:4px 12px 12px 4px;background:color-mix(in srgb,var(--c) 5%,transparent);padding:8px 14px 9px}.rail .relay .n{top:10px}
 .relay .rh{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute);margin-bottom:2px}.relay .rh b{color:var(--c);font-weight:650;font-size:13.5px}.relay .rh time{margin-left:auto}
 .relay.clamp .rbody{max-height:3.4em;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}.relay .more{margin-top:3px;font-size:12.5px;font-weight:600;color:var(--accent)}
+.permbox h3{margin:8px 0 8px;font-size:14px;display:flex;align-items:center;gap:8px}.pmodes{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.pmode{padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font-weight:600;font-size:13.5px}.pmode:hover{border-color:var(--accent)}.pmode[aria-checked=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.pmode.free[aria-checked=true]{background:#F59E0B;border-color:#F59E0B;color:#1B1100}
+.pfree{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.05em;background:#F59E0B;color:#1B1100}.pwarn{color:color-mix(in srgb,#F59E0B 55%,var(--text));background:rgba(245,158,11,.12);border-left:3px solid #F59E0B;padding:8px 12px;border-radius:0 10px 10px 0}
+.plists{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}.plists label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mute);font-weight:600}.plists textarea{font:12.5px var(--mono);padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);resize:vertical}
+.pagent{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}.pah{display:flex;align-items:center;gap:8px}#permAdd{margin-top:6px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+@media (max-width:700px){.plists{grid-template-columns:1fr}}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -1412,7 +1419,7 @@ function usageOf2(m) {
 }
 function usageCard(m, u, hist) {
   const first = hist[0], tip = hist.map((h) => `${time(h.ts)} ${h.pct}%`).join('\n');
-  return `<div class="card ${u.pct >= 90 ? 'warn' : ''}" title="${esc(tip)}">${sysNode(m)}<div class="row"><b>${esc(u.label)}</b><span style="flex:1"></span><b>${u.pct}%</b></div><div class="meter"><i style="width:${u.pct}%"></i></div><small>${u.reset ? t('sys.usage.reset', { at: esc(u.reset) }) + ' · ' : ''}${t('sys.usage.updated', { at: time(m.ts) })}${hist.length > 1 ? t('sys.usage.times', { n: hist.length, first: time(first.ts) }) : ''}</small></div>`;
+  return `<div class="card ${u.pct >= 90 ? 'warn' : ''}" title="${esc(tip)}">${sysNode(m)}<div class="row"><b>${esc(u.label)}</b><span style="flex:1"></span><b>${u.pct}%</b></div><div class="meter"><i style="width:${u.pct}%"></i></div><small>${u.reset ? t('usage.card.reset', { at: esc(u.reset) }) + ' · ' : ''}${t('sys.usage.updated', { at: time(m.ts) })}${hist.length > 1 ? t('sys.usage.times', { n: hist.length, first: time(first.ts) }) : ''}</small></div>`;
 }
 function sysRow(m, run) {
   const text = String(m.text).replace(/^@you\s+/, ''), lines = text.split('\n'), long = lines.length > 1 || text.length > 170;
@@ -2280,7 +2287,7 @@ function routesBlock() {
   return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account' });
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account' });
 /** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
 function loadData() {
   api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
@@ -2317,6 +2324,26 @@ function pollMachine() {
   clearTimeout(machineTimer);
   if (!S.machine?.running) return;
   machineTimer = setTimeout(() => api('/api/machine').then((m) => { S.machine = m; paintMachine(); }, () => {}).then(pollMachine), 1000);
+}
+/** Tab Quyền: how freely the claude processes the hub starts itself may act (settings.permissions, default bypass) with per-agent overrides and allow/deny lists. */
+const PERM_MODES = ['bypass', 'acceptEdits', 'default', 'plan'];
+const PMODE = lazy({ bypass: 'perm.mode.bypass', acceptEdits: 'perm.mode.acceptEdits', default: 'perm.mode.default', plan: 'perm.mode.plan' });
+const PHINT = lazy({ bypass: 'perm.hint.bypass', acceptEdits: 'perm.hint.acceptEdits', default: 'perm.hint.default', plan: 'perm.hint.plan' });
+function permsBlock(st) {
+  const pm = st.permissions || { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} };
+  const radios = (cur, who, inherit) => `<div class="pmodes" role="radiogroup">${(inherit ? [''] : []).concat(PERM_MODES).map((m) => `<button type="button" class="pmode${m === 'bypass' ? ' free' : ''}" role="radio" aria-checked="${(cur || '') === m}" data-pmode="${esc(who)}" data-pv="${m}">${m ? PMODE[m] : t('perm.inherit')}</button>`).join('')}</div>`;
+  const lists = (who, rule) => `<div class="plists"><label><span>${t('perm.allow')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="allow" spellcheck="false" placeholder="Read\nBash(npm test:*)">${esc((rule.allow || []).join('\n'))}</textarea></label><label><span>${t('perm.deny')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="deny" spellcheck="false" placeholder="Bash(git push:*)\nBash(rm -rf:*)">${esc((rule.deny || []).join('\n'))}</textarea></label></div>`;
+  const dm = pm.default.mode;
+  const names = Object.keys(pm.perAgent).sort();
+  const free = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => v && a.indexOf(v) === i && !names.includes(v));
+  const rows = names.map((n) => { const r = pm.perAgent[n]; return `<div class="pagent"><div class="pah"><b>${esc(n)}</b>${(r.mode || dm) === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-prem="${esc(n)}">${t('perm.remove')}</button></div>${radios(r.mode, n, true)}${lists(n, r)}</div>`; }).join('');
+  return `<h2>${t('perm.title')}</h2><div class="setbox permbox"><p class="small muted note">${t('perm.note')}</p>
+    <h3>${t('perm.default')} ${dm === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}</h3>${radios(dm, 'default', false)}<p class="small ${dm === 'bypass' ? 'pwarn' : 'muted'}">${PHINT[dm]}</p>${lists('default', pm.default)}<p class="small muted">${t('perm.list.hint')}</p></div>
+    <h2>${t('perm.perAgent')}</h2><div class="setbox permbox">${rows || `<p class="small muted">${t('perm.noneAgent')}</p>`}${free.length ? `<select id="permAdd" aria-label="${t('perm.addAgent')}"><option value="">${t('perm.addAgent')}</option>${free.map((n) => `<option>${esc(n)}</option>`).join('')}</select>` : ''}</div>`;
+}
+function savePerm(who, patch) {
+  const body = { permissions: who === 'default' ? { default: patch } : { perAgent: { [who]: patch } } };
+  api('/api/settings', body, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (e) => toast(e.message));
 }
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
@@ -2382,6 +2409,7 @@ function renderSettingsView() {
     ${dataBlock()}
     <h2>${t('info.title')}</h2>
     <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
+    perms: permsBlock(st),
     compact: `    <h2>${t('compact.title')}</h2>
     ${compactBlock()}`,
     providers: `    <h2>${t('prov.workerTitle')}</h2>
@@ -2418,6 +2446,8 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('change', (e) => {
     if (e.target.matches('[data-set]')) return saveSetting(e.target);
     if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
+    if (e.target.id === 'permAdd') { if (e.target.value) savePerm(e.target.value, { mode: 'bypass' }); return; }
+    if (e.target.matches('[data-plist]')) { const list = e.target.value.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean); return savePerm(e.target.dataset.plist, { [e.target.dataset.pk]: list }); }
     if (e.target.closest('[data-cagent]')) return saveCompact(e.target.closest('[data-cagent]'));
     if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
   });
@@ -2439,6 +2469,8 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
+    const pmb = e.target.closest('[data-pmode]'); if (pmb) return savePerm(pmb.dataset.pmode, { mode: pmb.dataset.pv || null });
+    const prm = e.target.closest('[data-prem]'); if (prm) return api('/api/settings', { permissions: { perAgent: { [prm.dataset.prem]: null } } }, 'PUT').then((s) => { S.settings = s; renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#hubRestart')) {
       return api('/api/restart', {}).then(() => { toast(t('hub.restarting')); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
     }

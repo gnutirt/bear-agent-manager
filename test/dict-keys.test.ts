@@ -12,7 +12,7 @@ test('no key is defined twice in a dictionary (the later one silently wins: sett
     const keys = [...fs.readFileSync(path.join(root, 'shared', 'i18n', f), 'utf8').matchAll(/^\s+'([\w.]+)':/gm)].map((m) => m[1]);
     // KNOWN: sys.usage.reset is the hub alert's ", resets {at}" and also the usage card's "resets {at}" (ui/index.html);
     // the card's copy must move to its own key, then this exception goes.
-    const known = new Set(['sys.usage.reset']);
+    const known = new Set<string>();
     assert.deepEqual(keys.filter((k, i) => keys.indexOf(k) !== i && !known.has(k)), [], f);
   }
 });
