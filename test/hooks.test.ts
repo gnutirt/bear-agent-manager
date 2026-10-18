@@ -258,3 +258,21 @@ test('formatDelivery with a recipient: chatter that did not wake it is one line,
   assert.ok(formatDelivery([m(2, 'alice', 'a1', ['c1'], 'for carol ' + long)], {}, ['proj'], 'b1').includes('for carol ' + long), 'the lead of the room reads everything');
   assert.ok(formatDelivery([m(2, 'alice', 'a1', ['c1'], 'for carol ' + long)]).includes('for carol ' + long), 'no recipient: unchanged');
 });
+
+test('B skill usage: a Skill tool call is recorded per agent, other tools are not, 500 kept', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'u1', cwd: 'C:/alpha' });
+    await call('/api/rooms/r/join', { sessionId: 'u1' });
+    const hook = (tool: string, input: object) => fetch(`${hub.url}/hooks/pre-tool`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'u1', tool_name: tool, tool_input: input }) });
+    await hook('Skill', { skill: 'superpowers:brainstorming' });
+    await hook('Skill', { skill: 'superpowers:brainstorming' });
+    await hook('Read', { file_path: 'x' });
+    const d = await call('/api/skill-usage?agent=alpha');
+    assert.equal(d.uses.length, 2);
+    assert.equal(d.bySkill['superpowers:brainstorming'].count, 2);
+    assert.equal(d.uses[0].room, 'r');
+    assert.equal((await call('/api/skill-usage?agent=nobody')).uses.length, 0);
+  } finally { await hub.close(); }
+});

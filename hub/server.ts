@@ -466,7 +466,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         status('idle', hhmm ? tr('sys.act.limitAt', { at: hhmm }) : tr('sys.act.limit'));
         break;
       }
-      case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
+      case 'pre-tool': {
+        status('busy', activityFor(b.tool_name, b.tool_input));
+        // B: remember every Skill call, so the Skill tab can say whether an agent ever used a skill
+        const skill = b.tool_name === 'Skill' ? String(b.tool_input?.skill ?? b.tool_input?.command ?? '').trim().replace(/^\//, '').slice(0, 120) : '';
+        if (skill) {
+          const sess = store.session(id), list = (store.state.skillUse ??= []);
+          list.push({ agent: normAgent(sess.name), skill, ts: Date.now(), room: Object.keys(sess.rooms)[0] ?? '' });
+          if (list.length > 500) list.splice(0, list.length - 500);
+          store.save();
+        }
+        break;
+      }
       case 'notify': status('waiting', String(b.message ?? 'needs permission')); break;
       case 'end': emitSession(store.markEnded(id)); setImmediate(() => runArchive(store.session(id).id)); break;
       case 'post-tool': {
@@ -882,6 +893,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
       try { return json(res, 200, { ok: true, level: setOverride(dir, String(b.name ?? ''), String(b.level ?? '')) }); }
       catch (e: any) { throw new StoreError(/plugin|not a skill/.test(e.message) ? 409 : 400, e.message); }
+    }
+    // B: which skills agents really called; `uses` newest first, `bySkill` count and last time
+    if (m === 'GET' && p === '/api/skill-usage') {
+      const agent = normAgent(url.searchParams.get('agent') ?? '');
+      const uses = (store.state.skillUse ?? []).filter((u) => !agent || u.agent === agent).reverse();
+      const bySkill: Record<string, { count: number; last: number }> = {};
+      for (const u of uses) { const e = (bySkill[u.skill] ??= { count: 0, last: 0 }); e.count++; e.last = Math.max(e.last, u.ts); }
+      return json(res, 200, { uses: uses.slice(0, 100), bySkill });
     }
     if (m === 'GET' && p === '/api/skills') {
       const overrides = Object.fromEntries(usageDirs().filter((d) => fs.existsSync(d)).map((d) => [d, readOverrides(d)]));
