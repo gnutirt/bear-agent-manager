@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/capability-plugins/risk-reporting/skills/bcbs239-gap-assessment/schemas/bcbs239-gap-assessment.schema.json",
+  "title": "bcbs239-gap-assessment",
+  "description": "Structured BCBS 239 gap assessment record. Rows align to the fourteen BCBS 239 principles (1 governance; 2 architecture; 3 accuracy; 4 completeness; 5 timeliness; 6 adaptability; 7 accuracy of reporting; 8 comprehensiveness; 9 clarity; 10 frequency; 11 distribution; 12 review; 13 remedial actions; 14 home/host cooperation). Stable contract — additive changes only between minor versions.",
+  "type": "object",
+  "required": [
+    "assessment_id",
+    "scope",
+    "methodology",
+    "principles",
+    "aggregate_rating_per_group",
+    "overall_rating",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "assessment_id": {
+      "type": "string",
+      "description": "Stable identifier for this assessment cycle.",
+      "minLength": 1
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "Foreign key into the scope record when one exists."
+    },
+    "scope": {
+      "type": "object",
+      "required": ["legal_entity_perimeter", "supervisory_context", "assessment_date"],
+      "additionalProperties": false,
+      "properties": {
+        "legal_entity_perimeter": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Legal entities covered by this assessment. Cross-border groups list each entity."
+        },
+        "supervisory_context": {
+          "type": "string",
+          "enum": [
+            "FRB",
+            "OCC",
+            "FDIC",
+            "ECB-SSM",
+            "PRA",
+            "multi-jurisdiction",
+            "voluntary-self-assessment",
+            "other"
+          ]
+        },
+        "supervisory_context_notes": {
+          "type": "string",
+          "description": "Free-text for trigger context: FRB horizontal review, ECB SREP thematic, OCC Heightened Standards thematic, post-acquisition refresh, voluntary benchmark."
+        },
+        "assessment_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "prior_assessment_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date of prior assessment, or null if first."
+        },
+        "prior_overall_rating": {
+          "type": ["string", "null"],
+          "enum": ["compliant", "largely-compliant", "materially-non-compliant", "non-compliant", null]
+        }
+      }
+    },
+    "methodology": {
+      "type": "object",
+      "required": ["lines_of_evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "lines_of_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "document-review",
+              "system-tracing",
+              "reconciliation-test",
+              "interview",
+              "observation",
+              "ad-hoc-aggregation-run",
+              "stress-aggregation-run"
+            ]
+          }
+        },
+        "interview_count": { "type": "integer", "minimum": 0 },
+        "document_count": { "type": "integer", "minimum": 0 },
+        "reconciliation_test_count": { "type": "integer", "minimum": 0 },
+        "manual_workaround_inventory_status": {
+          "type": "string",
+          "enum": ["captured", "partial", "absent", "not-applicable"],
+          "description": "Whether the assessment captured a manual-workaround inventory. Absent at a large bank should trigger a reviewer question."
+        },
+        "ad_hoc_aggregation_evidence": {
+          "type": "string",
+          "enum": ["recent-runs-evidenced", "historical-only", "absent"],
+          "description": "Evidence supporting the Principle 6 (adaptability) rating."
+        }
+      }
+    },
+    "principles": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "description": "One entry per BCBS 239 principle. Order matches principle_number 1-14.",
+      "items": {
+        "type": "object",
+        "required": [
+          "principle_number",
+          "principle_group",
+          "principle_name",
+          "rating",
+          "direction",
+          "evidence_summary"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "principle_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 14
+          },
+          "principle_group": {
+            "type": "string",
+            "enum": ["overarching", "aggregation", "reporting", "supervisory"]
+          },
+          "principle_name": {
+            "type": "string",
+            "description": "BCBS 239 short name (e.g., 'Governance', 'Accuracy and integrity', 'Adaptability')."
+          },
+          "rating": {
+            "type": "string",
+            "enum": ["compliant", "largely-compliant", "materially-non-compliant", "non-compliant"]
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["improving", "stable", "deteriorating", "first-assessment"]
+          },
+          "evidence_summary": {
+            "type": "string",
+            "description": "What was reviewed and what was tested. References lines of evidence by name."
+          },
+          "ecb_overlay_delta": {
+            "type": "string",
+            "description": "Where the ECB Guide on effective risk data aggregation and risk reporting raises the bar above the BCBS 239 baseline for SSM-supervised entities, the incremental finding lands here. Empty when not applicable."
+          },
+          "per_entity_ratings": {
+            "type": "array",
+            "description": "Optional per-entity rating where the assessment perimeter spans multiple legal entities and ratings differ.",
+            "items": {
+              "type": "object",
+              "required": ["legal_entity", "rating"],
+              "additionalProperties": false,
+              "properties": {
+                "legal_entity": { "type": "string" },
+                "rating": {
+                  "type": "string",
+                  "enum": ["compliant", "largely-compliant", "materially-non-compliant", "non-compliant"]
+                },
+                "rationale": { "type": "string" }
+              }
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["gap_id", "gap_description", "severity", "owner"],
+              "additionalProperties": false,
+              "properties": {
+                "gap_id": { "type": "string" },
+                "gap_description": { "type": "string" },
+                "severity": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "critical"]
+                },
+                "owner": {
+                  "type": "string",
+                  "description": "Role, not named individual."
+                },
+                "linked_issue_id": {
+                  "type": ["string", "null"],
+                  "description": "Foreign key into the firm's issue register (issue.schema.json), including any open MRA or MRIA."
+                },
+                "evidence_pointer": {
+                  "type": "string",
+                  "description": "Pointer to the document, system trace, or reconciliation test supporting the gap. '[evidence needed]' when not yet supported."
+                }
+              }
+            }
+          },
+          "recommended_actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["action_description", "owner"],
+              "additionalProperties": false,
+              "properties": {
+                "action_id": { "type": "string" },
+                "action_description": { "type": "string" },
+                "owner": { "type": "string" },
+                "target_date": { "type": "string", "format": "date" },
+                "dependency_ids": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "aggregate_rating_per_group": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["group", "rating"],
+        "additionalProperties": false,
+        "properties": {
+          "group": {
+            "type": "string",
+            "enum": ["overarching", "aggregation", "reporting", "supervisory"]
+          },
+          "rating": {
+            "type": "string",
+            "enum": ["compliant", "largely-compliant", "materially-non-compliant", "non-compliant"]
+          },
+          "rationale": { "type": "string" }
+        }
+      }
+    },
+    "overall_rating": {
+      "type": "string",
+      "enum": ["compliant", "largely-compliant", "materially-non-compliant", "non-compliant"]
+    },
+    "priority_gaps_top_5": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "description": "Foreign key into principles[].gaps[].gap_id."
+      }
+    },
+    "linked_open_issues": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "Foreign key into issue.schema.json. MRAs and MRIAs related to risk data or risk reporting belong here."
+      }
+    },
+    "cross_cutting_overlays_applied": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["cyber", "climate"]
+      },
+      "description": "Cross-cutting overlays this assessment loaded. Empty when none apply."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Methodology-anchored, not finding-anchored. 'high' requires multi-line evidence (document plus system plus reconciliation) per principle in the aggregation and reporting groups."
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "default": true,
+      "description": "Always true. The assessment is a draft until the named sign-offs land."
+    },
+    "sign_offs": {
+      "type": "array",
+      "description": "Reviewer roles whose attestation is required before the assessment is filed.",
+      "items": {
+        "type": "object",
+        "required": ["role", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "e.g., Head of Risk Reporting, Head of Risk Data / CDO, CRO, Chief Internal Auditor."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "signed", "withheld"]
+          },
+          "date": { "type": "string", "format": "date" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "revision_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "reason": { "type": "string" },
+          "delta": { "type": "string" },
+          "approved_by": { "type": "string" }
+        }
+      }
+    }
+  }
+}

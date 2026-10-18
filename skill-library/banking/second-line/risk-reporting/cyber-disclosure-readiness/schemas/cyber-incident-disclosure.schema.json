@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/cyber-incident-disclosure.schema.json",
+  "title": "CyberIncidentDisclosure",
+  "description": "Artifact A of cyber-disclosure-readiness: 8-K Item 1.05 trigger and disclosure-decision pack. Wraps the materiality workpaper, the disclosure draft, the parallel-clocks table, the DCP trace, and the sign-off block. Consumed downstream by the disclosure-committee minutes system, the SEC reporting workflow, and the risk-committee-pack cyber heat-map cell.",
+  "type": "object",
+  "required": [
+    "incident_id",
+    "registrant_filer_category",
+    "detection_date",
+    "materiality_determination",
+    "disclosure_clock_start",
+    "delay_provision_invoked",
+    "parallel_notification_clocks",
+    "dcp_trace",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "incident_id": {
+      "type": "string",
+      "description": "Stable internal ID for the incident. Not the SEC filing accession number."
+    },
+    "scope_id": {
+      "type": ["string", "null"],
+      "description": "Links to scoping record if supplied."
+    },
+    "registrant_filer_category": {
+      "type": "string",
+      "enum": [
+        "large-accelerated-filer",
+        "accelerated-filer",
+        "smaller-reporting-company",
+        "non-accelerated-filer",
+        "foreign-private-issuer"
+      ]
+    },
+    "detection_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the firm first detected the incident."
+    },
+    "materiality_determination_date": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When the disclosure committee determined materiality. Null if pending. Drives disclosure_clock_start and disclosure_filing_due."
+    },
+    "materiality_determination": {
+      "type": "string",
+      "enum": ["material", "not-material", "pending"]
+    },
+    "materiality_basis_quantitative": {
+      "type": "object",
+      "properties": {
+        "financial_impact_current": { "type": ["string", "number", "null"] },
+        "financial_impact_reasonably_foreseeable": { "type": ["string", "number", "null"] },
+        "currency": { "type": ["string", "null"] },
+        "customer_impact_count": { "type": ["integer", "null"], "minimum": 0 },
+        "operational_impact_summary": { "type": ["string", "null"] },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "unknown"]
+        }
+      }
+    },
+    "materiality_basis_qualitative": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Discrete qualitative factors. Reputational, regulatory, strategic, competitive."
+    },
+    "aggregation_with_prior_incidents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "References to incident_id of related prior incidents considered under Item 1.05 Instruction 1. Empty array means no related occurrences identified; document analysis in materiality_aggregation_analysis."
+    },
+    "materiality_aggregation_analysis": {
+      "type": ["string", "null"],
+      "description": "Narrative of the aggregation analysis under Instruction 1 to Item 1.05. Required when aggregation_with_prior_incidents is non-empty; recommended otherwise."
+    },
+    "materiality_determined_by_role": {
+      "type": ["string", "null"],
+      "description": "Role of the person or body that made the determination. Disclosure committee chair (with securities counsel input) is the standard composition."
+    },
+    "disclosure_clock_start": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Equal to materiality_determination_date when determination is 'material'. Null when determination is 'not-material' or 'pending'."
+    },
+    "disclosure_filing_due": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "4 business days from disclosure_clock_start. Null when clock has not started."
+    },
+    "delay_provision_invoked": {
+      "type": "boolean",
+      "description": "Whether the US Attorney General delay provision under Item 1.05(c) is invoked."
+    },
+    "delay_basis": {
+      "type": ["string", "null"],
+      "description": "AG notification rationale and process record. Required when delay_provision_invoked is true."
+    },
+    "parallel_notification_clocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["regulator", "clock_basis", "status"],
+        "properties": {
+          "regulator": {
+            "type": "string",
+            "description": "e.g., 'SEC (8-K Item 1.05)', 'OCC (12 CFR Part 53)', 'FRB (12 CFR Part 225 Subpart N)', 'FDIC (12 CFR Part 304 Subpart C)', 'NYDFS (23 NYCRR Part 500 §500.17)', 'SEC (Reg S-P 17 CFR Part 248.30)', 'state breach-notification — [state]', 'HIPAA HHS OCR', 'FINRA Rule 4530', 'state DOI ([state])', 'counterparty contractual'."
+          },
+          "clock_basis": { "type": "string", "description": "e.g., '4 business days from materiality determination', '36 hours from determination of notification incident', '72 hours from determination of cybersecurity event', '30 days from awareness of unauthorized access'." },
+          "due": { "type": ["string", "null"], "format": "date-time" },
+          "status": {
+            "type": "string",
+            "enum": ["not-started", "in-progress", "submitted", "not-applicable"]
+          }
+        }
+      }
+    },
+    "item_105_draft_text": {
+      "type": ["string", "null"],
+      "description": "The 8-K body draft, structured into the four required elements (nature, scope, timing, material impact or reasonably likely material impact). Forensic detail and remediation specifics belong elsewhere. Null until materiality_determination is 'material'."
+    },
+    "dcp_trace": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stage", "actor_role", "timestamp"],
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "detection",
+              "triage",
+              "containment",
+              "scope-determination",
+              "escalation-second-line",
+              "escalation-gc",
+              "escalation-disclosure-committee",
+              "materiality-call",
+              "disclosure-decision",
+              "filing",
+              "amendment"
+            ]
+          },
+          "actor_role": {
+            "type": "string",
+            "description": "Role, never a named individual."
+          },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "documentation_pointer": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "amendment_reasonably_foreseeable": {
+      "type": ["boolean", "null"],
+      "description": "Per Item 1.05(b), whether amendment is reasonably foreseeable as material new information becomes available. Null if not yet assessed."
+    },
+    "sign_off": {
+      "type": "object",
+      "properties": {
+        "disclosure_committee_chair_role": { "type": ["string", "null"] },
+        "securities_counsel_role": { "type": ["string", "null"] },
+        "ciso_or_designee_role": { "type": ["string", "null"] },
+        "cfo_role": { "type": ["string", "null"] },
+        "sign_off_date": { "type": ["string", "null"], "format": "date" }
+      }
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "verification_flags_carried_forward": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Items that carry [verify section], [verify current effectiveness], or [verify pin cite] and require resolution before final filing."
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true."
+    }
+  }
+}

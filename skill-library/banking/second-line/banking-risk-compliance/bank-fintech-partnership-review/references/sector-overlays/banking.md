@@ -1,0 +1,40 @@
+# Banking sector overlay — bank-fintech-partnership-review
+
+This skill is banking-sector-only by definition. The entire SKILL.md is the banking lens; this file exists as the sector hook other plugin's overlay-loading patterns expect, and to carry the bank-side lens differentiators that distinguish the partnership pack from a generic third-party diligence artifact.
+
+Loaded by: `bank-fintech-partnership-review/SKILL.md` automatically (the scope's `sector_overlay_set` is always `banking` for this skill). Cited and section-referenced anchors live in `references/source-anchors.md`.
+
+## What the bank-side lens is
+
+The bank holds the charter, the deposit-insurance relationship, the BSA / AML program, the customer-of-record relationship for deposit-program end users (under the FDIC pass-through framework), and the principal-supervisory exposure to the OCC, FRB, or FDIC. The fintech is the operational counterparty. The partnership pack is the bank's record of how it discharges principal-supervisory accountability for the relationship, not the fintech's record of its own controls. A pack that reads as a fintech compliance program has the lens wrong; route to `payments-fintech-compliance/skills/fintech-partner-controls`.
+
+The seam between the two skills is operational: the fintech-partner-controls artifact is the fintech's evidence pack as it would be received by its bank partner; this artifact is the bank's review pack of that evidence plus its own diligence layer plus the bank-specific regulations the fintech has no direct exposure to (Reg O insider screen on fintech principals against bank's insiders, Reg W affiliate test, §1867(c) flow-down, pass-through deposit-insurance recordkeeping).
+
+## What the partnership pack carries that a generic vendor-diligence artifact does not
+
+- **Bank Service Company Act §1867(c) flow-down**. The contractual examination-access clause that lets the OCC, FRB, or FDIC examine the fintech and its subcontractors as if they were the bank itself. Generic vendor-diligence artifacts cover audit rights as a commercial term; the partnership pack reviews §1867(c) as a statutory prerequisite to the regulator's examination authority. A partnership without §1867(c) flow-down is a finding regardless of how strong the rest of the contract reads.
+- **Reg O insider screen on fintech principals**. Reg O catches insider-of-the-partner-bank facts (a fintech founder who is also a director of the partner bank, an LLC partly owned by an insider of the partner bank). The screen runs on every BaaS or sponsor-program partnership at intake and on refresh; failure to run it is a finding. Generic vendor-diligence artifacts do not.
+- **Reg W affiliate test**. Reg W catches affiliate facts (common control through a holding company, management-interlock, 25% control test). If the fintech is an affiliate, the §223.11 / §223.12 quantitative limits and §223.13 collateral requirements bind covered transactions; the §223.41 attribution rules pull non-affiliate transactions into Reg W when the proceeds flow to or are used for the benefit of an affiliate. Generic vendor-diligence artifacts do not.
+- **Reg E division-of-responsibility analysis**. Under §1005.2(i) the bank is typically the financial institution in a sponsor-bank deposit program (the bank holds the account). The §1005.6 consumer-liability framework and the §1005.11 error-resolution timing (10 business days for investigation, 5 for provisional credit, 45 calendar days for completion in standard cases, 90 days for new-account / POS / foreign cases) bind the bank. The bank cannot contract out of the timing obligation by delegating intake to the fintech; the partnership pack tests the bank's fallback when the fintech misses an intake event.
+- **Reg DD applicability for deposit products marketed via fintech channels**. The bank as depository institution bears §1030.4 disclosure responsibility and §1030.8 advertising-rule risk on fintech-shipped marketing copy (APY accuracy, the seven triggering terms, no-misleading-advertising standard). The fintech's marketing review SOP is an input; the bank's Reg DD attestation is the output.
+- **FBO-account governance for sponsor-bank deposit programs**. The 2024 Joint Agency Statement on Bank-Fintech Arrangements spotlighted end-user reconciliation, ledgering, and FBO-account governance after a wave of supervisory actions on middleware-platform reconciliation weakness. The bank's recordkeeping obligation under the pass-through deposit-insurance framework (12 CFR Part 330, especially §330.5 on custodial-account recordkeeping [verify section]) depends on the fintech's ledger reconciliation and on any middleware platform sitting between the fintech and the bank. The partnership pack carries the FBO-account contractual flow-down, the daily reconciliation feed evidence, and the named-role owner for reconciliation breaks.
+- **Heightened Standards integration for covered partner banks** ($50B+ avg total consolidated assets under 12 CFR Part 30 Appendix D). The third-party-risk integration into the risk-governance framework is examined alongside the partnership pack. Banks approaching the $50B threshold get a forward-looking section.
+- **CSI handling for partnership packs that reference prior supervisory letters or examination outcomes**. Confidential supervisory information about the partner bank stays in CSI scope under 12 CFR Part 4 Subpart C (OCC), Part 261 (FRB), or Part 309 (FDIC); the access population for the pack constrains what it can carry forward. The fintech, even as a bank service provider, is not automatically inside the CSI access population.
+
+## How criticality classification differs from a generic vendor-diligence call
+
+Under the June 2023 Interagency Guidance, criticality is risk-based and product-and-flow-driven, not asset-driven. Three patterns commonly drive critical-activity classification for a bank-fintech relationship:
+
+- The fintech is the customer-facing operator on a deposit, payments, or credit product carried by the bank, so customer-experience failures and customer-protection failures land on the bank.
+- The fintech sits in the money-flow path or in a CIP / KYC reliance arrangement, so an operational failure cascades into a deposit, settlement, or BSA / AML failure.
+- The relationship is a large share of the bank's deposits, fee income, or strategic positioning, so a wind-down is materially disruptive to the bank's business model.
+
+A community bank with a single concentrated sponsor-program relationship can carry critical-activity risk irrespective of asset size; the criticality field is a product-and-flow call, not an asset-band default.
+
+## How the contract-gap section reads under the bank-side lens
+
+The contract is a control statement, not evidence of operation. A clause that says "the fintech will provide X" is a control statement; the diligence-findings section needs an evidence pointer (most recent SOC report, BSA / AML independent-test report, ledger-reconciliation log, incident-response runbook). The contract-gap section reads each clause against the interagency-guidance contract elements list (planning, due-diligence selection, contract negotiation, ongoing monitoring, termination), against §1867(c) flow-down, against subcontractor governance, against incident-notification timelines (sized to the bank's regulator-notification windows under 12 CFR Part 53 / Part 225 / Part 304 and to NYDFS §500.17(a) where applicable), and against data-return and transition-assistance terms on termination.
+
+## Recommended owner actions under the bank-side lens
+
+Owners are bank-side roles: head of vendor management, chief compliance officer, chief risk officer, BSA officer, head of deposit operations, general counsel, head of consumer compliance, head of information security. Action language is concrete and dated; a "monitor going forward" recommendation is not an action. Where the action depends on the fintech, the recommendation is bank-side (ask the fintech, terminate if not provided, escalate to the relationship owner) rather than fintech-side prescription.

@@ -1,0 +1,862 @@
+{
+  "generated": "2026-10-18",
+  "count": 107,
+  "skills": [
+    {
+      "name": "3-statement-model",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/3-statement-model",
+      "description": "Complete, populate and fill out 3-statement financial model templates (Income Statement, Balance Sheet, Cash Flow Statement) . Use when asked to fill out model templates, complete existing model frameworks, populate financial models with data, complete a partially filled IS/BS/CF framework, or link integrated financial statements within an existing template structure. Triggers include requests to fill in, complete, or populate a 3-statement model template",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "accrual-schedule",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/accrual-schedule",
+      "description": "Build the period-end accrual schedule — for each accrual, compute the entry, cite the support, and draft the JE. Use during month-end close; the JE is a draft for controller approval, not a posting.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "audit-xls",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/audit-xls",
+      "description": "Audit a spreadsheet for formula accuracy, errors, and common mistakes. Scopes to a selected range, a single sheet, or the entire model (including financial-model integrity checks like BS balance, cash tie-out, and logic sanity). Triggers on \"audit this sheet\", \"check my formulas\", \"find formula errors\", \"QA this spreadsheet\", \"sanity check this\", \"debug model\", \"model check\", \"model won't balance\", \"something's off in my model\", \"model review\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "break-trace",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/break-trace",
+      "description": "Root-cause a reconciliation break to its source transaction or posting — follow the audit trail from the break row back to the originating entry on each side and state what differs and why. Use after gl-recon has classified a break.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "clean-data-xls",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/clean-data-xls",
+      "description": "Clean up messy spreadsheet data — trim whitespace, fix inconsistent casing, convert numbers-stored-as-text, standardize dates, remove duplicates, and flag mixed-type columns. Use when data is messy, inconsistent, or needs prep before analysis. Triggers on \"clean this data\", \"clean up this sheet\", \"normalize this data\", \"fix formatting\", \"dedupe\", \"standardize this column\", \"this data is messy\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "comps-analysis",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/comps-analysis",
+      "description": "Build institutional-grade comparable company analyses with operating metrics, valuation multiples, and statistical benchmarking in Excel/spreadsheet format.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "dcf-model",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/dcf-model",
+      "description": "Real DCF (Discounted Cash Flow) model creation for equity valuation. Retrieves financial data from SEC filings and analyst reports, builds comprehensive cash flow projections with proper WACC calculations, performs sensitivity analysis, and outputs professional Excel models with executive summaries. Use when users need to value a company using DCF methodology, request intrinsic value analysis, or ask for detailed financial modeling with growth projections and terminal value calculations.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "dd-checklist",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/dd-checklist",
+      "description": "Generate and track comprehensive due diligence checklists tailored to the target company's sector, deal type, and complexity. Covers all major workstreams with request lists, status tracking, and red flag escalation. Use when kicking off diligence, organizing a data room review, or tracking outstanding items. Triggers on \"dd checklist\", \"due diligence tracker\", \"diligence request list\", \"what do we still need\", or \"data room review\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "gl-recon",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/gl-recon",
+      "description": "Reconcile general ledger to subledger for a trade date or period — match at the position or transaction level, surface breaks, and classify each break by likely cause. Use for daily or month-end recon runs across asset classes.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "ic-memo",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/ic-memo",
+      "description": "Draft a structured investment committee memo for PE deal approval. Synthesizes due diligence findings, financial analysis, and deal terms into a professional IC-ready document. Use when preparing for investment committee, writing up a deal, or creating a formal recommendation. Triggers on \"write IC memo\", \"investment committee memo\", \"deal write-up\", \"prepare IC materials\", or \"recommendation memo\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "kyc-doc-parse",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/kyc-doc-parse",
+      "description": "Parse an investor or client onboarding packet into structured KYC fields — identity, ownership, control, source of funds, and document inventory. Use as the first step of KYC screening; output feeds the rules engine.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "kyc-rules",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/kyc-rules",
+      "description": "Apply the firm's KYC/AML rules grid to a parsed onboarding record — assign a risk rating, list every rule outcome with the rule cited, and flag what's missing or escalation-worthy. Use after kyc-doc-parse; this skill decides nothing, it scores and routes.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "morning-note",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/morning-note",
+      "description": "Draft concise morning meeting notes summarizing overnight developments, trade ideas, and key events for coverage stocks. Designed for the 7am morning meeting format — tight, opinionated, actionable. Triggers on \"morning note\", \"morning meeting\", \"what happened overnight\", \"trade idea\", \"morning call prep\", or \"daily note\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "roll-forward",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/roll-forward",
+      "description": "Build a roll-forward schedule for a balance-sheet account — beginning balance plus activity less reversals equals ending balance, with each component tied to GL. Use for month-end close packages and audit support.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "sector-overview",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/sector-overview",
+      "description": "Create comprehensive industry and sector landscape reports covering market dynamics, competitive positioning, key players, and thematic trends. Use for client requests, sector initiations, thematic research pieces, or internal knowledge building. Triggers on \"sector overview\", \"industry report\", \"market landscape\", \"sector analysis\", \"industry deep dive\", or \"thematic research\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "variance-commentary",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/variance-commentary",
+      "description": "Write flux commentary for every P&L and balance-sheet line over threshold — current vs prior period and vs budget, with the driver explained from underlying activity. Use for the month-end close package and management reporting.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "xlsx-author",
+      "category": "banking",
+      "path": "banking/anthropic-financial-services/xlsx-author",
+      "description": "Produce a .xlsx file on disk (headless) instead of driving a live Excel workbook — for managed-agent sessions with no open Office app.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "analyzing-banking-system-health",
+      "category": "banking",
+      "path": "banking/casemark/analyzing-banking-system-health",
+      "description": "Structures banking system assessment with capital adequacy, asset quality, and systemic risk evaluation. Use when analyzing banking systems, assessing financial stability, or evaluating systemic risk.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "analyzing-digital-lending-platforms",
+      "category": "banking",
+      "path": "banking/casemark/analyzing-digital-lending-platforms",
+      "description": "Evaluates digital lending models with credit model assessment, funding structure, and regulatory analysis. Use when analyzing online lenders, evaluating credit models, or assessing lending platform risk.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "analyzing-trade-finance-instruments",
+      "category": "banking",
+      "path": "banking/casemark/analyzing-trade-finance-instruments",
+      "description": "Evaluates trade finance structures with letters of credit, supply chain financing, and receivables factoring for cross-border commerce. Use when analyzing trade finance, evaluating LC structures, or assessing supply chain financing.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "assessing-credit-risk",
+      "category": "banking",
+      "path": "banking/casemark/assessing-credit-risk",
+      "description": "Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "auditing-aml-transactions",
+      "category": "banking",
+      "path": "banking/casemark/auditing-aml-transactions",
+      "description": "Screens transaction data for suspicious patterns using red flag typologies and structures SAR narrative elements. Use when reviewing transactions for AML, identifying suspicious activity, or drafting SAR narratives.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "conducting-credit-committee-presentations",
+      "category": "banking",
+      "path": "banking/casemark/conducting-credit-committee-presentations",
+      "description": "Structures credit committee packages with borrower analysis, risk assessment, structuring proposal, and recommendation documentation. Use when preparing credit committee materials, presenting loan opportunities, or documenting credit decisions.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "drafting-credit-memos",
+      "category": "banking",
+      "path": "banking/casemark/drafting-credit-memos",
+      "description": "Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-bank-regulatory-reporting",
+      "category": "banking",
+      "path": "banking/casemark/managing-bank-regulatory-reporting",
+      "description": "Structures regulatory report preparation including Call Reports, FR Y-9C, and other required filings. Use when preparing bank regulatory reports, filing Call Reports, or managing regulatory submissions.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-commercial-loan-underwriting",
+      "category": "banking",
+      "path": "banking/casemark/managing-commercial-loan-underwriting",
+      "description": "Structures commercial loan underwriting with financial spreading, cash flow analysis, and risk rating. Use when underwriting commercial loans, analyzing borrower financials, or assigning risk ratings.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-commercial-real-estate-lending",
+      "category": "banking",
+      "path": "banking/casemark/managing-commercial-real-estate-lending",
+      "description": "Structures CRE loan underwriting with property valuation, cash flow analysis, and environmental review. Use when underwriting CRE loans, analyzing property cash flows, or evaluating loan collateral.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-construction-lending",
+      "category": "banking",
+      "path": "banking/casemark/managing-construction-lending",
+      "description": "Structures construction loan analysis with draw schedules, budget tracking, and completion risk assessment. Use when managing construction loans, tracking draw requests, or monitoring construction progress.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-correspondent-banking",
+      "category": "banking",
+      "path": "banking/casemark/managing-correspondent-banking",
+      "description": "Structures correspondent banking analysis with relationship assessment, risk evaluation, and regulatory requirements. Use when managing correspondent relationships, evaluating partner banks, or assessing correspondent risk.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-credit-approval-packages",
+      "category": "banking",
+      "path": "banking/casemark/managing-credit-approval-packages",
+      "description": "Creates credit approval memoranda with borrower analysis, deal structure, and risk mitigation documentation. Use when preparing credit packages, documenting loan recommendations, or presenting to credit committee.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-credit-portfolio-risk",
+      "category": "banking",
+      "path": "banking/casemark/managing-credit-portfolio-risk",
+      "description": "Structures credit portfolio analysis with concentration metrics, correlation assessment, and stress testing. Use when managing credit portfolios, measuring concentration risk, or stress testing credit exposure.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-credit-risk-models",
+      "category": "banking",
+      "path": "banking/casemark/managing-credit-risk-models",
+      "description": "Evaluates and monitors credit risk models (PD, LGD, EAD) with calibration and discrimination metrics. Use when validating credit models, assessing model performance, or calibrating default models.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-deposit-operations",
+      "category": "banking",
+      "path": "banking/casemark/managing-deposit-operations",
+      "description": "Structures deposit product analysis with pricing, retention analytics, and regulatory compliance. Use when analyzing deposits, evaluating pricing strategies, or managing deposit compliance.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-fraud-operations-banking",
+      "category": "banking",
+      "path": "banking/casemark/managing-fraud-operations-banking",
+      "description": "Structures banking fraud detection with transaction monitoring, investigation, and recovery documentation. Use when detecting banking fraud, investigating suspicious activity, or managing fraud cases.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-interest-rate-risk-banking",
+      "category": "banking",
+      "path": "banking/casemark/managing-interest-rate-risk-banking",
+      "description": "Structures bank interest rate risk analysis with EVE, NII sensitivity, and gap analysis. Use when managing bank IRR, modeling NII sensitivity, or analyzing repricing gaps.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-loan-documentation-review",
+      "category": "banking",
+      "path": "banking/casemark/managing-loan-documentation-review",
+      "description": "Reviews loan agreements with covenant extraction, terms analysis, and compliance requirement identification. Use when reviewing loan documents, extracting covenants, or analyzing credit agreement terms.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-loan-loss-provisioning",
+      "category": "banking",
+      "path": "banking/casemark/managing-loan-loss-provisioning",
+      "description": "Structures CECL/ACL estimation with model methodology, qualitative factors, and forecast integration. Use when calculating loan loss provisions, implementing CECL, or estimating credit losses.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-loan-portfolio-monitoring",
+      "category": "banking",
+      "path": "banking/casemark/managing-loan-portfolio-monitoring",
+      "description": "Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-loan-syndication-processes",
+      "category": "banking",
+      "path": "banking/casemark/managing-loan-syndication-processes",
+      "description": "Coordinates leveraged loan syndication from mandate through closing with lender marketing, commitment tracking, and flex analysis. Use when syndicating loans, managing lender groups, or tracking commitment levels.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-open-banking-integration",
+      "category": "banking",
+      "path": "banking/casemark/managing-open-banking-integration",
+      "description": "Structures open banking API integration with data sharing, consent management, and security requirements. Use when implementing open banking, managing API integrations, or evaluating data sharing frameworks.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "managing-private-banking-reviews",
+      "category": "banking",
+      "path": "banking/casemark/managing-private-banking-reviews",
+      "description": "Structures private banking relationship reviews with service assessment, fee analysis, and strategy evaluation. Use when reviewing banking relationships, analyzing fees, or evaluating service quality.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "structuring-asset-based-lending",
+      "category": "banking",
+      "path": "banking/casemark/structuring-asset-based-lending",
+      "description": "Designs ABL facilities with borrowing base calculations, collateral eligibility criteria, and field exam requirements. Use when structuring ABL facilities, calculating borrowing availability, or analyzing collateral pools.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "account-opening-compliance",
+      "category": "banking",
+      "path": "banking/finance-skills/account-opening-compliance",
+      "description": "Embed compliance controls into account opening and verify regulatory readiness. Use when designing CIP/KYC identity verification gates, implementing OFAC and sanctions screening at onboarding, collecting beneficial ownership certification for entity or trust accounts, building risk-based approval tiers that route applications by risk level, defining compliance screening requirements and exception tracking, adding senior investor protections (FINRA Rules 2165/4512) or trusted contact procedures, establishing CDD risk ratings and ongoing monitoring triggers, or preparing account opening procedures for SEC or FINRA examination. For the operational pipeline these controls plug into, see account-opening-workflow.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "account-opening-workflow",
+      "category": "banking",
+      "path": "banking/finance-skills/account-opening-workflow",
+      "description": "Design and operate back-office account opening pipelines from application intake through custodian submission and activation. Use when building account opening automation, reducing NIGO rejection rates from custodians or clearing firms, defining document requirements for trusts, entities, IRAs, or estate accounts, setting up multi-custodian account opening across Schwab, Fidelity, or Pershing, troubleshooting account opening failures or processing delays, or benchmarking cycle times and first-submission acceptance rates. For risk-based approval tiers and compliance screening requirements, see account-opening-compliance.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "anti-money-laundering",
+      "category": "banking",
+      "path": "banking/finance-skills/anti-money-laundering",
+      "description": "Guide BSA/AML compliance program design, ongoing transaction monitoring, and FinCEN reporting for broker-dealers, banks, and investment advisers. Use when the user asks about suspicious activity reports, currency transaction reports, OFAC screening, structuring detection, ongoing risk-rating reviews and escalation, or FinCEN requirements. Also trigger when users mention 'large cash deposit', 'sanctions check', 'money laundering red flags', 'unusual transaction patterns', 'wire to a foreign country', 'SDN list', 'tipping off a client about a SAR', 'AML audit', 'correspondent account due diligence', or ask whether a transaction needs to be reported. (For onboarding identity verification, CIP/CDD, beneficial ownership, and initial customer risk rating, use know-your-customer.)",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "counterparty-risk",
+      "category": "banking",
+      "path": "banking/finance-skills/counterparty-risk",
+      "description": "Guide counterparty credit risk measurement and management for OTC and securities trading, organized around three workflows: assessing a new counterparty, responding to a credit-deterioration event, and executing a default close-out. Use when measuring current or potential future exposure to a counterparty, setting or reviewing counterparty credit limits, evaluating ISDA Master Agreement netting and close-out mechanics, designing CSA collateral terms or uncleared margin compliance (VM/IM, SIMM), assessing central clearing mandates under Dodd-Frank or EMIR and CCP default waterfalls, monitoring creditworthiness via CDS spreads or ratings, quantifying wrong-way risk, or computing EAD, SA-CCR, and CVA. For Reg T and FINRA Rule 4210 brokerage margin see margin-operations; for settlement risk, DVP, and CLS see settlement-clearing.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "financial-statements",
+      "category": "banking",
+      "path": "banking/finance-skills/financial-statements",
+      "description": "Analyze financial statements for investment decisions: derive EBITDA and free cash flow (FCFF/FCFE) from the income statement and cash flow statement, compute ROIC, margins, and DuPont ROE decomposition, and assess quality of earnings via accruals and working capital trends. Use when the user asks about 'reading a 10-K', 'income statement vs cash flow statement', 'how to calculate free cash flow', 'FCFF vs FCFE', 'EBITDA adjustments', 'ROIC vs WACC', 'DuPont analysis', 'quality of earnings', 'accruals ratio', 'cash conversion cycle', 'revenue recognition red flags', 'deferred taxes', or 'cost basis and embedded capital gains'. Also trigger for fundamental analysis questions like whether reported earnings are backed by cash, whether a company creates value above its cost of capital, or the tax consequences of selling an appreciated position.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "know-your-customer",
+      "category": "banking",
+      "path": "banking/finance-skills/know-your-customer",
+      "description": "Guide customer onboarding identification, due diligence, and profile maintenance under FINRA Rule 2090, the CIP rules, and the FinCEN CDD Rule. Use when the user asks about onboarding identity verification, beneficial ownership collection for entity accounts, enhanced due diligence for PEPs or high-risk customers at account opening, assigning the initial customer risk rating, KYC refresh triggers, or documentary vs non-documentary verification. Also trigger when users mention 'account opening requirements', 'who is the beneficial owner', 'new client identity check', 'how often to update KYC', 'essential facts for the account', 'foreign customer onboarding', or ask what information must be gathered before opening an account. (For ongoing transaction monitoring, SAR filing, and surveillance-driven risk re-rating, use anti-money-laundering.)",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "lending",
+      "category": "banking",
+      "path": "banking/finance-skills/lending",
+      "description": "Analyze lending products including mortgages, HELOCs, and personal loans with amortization and comparison tools. Use when the user asks about mortgage comparison, fixed vs ARM rates, loan qualification, amortization schedules, extra payments, or buying points. Also trigger when users mention 'monthly payment calculation', '15-year vs 30-year mortgage', 'PMI', 'APR vs interest rate', 'HELOC', 'home equity', 'should I buy down the rate', 'biweekly payments', or ask how much house they can afford.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "operational-risk",
+      "category": "banking",
+      "path": "banking/finance-skills/operational-risk",
+      "description": "Guide identification, measurement, and management of operational risk in trading and brokerage operations. Use when designing trade error detection and correction procedures, investigating trade breaks and reconciliation failures, classifying loss events under Basel taxonomy, developing key risk indicators (KRIs) and dashboards, responding to system outages or data feed failures or order routing errors, conducting root cause analysis after a trade error or operational incident, planning business continuity and disaster recovery for trading desks, preparing for FINRA or SEC operational risk examinations, or assessing technology risk in OMS and market data systems. Also covers fat-finger errors, error account P&L, and corrective action tracking.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "reconciliation",
+      "category": "banking",
+      "path": "banking/finance-skills/reconciliation",
+      "description": "Design and operate reconciliation processes across portfolio management, custodian, and clearing systems. Use when building a daily position, cash, or transaction reconciliation process, investigating discrepancies between internal records and custodian records, diagnosing recurring break patterns from corporate actions or pricing differences, setting tolerance thresholds for position, cash, or market value matching, implementing three-way reconciliation, designing break investigation workflows with aging and escalation, normalizing multi-custodian feeds from Schwab, Fidelity, or Pershing, reconciling cost basis or accrued income, or preparing for examinations on books and records accuracy.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "time-value-of-money",
+      "category": "banking",
+      "path": "banking/finance-skills/time-value-of-money",
+      "description": "Calculate present value, future value, NPV, IRR for projects and loans, loan payments, and amortization schedules across all compounding conventions. Use when the user asks about discounting cash flows, valuing an annuity or perpetuity, comparing investments with different timing, building a mortgage amortization table, evaluating whether a project is worth pursuing, or solving for the rate that equates cash flows (project IRR, loan IRR, yield on an investment). Also trigger when users mention 'what is it worth today', 'how much will I have in 20 years', 'monthly payment on a loan', 'discount rate', 'Gordon growth model', 'effective annual rate', 'continuous compounding', or ask how to compare a lump sum versus a stream of payments. For portfolio money-weighted return (dollar-weighted IRR on an investor's contributions and withdrawals), use return-calculations instead.",
+      "source": "https://github.com/JoelLewis/finance_skills",
+      "license": "MIT"
+    },
+    {
+      "name": "onboarding",
+      "category": "banking",
+      "path": "banking/kyc-analyst/onboarding",
+      "description": "Full KYC customer onboarding with mandatory Step 0 independent verification (5+1 searches), 17 sequential stagegates requiring explicit analyst consent, deterministic four-factor risk scoring, case folder auto-creation, 4-sheet Excel dashboard, 17-section PDF report, and immutable audit trail. Covers UK/EU (AMLD5), US (FinCEN CDD), and MENA jurisdictions.",
+      "source": "https://github.com/vyayasan/kyc-analyst",
+      "license": "MIT"
+    },
+    {
+      "name": "refresh",
+      "category": "banking",
+      "path": "banking/kyc-analyst/refresh",
+      "description": "Periodic customer refresh with re-verification of original due diligence to detect material changes and maintain compliance with ongoing due diligence requirements. Triggers include time-based review (annual HIGH risk, 2-3 year intervals for MEDIUM/LOW), risk-based escalation (score changes, business pivots), and event-based alerts (sanctions, adverse media, regulatory actions).",
+      "source": "https://github.com/vyayasan/kyc-analyst",
+      "license": "MIT"
+    },
+    {
+      "name": "risk-assessment",
+      "category": "banking",
+      "path": "banking/kyc-analyst/risk-assessment",
+      "description": "Deterministic heuristic risk scoring using a four-factor weighted model (Geographic 30%, Customer 35%, Product 25%, Channel 10%) aligned with Basel III, EBA Guidelines, FATF standards, and FinCEN guidance. Bands: LOW (0-20), MEDIUM (21-60), HIGH (61-80), CRITICAL (81-100).",
+      "source": "https://github.com/vyayasan/kyc-analyst",
+      "license": "MIT"
+    },
+    {
+      "name": "screening",
+      "category": "banking",
+      "path": "banking/kyc-analyst/screening",
+      "description": "Comprehensive sanctions and PEP screening against 12+ databases (OFAC, EU, UK, UN, INTERPOL) with false positive assessment, HITL decision gates, and regulatory-compliant documentation.",
+      "source": "https://github.com/vyayasan/kyc-analyst",
+      "license": "MIT"
+    },
+    {
+      "name": "transaction-monitoring",
+      "category": "banking",
+      "path": "banking/kyc-analyst/transaction-monitoring",
+      "description": "AML transaction monitoring for ongoing customer relationships. Identifies suspicious patterns including structuring, layering, and unusual activity. Assesses against regulatory thresholds and prepares Suspicious Activity Reports (SARs) with HITL decision gates.",
+      "source": "https://github.com/vyayasan/kyc-analyst",
+      "license": "MIT"
+    },
+    {
+      "name": "bank-fintech-partnership-review",
+      "category": "banking",
+      "path": "banking/second-line/banking-risk-compliance/bank-fintech-partnership-review",
+      "description": "Produces the bank-side principal-supervisory partnership pack on a US bank-fintech relationship. Carries six named sections (service description and risk classification; risk-based diligence summary; contract gaps; customer-facing controls under Reg O / Reg W / Reg E / Reg DD; termination and wind-down readiness; recommended owner actions) plus a Reg O / Reg W / Reg E / Reg DD applicability summary the bank attests to. Audience is the partnership owner, the chief risk officer, the chief compliance officer, the BSA officer, the head of vendor management, the head of deposit operations, the general counsel, and the OCC / FRB / FDIC supervisory team that examines the relationship as a bank service-provider arrangement.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "banking-supervision-readiness",
+      "category": "banking",
+      "path": "banking/second-line/banking-risk-compliance/banking-supervision-readiness",
+      "description": "Produces the substantive supervision-readiness pack a US bank or bank holding company hands the OCC, FRB, or FDIC examiner-in-charge at the entry meeting and carries through the cycle. Organises preparation around the CAMELS components (or the BHC rated components for a holding-company cycle), the examiner-letter response posture (MRA, MRIA, supervisory recommendation, consent-order article), the MRA / MRIA closure cross-walk with sustained-operation evidence, the Heightened Standards readiness view for covered banks, and the topical examiner-readiness slices (BSA / AML, IT, fair lending, third-party risk) that the cycle scope brings into play. Audience is the head of supervisory affairs, the chief compliance officer, the chief risk officer, the BSA officer, and the examination coordinator.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "credit-risk-governance",
+      "category": "banking",
+      "path": "banking/second-line/banking-risk-compliance/credit-risk-governance",
+      "description": "Produces the second-line credit risk governance review pack a US bank's chief credit officer or chief risk officer carries to the credit risk committee or hands the OCC, FRB, or FDIC examiner reviewing credit administration. Organises the artifact around credit policy alignment, underwriting framework, risk-rating discipline, concentration governance, allowance methodology oversight (ACL / CECL), Reg O and Reg W applicability for insider and affiliated credit, second-line challenge of first-line lending decisions, and (for covered banks) the Heightened Standards posture for credit risk. Audience is the chief credit officer, chief risk officer, head of credit risk review, ALLL / ACL governance committee, audit committee, and examiner-in-charge for a credit-administration scope cycle.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "deposit-operations-controls",
+      "category": "banking",
+      "path": "banking/second-line/banking-risk-compliance/deposit-operations-controls",
+      "description": "Drafts the second-line deposit-operations control matrix for a US bank: account opening and CIP, beneficial-ownership collection at deposit channels, account-opening and advertising disclosures, EFT and ATM controls under the consumer-EFT regime, funds-availability holds and exception-hold notification, NSF and overdraft fee disclosure under the truth-in-savings regime, garnishments and levies, escheatment and dormant-account governance, deposit-insurance coverage representation under the federal misrepresentation rule, FBO-account ledgering and pass-through deposit-insurance recordkeeping for sponsor-bank fintech programs, exception handling, access controls, and evidence retention. Audience is the deposit-operations director, the bank's compliance officer, the BSA officer, internal audit, and the federal banking examiner reading the matrix line-by-line.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "aml-model-monitoring",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/aml-model-monitoring",
+      "description": "Reviews ongoing-monitoring evidence for an AML transaction-monitoring system, scoping which components of the stack sit inside the model-risk perimeter under the joint interagency model-risk supervisory guidance and which are deterministic rules outside it. Reads data quality, customer segmentation drift, scenario inventory and tuning evidence, below-the-line testing, alert volume and productivity trends, threshold-change governance, and validation evidence; produces a second-line monitoring memo that opens with a model-scoping read and a program-level review, carries the monitoring evidence in named structured sections, and closes with material findings, evidence-needed items, and recommended decision checkpoints with named owners. Does not approve scenario changes, set thresholds, sign off on validation conclusions, or QA individual SAR decisions.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "cdd-risk-review",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/cdd-risk-review",
+      "description": "Quality-reviews a customer due diligence file (new account, periodic refresh, or event-driven refresh) against the four CDD pillars and named CDD examination expectations. Reads customer identification, beneficial ownership identification and verification, the nature-and-purpose / expected-activity profile, the customer risk rating and its drivers, and the ongoing-monitoring trigger set; produces a second-line review memo with material gaps, evidence-needed items, EDD-trigger posture, and recommended decision checkpoints with named owners. Does not approve onboarding, set or change the customer risk rating, file a SAR, or close or exit the relationship.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "edd-escalation-pack",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/edd-escalation-pack",
+      "description": "Drafts an enhanced due diligence escalation pack for a higher-risk customer profile (PEP, private banking, foreign correspondent, cash-intensive business, complex ownership, MSB-affiliated, sanctions-adjacent, high-risk jurisdiction nexus, or event-driven trigger). The pack assembles beneficial-ownership chain, derogatory information, source of wealth and source of funds, customer rationale, expected versus actual activity, sanctions-screening posture, conduct-risk indicators, ongoing-monitoring plan, and decision options for the EDD committee. Produces a review artifact only; the EDD committee or designated approver makes the relationship decision.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "negative-news-triage",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/negative-news-triage",
+      "description": "Triages an adverse-media or negative-news hit set against a specific customer or entity for identity confidence, source reliability, recency, materiality to financial-crime risk, and downstream routing. Produces a triage memo and a structured triage record that downstream artifacts (cdd-risk-review refresh, edd-escalation-pack, sar-decision-qa, sanctions-screening-qa) can consume. Does not change customer ratings, file SARs, exit relationships, or re-tune monitoring scenarios.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "sanctions-screening-qa",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/sanctions-screening-qa",
+      "description": "Quality-reviews a sanctions screening program against named regulatory frames: list-management governance, customer and transaction screening configuration, match-logic and fuzzy-threshold tuning, list-update timeliness, alert disposition documentation, false-positive rationale, escalation paths, 50 Percent Rule and sectoral-sanctions handling, and cyber-evasion exposure. Reads each sampled alert disposition for documented rationale, decision-maker independence, and 50%-rule assessment; produces a second-line QA memo with material findings, evidence-needed items, and recommended decision checkpoints with named owners. Does not approve list configuration, tune match logic, file blocking or rejection reports, close alerts, or make match-or-no-match decisions.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "sar-decision-qa",
+      "category": "banking",
+      "path": "banking/second-line/financial-crime-governance/sar-decision-qa",
+      "description": "Quality-reviews a SAR or no-SAR decision file against named SAR rules and the FFIEC SAR examination expectations. Reads the alert chronology, investigation steps, evidence considered, disposition, decision rationale, continuing-activity posture, and confidentiality controls; produces a QA memo with material gaps, reviewer findings, and a routing recommendation to the named decision forum. Does not file, decline to file, amend, or close any SAR; SAR filing is a regulated act reserved to the BSA officer or designee.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "fintech-partner-controls",
+      "category": "banking",
+      "path": "banking/second-line/payments-fintech-compliance/fintech-partner-controls",
+      "description": "Drafts the fintech-side controls evidence pack a sponsor bank's third-party risk function expects in its file: control inventory mapped to Reg E error-resolution timing, NACHA Operating Rules obligations the program operator owes upstream, FBO subledger reconciliation, sponsor-bank reporting cadence, customer-facing disclosure adherence (Reg E §1005.7-§1005.11, Reg DD), money-transmitter / MSB BSA posture where applicable, contract-clause adherence evidence under the program agreement, and a 12-month incident-history summary. Output is a Word memo plus an Excel control inventory, review-ready for the fintech's own second line and for production to the sponsor bank's TPRM team or to a state-MTL examiner.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "open-banking-data-controls",
+      "category": "banking",
+      "path": "banking/second-line/payments-fintech-compliance/open-banking-data-controls",
+      "description": "Drafts a controls inventory and self-evidence pack for consumer-permissioned data sharing under the named US personal-financial-data-rights frame. The pack covers data-provider duties (covered-data scope, developer-interface availability and security, consumer authorisation, scope and duration limits, revocation propagation, third-party screening) and data-recipient duties (consumer authorisation, collection and use limits, retention, deletion-on-revocation, reauthorisation, downstream sharing). The artifact aligns to industry-standard tokenised data-sharing patterns and to the migration off credential-based screen scraping. Audience is the data-provider fintech, the data-recipient fintech (account aggregator, PFM, lender, BNPL, payroll-on-demand), or the sponsor-bank programme acting as either, plus the second-line or advisory team supporting them.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "payment-operations-incident-review",
+      "category": "banking",
+      "path": "banking/second-line/payments-fintech-compliance/payment-operations-incident-review",
+      "description": "Drafts the incident-review pack for a payments-operations event at a fintech program operator, BaaS platform, money transmitter, neobank, wallet, BIN sponsor, or payments processor. The pack carries an incident summary, customer-impact population, named-rail and sponsor-bank notification triggers, root cause, affected transaction population by rail, remediation actions, sponsor-bank reporting, and the regulator-facing artifact list. Output is review-ready for the program operator's second line and for production to the sponsor bank, the named payment-rail authorities (where applicable), and the regulator-facing incident file.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "payments-risk-assessment",
+      "category": "banking",
+      "path": "banking/second-line/payments-fintech-compliance/payments-risk-assessment",
+      "description": "Drafts a payments risk assessment for a fintech, money transmitter, BaaS platform, neobank, wallet, or sponsor-bank program: a matrix-shaped artifact denominated by rail (ACH, Same Day ACH, wire, card debit / credit, FedNow, RTP, P2P, check, cross-border correspondent, virtual-currency on-ramp), by customer segment (consumer, SMB, payroll-on-demand, gig, BNPL, cross-border remittance, high-risk vertical), and by US-state and corridor geography. Carries fraud, BSA / AML, sanctions, operational resilience, third-party / sponsor-bank dependence, customer-harm / UDAAP, and reporting-control views, with concentration sub-tables for sponsor-bank, processor, and BIN-sponsor exposure. Output suits a sponsor-bank annual review, a state MTL exam preparation file, an internal audit kickoff, or an enterprise risk committee read-out.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "control-matrix",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/control-matrix",
+      "description": "Builds the named-row risk-control matrix that maps obligations to control objectives, control activities, owners, frequency, evidence pointers, test methods, last-test results, and open issues. Foundational primitive: compliance-testing samples against it, vendor-diligence and exit-plan reference it, exam-brief reads it, model-card-builder pulls its controls section from it. Risk function and compliance function both consume the same matrix.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "evidence-binder",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/evidence-binder",
+      "description": "Assembles the evidence binder index for a regulatory exam, internal audit fieldwork pack, model-validation evidence pack, vendor-review pack, committee evidence pack, or issue-remediation file. One row per artifact, with system-of-record provenance, control and obligation linkage, sufficiency call, and reviewer sign-off. Reconciles a request list against the evidence on hand and surfaces the gaps before the reviewer does.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "human-review-gates",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/human-review-gates",
+      "description": "Builds the named-gate matrix for an artifact, decision, or workflow: gate name, stage in workflow, trigger, required reviewers (with independence), required inputs, decision criteria, stop conditions, escalation path, documentation requirement, frequency, and source anchor. Foundational primitive: every output-builder skill in the repo emits an artifact that runs through one or more of these gates, and the skill exists so the gates themselves get built once and reused. Output is a gate matrix plus a one-page narrative an AI governance committee, vendor onboarding committee, model risk committee, or issue-rating committee can adopt as charter language.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "issue-writeup",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/issue-writeup",
+      "description": "Drafts a single issue write-up using the condition / criteria / cause / effect (CCCE) structure plus severity rationale, remediation, named owner, target date, closure evidence, and evidence-gap flag. Foundational primitive: exception-analysis chains it after a control-test exception, audit findings consume it as the issue artifact, regulator-response files cite it, and the issue log keys off it. The output is a one-issue artifact written in the shape an audit committee, regulator, or issue-tracking system will accept.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "obligation-mapping",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/obligation-mapping",
+      "description": "Converts any source document (rule text, supervisory guidance, exam manual, exam request list, supervisory letter, regulator speech, internal policy, third-party SLA, contract clause) into a structured obligation register: one row per obligation, traced to source by section, with applicability, control objective, evidence required, owner, status, and open questions. Foundational primitive: control-matrix anchors its rows on this output, policy-gap-review triangulates against it, evidence-binder pulls evidence asks from it, exam-brief reads it, and almost every downstream second-line skill reaches for an obligation register at some point.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "policy-gap-review",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/policy-gap-review",
+      "description": "Reviews a firm policy or procedure (or a small set of related policy artefacts) against a named, dated benchmark of obligations or supervisory expectations and produces a gap matrix. One row per gap, with classification (missing / partial / weak / inconsistent / outdated), severity with rationale, declarative recommended edit, evidence needed beyond the text, and named owner. Foundational primitive: the gap matrix routes into `issue-writeup` for findings, into `obligation-mapping` when missing obligations surface, and into `control-matrix` when the operational dimension of the gap is a control rather than text. Audience is policy owners, compliance, and internal audit; the artifact is the gap list, not the policy redline.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "scoping",
+      "category": "banking",
+      "path": "banking/second-line/risk-compliance-core/scoping",
+      "description": "Produces a scoping charter and a structured scope record that downstream second-line skills consume. The charter sets institution, engagement, persona, source posture, risk lens, and overlay context so other skills do not reinvent these facts each time they are called.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "attestation-pack",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/attestation-pack",
+      "description": "Drafts the periodic management attestation pack a senior officer takes into the certification meeting: scope statement, source criteria, control inventory, evidence index, exceptions with compensating-control narrative, prior-period remediation status, sub-certification chain, reviewer questions, assertion language, and sign-off block. Output is the named-section pack the attesting officer (CEO, CFO, CRO, CCO, CISO, BSA officer, head of internal audit, fund CCO, function head, process owner) and the named reviewers (legal, internal audit, external assessor, regulator) carry into the sign-off conversation.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "bcbs239-gap-assessment",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/bcbs239-gap-assessment",
+      "description": "Drafts a gap assessment of the firm's risk data aggregation and risk reporting posture against the fourteen BCBS 239 principles, organised by the four BCBS groups (overarching governance and infrastructure, aggregation, reporting, supervisory review). Produces a principle-by-principle matrix with rating, direction, evidence summary, gaps, owners, and target dates that the head of risk data, head of regulatory reporting, CRO office, and internal audit can take to the data-management committee after qualified review.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "cyber-disclosure-readiness",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/cyber-disclosure-readiness",
+      "description": "Drafts the second-line readiness pack for SEC cybersecurity disclosure: 8-K Item 1.05 trigger and materiality workpaper for a live or suspected material incident, the 10-K Item 106 risk-management and governance disclosure for the annual filing cycle, and the disclosure controls and procedures (DCP) readiness map. The pack is what a disclosure committee, securities counsel, the CISO, and the CRO take into the materiality call and into the filing decision.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "kri-commentary",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/kri-commentary",
+      "description": "Drafts second-line commentary on KRI / KCI movement and breaches for a periodic risk report. Each per-KRI block carries trend, breach status against the firm's risk appetite statement, named root cause and contributing factors, action taken and action planned with role-level owners and dates, residual-risk view, linked issues and material events, and an explicit second-line challenge note where the second-line view diverges from first-line. Output is a per-KRI commentary block ready to drop into the risk committee pack, the divisional risk pack, the regulator response, or the board memo after qualified review.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "management-response",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/management-response",
+      "description": "Drafts the management response to a regulator finding, an internal-audit finding, or an external-assessor observation: acceptance posture, root-cause acknowledgement, action plan with milestones and owners, interim mitigation, evidence-of-effectiveness plan, reporting cadence to the issuing party, and the linkage to the underlying issue write-up. The response is the load-bearing artifact a head of regulatory affairs, head of compliance, CRO, or general counsel takes back to the regulator or to the audit committee after qualified review.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "risk-committee-pack",
+      "category": "banking",
+      "path": "banking/second-line/risk-reporting/risk-committee-pack",
+      "description": "Drafts the enterprise risk committee pack a CRO carries into the meeting: heat map by risk type, top risks, material risk events, KRI movement and breaches against the risk appetite statement, issues and remediation, forward-looking commentary including scenario results, and decision items. The pack is the load-bearing governance instrument the risk committee of the board (or the enterprise risk committee) uses to discharge its oversight under the firm's risk governance framework.",
+      "source": "https://github.com/anotb/second-line-financial-services",
+      "license": "MIT"
+    },
+    {
+      "name": "internal-comms",
+      "category": "general",
+      "path": "general/anthropic/internal-comms",
+      "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+      "source": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "mcp-builder",
+      "category": "general",
+      "path": "general/anthropic/mcp-builder",
+      "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+      "source": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "skill-creator",
+      "category": "general",
+      "path": "general/anthropic/skill-creator",
+      "description": "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.",
+      "source": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "deck-refresh",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/deck-refresh",
+      "description": "Updates a presentation with new numbers — quarterly refreshes, earnings updates, comp rolls, rebased market data. Use whenever the user asks to \"update the deck with Q4 numbers\", \"refresh the comps\", \"roll this forward\", \"swap in the new earnings\", \"change all the $485M to $512M\", or any request to swap figures across an existing deck without rebuilding it.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "ib-check-deck",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/ib-check-deck",
+      "description": "Investment banking presentation quality checker. Reviews a pitch deck or client-ready presentation for (1) number consistency across slides, (2) data-narrative alignment, (3) language polish against IB standards, (4) visual and formatting QC. Use whenever the user asks to review, check, QC, proof, or do a final pass on a deck, pitch, or client materials — including requests like \"check my numbers\", \"reconcile figures across slides\", \"is this client-ready\", or \"what am I missing before I send this out\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "pitch-deck",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/pitch-deck",
+      "description": "Populates investment banking pitch deck templates with data from source files. Use when: user provides a PowerPoint template to fill in, user has source data (Excel/CSV) to populate into slides, user mentions populating or filling a pitch deck template, or user needs to transfer data into existing slide layouts. Not for creating presentations from scratch.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "ppt-template-creator",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/ppt-template-creator",
+      "description": "Creates self-contained PPT template SKILLS (not presentations) from user-provided PowerPoint templates. Use ONLY when a user wants to create a reusable skill from their template. For creating actual presentations, use the pptx skill instead.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "pptx-author",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/pptx-author",
+      "description": "Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app.",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "teaser",
+      "category": "slides",
+      "path": "slides/anthropic-financial-services/teaser",
+      "description": "Draft anonymous one-page company teasers for sell-side M&A processes. Creates a compelling summary without revealing the company's identity, designed to gauge buyer interest before NDA execution. Triggers on \"teaser\", \"blind teaser\", \"anonymous profile\", \"one-pager for process\", or \"draft teaser for sell-side\".",
+      "source": "https://github.com/anthropics/financial-services-plugins",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "brand-guidelines",
+      "category": "slides",
+      "path": "slides/anthropic/brand-guidelines",
+      "description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+      "source": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "theme-factory",
+      "category": "slides",
+      "path": "slides/anthropic/theme-factory",
+      "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+      "source": "https://github.com/anthropics/skills",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "frontend-slides",
+      "category": "slides",
+      "path": "slides/frontend-slides",
+      "description": "Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files. Use when the user wants to build a presentation, convert a PPT/PPTX to web, or create slides for a talk/pitch. Helps non-designers discover their aesthetic through visual exploration rather than abstract choices.",
+      "source": "https://github.com/zarazhangrui/frontend-slides",
+      "license": "MIT"
+    },
+    {
+      "name": "course-training-skills",
+      "category": "training",
+      "path": "training/course-training-skills",
+      "description": "Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "activity-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/activity-designer",
+      "description": "Designs learning activities and training games for a session, selected by topic, audience, level, class size, session duration, delivery mode, and learning objective. Every activity must have a traceable educational purpose — never adds activities purely for engagement.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "assessment-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/assessment-designer",
+      "description": "Designs assessments mapped to learning objectives — diagnostic, knowledge checks, multiple choice, short answer, practical, debugging, case study, project, presentation, exit ticket, homework, and final formats — consistent with the course's overall assessment strategy. Never assesses a concept that wasn't taught.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "course-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/course-designer",
+      "description": "The main orchestrator. Parses course requirements, creates and maintains course state and the course manifest, invokes the specialized skills in dependency order, manages approval checkpoints in interactive mode (the default) or runs autonomously in full mode, tracks dependencies, triggers downstream regeneration on change, and runs the final quality review. Use this first for any new course request or full-course adaptation.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "course-outline",
+      "category": "training",
+      "path": "training/course-training-skills/skills/course-outline",
+      "description": "Designs the high-level architecture of a training course — overview, learning objectives, prerequisites, outcomes, course structure, session-by-session plan, assessment strategy, and final project — from a small set of course requirements. Does not produce session-level detail or any downstream artifact.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "course-reviewer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/course-reviewer",
+      "description": "Runs final and/or scoped quality assurance across the whole course — scope, objectives, coverage, sequencing, timing, activities, practical work, assessments, slides, notebooks, instructor guide, and cross-artifact consistency. Detects contradictions between artifacts and fixes them directly when the fix is unambiguous; otherwise flags for instructor decision.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "instructor-guide",
+      "category": "training",
+      "path": "training/course-training-skills/skills/instructor-guide",
+      "description": "Produces instructor-facing delivery guidance per session — teaching focus, explanation guidance, questions to ask, expected answers, common misconceptions and difficulties, intervention strategies, fast-finisher activity, recovery strategy, transitions, and session recap — specific to that session's actual content, so the instructor can deliver it without redesigning it.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "notebook-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/notebook-designer",
+      "description": "Decides whether a session's practical work benefits from an executable Jupyter notebook, and when it does, generates real, valid .ipynb files (student and instructor versions) that match the session exactly. Never generates a notebook automatically for every technical session, and never invents content beyond what the session teaches.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "practical-work",
+      "category": "training",
+      "path": "training/course-training-skills/skills/practical-work",
+      "description": "Designs practical exercises (coding, data analysis, debugging, configuration, system design, API usage, model building, experiments, case analysis, tool usage, mini projects) that match the concepts actually taught in the session, with student-facing and instructor-facing content kept strictly separate.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "session-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/session-designer",
+      "description": "Designs one session in full detail — objectives, topics, subtopics, key concepts, examples, and a timed agenda that exactly matches the session duration. Does not write activity/exercise/notebook/slide/assessment content itself, only names where each belongs in the agenda.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    },
+    {
+      "name": "slide-designer",
+      "category": "training",
+      "path": "training/course-training-skills/skills/slide-designer",
+      "description": "Two-stage skill. Stage 1 produces an instructional slide specification (per-slide title, purpose, content, visual recommendation, speaker notes, interaction) matching the session's actual content. Stage 2 uses an available presentation/design capability to generate a real, editable .pptx — never a flattened image deck, and never fabricated if no such capability is available.",
+      "source": "https://github.com/Mosapmohamd/course-training-skills",
+      "license": "MIT"
+    }
+  ]
+}

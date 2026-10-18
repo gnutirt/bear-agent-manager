@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest pyyaml
+
+      - name: Check repository structure
+        run: python3 scripts/check_structure.py .
+
+      - name: Validate example course manifest
+        run: python3 scripts/validate_manifest.py courses/machine-learning-beginners/course-manifest.yaml
+
+      - name: Validate example course artifacts (agenda timing, notebook/pptx validity)
+        run: python3 scripts/validate_course.py courses/machine-learning-beginners/
+
+      - name: Run pytest suite
+        run: python3 -m pytest tests/ -v

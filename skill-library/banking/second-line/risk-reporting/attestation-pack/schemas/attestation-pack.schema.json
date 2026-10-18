@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/attestation-pack.schema.json",
+  "title": "AttestationPack",
+  "description": "Wrapper for a periodic management attestation pack: scope, criteria, control inventory, evidence index, exceptions, prior-period remediation, sub-certification chain, reviewer questions, and the assertion-language and sign-off block. Consumed by the firm's attestation system of record, the external auditor work file, and downstream reporting skills (risk-committee-pack issues section, management-response sub-certification linkage).",
+  "type": "object",
+  "required": [
+    "attestation_id",
+    "attestation_period",
+    "scope",
+    "attesting_role",
+    "attestation_type",
+    "assertion_language_version",
+    "source_posture",
+    "source_criteria",
+    "control_inventory",
+    "evidence_index",
+    "exceptions",
+    "prior_period_remediation_status",
+    "assertion_text",
+    "signed_by_role",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "attestation_id": {
+      "type": "string",
+      "description": "Stable ID for this attestation pack instance."
+    },
+    "attestation_period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["processes", "systems", "legal_entities"],
+      "properties": {
+        "processes": { "type": "array", "items": { "type": "string" } },
+        "systems": { "type": "array", "items": { "type": "string" } },
+        "legal_entities": { "type": "array", "items": { "type": "string" } },
+        "exclusions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "attesting_role": {
+      "type": "string",
+      "description": "Role title of the attesting officer (e.g., Head of Vendor Management, Head of Risk Reporting, CISO, Process Owner — Wholesale Credit Risk). Roles, not named individuals."
+    },
+    "attestation_type": {
+      "type": "string",
+      "enum": [
+        "sox-sub-certification",
+        "soc1-management-assertion",
+        "soc2-management-assertion",
+        "ffiec-self-assessment",
+        "vendor-management",
+        "bcbs239-risk-data",
+        "cyber-annual",
+        "privacy-annual",
+        "fund-cco-annual",
+        "bsa-officer-annual",
+        "other"
+      ]
+    },
+    "assertion_language_version": {
+      "type": "string",
+      "description": "Version identifier of the assertion text the attesting role signs. Year-over-year change must be reflected when source criteria update."
+    },
+    "source_posture": {
+      "type": "string",
+      "enum": ["public-only", "public-plus-firm-policy", "public-plus-firm-policy-plus-evidence", "connector-aware"]
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "Links to scoping record if supplied."
+    },
+    "source_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Named frameworks or rules the attestation is made against (e.g., COSO 2013; SOX 302/404 sub-certification; PCAOB AS 2201; AICPA SSAE 18 AT-C 320; BCBS 239 Principle 1; interagency third-party risk management guidance 2023)."
+    },
+    "control_inventory": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["control_id", "control_name", "control_owner_role", "design_effectiveness", "operating_effectiveness"],
+        "properties": {
+          "control_id": { "type": "string" },
+          "control_name": { "type": "string" },
+          "control_owner_role": { "type": "string" },
+          "framework_component": { "type": "string", "description": "e.g., COSO Control Activities, BCBS 239 Principle 6, third-party-risk lifecycle stage." },
+          "design_effectiveness": {
+            "type": "string",
+            "enum": ["effective", "partially-effective", "not-effective", "not-tested"]
+          },
+          "operating_effectiveness": {
+            "type": "string",
+            "enum": ["effective", "partially-effective", "not-effective", "not-tested"]
+          },
+          "linked_evidence_ids": { "type": "array", "items": { "type": "string" } },
+          "linked_exception_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "evidence_index": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "description", "evidence_type", "system_of_record", "period_covered", "produced_by_role", "linked_control_ids"],
+        "properties": {
+          "evidence_id": { "type": "string" },
+          "description": { "type": "string" },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "system-output",
+              "report",
+              "sign-off-log",
+              "minutes",
+              "policy",
+              "external-assessor-output",
+              "sample-test-result",
+              "reconciliation",
+              "soc-report",
+              "cuec-evidence"
+            ]
+          },
+          "system_of_record": { "type": "string" },
+          "period_covered": {
+            "type": "object",
+            "required": ["start", "end"],
+            "properties": {
+              "start": { "type": "string", "format": "date" },
+              "end": { "type": "string", "format": "date" }
+            }
+          },
+          "produced_by_role": { "type": "string" },
+          "linked_control_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["exception_id", "linked_control_id", "description", "severity", "status"],
+        "properties": {
+          "exception_id": { "type": "string" },
+          "linked_control_id": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "compensating_control_description": {
+            "type": ["string", "null"],
+            "description": "Names a discrete compensating control. Hand-waving narrative does not qualify."
+          },
+          "compensating_control_id": { "type": ["string", "null"] },
+          "linked_issue_id": { "type": ["string", "null"], "description": "Foreign key to issue.schema.json instance." },
+          "status": {
+            "type": "string",
+            "enum": ["open", "remediated", "accepted-risk", "pending-review"]
+          },
+          "target_remediation_date": { "type": ["string", "null"], "format": "date" }
+        }
+      }
+    },
+    "prior_period_remediation_status": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prior_issue_id", "current_status"],
+        "properties": {
+          "prior_issue_id": { "type": "string" },
+          "current_status": {
+            "type": "string",
+            "enum": ["remediated", "in-progress", "slipped", "carried-as-current-period-exception", "accepted-risk"]
+          },
+          "evidence_pointer": { "type": "string" },
+          "current_period_exception_id": {
+            "type": ["string", "null"],
+            "description": "If status is carried-as-current-period-exception, links to the matching entry in exceptions[]."
+          }
+        }
+      }
+    },
+    "sub_certification_chain": {
+      "type": "array",
+      "description": "For ladder-up attestations (e.g., SOX 302/404 process-owner sub-certifications laddering to CEO/CFO certification), the chain of upstream sub-certifications consumed and the executive certification this pack supports.",
+      "items": {
+        "type": "object",
+        "required": ["role", "level", "received_or_provides"],
+        "properties": {
+          "role": { "type": "string" },
+          "level": {
+            "type": "string",
+            "enum": ["process-owner", "function-head", "subsidiary-officer", "executive-officer"]
+          },
+          "received_or_provides": {
+            "type": "string",
+            "enum": ["received-from", "provides-to"]
+          },
+          "scope_summary": { "type": "string" }
+        }
+      }
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "assertion_text": {
+      "type": "string",
+      "description": "The actual attestation language the attesting role signs. Carried verbatim."
+    },
+    "signed_by_role": { "type": "string" },
+    "signed_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Null until the attesting officer signs. The skill does not assert sign-off."
+    },
+    "legal_review_role": {
+      "type": ["string", "null"],
+      "description": "Role of the legal reviewer (typically GC office or securities counsel for SOX-laddered packs)."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Reflects strength of the evidence base, not substantive control posture. 'high' requires complete evidence-index coverage of in-scope controls."
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always true. The pack is a draft until the attesting officer signs and the named reviewer (legal, internal audit, external assessor as applicable) reviews."
+    }
+  }
+}

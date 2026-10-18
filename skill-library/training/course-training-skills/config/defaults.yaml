@@ -1,0 +1,19 @@
+instructor:
+  name: "Mosap Abdel-Ghany"   # full identity + contact channels: config/instructor-profile.md
+
+defaults:
+  research: false
+  generate_notebook_when_useful: true
+  generate_slides: true
+  create_instructor_notes: true
+  include_assessments: true
+  workflow_mode: interactive   # interactive | full
+  session_agenda_blocks:       # menu, not a mandatory per-session sequence
+    - Opening
+    - Review
+    - Explanation
+    - Activity
+    - Practice
+    - Break
+    - Assessment
+    - Recap

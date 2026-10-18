@@ -1,0 +1,475 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/capability-plugins/financial-crime-governance/skills/sanctions-screening-qa/schemas/sanctions-alert.schema.json",
+  "title": "sanctions-alert",
+  "description": "Structured second-line QA record for sanctions screening review. Captures program scope, list-management governance, screening configuration, alert-disposition sample (alert-by-alert), 50 Percent Rule and sectoral-sanctions handling, list-update event review, cyber-evasion exposure, material findings, and the QA recommendation. The skill produces QA artifacts only; the sanctions officer (and the firm's escalation chain) decides match-or-no-match, release, block, reject, or report. Schema version 1.0.0; additive changes only.",
+  "type": "object",
+  "required": [
+    "program_id",
+    "review_window",
+    "list_set",
+    "alert_disposition_sample",
+    "material_findings",
+    "recommendation",
+    "confidence_label"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "program_id": {
+      "type": "string",
+      "description": "Sanctions program identifier (placeholder for sample). Stable across QA cycles.",
+      "minLength": 1
+    },
+    "engagement_id": {
+      "type": "string",
+      "description": "Optional pointer to the scope record under which this QA was produced."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the QA review was last revised. List citations carry their own date-as-of."
+    },
+    "review_type": {
+      "type": "string",
+      "enum": [
+        "periodic_sample_qa",
+        "pre_validation_review",
+        "exam_readiness_review",
+        "list_event_review",
+        "cyber_evasion_targeted_review"
+      ],
+      "description": "Why this QA is being produced. Drives sample selection, depth, and which sections of the artifact carry weight."
+    },
+    "review_window": {
+      "type": "object",
+      "description": "Time window the QA covers.",
+      "required": ["start_date", "end_date"],
+      "additionalProperties": false,
+      "properties": {
+        "start_date": { "type": "string", "format": "date" },
+        "end_date": { "type": "string", "format": "date" }
+      }
+    },
+    "institution_type": {
+      "type": "string",
+      "enum": [
+        "bank",
+        "broker_dealer",
+        "mutual_fund",
+        "covered_product_life_insurer",
+        "fcm_ib",
+        "msb",
+        "fintech_sponsor_bank",
+        "covered_investment_adviser",
+        "other"
+      ],
+      "description": "Institution type. Drives sector-overlay selection and the screening-rail population the QA examines."
+    },
+    "list_set": {
+      "type": "array",
+      "description": "Lists the program screens against. OFAC SDN, OFAC SSI, OFAC FSE, OFAC NS-PLC, other OFAC programs; non-OFAC lists in use (UN, EU, UK OFSI, jurisdictional). Date-as-of every list citation in source_trace.",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "screening_rails": {
+      "type": "array",
+      "description": "Rails screened in scope of this QA: customer onboarding, customer rescreen (delta or full), wire, ACH, card, faster-payments, trade-finance message, securities settlement, payments-processor, beneficiary-at-claim, other.",
+      "items": { "type": "string" }
+    },
+    "list_management": {
+      "type": "object",
+      "description": "Governance over list updates, sources, and feed-mapping.",
+      "additionalProperties": false,
+      "properties": {
+        "update_cadence": {
+          "type": "string",
+          "description": "Documented cadence (e.g., daily, intra-day on OFAC publication, weekly, on-event)."
+        },
+        "last_update_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Most recent list-update event the QA verified."
+        },
+        "delta_vs_full_evidence": {
+          "type": "string",
+          "description": "Evidence the program reconciles delta updates against full lists; controls preventing dropped designations."
+        },
+        "feed_mapping_completeness": {
+          "type": "string",
+          "enum": ["complete", "partial", "gap_identified", "unknown"],
+          "description": "Whether all designation types from the list source map through the feed to the screening engine."
+        },
+        "lag_against_ofac_publication": {
+          "type": "string",
+          "description": "Measured lag of internal list publication against OFAC publication date. The OFAC publication date is the benchmark, not the institution's internal publication."
+        },
+        "open_findings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "screening_configuration": {
+      "type": "object",
+      "description": "Customer screening, transaction screening, match logic, fuzzy thresholds, and exclusion-list governance.",
+      "additionalProperties": false,
+      "properties": {
+        "customer_screening_rules": {
+          "type": "string",
+          "description": "Rule set applied at onboarding, rescreen cycle, and event-driven rescreen."
+        },
+        "transaction_screening_rails": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rails screened in real-time or near-real-time."
+        },
+        "match_logic_summary": {
+          "type": "string",
+          "description": "Plain-language summary of match-logic algorithm class (exact, phonetic, edit-distance, vendor-specific). Cite vendor model where applicable; vendor model risk sits adjacent in aml-model-monitoring."
+        },
+        "fuzzy_threshold_setting": {
+          "type": "string",
+          "description": "Documented fuzzy-match threshold and the basis for the setting (BTL testing, vendor recommendation, calibration analysis)."
+        },
+        "exclusion_lists_documented": {
+          "type": "boolean",
+          "description": "True when good-guy lists / whitelists / exclusion lists are documented with rationale, owner, refresh cadence, and re-review evidence."
+        },
+        "exclusion_list_governance_note": {
+          "type": "string",
+          "description": "Governance posture on exclusion lists; an undocumented good-guy list is a material finding."
+        }
+      }
+    },
+    "alert_disposition_sample": {
+      "type": "array",
+      "description": "Alert-by-alert QA sample. Each entry is a single screening alert reviewed for disposition defensibility. The QA reads each alert's documentation; it does not re-decide match-or-no-match.",
+      "items": {
+        "type": "object",
+        "required": ["alert_id", "list_source", "disposition", "fp_rationale_category"],
+        "additionalProperties": false,
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "description": "Canonical alert identifier (placeholder for sample)."
+          },
+          "alert_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "rail": {
+            "type": "string",
+            "description": "Screening rail (customer-onboarding, wire, ACH, card, trade-finance message, beneficiary-at-claim, other)."
+          },
+          "list_source": {
+            "type": "string",
+            "description": "List the alert hit on (e.g., OFAC SDN, OFAC SSI, UK OFSI Consolidated, EU Consolidated)."
+          },
+          "match_score": {
+            "type": "string",
+            "description": "Vendor-specific match score and the threshold it crossed."
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "false_positive_closed",
+              "true_match_blocked",
+              "true_match_rejected",
+              "true_match_reported",
+              "escalated_pending",
+              "released_with_rationale"
+            ],
+            "description": "What the screening function did with the alert. The QA reviews; it does not re-decide."
+          },
+          "fp_rationale_category": {
+            "type": "string",
+            "description": "Taxonomy category for the false-positive (or release) rationale: name-only-match, dob-mismatch, geography-mismatch, identifier-mismatch, role-mismatch, common-name, prior-cleared-counterparty, generic-or-boilerplate, other. Generic-or-boilerplate is itself a finding."
+          },
+          "decision_maker_role": {
+            "type": "string",
+            "description": "Role that disposed the alert. Independence from the relationship owner is a structural control."
+          },
+          "evidence_pointer": {
+            "type": "string",
+            "description": "System-of-record reference, document ID, or file path."
+          },
+          "fifty_percent_rule_assessed": {
+            "type": "string",
+            "enum": ["yes", "no", "not_applicable", "unknown"],
+            "description": "Whether the disposition record reflects a 50 Percent Rule aggregation read where the alert touched ownership / control of a designated person."
+          }
+        }
+      }
+    },
+    "fifty_percent_rule_handling": {
+      "type": "object",
+      "description": "Program-level handling of the OFAC 50 Percent Rule (aggregate ownership at 50% or more by one or more blocked persons triggers blocking treatment).",
+      "additionalProperties": false,
+      "properties": {
+        "aggregation_methodology_documented": {
+          "type": "boolean",
+          "description": "True when an aggregation methodology covering multi-owner scenarios is documented at program level and signed by the sanctions officer."
+        },
+        "aggregation_methodology_summary": {
+          "type": "string",
+          "description": "Summary of how the program aggregates ownership across multiple blocked owners and resolves edge cases (chain ownership, indirect ownership, beneficial-ownership conflicts)."
+        },
+        "evidence_basis": {
+          "type": "string",
+          "description": "Evidence basis for ownership reads (corporate registry, BO certification, commercial database). Database-only reads on offshore structures are a known gap."
+        },
+        "edge_case_handling": {
+          "type": "string",
+          "description": "How edge cases are routed (sanctions counsel, OFAC FAQ reference, OFAC licensing route)."
+        }
+      }
+    },
+    "sectoral_sanctions_handling": {
+      "type": "object",
+      "description": "SSI and other sectoral / restriction (non-blocking) program handling. Different prohibitions and different operational patterns than SDN.",
+      "additionalProperties": false,
+      "properties": {
+        "ssi_handling_distinct_from_sdn": {
+          "type": "boolean",
+          "description": "True when the program treats SSI / sectoral prohibitions distinctly from SDN blocking, not collapsing into one disposition path."
+        },
+        "directive_specific_logic": {
+          "type": "string",
+          "description": "Whether the program applies directive-specific logic (e.g., debt / equity tenor restrictions under specific OFAC directives) and how."
+        },
+        "secondary_sanctions_posture": {
+          "type": "string",
+          "description": "Posture on secondary-sanctions exposure (where the program has non-US activity or non-US counterparties touching US-sanctioned parties)."
+        }
+      }
+    },
+    "list_update_events": {
+      "type": "array",
+      "description": "Material list-update events the QA reviewed (new SDN designations, new sectoral programs, FSE designation changes, jurisdiction-program shifts).",
+      "items": {
+        "type": "object",
+        "required": ["event_date", "designation_type"],
+        "additionalProperties": false,
+        "properties": {
+          "event_date": { "type": "string", "format": "date" },
+          "designation_type": {
+            "type": "string",
+            "description": "Type of designation (e.g., SDN add, SSI directive change, country-program change, virtual-currency-related typology)."
+          },
+          "institution_response_evidence": {
+            "type": "string",
+            "description": "Evidence the institution responded (full re-scan, delta processing, customer-base sweep, payment-rail re-scan)."
+          },
+          "response_timing": {
+            "type": "string",
+            "description": "Time-to-response measured against OFAC publication date (not internal publication date)."
+          },
+          "cross_rail_consistency_checked": {
+            "type": "boolean",
+            "description": "True when post-event cross-rail consistency is documented (a customer hit raised on one rail and not on another within the window is investigated)."
+          },
+          "cyber_overlay_assessed": {
+            "type": "boolean",
+            "description": "True when the designation type was assessed for virtual-currency / ransomware / cyber-enabled-identity intersection."
+          }
+        }
+      }
+    },
+    "cyber_evasion_exposure": {
+      "type": "object",
+      "description": "Cross-cutting cyber overlay: sanctions evasion via virtual currency, ransomware payments, mixers and chain-hopping, cyber-enabled identity manipulation, deepfake / synthetic-identity, BIN sponsorship and prepaid-card abuse, decentralized finance and bridge exposure. Loaded when scope flags cyber.",
+      "additionalProperties": false,
+      "properties": {
+        "virtual_currency_exposure": {
+          "type": "string",
+          "enum": ["material", "limited", "none", "unknown"],
+          "description": "Program exposure to virtual-currency on-ramp / off-ramp, custody, or settlement activity that intersects sanctions risk."
+        },
+        "virtual_currency_controls_evidence": {
+          "type": "string",
+          "description": "Evidence of controls (blockchain-analytics vendor in use, address screening, attribution governance). Vendor outputs are vendor outputs; cite the vendor and route vendor-diligence to third-party-operational-resilience."
+        },
+        "ransomware_payment_exposure": {
+          "type": "string",
+          "enum": ["material", "limited", "none", "unknown"],
+          "description": "Program exposure to facilitating ransomware-payment activity (incident-response payment paths, cyber-insurance claim payments, remediation-vendor payments)."
+        },
+        "ransomware_payment_controls_evidence": {
+          "type": "string",
+          "description": "Evidence of controls aligned to OFAC ransomware advisories and FinCEN ransomware advisories: pre-payment OFAC analysis, voluntary self-disclosure posture, sanctions-officer routing."
+        },
+        "cyber_identity_exposure": {
+          "type": "string",
+          "enum": ["material", "limited", "none", "unknown"],
+          "description": "Program exposure to cyber-enabled identity manipulation defeating name-and-DOB matching: synthetic identity, deepfake document fraud, identity-takeover at onboarding."
+        },
+        "cyber_identity_controls_evidence": {
+          "type": "string",
+          "description": "Evidence of controls (identity-verification vendor governance, biometric checks, anomaly detection) and how they integrate with the screening pipeline."
+        },
+        "decentralized_finance_exposure": {
+          "type": "string",
+          "enum": ["material", "limited", "none", "unknown"],
+          "description": "Program exposure to DeFi / bridge / mixer-adjacent activity through any rail."
+        }
+      }
+    },
+    "material_findings": {
+      "type": "array",
+      "description": "Criterion-aligned material findings against the sanctions program evidence.",
+      "items": {
+        "type": "object",
+        "required": ["finding_description", "criterion", "framework_component", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_description": { "type": "string" },
+          "criterion": {
+            "type": "string",
+            "enum": [
+              "list_update_timeliness",
+              "feed_mapping_completeness",
+              "delta_vs_full_reconciliation",
+              "match_logic_documentation",
+              "fuzzy_threshold_calibration",
+              "exclusion_list_governance",
+              "fp_rationale_documentation",
+              "fp_rationale_taxonomy",
+              "decision_maker_independence",
+              "escalation_path_evidence",
+              "fifty_percent_rule_methodology",
+              "fifty_percent_rule_evidence_basis",
+              "ssi_distinct_handling",
+              "directive_specific_logic",
+              "list_event_response_timing",
+              "cross_rail_consistency",
+              "cyber_evasion_exposure_assessment",
+              "virtual_currency_controls",
+              "ransomware_advisory_alignment",
+              "cyber_identity_controls",
+              "vendor_model_risk_coverage",
+              "training_evidence",
+              "sanctions_officer_signoff",
+              "other"
+            ],
+            "description": "Named criterion. The criterion is named, not implied."
+          },
+          "framework_component": {
+            "type": "string",
+            "enum": [
+              "management_commitment",
+              "risk_assessment",
+              "internal_controls",
+              "testing_and_auditing",
+              "training",
+              "ffiec_ofac_section",
+              "other"
+            ],
+            "description": "OFAC Framework five-component mapping (or FFIEC OFAC section) for the finding."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["material", "moderate", "minor", "observation"]
+          },
+          "evidence_pointer": { "type": "string" }
+        }
+      }
+    },
+    "material_gaps": {
+      "type": "array",
+      "description": "Specific evidence the QA reviewer flagged as missing. Each item carries the criterion it bears on.",
+      "items": {
+        "type": "object",
+        "required": ["gap_description", "criterion"],
+        "additionalProperties": false,
+        "properties": {
+          "gap_description": { "type": "string" },
+          "criterion": { "type": "string" },
+          "evidence_needed": { "type": "string" }
+        }
+      }
+    },
+    "recommended_gates": {
+      "type": "array",
+      "description": "Recommended human-review gates to add or tighten in the sanctions program. Consultative input to the sanctions officer; the skill does not direct sanctions decisions.",
+      "items": {
+        "type": "object",
+        "required": ["gate_name", "criterion"],
+        "additionalProperties": false,
+        "properties": {
+          "gate_name": { "type": "string" },
+          "criterion": { "type": "string" },
+          "required_reviewer": {
+            "type": "string",
+            "description": "Role that should sign (e.g., sanctions officer, BSA officer, sanctions counsel, model-risk reviewer)."
+          },
+          "stop_condition": {
+            "type": "string",
+            "description": "What state the gate stops on (e.g., release of an alert without documented rationale; list-update deployed without delta-vs-full reconciliation)."
+          }
+        }
+      }
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "no_further_action",
+        "evidence_request_to_first_line",
+        "tuning_review_via_aml_model_monitoring",
+        "list_management_remediation",
+        "fifty_percent_rule_methodology_remediation",
+        "training_feedback",
+        "process_change_recommendation",
+        "escalate_to_sanctions_officer",
+        "other"
+      ],
+      "description": "QA recommendation. Consultative input to the sanctions officer or the BSA officer. The skill does not approve list configuration, tune match logic, file blocking or rejection reports, or close alerts."
+    },
+    "recommendation_notes": {
+      "type": "string",
+      "description": "Detail behind the recommendation: what to remediate, what to escalate, what process change to consider."
+    },
+    "review_gates": {
+      "type": "array",
+      "description": "Named human-review gates this QA artifact must clear before the recommendation is acted on. Drawn from references/review-gates.md when present.",
+      "items": {
+        "type": "string",
+        "enum": ["scope", "evidence", "authority", "impact", "decision"]
+      }
+    },
+    "owner": {
+      "type": "string",
+      "description": "Role of the QA reviewer. E.g., second-line sanctions QA reviewer, internal audit secondee, advisory engagement manager."
+    },
+    "approver": {
+      "type": "string",
+      "description": "Role that signs off the QA artifact. Typically sanctions officer, head of financial-crime QA, or BSA officer depending on the firm's program structure."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Confidence in the QA read, per references/review-gates.md when present."
+    },
+    "source_trace": {
+      "type": "array",
+      "description": "Citations supporting material claims in the QA. Every claim should be traceable; OFAC list citations carry a date-as-of.",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": { "type": "string" },
+          "source": { "type": "string" },
+          "section": { "type": "string" },
+          "date_as_of": { "type": "string", "format": "date" },
+          "url": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}

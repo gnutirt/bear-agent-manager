@@ -1,0 +1,35 @@
+{
+  "name": "course-training-skills",
+  "version": "0.1.0",
+  "description": "Modular Claude Skills toolkit for designing complete training courses from course requirements to instructor-ready materials.",
+  "author": {
+    "name": "Course instructor (fork and edit this field)"
+  },
+  "license": "MIT",
+  "skills": [
+    "skills/course-designer",
+    "skills/course-outline",
+    "skills/session-designer",
+    "skills/activity-designer",
+    "skills/practical-work",
+    "skills/notebook-designer",
+    "skills/slide-designer",
+    "skills/assessment-designer",
+    "skills/instructor-guide",
+    "skills/course-reviewer"
+  ],
+  "commands": [
+    "/create-course",
+    "/course-outline",
+    "/create-session",
+    "/create-agenda",
+    "/create-activities",
+    "/create-exercise",
+    "/create-notebook",
+    "/create-slides",
+    "/create-assessment",
+    "/create-instructor-guide",
+    "/review-course",
+    "/adapt-course"
+  ]
+}

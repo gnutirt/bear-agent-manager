@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/dcp-readiness.schema.json",
+  "title": "DcpReadiness",
+  "description": "Artifact C of cyber-disclosure-readiness: disclosure controls and procedures (DCP) readiness map for the cyber-disclosure trigger flow under Exchange Act Rule 13a-15 / 15d-15. Wraps trigger detection points, escalation paths, materiality-determination protocol, required documentation per stage, and gaps. Consumed downstream by the disclosure-committee minutes system, the 10-K Item 106 risk-management narrative as evidence support, and the regulator-response file when supervisors ask for the DCP map.",
+  "type": "object",
+  "required": [
+    "dcp_id",
+    "as_of_date",
+    "trigger_points",
+    "escalation_paths",
+    "materiality_protocol",
+    "documentation_requirements",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "dcp_id": {
+      "type": "string",
+      "description": "Stable internal ID for the DCP version captured in this map."
+    },
+    "as_of_date": { "type": "string", "format": "date" },
+    "scope_id": { "type": ["string", "null"] },
+    "trigger_points": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["source", "owner_role", "documentation_requirement"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "e.g., 'security operations centre', 'fraud function', 'customer service', 'vendor notification', 'regulator notification (federal banking agency 4-hour bank-service-provider rule)', 'internal whistleblower or anomaly report'."
+          },
+          "owner_role": {
+            "type": "string",
+            "description": "Role, never a named individual."
+          },
+          "time_to_triage_sla_hours": { "type": ["number", "null"], "minimum": 0 },
+          "documentation_requirement": { "type": "string" }
+        }
+      }
+    },
+    "escalation_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stage", "source_role", "target_role", "trigger_threshold"],
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "first-line-to-second-line",
+              "second-line-to-gc",
+              "gc-to-disclosure-committee",
+              "disclosure-committee-to-board",
+              "other"
+            ]
+          },
+          "source_role": { "type": "string" },
+          "target_role": { "type": "string" },
+          "trigger_threshold": { "type": "string" },
+          "time_bound_step_hours": { "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "materiality_protocol": {
+      "type": "object",
+      "required": ["decision_makers_roles", "criteria_framework", "time_box_hours"],
+      "properties": {
+        "decision_makers_roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Roles, never named individuals. Disclosure committee with securities counsel input is the standard composition."
+        },
+        "criteria_framework": {
+          "type": "string",
+          "description": "Reference to the materiality standard the firm applies. TSC Industries / Basic standard is the rule-incorporated standard; firm-internal augmentation (e.g., quantitative-and-qualitative composite, aggregation analysis under Instruction 1) is recorded here."
+        },
+        "time_box_hours": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Internal target time from escalation to materiality determination. Typically tighter than the 4-business-day SEC backstop."
+        },
+        "tie_break_protocol": { "type": ["string", "null"] }
+      }
+    },
+    "documentation_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stage", "documentation", "owner_role"],
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "detection",
+              "triage",
+              "escalation",
+              "materiality-call",
+              "disclosure-decision",
+              "filing",
+              "amendment"
+            ]
+          },
+          "documentation": { "type": "string" },
+          "owner_role": { "type": "string" },
+          "retention_period": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gap_description", "severity", "owner_role"],
+        "properties": {
+          "gap_description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "owner_role": { "type": "string" },
+          "target_remediation_date": { "type": ["string", "null"], "format": "date" }
+        }
+      }
+    },
+    "sign_off": {
+      "type": "object",
+      "properties": {
+        "head_of_disclosure_role": { "type": ["string", "null"] },
+        "disclosure_committee_chair_role": { "type": ["string", "null"] },
+        "head_of_operational_risk_role": { "type": ["string", "null"] },
+        "ciso_role": { "type": ["string", "null"] },
+        "sign_off_date": { "type": ["string", "null"], "format": "date" }
+      }
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true."
+    }
+  }
+}

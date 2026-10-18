@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/item-106-disclosure.schema.json",
+  "title": "Item106Disclosure",
+  "description": "Artifact B of cyber-disclosure-readiness: 10-K Item 106 (or Form 20-F Item 16K for FPIs) cybersecurity risk-management and governance disclosure pack. Wraps the 106(b) and 106(c) draft sections, the material-effects record, the source-trace, the year-over-year diff, and the sign-off. Consumed downstream by the disclosure-committee minutes system, the 10-K source-trace file, and the audit-committee secretary's pre-filing review.",
+  "type": "object",
+  "required": [
+    "filing_period_end",
+    "filing_type",
+    "registrant_filer_category",
+    "risk_management_disclosure",
+    "governance_disclosure",
+    "material_effects_to_date",
+    "source_trace",
+    "year_over_year_diff",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "filing_period_end": { "type": "string", "format": "date" },
+    "filing_type": {
+      "type": "string",
+      "enum": ["10-K", "20-F-Item-16K"]
+    },
+    "registrant_filer_category": {
+      "type": "string",
+      "enum": [
+        "large-accelerated-filer",
+        "accelerated-filer",
+        "smaller-reporting-company",
+        "non-accelerated-filer",
+        "foreign-private-issuer"
+      ]
+    },
+    "scope_id": { "type": ["string", "null"] },
+    "prior_year_filing_reference": { "type": ["string", "null"] },
+    "risk_management_disclosure": {
+      "type": "object",
+      "description": "Item 106(b) elements as discrete subfields. Each element is a discrete subsection in the draft.",
+      "required": [
+        "processes_for_assessing_identifying_managing",
+        "integration_with_overall_risk_management",
+        "third_party_engagement",
+        "third_party_service_provider_oversight",
+        "material_effects_assessment"
+      ],
+      "properties": {
+        "processes_for_assessing_identifying_managing": {
+          "type": "string",
+          "description": "Item 106(b)(1) draft text — processes for assessing, identifying, and managing material risks from cybersecurity threats."
+        },
+        "integration_with_overall_risk_management": {
+          "type": "string",
+          "description": "Item 106(b)(1)(i) draft text — whether and how the processes are integrated into the firm's overall risk-management system."
+        },
+        "third_party_engagement": {
+          "type": "string",
+          "description": "Item 106(b)(1)(ii) draft text — engagement of assessors, consultants, auditors, or other third parties."
+        },
+        "third_party_service_provider_oversight": {
+          "type": "string",
+          "description": "Item 106(b)(1)(iii) draft text — processes to oversee and identify material risks from third-party service-provider use."
+        },
+        "material_effects_assessment": {
+          "type": "string",
+          "description": "Item 106(b)(2) draft text — whether risks from cybersecurity threats have materially affected, or are reasonably likely to materially affect, the firm's business strategy, results of operations, or financial condition."
+        }
+      }
+    },
+    "governance_disclosure": {
+      "type": "object",
+      "description": "Item 106(c) elements as discrete subfields.",
+      "required": ["board_oversight", "management_role"],
+      "properties": {
+        "board_oversight": {
+          "type": "object",
+          "required": ["committee_name", "cadence", "informing_processes"],
+          "properties": {
+            "committee_name": {
+              "type": "string",
+              "description": "Specific board committee with cyber oversight (e.g., 'Risk Committee', 'Audit Committee', 'Cybersecurity Committee')."
+            },
+            "cadence": {
+              "type": "string",
+              "description": "e.g., 'Quarterly committee briefings; annual full-board deep-dive'."
+            },
+            "informing_processes": {
+              "type": "string",
+              "description": "Processes by which the board or committee is informed about risks from cybersecurity threats."
+            }
+          }
+        },
+        "management_role": {
+          "type": "object",
+          "required": ["positions_or_committees", "expertise", "informing_processes"],
+          "properties": {
+            "positions_or_committees": {
+              "type": "string",
+              "description": "Management positions / committees responsible for assessing and managing material risks (e.g., 'CISO reporting to CIO with dotted-line to CRO; Cybersecurity Steering Committee chaired by CISO')."
+            },
+            "expertise": {
+              "type": "string",
+              "description": "Named expertise — credentials, prior experience, reporting line. Avoid boilerplate; specifics matter."
+            },
+            "informing_processes": {
+              "type": "string",
+              "description": "Processes by which management is informed about and monitors the prevention, detection, mitigation, and remediation of cybersecurity incidents."
+            }
+          }
+        }
+      }
+    },
+    "material_effects_to_date": {
+      "type": "array",
+      "description": "Empty array is acceptable when no incidents materially affected the period; the stated determination lives in risk_management_disclosure.material_effects_assessment.",
+      "items": {
+        "type": "object",
+        "required": ["incident_id", "effect_summary", "affected_filing_period"],
+        "properties": {
+          "incident_id": { "type": "string" },
+          "effect_summary": { "type": "string" },
+          "affected_filing_period": { "type": "string" },
+          "linked_8k_item_105_reference": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "source_trace": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["claim", "evidence_pointer", "evidence_type"],
+        "properties": {
+          "claim": { "type": "string" },
+          "evidence_pointer": { "type": "string" },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "policy",
+              "board-minutes",
+              "charter",
+              "risk-register",
+              "system-output",
+              "third-party-assessor-report",
+              "external-report",
+              "evidence-needed",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "year_over_year_diff": {
+      "type": "array",
+      "description": "Year-over-year diff and rationale per section. Rolled-forward-unchanged Item 106 is a frequent finding; this array captures the analysis.",
+      "items": {
+        "type": "object",
+        "required": ["section", "diff_rationale"],
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": [
+              "106(b)(1)-processes",
+              "106(b)(1)(i)-integration",
+              "106(b)(1)(ii)-third-party-assessors",
+              "106(b)(1)(iii)-third-party-service-providers",
+              "106(b)(2)-material-effects",
+              "106(c)(1)-board-oversight",
+              "106(c)(2)-management-role"
+            ]
+          },
+          "prior_year_text": { "type": ["string", "null"] },
+          "current_year_text": { "type": ["string", "null"] },
+          "diff_rationale": {
+            "type": "string",
+            "description": "Why the section changed, or 'no substantive change — refreshed for currency' if applicable."
+          }
+        }
+      }
+    },
+    "sign_off": {
+      "type": "object",
+      "properties": {
+        "head_of_disclosure_role": { "type": ["string", "null"] },
+        "securities_counsel_role": { "type": ["string", "null"] },
+        "ciso_role": { "type": ["string", "null"] },
+        "audit_committee_secretary_acknowledgement": { "type": ["string", "null"] },
+        "disclosure_committee_chair_role": { "type": ["string", "null"] },
+        "sign_off_date": { "type": ["string", "null"], "format": "date" }
+      }
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "verification_flags_carried_forward": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true."
+    }
+  }
+}

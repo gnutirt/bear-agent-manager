@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/sector-plugins/payments-fintech-compliance/skills/payments-risk-assessment/schemas/payments-risk-assessment.schema.json",
+  "title": "payments-risk-assessment",
+  "description": "Structured second-line payments risk assessment record. Matrix-shaped artifact denominated by rail, customer segment, and geography, with concentration sub-tables for sponsor-bank, processor, and BIN-sponsor exposure, cross-cutting rows for fraud, AML / sanctions, operational resilience, customer-harm / UDAAP, reporting / data quality, and cyber, and a remediation portfolio. Downstream consumers: concentration-risk-review, fintech-partner-controls, payment-operations-incident-review, aml-model-monitoring, sanctions-screening-qa, udaap-risk-review, regulatory-change-management/exam-brief.",
+  "type": "object",
+  "required": [
+    "program_id",
+    "program_role",
+    "as_of_date",
+    "review_trigger",
+    "rail_rows",
+    "segment_rows",
+    "geography_rows",
+    "concentration_views",
+    "cross_cutting_risks",
+    "recommended_disposition",
+    "confidence_label"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "program_id": {
+      "type": "string",
+      "description": "Stable identifier for the payments program. Reused across fintech-partner-controls, payment-operations-incident-review, and concentration-risk-review.",
+      "minLength": 1
+    },
+    "engagement_id": {
+      "type": "string",
+      "description": "Optional pointer to the scope record under which this assessment was produced. Empty if scope was not formalised."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the assessment was last revised."
+    },
+    "review_trigger": {
+      "type": "string",
+      "enum": [
+        "annual-cycle",
+        "semi-annual-cycle",
+        "sponsor-bank-annual-review",
+        "state-mtl-exam-prep",
+        "cfpb-direct-supervision",
+        "internal-audit-kickoff",
+        "new-rail",
+        "new-segment",
+        "new-corridor",
+        "processor-change",
+        "sponsor-bank-change",
+        "bin-sponsor-change",
+        "post-incident-reset",
+        "larger-participant-rule-applicability"
+      ],
+      "description": "Why this assessment is being produced. Drives audience and depth."
+    },
+    "program_role": {
+      "type": "string",
+      "enum": [
+        "fintech-program-operator",
+        "baas-platform",
+        "program-manager",
+        "wallet-operator",
+        "neobank",
+        "payments-processor",
+        "money-transmitter-only",
+        "bnpl-provider",
+        "payroll-on-demand-provider",
+        "cross-border-remittance-provider",
+        "virtual-currency-on-ramp",
+        "other"
+      ],
+      "description": "Operator role. Drives matrix scope, sponsor-bank construct framing, and money-transmitter analysis posture."
+    },
+    "program_summary": {
+      "type": "object",
+      "description": "One-page summary of the program. Detail goes into the matrix rows.",
+      "additionalProperties": false,
+      "properties": {
+        "sponsor_banks": {
+          "type": "array",
+          "description": "Sponsor banks named by role, not by brand.",
+          "items": { "type": "string" }
+        },
+        "processors": {
+          "type": "array",
+          "description": "Processors named by function (front-end, back-end, gateway).",
+          "items": { "type": "string" }
+        },
+        "bin_sponsors": {
+          "type": "array",
+          "description": "BIN sponsors per network (Visa, Mastercard).",
+          "items": { "type": "string" }
+        },
+        "ledger_provider": { "type": "string" },
+        "kyc_cip_vendor": { "type": "string" },
+        "fraud_decision_vendor": { "type": "string" },
+        "sanctions_screening_vendor": { "type": "string" },
+        "geographic_footprint": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "us_states_in_scope": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^[A-Z]{2}$" }
+            },
+            "corridors_in_scope": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "customer_base_size_by_segment": {
+          "type": "object",
+          "description": "Headline customer count by segment. Free-form keys to avoid premature taxonomy.",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "current_cycle_volume_by_rail": {
+          "type": "object",
+          "description": "Headline volume per rail.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "transaction_count": { "type": "integer", "minimum": 0 },
+              "transaction_value_usd": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "rail_rows": {
+      "type": "array",
+      "description": "Risk universe by rail. One row per rail in scope.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rail", "inherent_risk", "residual_risk", "owner_role"],
+        "properties": {
+          "rail": {
+            "type": "string",
+            "enum": [
+              "ach",
+              "same-day-ach",
+              "wire-fedwire",
+              "wire-chips",
+              "card-debit",
+              "card-credit",
+              "fednow",
+              "rtp",
+              "p2p",
+              "check",
+              "cross-border-correspondent",
+              "virtual-currency-on-ramp",
+              "other"
+            ]
+          },
+          "inherent_risk": { "$ref": "#/$defs/risk_level" },
+          "top_failure_modes": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/failure_mode" }
+          },
+          "key_controls": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "residual_risk": { "$ref": "#/$defs/risk_level" },
+          "kris": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/kri_ref" }
+          },
+          "owner_role": { "type": "string" },
+          "source_citations": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/citation" }
+          }
+        }
+      }
+    },
+    "segment_rows": {
+      "type": "array",
+      "description": "Risk universe by customer segment. One row per segment in scope.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["segment", "inherent_risk", "residual_risk", "owner_role"],
+        "properties": {
+          "segment": {
+            "type": "string",
+            "enum": [
+              "consumer",
+              "smb",
+              "payroll-on-demand",
+              "gig-disbursement",
+              "bnpl-borrower",
+              "bnpl-merchant",
+              "cross-border-remittance-sender",
+              "cross-border-remittance-receiver",
+              "high-risk-vertical",
+              "other"
+            ]
+          },
+          "inherent_risk": { "$ref": "#/$defs/risk_level" },
+          "top_failure_modes": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/failure_mode" }
+          },
+          "key_controls": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "residual_risk": { "$ref": "#/$defs/risk_level" },
+          "kris": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/kri_ref" }
+          },
+          "owner_role": { "type": "string" },
+          "source_citations": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/citation" }
+          }
+        }
+      }
+    },
+    "geography_rows": {
+      "type": "array",
+      "description": "Risk universe by geography. One row per US state in scope plus one row per corridor country if cross-border.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jurisdiction", "licensing_posture", "residual_risk", "owner_role"],
+        "properties": {
+          "jurisdiction": {
+            "type": "string",
+            "description": "US state code (two-letter) or country name."
+          },
+          "jurisdiction_type": {
+            "type": "string",
+            "enum": ["us-state", "country"]
+          },
+          "licensing_posture": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mtl_status": {
+                "type": "string",
+                "enum": ["on-file", "pending", "not-required", "expired", "unknown"]
+              },
+              "nmls_id": { "type": "string" },
+              "mtl_expiration": { "type": "string", "format": "date" },
+              "last_state_exam_date": { "type": "string", "format": "date" },
+              "mtma_adoption_status": {
+                "type": "string",
+                "description": "Money Transmitter Modernization Act adoption status for the state. Verify state-by-state on the analysis date.",
+                "enum": ["adopted", "partial-adoption", "pending", "not-adopted", "not-applicable", "unknown"]
+              },
+              "msb_registration_current": { "type": "boolean" },
+              "state_dfi_registration": { "type": "string" },
+              "specialised_licences": {
+                "type": "array",
+                "description": "E.g., NYDFS BitLicense, CA DFPI under CFPL, state-specific EWA frameworks.",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "inherent_risk": { "$ref": "#/$defs/risk_level" },
+          "top_failure_modes": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/failure_mode" }
+          },
+          "key_controls": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "residual_risk": { "$ref": "#/$defs/risk_level" },
+          "kris": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/kri_ref" }
+          },
+          "owner_role": { "type": "string" },
+          "source_citations": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/citation" }
+          }
+        }
+      }
+    },
+    "concentration_views": {
+      "type": "object",
+      "description": "Three sub-tables. Each axis fails differently.",
+      "additionalProperties": false,
+      "required": ["sponsor_bank", "processor", "bin_sponsor"],
+      "properties": {
+        "sponsor_bank": { "$ref": "#/$defs/concentration_view" },
+        "processor": { "$ref": "#/$defs/concentration_view" },
+        "bin_sponsor": { "$ref": "#/$defs/concentration_view" }
+      }
+    },
+    "cross_cutting_risks": {
+      "type": "array",
+      "description": "Topics that cut across rails and segments. Risk owner, top KRIs, deep-dive skill reference.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "risk_owner_role"],
+        "properties": {
+          "topic": {
+            "type": "string",
+            "enum": ["fraud", "aml-sanctions", "operational-resilience", "customer-harm-udaap", "reporting-data-quality", "cyber"]
+          },
+          "risk_owner_role": { "type": "string" },
+          "top_kris": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/kri_ref" }
+          },
+          "deep_dive_skill_reference": {
+            "type": "string",
+            "description": "Plugin/skill path for the deep-dive (e.g., financial-crime-governance/aml-model-monitoring)."
+          },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "risk_appetite_posture": {
+      "type": "array",
+      "description": "Green / yellow / red read across top-quintile cells of the matrix.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cell_reference", "status"],
+        "properties": {
+          "cell_reference": {
+            "type": "string",
+            "description": "Free-form reference to a specific cell or row, e.g., 'rail:ach segment:consumer geography:NY'."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["green", "yellow", "red", "evidence-needed"]
+          },
+          "trigger_conditions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "kri_dictionary": {
+      "type": "array",
+      "description": "KRI definitions with source, threshold, owner, and cadence.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kri_id", "definition", "owner_role"],
+        "properties": {
+          "kri_id": { "type": "string" },
+          "definition": { "type": "string" },
+          "source_system": { "type": "string" },
+          "threshold": {
+            "type": "string",
+            "description": "Numeric threshold or '[evidence needed]' if firm appetite is not on file."
+          },
+          "owner_role": { "type": "string" },
+          "cadence": {
+            "type": "string",
+            "enum": ["daily", "weekly", "monthly", "quarterly", "semi-annual", "annual", "event-driven"]
+          },
+          "reporting_audience": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["board", "erc", "sponsor-bank-operating-committee", "sponsor-bank-tprm", "state-mtl-annual-report", "cfpb-exams", "internal-audit", "other"]
+            }
+          }
+        }
+      }
+    },
+    "remediation_portfolio": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["risk_reference", "action", "owner_role"],
+        "properties": {
+          "risk_reference": { "type": "string" },
+          "action": { "type": "string" },
+          "owner_role": { "type": "string" },
+          "target_date": { "type": "string", "format": "date" },
+          "evidence_link": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "in-progress", "complete", "deferred", "cancelled"]
+          }
+        }
+      }
+    },
+    "open_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "owner_role"],
+        "properties": {
+          "description": { "type": "string" },
+          "owner_role": { "type": "string" },
+          "target_date": { "type": "string", "format": "date" }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "severity", "owner_role"],
+        "properties": {
+          "description": { "type": "string" },
+          "source_citation": { "$ref": "#/$defs/citation" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "moderate", "high", "critical"]
+          },
+          "owner_role": { "type": "string" },
+          "target_close_date": { "type": "string", "format": "date" }
+        }
+      }
+    },
+    "s1033_status_note": {
+      "type": "string",
+      "description": "Repeating block. Names the firm's role under §1033 (data provider, data recipient, both, none) and the implementation tier date as of the analysis date. The Personal Financial Data Rights Final Rule was finalised October 22, 2024; the docket has been active and tier dates may have shifted. Verify on each engagement and date-stamp the citation."
+    },
+    "msb_status_note": {
+      "type": "string",
+      "description": "Repeating block. Names the configuration-specific MSB posture against the FinCEN administrative-ruling library and the state-by-state MTL footprint via NMLS. Categorical assertions are wrong."
+    },
+    "recommended_disposition": {
+      "type": "string",
+      "enum": ["baseline-accepted", "accept-with-conditions", "remediate-then-re-baseline", "escalate"]
+    },
+    "approver_role": {
+      "type": "string",
+      "description": "Per firm policy. Examples: head of payments compliance, BSA officer, sponsor-bank operating committee, board risk committee."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "source_citations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/citation" }
+    }
+  },
+  "$defs": {
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "moderate", "high", "critical", "unknown", "evidence-needed"]
+    },
+    "failure_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string" },
+        "rail_specific": { "type": "boolean" },
+        "source_citation": { "$ref": "#/$defs/citation" }
+      }
+    },
+    "kri_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kri_id"],
+      "properties": {
+        "kri_id": { "type": "string" },
+        "current_value": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["green", "yellow", "red", "no-baseline", "evidence-needed"]
+        }
+      }
+    },
+    "concentration_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "top_n_share", "scenario_impact"],
+      "properties": {
+        "axis": {
+          "type": "string",
+          "enum": ["sponsor-bank", "processor", "bin-sponsor"]
+        },
+        "top_n_share": {
+          "type": "array",
+          "description": "Top-N counterparty share by relevant denominator (deposits, volume, value, customer count, outstanding cards).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "counterparty_role": { "type": "string" },
+              "denominator": {
+                "type": "string",
+                "enum": ["deposits", "transaction-volume", "transaction-value", "customer-count", "outstanding-cards"]
+              },
+              "share_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+            }
+          }
+        },
+        "scenario_impact": {
+          "type": "string",
+          "description": "Free-form description of impact under single-counterparty exit, outage, or program escalation."
+        },
+        "appetite_posture": {
+          "type": "string",
+          "enum": ["within-appetite", "watch", "breach", "evidence-needed"]
+        },
+        "redundancy_status": {
+          "type": "string",
+          "description": "E.g., dual-sponsor architecture status, rail-by-rail processor redundancy, debit-vs-credit BIN separation."
+        },
+        "cross_link": {
+          "type": "string",
+          "description": "Pointer to the concentration-risk-review record where the portfolio-level analysis sits.",
+          "default": "third-party-operational-resilience/concentration-risk-review"
+        }
+      }
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": { "type": "string" },
+        "section": { "type": "string" },
+        "retrieval_date": { "type": "string", "format": "date" },
+        "url": { "type": "string", "format": "uri" },
+        "verify_flag": {
+          "type": "boolean",
+          "description": "True if the citation carries a [verify section] flag in the source-anchors file."
+        },
+        "paywalled_disclaimer": {
+          "type": "boolean",
+          "description": "True for NACHA and card-network rulebook citations. Carries the 'current edition; specific sections to be confirmed against the firm's licensed copy' disclaimer."
+        }
+      }
+    }
+  }
+}

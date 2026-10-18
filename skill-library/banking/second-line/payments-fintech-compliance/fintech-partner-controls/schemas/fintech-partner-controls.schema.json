@@ -1,0 +1,528 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/sector-plugins/payments-fintech-compliance/skills/fintech-partner-controls/schemas/fintech-partner-controls.schema.json",
+  "title": "fintech-partner-controls",
+  "description": "Structured fintech-side controls evidence pack for production to a sponsor bank's third-party risk function. Carries the control inventory, the program-agreement control map, customer-protection evidence, FBO reconciliation evidence, NACHA return-rate evidence, BSA / AML / sanctions evidence, the subcontractor register, sponsor-bank reporting cadence, the 12-month incident-history summary, and the self-evidence index. Downstream consumers: the sponsor bank's TPRM system; payment-operations-incident-review; payments-risk-assessment; concentration-risk-review; vendor-diligence (with the payments-fintech overlay).",
+  "type": "object",
+  "required": [
+    "program_id",
+    "program_role",
+    "as_of_date",
+    "review_trigger",
+    "sponsor_banks",
+    "control_inventory",
+    "program_agreement_map",
+    "sponsor_bank_reporting_cadence",
+    "self_evidence_index",
+    "recommended_disposition",
+    "confidence_label"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "program_id": {
+      "type": "string",
+      "description": "Stable identifier for the payments program. Reused across payments-risk-assessment, payment-operations-incident-review, and concentration-risk-review.",
+      "minLength": 1
+    },
+    "engagement_id": {
+      "type": "string",
+      "description": "Optional pointer to the scope record. Empty if scope was not formalised."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the pack was last revised."
+    },
+    "review_trigger": {
+      "type": "string",
+      "enum": [
+        "annual-sponsor-bank-review",
+        "sponsor-bank-led-audit",
+        "state-mtl-exam",
+        "sponsor-bank-questionnaire",
+        "processor-led-review",
+        "internal-audit-kickoff",
+        "post-incident-sponsor-bank-request",
+        "new-rail-delta",
+        "new-product-delta",
+        "new-sponsor-onboarding"
+      ],
+      "description": "Why the pack is being produced. Drives audience and depth."
+    },
+    "program_role": {
+      "type": "string",
+      "enum": [
+        "fintech-program-operator",
+        "baas-platform",
+        "program-manager",
+        "wallet-operator",
+        "neobank",
+        "payments-processor",
+        "money-transmitter-only",
+        "bnpl-provider",
+        "payroll-on-demand-provider",
+        "cross-border-remittance-provider",
+        "virtual-currency-on-ramp",
+        "other"
+      ],
+      "description": "Operator role. Drives which control families apply."
+    },
+    "audience": {
+      "type": "string",
+      "description": "Primary consumer of the pack. Sponsor-bank TPRM is the default."
+    },
+    "owner_role": {
+      "type": "string",
+      "description": "Role on the operator side that owns the pack."
+    },
+    "approver_role": {
+      "type": "string",
+      "description": "Role on the operator side that signs off the pack."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Operator-side confidence in the pack's completeness."
+    },
+    "s1033_status_note": {
+      "type": "string",
+      "description": "Names the firm's role under §1033 and the implementation tier date as of the analysis date. The Personal Financial Data Rights Final Rule was finalised October 22, 2024; verify current docket status on the analysis date."
+    },
+    "msb_mtl_status_note": {
+      "type": "string",
+      "description": "Names the configuration-specific MSB posture against the FinCEN administrative-ruling library and the state-by-state MTL footprint via NMLS. Categorical MSB-vs-not assertions are wrong; this is fact-pattern-specific."
+    },
+    "program_summary": {
+      "type": "object",
+      "description": "Program facts. Each field is open-text and may be empty if not yet captured.",
+      "additionalProperties": false,
+      "properties": {
+        "processors_named_by_role": {"type": "string"},
+        "bin_sponsors_named_by_role": {"type": "string"},
+        "ledger_provider_role": {"type": "string"},
+        "kyc_cip_vendor_role": {"type": "string"},
+        "fraud_decision_vendor_role": {"type": "string"},
+        "sanctions_screening_vendor_role": {"type": "string"},
+        "complaint_management_vendor_role": {"type": "string"},
+        "geographic_footprint_states": {"type": "array", "items": {"type": "string"}},
+        "geographic_footprint_corridors": {"type": "array", "items": {"type": "string"}},
+        "customer_base_size_by_segment": {"type": "string"},
+        "current_cycle_volume_by_rail": {"type": "string"}
+      }
+    },
+    "sponsor_banks": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Each sponsor bank named by role with charter type and program-agreement metadata.",
+      "items": {
+        "type": "object",
+        "required": ["bank_role", "charter_type", "agreement_type"],
+        "additionalProperties": false,
+        "properties": {
+          "bank_role": {"type": "string", "description": "Named by role, not by brand."},
+          "charter_type": {
+            "type": "string",
+            "enum": [
+              "national-bank",
+              "state-member",
+              "state-non-member",
+              "state-chartered-ilc",
+              "thrift",
+              "other"
+            ]
+          },
+          "agreement_type": {
+            "type": "string",
+            "enum": ["baas", "sponsor", "processor", "other"]
+          },
+          "agreement_effective_date": {"type": "string", "format": "date"},
+          "primary_federal_regulator": {"type": "string"}
+        }
+      }
+    },
+    "licensing_posture": {
+      "type": "object",
+      "description": "Fintech-side licensing posture. State-by-state MTL detail goes here; categorical MSB assertions do not.",
+      "additionalProperties": false,
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["state"],
+            "additionalProperties": false,
+            "properties": {
+              "state": {"type": "string"},
+              "mtl_status": {"type": "string"},
+              "nmls_id": {"type": "string"},
+              "expiration_date": {"type": "string", "format": "date"},
+              "last_exam_date": {"type": "string", "format": "date"},
+              "mtma_adoption_status": {"type": "string"},
+              "specialised_licences": {"type": "array", "items": {"type": "string"}},
+              "open_findings": {"type": "string"}
+            }
+          }
+        },
+        "fincen_msb_registration": {"type": "string", "description": "Configuration-specific posture. Capture as fact, not as legal conclusion."},
+        "cfpb_larger_participant_designation": {"type": "string", "description": "Where the December 2024 CFPB final rule designates the firm. Verify on the analysis date."}
+      }
+    },
+    "control_inventory": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per control. The load-bearing tab.",
+      "items": {
+        "type": "object",
+        "required": [
+          "control_id",
+          "control_family",
+          "regulatory_anchor",
+          "control_description",
+          "control_owner_role"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "control_id": {"type": "string"},
+          "control_family": {"type": "string", "description": "reg-e / reg-dd / reg-ii / reg-z / reg-cc / nacha-* / card-* / fednow / rtp / p2p / check / cross-border / vc-on-ramp / fbo-mechanics / bsa-* / sanctions-screening / udaap-* / cyber-notification / privacy-* / vendor-oversight / program-agreement / sponsor-bank-reporting"},
+          "rail_or_product": {"type": "string"},
+          "regulatory_anchor": {"type": "string", "description": "File-path citation into references/source-anchors.md or an overlay file."},
+          "control_description": {"type": "string"},
+          "control_owner_role": {"type": "string"},
+          "sponsor_bank_recipient_role": {"type": "string"},
+          "evidence_artifact": {"type": "string"},
+          "evidence_source_system": {"type": "string"},
+          "evidence_freshness_flag": {
+            "type": "string",
+            "enum": ["current", "aging", "stale", "not-on-file"]
+          },
+          "last_refreshed_date": {"type": "string", "format": "date"},
+          "frequency": {
+            "type": "string",
+            "enum": ["continuous", "daily", "weekly", "monthly", "quarterly", "annual", "event-triggered"]
+          },
+          "kri": {"type": "string"},
+          "kri_threshold": {"type": "string", "description": "Numeric or '[evidence needed]'."},
+          "kri_current_value": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["within-appetite", "watch", "breach", "evidence-needed"]
+          },
+          "gap_severity": {
+            "type": "string",
+            "enum": ["none", "low", "moderate", "high", "critical"]
+          },
+          "gap_description": {"type": "string"},
+          "target_close_date": {"type": "string", "format": "date"},
+          "notes": {"type": "string", "description": "Paywalled-rule disclaimer, [verify section] flags, cross-references."}
+        }
+      }
+    },
+    "program_agreement_map": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per material clause read against current operating reality.",
+      "items": {
+        "type": "object",
+        "required": ["clause_topic", "present_absent_partial"],
+        "additionalProperties": false,
+        "properties": {
+          "clause_id": {"type": "string"},
+          "clause_topic": {
+            "type": "string",
+            "enum": [
+              "oversight-and-audit",
+              "change-control",
+              "termination-and-exit",
+              "indemnification",
+              "regulatory-cooperation",
+              "customer-data-ownership",
+              "sub-contractor-flow-down",
+              "insurance",
+              "dispute-and-complaint-routing",
+              "fbo-architecture",
+              "sponsor-bank-reporting",
+              "other"
+            ]
+          },
+          "expectation_under_tprm_guidance": {"type": "string"},
+          "present_absent_partial": {
+            "type": "string",
+            "enum": ["present", "absent", "partial", "not-applicable"]
+          },
+          "evidence_of_adherence": {"type": "string"},
+          "gap_severity": {
+            "type": "string",
+            "enum": ["none", "low", "moderate", "high", "critical"]
+          },
+          "gap_description": {"type": "string"},
+          "owner_role": {"type": "string"},
+          "target_close_date": {"type": "string", "format": "date"},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "customer_protection_evidence": {
+      "type": "array",
+      "description": "Reg E §1005.11 timing evidence and parallel customer-protection rows. One entry per period.",
+      "items": {
+        "type": "object",
+        "required": ["period"],
+        "additionalProperties": false,
+        "properties": {
+          "period": {"type": "string"},
+          "total_disputes_received": {"type": "string"},
+          "disputes_resolved_within_10_business_days": {"type": "string"},
+          "disputes_provisionally_credited_within_10_business_days": {"type": "string"},
+          "disputes_resolved_within_45_calendar_days": {"type": "string"},
+          "disputes_in_90_day_window_resolved": {"type": "string"},
+          "written_notification_timing_breaches": {"type": "string"},
+          "aging_by_stage": {"type": "string"},
+          "kri_threshold": {"type": "string"},
+          "kri_current_value": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["within-appetite", "watch", "breach", "evidence-needed"]
+          },
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "fbo_reconciliation_evidence": {
+      "type": "array",
+      "description": "Daily reconciliation summary plus exception aging.",
+      "items": {
+        "type": "object",
+        "required": ["date"],
+        "additionalProperties": false,
+        "properties": {
+          "date": {"type": "string", "format": "date"},
+          "reconciliation_completed_yn": {"type": "string"},
+          "breaks_opened": {"type": "string"},
+          "breaks_resolved_within_sla": {"type": "string"},
+          "breaks_aged_past_sla": {"type": "string"},
+          "pass_through_eligibility_evidence": {"type": "string"},
+          "marketing_claim_review_status": {"type": "string"},
+          "escheatment_status_by_state": {"type": "string"}
+        }
+      }
+    },
+    "nacha_return_rate_evidence": {
+      "type": "array",
+      "description": "Monthly NACHA return-rate monitoring. Paywalled — current edition; specific sections to be confirmed against the firm's licensed copy.",
+      "items": {
+        "type": "object",
+        "required": ["period"],
+        "additionalProperties": false,
+        "properties": {
+          "period": {"type": "string"},
+          "administrative_return_rate": {"type": "string"},
+          "overall_return_rate": {"type": "string"},
+          "unauthorised_return_rate": {"type": "string"},
+          "web_debit_account_validation_coverage_rate": {"type": "string"},
+          "same_day_ach_per_transaction_dollar_limit_breaches": {"type": "string"},
+          "kri_threshold": {"type": "string"},
+          "kri_current_value": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["within-appetite", "watch", "breach", "evidence-needed"]
+          }
+        }
+      }
+    },
+    "bsa_aml_sanctions_evidence": {
+      "type": "array",
+      "description": "Monthly BSA / AML / sanctions evidence. SAR-filing chain captured as fact, not as legal conclusion.",
+      "items": {
+        "type": "object",
+        "required": ["period"],
+        "additionalProperties": false,
+        "properties": {
+          "period": {"type": "string"},
+          "cip_coverage_rate": {"type": "string"},
+          "monitoring_alert_volume": {"type": "string"},
+          "sar_filings_count_and_aging": {"type": "string"},
+          "sanctions_hit_volume": {"type": "string"},
+          "ofac_list_update_sla_days": {"type": "string"},
+          "travel_rule_threshold_compliance": {"type": "string"}
+        }
+      }
+    },
+    "subcontractor_register": {
+      "type": "array",
+      "description": "Material vendors. Treated as fourth parties from the sponsor bank's perspective.",
+      "items": {
+        "type": "object",
+        "required": ["vendor_role", "function", "criticality"],
+        "additionalProperties": false,
+        "properties": {
+          "vendor_role": {"type": "string", "description": "Named by function, not by brand."},
+          "function": {"type": "string"},
+          "criticality": {
+            "type": "string",
+            "enum": ["critical", "high", "moderate", "low"]
+          },
+          "most_recent_soc_2_audit_period": {"type": "string"},
+          "soc_2_opinion": {
+            "type": "string",
+            "enum": ["unqualified", "qualified", "not-applicable", "not-on-file"]
+          },
+          "open_exceptions": {"type": "string"},
+          "contract_clause_coverage": {"type": "string"},
+          "last_oversight_review_date": {"type": "string", "format": "date"},
+          "evidence_freshness_flag": {
+            "type": "string",
+            "enum": ["current", "aging", "stale", "not-on-file"]
+          }
+        }
+      }
+    },
+    "sponsor_bank_reporting_cadence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Each load-bearing report the operator owes the sponsor bank.",
+      "items": {
+        "type": "object",
+        "required": ["report_name", "cadence", "recipient_role_at_sponsor_bank"],
+        "additionalProperties": false,
+        "properties": {
+          "report_name": {"type": "string"},
+          "definition": {"type": "string"},
+          "source_system": {"type": "string"},
+          "threshold": {"type": "string"},
+          "owner_role": {"type": "string"},
+          "cadence": {
+            "type": "string",
+            "enum": ["daily", "weekly", "monthly", "quarterly", "annual", "event-triggered"]
+          },
+          "recipient_role_at_sponsor_bank": {"type": "string"},
+          "last_delivered_date": {"type": "string", "format": "date"},
+          "evidence_freshness_flag": {
+            "type": "string",
+            "enum": ["current", "aging", "stale", "not-on-file"]
+          }
+        }
+      }
+    },
+    "incident_history": {
+      "type": "array",
+      "description": "Rolling 12-month incident-history summary. Per-incident workflow lives in payment-operations-incident-review.",
+      "items": {
+        "type": "object",
+        "required": ["incident_date"],
+        "additionalProperties": false,
+        "properties": {
+          "incident_id": {"type": "string"},
+          "incident_date": {"type": "string", "format": "date"},
+          "detection_date": {"type": "string", "format": "date"},
+          "root_cause": {"type": "string"},
+          "customer_impact_population": {"type": "string"},
+          "customer_impact_dollar": {"type": "string"},
+          "sponsor_bank_notification_time_vs_clock": {"type": "string"},
+          "regulatory_notification_posture": {"type": "string"},
+          "remediation_status": {
+            "type": "string",
+            "enum": ["open", "in-progress", "closed"]
+          },
+          "read_across_control_families": {"type": "string"}
+        }
+      }
+    },
+    "self_evidence_index": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The bridge between the inventory and the artifacts. One entry per evidence artifact named anywhere in the inventory.",
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "artifact_name", "artifact_owner_role"],
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {"type": "string"},
+          "linked_control_ids": {"type": "array", "items": {"type": "string"}},
+          "artifact_name": {"type": "string"},
+          "artifact_owner_role": {"type": "string"},
+          "location": {"type": "string"},
+          "last_refreshed_date": {"type": "string", "format": "date"},
+          "freshness_flag": {
+            "type": "string",
+            "enum": ["current", "aging", "stale", "not-on-file"]
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Open gaps. Each carries severity, owner, target close date, and a citation by file path.",
+      "items": {
+        "type": "object",
+        "required": ["description", "source_citation", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "gap_id": {"type": "string"},
+          "linked_control_id": {"type": "string"},
+          "description": {"type": "string"},
+          "source_citation": {"type": "string", "description": "File-path citation into references/source-anchors.md or an overlay file."},
+          "severity": {
+            "type": "string",
+            "enum": ["low", "moderate", "high", "critical"]
+          },
+          "owner_role": {"type": "string"},
+          "target_close_date": {"type": "string", "format": "date"},
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "in-progress", "complete"]
+          }
+        }
+      }
+    },
+    "open_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description"],
+        "additionalProperties": false,
+        "properties": {
+          "description": {"type": "string"},
+          "owner_role": {"type": "string"},
+          "target_date": {"type": "string", "format": "date"}
+        }
+      }
+    },
+    "recommended_disposition": {
+      "type": "string",
+      "enum": [
+        "ready-for-sponsor-bank-review",
+        "ready-with-conditions",
+        "remediate-then-re-review",
+        "not-ready"
+      ],
+      "description": "Second-line draft recommendation. The named approver decides."
+    },
+    "conditions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Conditions attached to a ready-with-conditions disposition."
+    },
+    "source_citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {"type": "string"},
+          "source": {"type": "string"},
+          "section": {"type": "string"},
+          "retrieval_date": {"type": "string", "format": "date"},
+          "url_or_file_ref": {"type": "string"},
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

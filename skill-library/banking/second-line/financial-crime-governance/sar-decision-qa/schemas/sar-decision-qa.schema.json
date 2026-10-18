@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/capability-plugins/financial-crime-governance/skills/sar-decision-qa/schemas/sar-decision-qa.schema.json",
+  "title": "sar-decision-qa",
+  "description": "Structured second-line QA record for a single SAR / no-SAR decision file. Captures alert summary, customer and account context, investigation steps, evidence considered, disposition (filed / not-filed-closed / closed-with-continuing-review / escalated-pending), decision rationale, confidentiality posture, continuing-activity posture, QA reviewer findings, material gaps, and the QA recommendation. The skill produces QA artifacts only; the BSA officer or designated decisionmaker files, amends, declines, or closes any SAR.",
+  "type": "object",
+  "required": [
+    "alert_id",
+    "alert_type",
+    "disposition",
+    "decision_rationale",
+    "qa_findings",
+    "recommendation",
+    "confidence_label"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "alert_id": {
+      "type": "string",
+      "description": "Canonical alert identifier (placeholder for sample). Stable across QA cycles.",
+      "minLength": 1
+    },
+    "engagement_id": {
+      "type": "string",
+      "description": "Optional pointer to the scope record under which this QA was produced."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the QA review was last revised."
+    },
+    "review_type": {
+      "type": "string",
+      "enum": [
+        "sample-qa",
+        "targeted-typology-review",
+        "continuing-activity-cadence-review",
+        "exam-readiness-review",
+        "post-event-re-review"
+      ],
+      "description": "Why this QA is being produced. Drives sample selection and depth."
+    },
+    "alert_type": {
+      "type": "string",
+      "enum": [
+        "transaction_monitoring",
+        "referral_internal",
+        "referral_external",
+        "manual_detection",
+        "negative_news",
+        "sanctions_adjacent",
+        "other"
+      ],
+      "description": "Origin of the alert. Drives the investigation-step expectation set."
+    },
+    "scenario_name": {
+      "type": "string",
+      "description": "Monitoring scenario or rule that generated the alert. Null when non-system."
+    },
+    "monetary_footprint": {
+      "type": "object",
+      "description": "Financial scale of the activity under review.",
+      "additionalProperties": false,
+      "properties": {
+        "aggregate_amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "time_window": { "type": "string" },
+        "transaction_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer identifier (placeholder for sample)."
+    },
+    "customer_segment": {
+      "type": "string",
+      "description": "Segment per the firm's CDD risk model: e.g., consumer-low-risk, small-business-medium-risk, MSB, correspondent, private-banking, foreign-PEP-related."
+    },
+    "prior_sar_history": {
+      "type": "array",
+      "description": "Prior SAR filings at the customer or related-party level. Drives the continuing-activity read.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "filing_count": { "type": "integer", "minimum": 0 },
+          "first_filing_date": { "type": "string", "format": "date" },
+          "most_recent_filing_date": { "type": "string", "format": "date" },
+          "typologies": { "type": "array", "items": { "type": "string" } },
+          "related_party_scope": { "type": "string" }
+        }
+      }
+    },
+    "investigation_steps": {
+      "type": "array",
+      "description": "Dated, attributed investigation steps with evidence pointers. A free-text paragraph is not enough to QA against the timeline.",
+      "items": {
+        "type": "object",
+        "required": ["step_description", "step_date"],
+        "additionalProperties": false,
+        "properties": {
+          "step_description": { "type": "string" },
+          "step_date": { "type": "string", "format": "date" },
+          "performer_role": { "type": "string", "description": "Role, not person." },
+          "evidence_pointer": { "type": "string", "description": "System-of-record reference, document ID, or file path." }
+        }
+      }
+    },
+    "evidence_considered": {
+      "type": "array",
+      "description": "Categories of evidence the investigator pulled or reviewed.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "system-of-record-extract",
+          "transaction-detail",
+          "kyc-cdd-file",
+          "edd-file",
+          "negative-news-search",
+          "internal-referral",
+          "law-enforcement-liaison",
+          "sanctions-screening-output",
+          "fraud-system-output",
+          "customer-interview",
+          "public-record-search",
+          "open-source-intelligence",
+          "subpoena-or-314a",
+          "other"
+        ]
+      }
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "filed",
+        "not_filed_closed",
+        "closed_with_continuing_review",
+        "escalated_pending"
+      ],
+      "description": "What the BSA program did with the alert. The QA reviews this disposition; it does not set, change, or recommend a change to it as a directive."
+    },
+    "filing_window_status": {
+      "type": "string",
+      "enum": [
+        "within-30-day-window",
+        "within-60-day-window-no-suspect",
+        "late",
+        "not-applicable",
+        "unknown"
+      ],
+      "description": "Where disposition is filed: timing posture against the 30-day rule (60 days where no suspect identified). For other dispositions: not-applicable."
+    },
+    "decision_rationale": {
+      "type": "object",
+      "description": "What the rationale says and how it cites typology and advisory.",
+      "additionalProperties": false,
+      "properties": {
+        "typology": {
+          "type": "string",
+          "description": "Named typology cited (e.g., structuring, layering, trade-based money laundering, account takeover, ransomware, elder financial exploitation, sanctions evasion via virtual currency)."
+        },
+        "advisory_reference": {
+          "type": "string",
+          "description": "FinCEN advisory or other public-source reference cited in the narrative, dated."
+        },
+        "narrative_summary": {
+          "type": "string",
+          "description": "One-paragraph plain-language summary of the rationale as written in the decision file."
+        },
+        "narrative_coherence_label": {
+          "type": "string",
+          "enum": ["coherent", "generic", "incoherent", "missing"],
+          "description": "QA judgment on whether the narrative ties evidence to typology to disposition."
+        }
+      }
+    },
+    "confidentiality_posture": {
+      "type": "object",
+      "description": "31 USC 5318(g) confidentiality and tipping-off posture for this decision.",
+      "additionalProperties": false,
+      "properties": {
+        "tipping_off_risk_assessed": {
+          "type": "boolean",
+          "description": "True only when the file evidences a tipping-off assessment specific to this decision (especially in fraud-recovery, EDD-overlap, and law-enforcement-liaison cases)."
+        },
+        "internal_access_controls_documented": {
+          "type": "boolean",
+          "description": "True when the file evidences need-to-know access controls on the SAR record."
+        },
+        "notification_avoidance_controls": {
+          "type": "string",
+          "description": "Free-text note on the controls in place: messaging-template restrictions, customer-call scripts, account-action language."
+        }
+      }
+    },
+    "continuing_activity": {
+      "type": "object",
+      "description": "Continuing-activity posture per the 90-day continuing-review expectation.",
+      "additionalProperties": false,
+      "properties": {
+        "prior_sar_link": {
+          "type": "string",
+          "description": "Reference to prior SAR(s) this alert relates to. Empty when none."
+        },
+        "last_continuing_review_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of the most recent continuing-review entry. Reviews concluding 'no continuing activity' are still papered."
+        },
+        "next_review_due": {
+          "type": "string",
+          "format": "date",
+          "description": "Date the next continuing review falls due."
+        },
+        "review_cadence_status": {
+          "type": "string",
+          "enum": ["current", "overdue", "not-applicable"],
+          "description": "Whether the 90-day cadence is being met."
+        }
+      }
+    },
+    "qa_findings": {
+      "type": "array",
+      "description": "Criteria-aligned findings against the alert decision file. Each finding ties to a named criterion, not to a generic 'quality' bucket.",
+      "items": {
+        "type": "object",
+        "required": ["finding_description", "criterion", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_description": { "type": "string" },
+          "criterion": {
+            "type": "string",
+            "enum": [
+              "timeliness",
+              "investigation-completeness",
+              "related-party-search",
+              "evidence-pointer",
+              "narrative-coherence",
+              "typology-citation",
+              "advisory-citation",
+              "structured-field-completeness",
+              "confidentiality-tipping-off",
+              "continuing-activity-cadence",
+              "continuing-activity-documentation",
+              "edd-cdd-cross-reference",
+              "law-enforcement-liaison-handling",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["material", "moderate", "minor", "observation"]
+          },
+          "evidence_pointer": {
+            "type": "string",
+            "description": "Where in the decision file the finding is evidenced."
+          }
+        }
+      }
+    },
+    "material_gaps": {
+      "type": "array",
+      "description": "Specific evidence or documentation the QA reviewer flagged as missing. Each item carries the criterion it bears on.",
+      "items": {
+        "type": "object",
+        "required": ["gap_description", "criterion"],
+        "additionalProperties": false,
+        "properties": {
+          "gap_description": { "type": "string" },
+          "criterion": { "type": "string" }
+        }
+      }
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "no_further_action",
+        "re_open_investigation",
+        "escalate_to_sar_review_committee",
+        "training_feedback",
+        "process_change_recommendation"
+      ],
+      "description": "QA recommendation. The recommendation is consultative input to the BSA officer or SAR review committee. The skill does not file, decline, amend, supplement, or close any SAR."
+    },
+    "recommendation_notes": {
+      "type": "string",
+      "description": "Detail behind the recommendation: what to escalate, what training feedback to give, what process change to consider."
+    },
+    "review_gates": {
+      "type": "array",
+      "description": "Named human-review gates this QA artifact must clear before the recommendation is acted on. Drawn from references/review-gates.md when present.",
+      "items": {
+        "type": "string",
+        "enum": ["scope", "evidence", "authority", "impact", "decision"]
+      }
+    },
+    "owner": {
+      "type": "string",
+      "description": "Role of the QA reviewer. E.g., second-line BSA QA reviewer, internal audit secondee, advisory engagement manager."
+    },
+    "approver": {
+      "type": "string",
+      "description": "Role that signs off the QA artifact. Typically BSA officer, head of financial-crime QA, or SAR review committee chair, depending on the firm."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Confidence in the QA read, per references/review-gates.md when present."
+    },
+    "source_trace": {
+      "type": "array",
+      "description": "Citations supporting material claims in the QA. Every claim should be traceable.",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": { "type": "string" },
+          "source": { "type": "string" },
+          "section": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "url": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}

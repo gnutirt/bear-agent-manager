@@ -1,0 +1,35 @@
+course:
+  id: machine-learning-beginners
+  name: Machine Learning
+  audience: University students
+  level: Beginner
+
+schedule:
+  total_hours: 12
+  sessions: 6
+  session_duration: 2h
+
+delivery:
+  mode: offline
+  class_size: 30
+  internet: true
+  hardware: laptops (student-owned or lab)
+  software: Python 3.11, Jupyter, scikit-learn, pandas, matplotlib
+
+artifacts:
+  slides: true
+  notebooks: auto
+  assessments: true
+  instructor_guide: true
+
+research:
+  enabled: false
+
+status:
+  outline: approved
+  sessions: in_progress
+  activities: in_progress
+  notebooks: in_progress
+  slides: in_progress
+  assessments: in_progress
+  review: in_progress

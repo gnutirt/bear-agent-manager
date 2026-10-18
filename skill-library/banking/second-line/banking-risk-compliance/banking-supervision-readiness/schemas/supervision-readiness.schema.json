@@ -1,0 +1,455 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/supervision-readiness.schema.json",
+  "title": "Banking supervision readiness pack",
+  "description": "Structured record of a US bank or BHC supervision-readiness pack. Reuses issue.schema.json for examiner-letter findings and control.schema.json for evidence pointers. Owner: sector-plugins/banking-risk-compliance.",
+  "type": "object",
+  "required": [
+    "pack_id",
+    "pack_date",
+    "institution",
+    "cycle",
+    "source_posture",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "pack_id": {
+      "type": "string",
+      "description": "Stable identifier for this supervision-readiness pack."
+    },
+    "pack_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date the pack was last attested or revised."
+    },
+    "institution": {
+      "type": "object",
+      "required": ["type", "primary_federal_regulator", "asset_size_band", "heightened_standards_applicable"],
+      "additionalProperties": false,
+      "properties": {
+        "legal_name_placeholder": {"type": "string"},
+        "type": {
+          "type": "string",
+          "enum": ["national-bank", "state-member-bank", "state-non-member-bank", "federal-savings-association", "state-savings-association", "BHC", "SLHC", "IHC"]
+        },
+        "primary_federal_regulator": {
+          "type": "string",
+          "enum": ["OCC", "FRB", "FDIC"]
+        },
+        "state_supervisor": {"type": "string"},
+        "charter": {"type": "string"},
+        "asset_size_band": {
+          "type": "string",
+          "enum": ["<10B", "10B-50B", "50B-100B", "100B-250B", ">250B"]
+        },
+        "heightened_standards_applicable": {
+          "type": "string",
+          "enum": ["yes", "approaching", "no"],
+          "description": "12 CFR Part 30 Appendix D applies at $50B+ avg total consolidated assets. 'Approaching' triggers a forward-looking readiness section."
+        },
+        "tailoring_category": {
+          "type": "string",
+          "enum": ["category-I", "category-II", "category-III", "category-IV", "not-applicable"],
+          "description": "FRB tailoring framework category for the BHC, post-EGRRCPA. Verify at write time."
+        },
+        "geographic_footprint": {"type": "string"}
+      }
+    },
+    "cycle": {
+      "type": "object",
+      "required": ["type", "rated_framework", "fieldwork_window", "review_period"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["full-scope", "targeted", "point-in-time", "BHC-supervisory", "BSA-AML", "IT", "consumer-compliance", "CRA", "fair-lending"]
+        },
+        "rated_framework": {
+          "type": "string",
+          "enum": ["CAMELS", "BHC-rated-framework"]
+        },
+        "examiner_in_charge_role": {"type": "string"},
+        "supervisory_office": {"type": "string"},
+        "fieldwork_window": {
+          "type": "object",
+          "required": ["start_date", "end_date"],
+          "additionalProperties": false,
+          "properties": {
+            "start_date": {"type": "string", "format": "date"},
+            "end_date": {"type": "string", "format": "date"}
+          }
+        },
+        "review_period": {
+          "type": "object",
+          "required": ["start_date", "end_date"],
+          "additionalProperties": false,
+          "properties": {
+            "start_date": {"type": "string", "format": "date"},
+            "end_date": {"type": "string", "format": "date"}
+          }
+        },
+        "topical_readiness_slices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["BSA-AML", "IT", "consumer-compliance", "CRA", "fair-lending", "third-party-risk"]
+          },
+          "uniqueItems": true
+        },
+        "cross_cutting_overlays_loaded": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["cyber", "privacy", "conduct"]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "source_posture": {
+      "type": "string",
+      "enum": ["public-only", "public-plus-firm-policy", "public-plus-firm-policy-plus-evidence", "connector-aware"]
+    },
+    "access_population": {
+      "type": "string",
+      "description": "The audience the pack is cleared for. Constrains CSI references under 12 CFR Part 4 Subpart C / Part 261 / Part 309."
+    },
+    "executive_summary": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 0,
+      "maxItems": 7
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "camels_components": {
+      "type": "array",
+      "description": "One entry per CAMELS component for a depository-institution cycle. Required for cycle.rated_framework == CAMELS.",
+      "items": {
+        "type": "object",
+        "required": ["component", "component_summary", "public_criteria", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": ["C", "A", "M", "E", "L", "S"]
+          },
+          "component_summary": {"type": "string"},
+          "public_criteria": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Citations to source-anchors.md by path; mark unconfirmed section labels [verify section]."
+          },
+          "evidence_inventory": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "open_issue_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Foreign keys to issue.schema.json records."
+          },
+          "trend": {
+            "type": "string",
+            "enum": ["improving", "stable", "deteriorating", "unknown"]
+          },
+          "reviewer_questions": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    "bhc_components": {
+      "type": "array",
+      "description": "One entry per BHC rated component for a holding-company cycle. Required for cycle.rated_framework == BHC-rated-framework. Verify the operative FRB rating system at write time (RFI/C(D) or successor).",
+      "items": {
+        "type": "object",
+        "required": ["component_label", "component_summary", "public_criteria", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "component_label": {"type": "string"},
+          "component_summary": {"type": "string"},
+          "public_criteria": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "evidence_inventory": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "open_issue_ids": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "trend": {
+            "type": "string",
+            "enum": ["improving", "stable", "deteriorating", "unknown"]
+          },
+          "reviewer_questions": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    "examiner_letter_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item_id", "source_letter", "category", "closure_status", "owner_role"],
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {"type": "string"},
+          "source_letter": {
+            "type": "object",
+            "required": ["regulator", "letter_date"],
+            "additionalProperties": false,
+            "properties": {
+              "regulator": {
+                "type": "string",
+                "enum": ["OCC", "FRB", "FDIC", "state-banking-department", "NYDFS"]
+              },
+              "letter_date": {"type": "string", "format": "date"},
+              "finding_number": {"type": "string"}
+            }
+          },
+          "category": {
+            "type": "string",
+            "enum": ["MRA", "MRIA", "supervisory-recommendation", "consent-order-article", "written-agreement-provision", "pre-finding-question"]
+          },
+          "finding_text": {
+            "type": "string",
+            "description": "Verbatim where the access population allows; summarised where it does not."
+          },
+          "component_link": {
+            "type": "string",
+            "description": "CAMELS component letter, BHC rated component label, or topical slice name."
+          },
+          "action_plan_summary": {"type": "string"},
+          "owner_role": {"type": "string"},
+          "milestones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["milestone", "target_date"],
+              "additionalProperties": false,
+              "properties": {
+                "milestone": {"type": "string"},
+                "target_date": {"type": "string", "format": "date"},
+                "status": {
+                  "type": "string",
+                  "enum": ["on-track", "at-risk", "missed", "complete"]
+                }
+              }
+            }
+          },
+          "evidence_pointer": {"type": "string"},
+          "closure_status": {
+            "type": "string",
+            "enum": ["open", "in-remediation", "sustained-remediation", "ready-for-validation", "closed-pending-examiner-confirmation"]
+          },
+          "aging_days": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Days since the source-letter date."
+          },
+          "escalation_risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          }
+        }
+      }
+    },
+    "mra_mria_closure_crosswalk": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "regulator", "date_issued", "closure_readiness", "owner_role"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": {"type": "string"},
+          "finding_text": {"type": "string"},
+          "regulator": {
+            "type": "string",
+            "enum": ["OCC", "FRB", "FDIC", "state-banking-department", "NYDFS"]
+          },
+          "date_issued": {"type": "string", "format": "date"},
+          "response_date": {"type": "string", "format": "date"},
+          "action_taken": {"type": "string"},
+          "evidence_type": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["policy-update", "control-implementation", "training", "system-change", "sustained-operation"]
+            },
+            "uniqueItems": true
+          },
+          "sustained_operation_months": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closure_readiness": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "high requires documented sustained-operation period meeting the bank's policy threshold (typically 6 to 12 months)."
+          },
+          "owner_role": {"type": "string"},
+          "last_status_update_date": {"type": "string", "format": "date"}
+        }
+      }
+    },
+    "heightened_standards": {
+      "type": "object",
+      "description": "Required when institution.heightened_standards_applicable is yes; recommended when approaching.",
+      "additionalProperties": false,
+      "properties": {
+        "risk_governance_framework_attestation_status": {
+          "type": "string",
+          "enum": ["attested", "draft", "not-yet-attested"]
+        },
+        "independent_risk_committee_evidence": {"type": "string"},
+        "risk_appetite_statement_crosswalk": {"type": "string"},
+        "three_lines_maturity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "first_line": {"type": "string"},
+            "first_and_a_half_line": {"type": "string"},
+            "second_line": {"type": "string"},
+            "third_line": {"type": "string"}
+          }
+        },
+        "rebuttable_presumption_applied": {"type": "boolean"},
+        "forward_looking_readiness_only": {
+          "type": "boolean",
+          "description": "True when institution.heightened_standards_applicable is approaching."
+        }
+      }
+    },
+    "topical_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bsa_aml": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cip_status": {"type": "string"},
+            "cdd_status": {"type": "string"},
+            "beneficial_ownership_status": {"type": "string"},
+            "suspicious_activity_monitoring_status": {"type": "string"},
+            "ctr_status": {"type": "string"},
+            "ofac_screening_status": {"type": "string"},
+            "bsa_officer_attestation": {"type": "boolean"},
+            "last_independent_testing_date": {"type": "string", "format": "date"}
+          }
+        },
+        "it": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "information_security_status": {"type": "string"},
+            "management_status": {"type": "string"},
+            "outsourcing_status": {"type": "string"},
+            "audit_status": {"type": "string"},
+            "last_it_audit_date": {"type": "string", "format": "date"},
+            "last_penetration_test_date": {"type": "string", "format": "date"}
+          }
+        },
+        "consumer_compliance_cra": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "udaap_posture": {"type": "string"},
+            "reg_e_dd_cc_controls": {"type": "string"},
+            "hmda_controls": {"type": "string"},
+            "fair_lending_controls": {"type": "string"},
+            "last_fair_lending_statistical_analysis_date": {"type": "string", "format": "date"},
+            "cra_performance_evaluation_history": {"type": "string"},
+            "cra_modernised_rule_status_note": {
+              "type": "string",
+              "description": "Verify current effective state given litigation history of the 2023 final rule."
+            }
+          }
+        },
+        "third_party_risk": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inventory_with_criticality_status": {"type": "string"},
+            "lifecycle_controls_status": {"type": "string"},
+            "baas_sponsor_program_governance_status": {"type": "string"},
+            "section_1867c_examination_access_flowdown_status": {"type": "string"}
+          }
+        }
+      }
+    },
+    "recommended_owner_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "owner_role", "target_date"],
+        "additionalProperties": false,
+        "properties": {
+          "action": {"type": "string"},
+          "owner_role": {"type": "string"},
+          "target_date": {"type": "string", "format": "date"},
+          "source_linkage": {"type": "string"}
+        }
+      }
+    },
+    "source_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source_path"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {"type": "string"},
+          "source_path": {
+            "type": "string",
+            "description": "Path to a source in references/source-anchors.md or a loaded cross-cutting overlay."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["confirmed", "evidence-needed", "verify-section"]
+          }
+        }
+      }
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true. The named lead attests; the pack is a draft until that step."
+    },
+    "sign_off": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "attested"],
+        "additionalProperties": false,
+        "properties": {
+          "role": {"type": "string"},
+          "attested": {"type": "boolean"},
+          "attested_date": {"type": "string", "format": "date"}
+        }
+      }
+    }
+  }
+}

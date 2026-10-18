@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/kri-commentary.schema.json",
+  "title": "KriCommentary",
+  "description": "Wrapper for a set of per-KRI commentary blocks for one reporting period. Each block extends the metric-level fields owned by risk-report.schema.json with second-line root cause, action, residual-risk view, and challenge.",
+  "type": "object",
+  "required": [
+    "wrapper_id",
+    "period",
+    "blocks",
+    "aggregate_red_count",
+    "aggregate_amber_count",
+    "aggregate_breach_count",
+    "aggregate_confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "wrapper_id": {
+      "type": "string",
+      "description": "Stable ID for this commentary set."
+    },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "Links to the scoping record if supplied."
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/kri_block" }
+    },
+    "aggregate_red_count": { "type": "integer", "minimum": 0 },
+    "aggregate_amber_count": { "type": "integer", "minimum": 0 },
+    "aggregate_breach_count": { "type": "integer", "minimum": 0 },
+    "cross_kri_correlations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["correlation_id", "description", "kri_metric_ids"],
+        "properties": {
+          "correlation_id": { "type": "string" },
+          "description": { "type": "string" },
+          "kri_metric_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2
+          }
+        }
+      }
+    },
+    "aggregate_confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true."
+    }
+  },
+  "$defs": {
+    "kri_block": {
+      "type": "object",
+      "required": [
+        "metric",
+        "current_value",
+        "status",
+        "risk_type",
+        "owner",
+        "breach_age_periods",
+        "confidence_label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "KRI identifier and name, e.g., 'OPS-001 / Operational loss events > $1m'."
+        },
+        "risk_type": {
+          "type": "string",
+          "enum": [
+            "credit", "market", "liquidity", "operational",
+            "compliance", "financial-crime", "model", "third-party",
+            "cyber", "climate", "strategic", "reputational", "conduct"
+          ]
+        },
+        "risk_subtype": {
+          "type": ["string", "null"],
+          "description": "Optional taxonomy sub-classification, e.g., 'external-fraud' under operational."
+        },
+        "threshold": {
+          "type": ["string", "null"],
+          "description": "Carries limit / trigger / tolerance structure as the firm expresses it."
+        },
+        "current_value": { "type": ["string", "number"] },
+        "prior_value": { "type": ["string", "number", "null"] },
+        "direction": {
+          "type": ["string", "null"],
+          "enum": ["improving", "stable", "deteriorating", null]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["green", "amber", "red", "not-rated"]
+        },
+        "prior_status": {
+          "type": ["string", "null"],
+          "enum": ["green", "amber", "red", "not-rated", null]
+        },
+        "breach_status": {
+          "type": ["string", "null"],
+          "enum": ["within", "at-trigger", "breach", null]
+        },
+        "breach_age_periods": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Consecutive reporting periods at trigger or breach."
+        },
+        "linked_ras_metric_id": { "type": ["string", "null"] },
+        "root_cause_named": {
+          "type": ["string", "null"],
+          "description": "Required for status = red and for amber where breach_age_periods > 1."
+        },
+        "contributing_factors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data-quality", "control-failure", "external-driver",
+              "capacity", "vendor", "model-driver", "other"
+            ]
+          }
+        },
+        "action_taken": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action_description", "owner", "date_completed"],
+            "properties": {
+              "action_description": { "type": "string" },
+              "owner": { "type": "string", "description": "Role." },
+              "date_completed": { "type": "string", "format": "date" },
+              "evidence_pointer": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "action_planned": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action_description", "owner", "target_date"],
+            "properties": {
+              "action_description": { "type": "string" },
+              "owner": { "type": "string", "description": "Role." },
+              "target_date": { "type": "string", "format": "date" },
+              "dependency_ids": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "residual_risk_view": {
+          "type": "object",
+          "required": ["expected_rag", "rationale"],
+          "properties": {
+            "expected_rag": {
+              "type": "string",
+              "enum": ["green", "amber", "red"]
+            },
+            "rationale": { "type": "string" }
+          }
+        },
+        "linked_issue_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "linked_material_event_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "second_line_challenge_note": {
+          "type": ["string", "null"],
+          "description": "Present when the second-line view diverges from first-line; null if alignment is documented."
+        },
+        "threshold_recalibration_request": {
+          "type": ["object", "null"],
+          "description": "Surfaced as a commentary item when a recalibration is being requested in response to the breach.",
+          "properties": {
+            "proposed_change": { "type": "string" },
+            "rationale": { "type": "string" },
+            "approver_role": { "type": "string" }
+          }
+        },
+        "data_confidence_note": {
+          "type": ["string", "null"],
+          "description": "Required where the KRI relies on vendor or third-party data of variable quality (climate, third-party telemetry)."
+        },
+        "owner": {
+          "type": "string",
+          "description": "Role accountable for the KRI; never a named individual."
+        },
+        "source_trace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["claim", "source", "confidence"],
+            "properties": {
+              "claim": { "type": "string" },
+              "source": { "type": "string" },
+              "evidence_reference": { "type": ["string", "null"] },
+              "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low", "evidence-needed"]
+              }
+            }
+          }
+        },
+        "confidence_label": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "unknown"]
+        }
+      }
+    }
+  }
+}

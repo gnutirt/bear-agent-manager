@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/schemas/management-response.schema.json",
+  "title": "ManagementResponse",
+  "description": "Wrapper for the management-response artifact: acceptance posture, root cause, action plan with milestones and owners, interim mitigation, evidence-of-effectiveness plan, reporting cadence, and linkage to the underlying issue write-up. Consumed by risk-committee-pack (issues-and-remediation-status section) and the firm's response-file archive. Reuses issue.schema.json for finding linkage.",
+  "type": "object",
+  "required": [
+    "response_id",
+    "response_date",
+    "responding_institution",
+    "addressee",
+    "finding_reference",
+    "acceptance_posture",
+    "root_cause",
+    "materiality_and_impact",
+    "action_plan_milestones",
+    "evidence_of_effectiveness_plan",
+    "reporting_cadence",
+    "signed_by_role",
+    "confidence_label",
+    "human_review_required"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "response_id": {
+      "type": "string",
+      "description": "Stable ID for this response instance.",
+      "minLength": 1
+    },
+    "response_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the response is dated."
+    },
+    "responding_institution": {
+      "type": "string",
+      "description": "Legal entity name of the responding institution; legal-entity hierarchy where relevant."
+    },
+    "scope_id": {
+      "type": "string",
+      "description": "Links to scoping record if supplied."
+    },
+    "classification": {
+      "type": "string",
+      "enum": ["internal", "firm-restricted", "privileged", "regulator-confidential"]
+    },
+    "response_version": {
+      "type": "string",
+      "description": "e.g., v1, v1-revised, refresh-of-v1."
+    },
+    "addressee": {
+      "type": "object",
+      "required": ["addressee_type", "addressee_name"],
+      "additionalProperties": false,
+      "properties": {
+        "addressee_type": {
+          "type": "string",
+          "enum": ["regulator", "audit-committee", "external-assessor"]
+        },
+        "addressee_name": {
+          "type": "string",
+          "description": "e.g., the named regulator office, 'Audit Committee of the Board', 'Internal Audit', the external-assessor firm name."
+        },
+        "addressee_reference_number": {
+          "type": ["string", "null"],
+          "description": "Issuing-party correspondence reference, where used."
+        }
+      }
+    },
+    "finding_reference": {
+      "type": "object",
+      "required": ["finding_id", "finding_type", "finding_text_verbatim", "finding_communication_date"],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "description": "Issuing party's identifier for the finding."
+        },
+        "finding_type": {
+          "type": "string",
+          "enum": [
+            "mra",
+            "mria",
+            "audit-finding-high",
+            "audit-finding-medium",
+            "audit-finding-low",
+            "external-assessor-finding",
+            "parr",
+            "soc-exception",
+            "self-identified-issue",
+            "other"
+          ]
+        },
+        "finding_text_verbatim": {
+          "type": "string",
+          "description": "The issuing party's wording, quoted exactly. Paraphrasing is the most common defect; this field captures the verbatim text as the audit trail."
+        },
+        "finding_communication_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date the issuing party communicated the finding to the firm."
+        },
+        "finding_period_start": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "finding_period_end": {
+          "type": ["string", "null"],
+          "format": "date"
+        }
+      }
+    },
+    "acceptance_posture": {
+      "type": "string",
+      "enum": ["accept", "partially-accept", "contest"]
+    },
+    "acceptance_rationale": {
+      "type": ["string", "null"],
+      "description": "Required when posture is 'partially-accept' or 'contest'; optional when 'accept'."
+    },
+    "root_cause": {
+      "type": "object",
+      "required": ["root_cause_named", "linked_issue_id", "consistency_with_issue_writeup"],
+      "additionalProperties": false,
+      "properties": {
+        "root_cause_named": {
+          "type": "string",
+          "description": "Mechanism-anchored statement of why the finding occurred. Not a paraphrase of the finding."
+        },
+        "linked_issue_id": {
+          "type": "string",
+          "description": "Foreign key to issue.schema.json. Required."
+        },
+        "consistency_with_issue_writeup": {
+          "type": "boolean",
+          "description": "True where the response root cause matches the linked issue write-up's cause field. False surfaces as a reviewer question."
+        }
+      }
+    },
+    "materiality_and_impact": {
+      "type": "object",
+      "required": ["current_impact", "reasonably_foreseeable_impact"],
+      "additionalProperties": false,
+      "properties": {
+        "current_impact": { "type": "string" },
+        "reasonably_foreseeable_impact": { "type": "string" },
+        "quantitative_estimate": {
+          "type": ["string", "null"],
+          "description": "Number with unit, or null where impact is qualitative."
+        },
+        "basis": {
+          "type": ["string", "null"],
+          "description": "Pointer to the underlying source (loss-event log, capital-impact estimate, customer-impact tally)."
+        }
+      }
+    },
+    "action_plan_milestones": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["milestone_id", "action_description", "owner", "target_date", "evidence_of_completion_expected"],
+        "additionalProperties": false,
+        "properties": {
+          "milestone_id": { "type": "string" },
+          "action_description": { "type": "string" },
+          "owner": {
+            "type": "string",
+            "description": "Role, never a personal name."
+          },
+          "target_date": { "type": "string", "format": "date" },
+          "dependency_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Other milestone IDs or external dependency identifiers. Empty array means 'no external dependencies' must be set true."
+          },
+          "no_external_dependencies": {
+            "type": "boolean",
+            "description": "Explicit assertion when no dependencies apply. Either dependency_ids is non-empty or this is true."
+          },
+          "evidence_of_completion_expected": {
+            "type": "string",
+            "description": "What evidence will demonstrate the milestone is completed. Distinct from evidence of effectiveness."
+          }
+        }
+      }
+    },
+    "interim_mitigation": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Steps already taken before the formal response date and any compensating controls in place pending full remediation."
+    },
+    "evidence_of_effectiveness_plan": {
+      "type": "object",
+      "required": ["evidence_method", "evidence_period_post_remediation", "evidence_owner"],
+      "additionalProperties": false,
+      "properties": {
+        "evidence_method": {
+          "type": "string",
+          "enum": [
+            "control-test",
+            "kri-trend",
+            "external-validation",
+            "supervisor-walk-through",
+            "other"
+          ]
+        },
+        "evidence_period_post_remediation": {
+          "type": "string",
+          "description": "e.g., 'two consecutive quarters at GREEN', 'two consecutive monthly readings at zero unreconciled items'."
+        },
+        "evidence_owner": {
+          "type": "string",
+          "description": "Role responsible for running the evidence-of-effectiveness check."
+        },
+        "re_test_cadence_after_closure": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "reporting_cadence": {
+      "type": "object",
+      "required": ["frequency", "form", "reporting_role"],
+      "additionalProperties": false,
+      "properties": {
+        "frequency": {
+          "type": "string",
+          "enum": ["monthly", "quarterly", "semi-annual", "annual", "event-driven", "other"]
+        },
+        "form": {
+          "type": "string",
+          "enum": [
+            "written-progress-report",
+            "committee-update",
+            "supervisory-meeting",
+            "on-request"
+          ]
+        },
+        "reporting_role": { "type": "string" },
+        "closure_trigger": {
+          "type": ["string", "null"],
+          "description": "Named condition under which the firm requests closure."
+        }
+      }
+    },
+    "linked_issue_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Internal issue IDs this response covers or cross-references."
+    },
+    "linked_finding_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Related findings sharing root cause or remediation actions."
+    },
+    "prior_response_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prior_response_date", "prior_commitment", "slippage_description"],
+        "additionalProperties": false,
+        "properties": {
+          "prior_response_date": { "type": "string", "format": "date" },
+          "prior_commitment": { "type": "string" },
+          "slippage_description": { "type": "string" },
+          "what_changed": { "type": "string" }
+        }
+      },
+      "description": "Where this response refreshes a prior response on the same finding ID, the slippage commentary is required."
+    },
+    "risk_acceptance": {
+      "type": ["object", "null"],
+      "description": "Required when acceptance_posture is 'partially-accept' or 'contest'.",
+      "additionalProperties": false,
+      "properties": {
+        "decision_maker": {
+          "type": "string",
+          "description": "Role of the named decision-maker."
+        },
+        "rationale": { "type": "string" },
+        "approval_evidence": {
+          "type": "string",
+          "description": "Pointer to committee minutes, named delegated-authority memo, or other approval artifact."
+        }
+      },
+      "required": ["decision_maker", "rationale", "approval_evidence"]
+    },
+    "signed_by_role": {
+      "type": "string",
+      "description": "Responding role. Higher-severity finding tiers carry a more senior firm-level signatory; the skill applies tier-specific defaults."
+    },
+    "firm_level_signatory_role": {
+      "type": ["string", "null"],
+      "description": "Where applicable (commonly for the highest-severity supervisory tier): the firm-level signatory role (e.g., CEO, General Counsel)."
+    },
+    "signed_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Reflects executability of the action plan. 'high' requires named owners on every milestone, dependency-mapped milestones, and demonstrable interim mitigation."
+    },
+    "reviewer_questions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Questions the responding role expects from the issuing party in follow-up."
+    },
+    "human_review_required": {
+      "type": "boolean",
+      "description": "Always true."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "acceptance_posture": {
+            "enum": ["partially-accept", "contest"]
+          }
+        }
+      },
+      "then": {
+        "required": ["risk_acceptance", "acceptance_rationale"]
+      }
+    }
+  ]
+}

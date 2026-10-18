@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://second-line-financial-services/plugins/capability-plugins/financial-crime-governance/skills/cdd-risk-review/schemas/cdd-file.schema.json",
+  "title": "cdd-file",
+  "description": "Structured second-line QA record for a single customer due diligence file. Captures file scope, customer profile, the four CDD pillars (CIP, beneficial ownership, nature-and-purpose / expected activity, ongoing monitoring), risk rating posture, EDD escalation posture, material gaps, reviewer findings, and the QA recommendation. The skill produces review artifacts only; the BSA officer or designated decisionmaker approves onboarding, sets or changes the rating, files SARs, or exits the relationship.",
+  "type": "object",
+  "required": [
+    "file_id",
+    "review_type",
+    "customer_type",
+    "cip_coverage",
+    "risk_rating",
+    "edd_status",
+    "recommendation",
+    "confidence_label"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Default 1.0.0.",
+      "default": "1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "file_id": {
+      "type": "string",
+      "description": "Canonical CDD file identifier (placeholder for sample). Stable across QA cycles.",
+      "minLength": 1
+    },
+    "engagement_id": {
+      "type": "string",
+      "description": "Optional pointer to the scope record under which this QA was produced."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the QA review was last revised."
+    },
+    "institution_type": {
+      "type": "string",
+      "enum": [
+        "bank",
+        "broker_dealer",
+        "mutual_fund",
+        "covered_product_life_insurer",
+        "fcm_ib",
+        "msb",
+        "fintech_sponsor_bank",
+        "covered_investment_adviser",
+        "other"
+      ],
+      "description": "Institution type. Drives which CIP and CDD rule the QA reads against."
+    },
+    "operative_rule_set": {
+      "type": "array",
+      "description": "Named CIP / CDD / EDD rules in scope for this file. E.g., 31 CFR §1020.220; CDD Final Rule; 31 CFR §1010.230; 31 CFR §1010.610 if correspondent; 31 CFR §1010.620 if private-banking.",
+      "items": { "type": "string" }
+    },
+    "review_type": {
+      "type": "string",
+      "enum": [
+        "new_account",
+        "periodic_refresh",
+        "event_driven_refresh"
+      ],
+      "description": "What kind of CDD review this is. Drives evidence-ask weighting."
+    },
+    "trigger": {
+      "type": "string",
+      "description": "Event description if review_type is event_driven_refresh; null or empty otherwise."
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer identifier (placeholder for sample)."
+    },
+    "customer_type": {
+      "type": "string",
+      "enum": [
+        "individual",
+        "legal_entity",
+        "trust",
+        "correspondent",
+        "other"
+      ],
+      "description": "Customer type. Drives the beneficial-ownership scope read."
+    },
+    "products": {
+      "type": "array",
+      "description": "Products held or requested by the customer.",
+      "items": { "type": "string" }
+    },
+    "jurisdictions": {
+      "type": "object",
+      "description": "Jurisdictions in play for this customer.",
+      "additionalProperties": false,
+      "properties": {
+        "residence": { "type": "string" },
+        "registered_address": { "type": "string" },
+        "principal_place_of_business": { "type": "string" },
+        "citizenship": { "type": "string" },
+        "counterparty_geographies": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "cip_coverage": {
+      "type": "object",
+      "description": "Pillar 1: Customer identification and verification.",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "identifying_info_collected": {
+          "type": "boolean",
+          "description": "True when the file evidences collection of the operative CIP rule's required identifying information."
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": ["documentary", "non_documentary", "both", "unknown"]
+        },
+        "discrepancies": {
+          "type": "string",
+          "description": "Discrepancies between customer-supplied data and verification sources, and how the institution resolved them."
+        },
+        "retention_status": {
+          "type": "string",
+          "enum": ["meets_rule", "gap", "unknown"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sufficient", "partial", "missing"]
+        }
+      }
+    },
+    "beneficial_ownership": {
+      "type": "object",
+      "description": "Pillar 2: Beneficial ownership for legal-entity customers under 31 CFR §1010.230. Not applicable to individuals or out-of-scope customer types.",
+      "additionalProperties": false,
+      "properties": {
+        "applicable": {
+          "type": "boolean",
+          "description": "False when the customer is not a legal-entity customer under §1010.230 or is on the rule's exemption list."
+        },
+        "control_prong_identified": { "type": "boolean" },
+        "ownership_prong_identified": { "type": "boolean" },
+        "certification_form_on_file": { "type": "boolean" },
+        "certification_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "inconsistencies": {
+          "type": "array",
+          "description": "Inconsistencies between certification and other file evidence (entity filings, signatories, public filings, transactional patterns).",
+          "items": { "type": "string" }
+        },
+        "boi_filing_status": {
+          "type": "string",
+          "enum": ["required", "not_required", "unknown", "verify"],
+          "description": "BOI reporting status under 31 CFR §1010.380. The CTA implementing rule has live litigation history; mark `verify` and date the read when the rule-state is unsettled for this customer's entity class."
+        },
+        "boi_status_as_of": {
+          "type": "string",
+          "format": "date",
+          "description": "As-of date the boi_filing_status was determined. Required when boi_filing_status is set to anything other than unknown."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sufficient", "partial", "missing", "not_applicable"]
+        }
+      }
+    },
+    "expected_activity": {
+      "type": "object",
+      "description": "Pillar 3: Nature and purpose of the customer relationship; expected-activity profile.",
+      "additionalProperties": false,
+      "properties": {
+        "documented": { "type": "boolean" },
+        "specificity": {
+          "type": "string",
+          "enum": ["generic", "specific", "quantified"]
+        },
+        "monitoring_tunability": {
+          "type": "string",
+          "enum": ["sufficient_for_tuning", "partial", "insufficient"]
+        },
+        "expected_volumes": {
+          "type": "object",
+          "description": "For business customers: expected cash, ACH, wire frequency and counterparties; expected geographies; expected funding sources. Free-text where quantified figures are not provided.",
+          "additionalProperties": true,
+          "properties": {
+            "cash": { "type": "string" },
+            "ach": { "type": "string" },
+            "wire": { "type": "string" },
+            "geographies": { "type": "string" },
+            "funding_sources": { "type": "string" }
+          }
+        },
+        "source_of_funds": { "type": "string" },
+        "source_of_wealth": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["sufficient", "partial", "missing"]
+        }
+      }
+    },
+    "ongoing_monitoring": {
+      "type": "object",
+      "description": "Pillar 4: Ongoing monitoring scope and refresh posture.",
+      "additionalProperties": false,
+      "properties": {
+        "monitoring_scenarios_in_scope": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "threshold_calibration_note": {
+          "type": "string",
+          "description": "Whether monitoring thresholds are calibrated against the expected-activity profile. Tuning belongs to aml-model-monitoring; cross-reference for findings."
+        },
+        "refresh_cycle": {
+          "type": "string",
+          "enum": ["event_driven", "time_based_at_rating_cycle", "mixed", "unknown"]
+        },
+        "off_cycle_refresh_triggers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "negative_news",
+              "sanctions_hit",
+              "transaction_monitoring_alert",
+              "beneficial_ownership_change",
+              "public_change_in_customer_circumstances",
+              "other"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sufficient", "partial", "missing"]
+        }
+      }
+    },
+    "risk_rating": {
+      "type": "object",
+      "description": "Customer risk rating and the evidence underneath the drivers. The QA reads reasonableness; it does not set or change the rating.",
+      "required": ["current_rating"],
+      "additionalProperties": false,
+      "properties": {
+        "current_rating": {
+          "type": "string",
+          "description": "Rating per the firm's risk model. E.g., low / medium / high; or the firm's named tiers."
+        },
+        "rating_drivers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["driver", "evidence_status"],
+            "additionalProperties": false,
+            "properties": {
+              "driver": { "type": "string" },
+              "evidence_status": {
+                "type": "string",
+                "enum": ["evidenced", "label_only", "partially_evidenced"]
+              },
+              "evidence_pointer": { "type": "string" }
+            }
+          }
+        },
+        "rating_reasonableness": {
+          "type": "string",
+          "enum": ["reasonable", "misaligned", "borderline", "unknown"]
+        },
+        "rationale": { "type": "string" }
+      }
+    },
+    "edd_status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "borderline",
+        "required_pending",
+        "in_place"
+      ],
+      "description": "EDD escalation posture. Where required_pending or borderline, the QA cross-references edd-escalation-pack rather than producing the EDD pack itself."
+    },
+    "edd_triggers_considered": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pep_or_pep_adjacent",
+          "cash_intensive",
+          "msb_customer",
+          "complex_structure_entity",
+          "jurisdictions_of_concern",
+          "correspondent_account",
+          "private_banking_account",
+          "other_firm_trigger"
+        ]
+      }
+    },
+    "material_gaps": {
+      "type": "array",
+      "description": "Specific evidence or documentation the QA reviewer flagged as missing.",
+      "items": {
+        "type": "object",
+        "required": ["gap_description", "pillar", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "gap_description": { "type": "string" },
+          "pillar": {
+            "type": "string",
+            "enum": [
+              "cip",
+              "beneficial_ownership",
+              "expected_activity",
+              "ongoing_monitoring",
+              "risk_rating",
+              "edd",
+              "other"
+            ]
+          },
+          "evidence_needed": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["material", "moderate", "minor", "observation"]
+          }
+        }
+      }
+    },
+    "qa_findings": {
+      "type": "array",
+      "description": "Criteria-aligned findings against the CDD file. Each finding ties to a named criterion.",
+      "items": {
+        "type": "object",
+        "required": ["finding_description", "criterion", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_description": { "type": "string" },
+          "criterion": {
+            "type": "string",
+            "enum": [
+              "cip_completeness",
+              "cip_verification_method",
+              "cip_retention",
+              "beneficial_ownership_certification",
+              "beneficial_ownership_inconsistency",
+              "beneficial_ownership_refresh",
+              "boi_filing_grounding",
+              "expected_activity_specificity",
+              "expected_activity_quantification",
+              "monitoring_scope_alignment",
+              "refresh_cycle_adherence",
+              "rating_driver_evidence",
+              "rating_reasonableness",
+              "edd_trigger_application",
+              "correspondent_edd",
+              "private_banking_edd",
+              "sector_rule_application",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["material", "moderate", "minor", "observation"]
+          },
+          "evidence_pointer": { "type": "string" }
+        }
+      }
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "accept_as_is",
+        "return_to_first_line_for_evidence",
+        "escalate_to_edd",
+        "refresh_rating",
+        "recalibrate_refresh_cycle",
+        "schedule_monitoring_threshold_review",
+        "other"
+      ],
+      "description": "QA recommendation. Consultative input to the BSA officer, AML QA team lead, or customer-onboarding compliance lead. The skill does not approve onboarding, set or change the rating, file SARs, or exit the relationship."
+    },
+    "recommendation_notes": {
+      "type": "string",
+      "description": "Detail behind the recommendation: what to escalate, what evidence to ask for, what cycle change to consider."
+    },
+    "cross_references": {
+      "type": "object",
+      "description": "Links to adjacent QA records for the same customer.",
+      "additionalProperties": false,
+      "properties": {
+        "edd_escalation_pack_record_id": { "type": "string" },
+        "aml_model_monitoring_ticket_id": { "type": "string" },
+        "sar_decision_qa_record_id": { "type": "string" },
+        "sanctions_screening_qa_record_id": { "type": "string" },
+        "negative_news_triage_record_id": { "type": "string" }
+      }
+    },
+    "review_gates": {
+      "type": "array",
+      "description": "Named human-review gates this QA artifact must clear before the recommendation is acted on. Drawn from references/review-gates.md when present.",
+      "items": {
+        "type": "string",
+        "enum": ["scope", "evidence", "authority", "impact", "decision"]
+      }
+    },
+    "owner": {
+      "type": "string",
+      "description": "Role of the QA reviewer. E.g., second-line CDD QA reviewer, internal audit secondee, advisory engagement manager."
+    },
+    "approver": {
+      "type": "string",
+      "description": "Role that signs off the QA artifact. Typically BSA officer, AML QA team lead, or customer-onboarding compliance lead."
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "Confidence in the QA read, per references/review-gates.md when present."
+    },
+    "source_trace": {
+      "type": "array",
+      "description": "Citations supporting material claims in the QA. Every claim should be traceable.",
+      "items": {
+        "type": "object",
+        "required": ["claim", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": { "type": "string" },
+          "source": { "type": "string" },
+          "section": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "url": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}
