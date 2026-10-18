@@ -17,8 +17,10 @@ test('index.json is up to date with the library and roles.json', () => {
   assert.deepEqual(index.skills, skills, 'run: node skill-library/build-index.mjs');
 });
 
-test('skill names are unique', () => {
+test('skill names are unique, and none reuses a skill name of this repo\'s plugin', () => {
   assert.equal(names.size, skills.length);
+  const pluginSkills = path.join(lib, '..', 'skills');
+  for (const d of fs.readdirSync(pluginSkills)) assert.ok(!names.has(d), `library skill ${d} clashes with plugin skill skills/${d}`);
 });
 
 test('every skill has a known role, its category first, and a license file', () => {

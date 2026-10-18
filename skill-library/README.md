@@ -31,6 +31,7 @@ Copy-Item -Recurse skill-library\banking\casemark\assessing-credit-risk "$HOME\.
 Skill con của `course-training-skills` (có trường `bundle`) cần cả thư mục `training/course-training-skills`.
 
 **Lưu ý**
+- Trước khi cài, chạy `node skill-library/check-installed.mjs` để xem skill nào trùng tên với skill đã có trên máy (KHÁC = cùng tên, khác nội dung, Claude có thể nạp nhầm). `skill-creator` đã có sẵn bản mới hơn từ claude.ai: không cần cài bản trong thư viện.
 - Mỗi skill đã cài tốn khoảng 100 token ở mọi lượt (phần mô tả luôn được nạp). Giao diện cảnh báo khi một tài khoản cài hoặc một agent ép quá 15 skill. Chỉ cài cái cần dùng.
 - Giấy phép của từng skill hiện trên thẻ và ghi ở `NOTICE.md`. Dùng lại hoặc phân phối thì giữ file LICENSE đi kèm.
 - Skill có nhãn **"Luật US"** (`jurisdiction: US`) viết theo luật và quy định của Mỹ. Không dùng nguyên văn cho hợp đồng hay hồ sơ Việt Nam: đối chiếu luật Việt Nam và nhờ luật sư xác nhận. Skill `VN` chỉ trích số liệu có trong văn bản gốc đặt ở `references/van-ban/`.
