@@ -25,6 +25,7 @@ export type Settings = {
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
+  openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
@@ -36,7 +37,7 @@ export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', language: 'auto', updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -125,6 +126,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     workerRoutes: routes,
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
     language: ['auto', 'vi', 'en'].includes(p?.language) ? p.language : s.language ?? 'auto',
+    openTabOnWake: bool(p?.openTabOnWake, s.openTabOnWake ?? false),
     updates: { check: bool(p?.updates?.check, s.updates?.check ?? true) },
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },

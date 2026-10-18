@@ -26,7 +26,7 @@ import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
-import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir } from './lead.ts';
+import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, type CompactJob, type ReviveJob } from './revive.ts';
@@ -232,7 +232,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function deliver(sid: string) {
     if (!waiters.has(sid)) {
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
-      if (autoRevive && store.session(sid).ended) revive(sid);
+      if (autoRevive && store.session(sid).ended && !revive(sid) && !reviving.has(sid)) autoOpenTab(sid);
       return;
     }
     if (batchMs <= 0) return flush(sid);
@@ -259,6 +259,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const reviving = new Set<string>();
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
+  const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
+  /** T-W: opens the tab of an offline member; the user presses Enter once. */
+  function openTab(s: Session) {
+    const rooms = Object.keys(s.rooms);
+    (opts.openUrl ?? openUrl)(tabLink(s, rooms));
+    tabOpened.set(s.id, Date.now());
+    for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Hub đã mở tab cho ${s.name}. Bấm Enter trong tab đó để ${s.name} đọc tin mới.`)); emitRoom(r); } catch { /* room gone */ } }
+  }
+  /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
+  function autoOpenTab(sid: string) {
+    const s = store.session(sid);
+    if (!loadSettings(opts.dir, envCap).openTabOnWake || waiters.has(s.id) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
+    openTab(s);
+  }
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
@@ -303,6 +317,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
           tellRooms(`${s.name} không dậy được (${failure}). Tin vẫn chưa đọc; mở tab của ${s.name} hoặc thử lại sau.`);
+          autoOpenTab(s.id);
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${compactSize(before, s.transcript)}).`);
@@ -931,7 +946,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|git))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|git|open-tab))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -941,6 +956,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (waiters.has(s.id)) return json(res, 409, { error: `${s.name} is running; mention it instead` });
         if (!hasTranscript(s)) return json(res, 409, { error: `${s.name} has no saved conversation to resume` });
         return json(res, 200, { started: revive(s.id) });
+      }
+      if (m === 'POST' && action === 'open-tab') {
+        const s = store.session(id);
+        if (waiters.has(s.id) || (s.status !== 'offline' && !s.ended)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        openTab(s);
+        return json(res, 200, { ok: true, ide: s.ide || 'vscode' });
       }
       if (m === 'POST' && action === 'forget') {
         const s = store.session(id);

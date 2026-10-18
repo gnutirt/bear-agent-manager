@@ -35,6 +35,14 @@ export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {
 export const leadLink = (cwd: string, prompt: string) =>
   `claude-cli://open?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(prompt.slice(0, MAX_PROMPT))}`;
 
+/** T-W: link that opens the tab of an offline member. The prompt is fixed hub text: never a room message, so no agent can type into another's prompt. */
+export function tabLink(s: { id: string; cwd: string; ide?: string }, rooms: string[]): string {
+  if (!s.ide || s.ide === 'vscode') return `vscode://anthropic.claude-code/open?session=${encodeURIComponent(s.id)}&prompt=${encodeURIComponent('Có tin mới trong phòng bear-agent-manager. Đọc bằng room_read rồi trả lời.')}`;
+  // Antigravity and the rest open a new terminal chat (no resume by link): the prompt sends it back to its rooms.
+  const where = rooms.length ? ` ${rooms.map((r) => `#${r}`).join(', ')}` : '';
+  return leadLink(s.cwd, `Vào lại phòng${where} bằng room_join, đọc tin mới bằng room_read rồi trả lời.`);
+}
+
 /** Hands a URL to the OS handler, detached from the hub; no shell, so the URL is one plain argument. */
 export function openUrl(url: string): void {
   const [cmd, args] = process.platform === 'win32' ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url]]

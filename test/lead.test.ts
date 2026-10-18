@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
-import { leadLink, leadPrompt, MAX_PROMPT, sameDir } from '../hub/lead.ts';
+import { leadLink, leadPrompt, MAX_PROMPT, sameDir, tabLink } from '../hub/lead.ts';
 import { startHub } from '../hub/server.ts';
 import { makeHub } from './helpers.ts';
 
@@ -84,4 +84,40 @@ test('leadPrompt: settings.lead duties add steps (all on by default) and name no
   assert.ok(!/room_who|worker|room_note/.test(none));
   assert.match(none, /^2\. /m);
   assert.ok(!/\b(planner|coder|frontend)\b/i.test(all));
+});
+
+test('T-W tabLink: vscode resumes by session id, others open a terminal; the prompt is fixed hub text', () => {
+  const v = new URL(tabLink({ id: 's 1', cwd: 'C:\a', ide: 'vscode' }, ['fw']));
+  assert.equal(v.protocol, 'vscode:'); assert.equal(v.searchParams.get('session'), 's 1');
+  assert.match(v.searchParams.get('prompt')!, /room_read/);
+  assert.equal(new URL(tabLink({ id: 's', cwd: 'C:\a' }, [])).protocol, 'vscode:');
+  const a = new URL(tabLink({ id: 's', cwd: 'C:\a b', ide: 'antigravity' }, ['fw', 'web']));
+  assert.equal(a.protocol, 'claude-cli:'); assert.equal(a.searchParams.get('cwd'), 'C:\a b');
+  assert.match(a.searchParams.get('q')!, /#fw, #web/);
+});
+
+test('T-W open-tab: refused for an online member, opens the tab of an offline one; openTabOnWake opens it when no resume is possible', async () => {
+  const opened: string[] = [];
+  const h = await makeHub(undefined, () => {}, { openUrl: (u: string) => opened.push(u) });
+  try {
+    await h.call('/api/sessions/register', { id: 'a1', cwd: 'C:/alpha' });
+    await h.call('/api/sessions/register', { id: 'b1', cwd: 'C:/beta' });
+    await h.call('/api/rooms/r/join', { sessionId: 'a1' });
+    await h.call('/api/rooms/r/join', { sessionId: 'b1' });
+    await h.call('/api/sessions/a1/ide', { ide: 'antigravity' });
+    await assert.rejects(h.call('/api/sessions/a1/open-tab', {}), /online/);
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'a1' }) });
+    assert.deepEqual(await h.call('/api/sessions/a1/open-tab', {}), { ok: true, ide: 'antigravity' });
+    assert.equal(opened.length, 1); assert.equal(new URL(opened[0]).protocol, 'claude-cli:');
+
+    // no saved chat to resume: off by default, on with the setting
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b1' }) });
+    await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta hi' });
+    assert.equal(opened.length, 1);
+    await h.call('/api/settings', { openTabOnWake: true }, { method: 'PUT' });
+    await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta again' });
+    assert.equal(opened.length, 2); assert.equal(new URL(opened[1]).protocol, 'vscode:');
+    await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta third' });
+    assert.equal(opened.length, 2);   // at most once per 10 minutes
+  } finally { await h.hub.close(); }
 });
