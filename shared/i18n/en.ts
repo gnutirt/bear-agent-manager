@@ -473,4 +473,9 @@ export const en: Record<string, string> = {
   'topic.add': 'Use',
   'topic.invalid': 'A topic name is 1-32 characters of a-z, 0-9 and hyphens.',
   'topic.hint': 'Only agents following a topic get its messages in full; @name always wakes.',
+  'members.openTab': 'Open tab',
+  'members.openTab.tip': 'Reopen this Claude’s chat tab in its IDE; press Enter to let it rejoin the room',
+  'members.openTab.done': 'Opened {name}’s tab ({ide}). Press Enter in that tab to let it rejoin the room.',
+  'set.openTabOnWake': 'Open the tab when a wake-up fails',
+  'set.openTabOnWake.hint': 'When a message calls a member the hub cannot resume in the background (no saved chat, or it failed), the hub opens its tab, at most once per 10 minutes; you press Enter.',
 };

@@ -358,8 +358,8 @@ header .spacer{flex:1}
 #menu .mem .mi small{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #menu .mem .macts{display:flex;gap:6px;flex:none}
 #menu .item.mem{flex-wrap:wrap}
-#menu .mem .mctl{flex:0 0 100%;display:flex;gap:6px;align-items:center;padding-left:42px}
-#menu .mem .mmodel{flex:1;min-width:0;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--mono)}
+#menu .mem .mctl{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-left:42px}
+#menu .mem .mmodel{flex:1 1 170px;min-width:0;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--mono)}
 #menu .mem .av .led{border-color:var(--panel)}
 #menu .btn.iconbtn{padding:4px 7px}
 #menu .dirtytag{font-size:11.5px;font-weight:700;color:#A16207;background:color-mix(in srgb,#F5A524 24%,transparent);border-radius:6px;padding:2px 7px;white-space:nowrap;cursor:help}
@@ -800,6 +800,10 @@ function reviveSession(id) {
   const s = S.sessions[id];
   api(`/api/sessions/${enc(id)}/revive`, {}).then((r) => toast(r.started ? (s?.ctx ? t('revive.startedCtx', { name: s.name, k: fmtK(s.ctx) }) : t('revive.started', { name: s?.name })) : t('revive.already', { name: s?.name })), (e) => toast(e.message));
 }
+function openTab(id) {
+  const s = S.sessions[id];
+  api(`/api/sessions/${enc(id)}/open-tab`, {}).then((r) => toast(t('members.openTab.done', { name: s?.name, ide: IDE[r.ide] || r.ide })), (e) => toast(e.message));
+}
 function setLead(id) {
   const on = !isLead(id);
   api(`/api/rooms/${enc(S.current)}/lead`, { sessionId: on ? id : null }).then(() => toast(on ? t('lead.set', { name: S.sessions[id]?.name, room: S.current }) : t('lead.unset')), (e) => toast(e.message));
@@ -938,10 +942,11 @@ function deleteRoomForm(anchor, name) {
 function membersMenu(anchor) {
   const ms = members(S.current);
   openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span><div class="mctl"><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false"><button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button></div></div>`).join('')
+    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span><div class="mctl"><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false">${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}<button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button></div></div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
+    m.querySelectorAll('[data-opentab]').forEach((b) => b.onclick = () => { closeMenu(); openTab(b.dataset.opentab); });
     const sess = (id) => S.sessions[id];
     // End / Compact stop the chat's tab (VS Code / Antigravity tab dies and must be reopened): two clicks, wording warns when it is busy
     // a dirty working tree (uncommitted files in the agent's folder) makes the confirmation say so and sends force:true
@@ -987,10 +992,11 @@ function sessionRow(s) {
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
   d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub" title="${esc(s.cwd)}${esc(rooms)}">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}<span>${esc(s.status === 'busy' && s.activity ? s.activity : LABEL[s.status])} · ${esc(repo(s.cwd))}</span></div></div>
-    <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? t('members.unlead') : t('sessions.setLead')}" aria-label="${t('room.lead')}">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="${t('sessions.rename')}" aria-label="${t('sessions.rename')}">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="${t('sessions.wakeTip')}">${t('sessions.wake')}</button><button data-a="forget" title="${t('sessions.forget')}" aria-label="${t('sessions.forget')}">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
+    <div class="acts">${inRoom ? `<button class="lead-btn${isLead(s.id) ? ' on' : ''}" data-a="lead" title="${isLead(s.id) ? t('members.unlead') : t('sessions.setLead')}" aria-label="${t('room.lead')}">${isLead(s.id) ? '★' : '☆'}</button>` : ''}<button data-a="rename" title="${t('sessions.rename')}" aria-label="${t('sessions.rename')}">${I.edit.replace('<svg', '<svg width="14" height="14"')}</button>${s.status === 'offline' ? `<button class="add wake" data-a="wake" title="${t('sessions.wakeTip')}">${t('sessions.wake')}</button><button class="add wake" data-a="opentab" title="${t('members.openTab.tip')}">${t('members.openTab')}</button><button data-a="forget" title="${t('sessions.forget')}" aria-label="${t('sessions.forget')}">${I.trash.replace('<svg', '<svg width="14" height="14"')}</button>` : !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.querySelector('[data-a=rename]').onclick = () => { S.renaming = s.id; renderSessions(); };
   d.querySelector('[data-a=lead]')?.addEventListener('click', () => setLead(s.id));
   d.querySelector('[data-a=wake]')?.addEventListener('click', () => reviveSession(s.id));
+  d.querySelector('[data-a=opentab]')?.addEventListener('click', () => openTab(s.id));
   d.querySelector('[data-a=forget]')?.addEventListener('click', () => api(`/api/sessions/${enc(s.id)}/forget`, {}).then(() => toast(t('sessions.forgot', { name: s.name })), (e) => toast(e.message)));
   d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(t('sessions.added', { name: s.name, room: S.current })), (e) => toast(e.message)));
   const inp = d.querySelector('input');
@@ -1921,6 +1927,7 @@ function renderSettingsView() {
     </div>` + routesBlock(),
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
+      ${sw('openTabOnWake', !!st.openTabOnWake, t('set.openTabOnWake'), t('set.openTabOnWake.hint'))}
     </div>
     <h2>${t('lead.wake.title')}</h2><div class="setbox">
       <p class="small muted note">${t('lead.wake.note')}</p>

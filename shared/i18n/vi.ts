@@ -473,4 +473,9 @@ export const vi: Record<string, string> = {
   'topic.add': 'Dùng',
   'topic.invalid': 'Tên chủ đề dài 1-32 ký tự gồm a-z, 0-9 và dấu gạch ngang.',
   'topic.hint': 'Chỉ agent theo dõi chủ đề mới nhận đủ tin; @tên vẫn luôn đánh thức.',
+  'members.openTab': 'Mở tab',
+  'members.openTab.tip': 'Mở lại tab chat của Claude này trong IDE; bạn bấm Enter để nó vào lại phòng',
+  'members.openTab.done': 'Đã mở tab của {name} ({ide}). Bấm Enter trong tab đó để nó vào lại phòng.',
+  'set.openTabOnWake': 'Tự mở tab khi gọi mà không dậy được',
+  'set.openTabOnWake.hint': 'Khi một tin gọi thành viên mà hub không resume nền được (chưa có chat lưu hoặc lỗi), hub mở tab của nó, tối đa 10 phút một lần; bạn bấm Enter.',
 };
