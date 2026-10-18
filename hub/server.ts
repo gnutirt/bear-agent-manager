@@ -16,6 +16,7 @@ import { loadSettings, normAgent, patchSettings, saveSettings } from './settings
 import { loadDicts, systemLang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
+import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -118,6 +119,7 @@ export type HubOptions = {
   usageHome?: string;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
+  openFolder?: (dir: string) => void;   // tests stub it so no file manager opens
 };
 
 const WORKER_POLL_MS = 5000;
@@ -832,6 +834,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const q = { role: url.searchParams.get('role') ?? '', q: url.searchParams.get('q') ?? '', license: url.searchParams.get('license') ?? '' };
       const skills = filterSkills(lib.skills, q).map((s) => ({ ...s, installed: installedIn(s.name, dirs) }));
       return json(res, 200, { skills, total: lib.skills.length, roles: lib.roles, licenses: lib.licenses, configDirs: dirs });
+    }
+    // A3: where the data lives and how big it is; the folder to open is a name from a fixed list, never a client path
+    if (m === 'GET' && p === '/api/data') return json(res, 200, dataInfo(opts.dir));
+    if (m === 'POST' && p === '/api/data/open') {
+      const b = await readBody(req), sub = b.sub == null || b.sub === '' ? '' : String(b.sub);
+      if (sub && !(DATA_SUBS as readonly string[]).includes(sub)) return json(res, 400, { error: `unknown folder ${sub}` });
+      const dir = sub ? path.join(opts.dir, sub) : opts.dir;
+      fs.mkdirSync(dir, { recursive: true });
+      (opts.openFolder ?? openFolder)(dir);
+      return json(res, 200, { ok: true, path: dir });
     }
     if (m === 'GET' && p === '/api/version') return json(res, 200, await versionNow());
     if (m === 'POST' && p === '/api/version/check') { await checkUpdates(true); return json(res, 200, await versionNow()); }
