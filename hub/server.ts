@@ -17,6 +17,7 @@ import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '..
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
+import { readOverrides, setOverride } from './skillhide.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -874,8 +875,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       return json(res, 200, { text });
     }
+    // Hide a skill of a Claude account for good (Claude Code's skillOverrides "off"); user skills only, reopen chats to apply
+    if (m === 'POST' && p === '/api/skills/override') {
+      const b = await readBody(req);
+      const dir = usageDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.configDir ?? '')).toLowerCase());
+      if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
+      try { return json(res, 200, { ok: true, level: setOverride(dir, String(b.name ?? ''), String(b.level ?? '')) }); }
+      catch (e: any) { throw new StoreError(/plugin|not a skill/.test(e.message) ? 409 : 400, e.message); }
+    }
     if (m === 'GET' && p === '/api/skills') {
-      return json(res, 200, { skills: skillCache(), agents: loadSettings(opts.dir, envCap).agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) });
+      const overrides = Object.fromEntries(usageDirs().filter((d) => fs.existsSync(d)).map((d) => [d, readOverrides(d)]));
+      return json(res, 200, { skills: skillCache(), overrides, agents: loadSettings(opts.dir, envCap).agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) });
     }
     if (m === 'PUT' && p === '/api/settings') {
       const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
