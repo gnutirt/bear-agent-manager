@@ -15,6 +15,8 @@ import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
+import { worktreeState } from './gitstate.ts';
+import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
@@ -217,6 +219,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     checkMessageTotal(list);
     return list.length ? list : undefined;
+  }
+
+  /** G1: 409 body { error, dirty, files } when the agent's folder has uncommitted files and the caller did not pass force. */
+  async function dirtyUnlessForced(s: Session, force: boolean) {
+    if (force) return null;
+    const g = await worktreeState(s.cwd);
+    return g.dirty ? { error: `${s.name} has ${g.dirty} uncommitted file(s); pass force to go on`, dirty: g.dirty, files: g.files } : null;
   }
 
   const batching = new Set<string>();
@@ -922,7 +931,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|git))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -953,7 +962,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         broadcast('settings', next);
         return json(res, 200, { model: next.agentModel[normAgent(s.name)] ?? '' });
       }
+      // G1: uncommitted files in the agent's folder (Session.cwd, never a path from the client)
+      if (m === 'GET' && action === 'git') return json(res, 200, await worktreeState(store.session(id).cwd));
       if (m === 'POST' && action === 'terminate') {
+        const b = await readBody(req);
+        const dirty = await dirtyUnlessForced(store.session(id), b.force === true);
+        if (dirty) return json(res, 409, dirty);
         await terminateSession(store.session(id));
         return json(res, 200, { ok: true });
       }
@@ -962,6 +976,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const b = await readBody(req);
         const s = store.session(id);
         if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
+        const dirty = await dirtyUnlessForced(s, b.force === true);
+        if (dirty) return json(res, 409, dirty);
+        const left = b.force === true ? (await worktreeState(s.cwd)).dirty : 0;
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
         if (!s.ended && s.status !== 'offline') await terminateSession(s);
         reviving.add(s.id);
@@ -969,7 +986,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         emitSession(store.setStatus(s.id, 'busy', 'đang compact'));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
-          say(code === 0 ? `${s.name} đã được compact (${compactSize(before, s.transcript)}).` : `${s.name}: compact bị lỗi (mã ${code}).`);
+          say(code === 0 ? `${s.name} đã được compact (${compactSize(before, s.transcript)})${left ? `, lúc đó còn ${left} file chưa commit` : ''}.` : `${s.name}: compact bị lỗi (mã ${code}).`);
         }).finally(() => {
           reviving.delete(s.id);
           if (b.revive === true && revive(s.id)) return;
@@ -1066,7 +1083,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       return json(res, 405, { error: 'method not allowed' });
     }
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead|topics)$/);
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead|topics|days)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1119,6 +1136,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const b = await readBody(req);
         const topics = store.follow(String(b.sessionId ?? ''), String(b.topic ?? ''), b.follow !== false);
         return json(res, 200, { topics });
+      }
+      if (m === 'GET' && action === 'days') { store.room(room); return json(res, 200, roomDays(opts.dir, room)); }
+      if (m === 'GET' && action === 'messages' && ['q', 'from', 'to', 'before'].some((k) => url.searchParams.has(k))) {
+        // G1 search: { messages, hasMore } (plain reads keep answering an array, so older UIs still work)
+        store.room(room);
+        const num = (k: string) => (url.searchParams.has(k) && Number.isFinite(Number(url.searchParams.get(k))) ? Number(url.searchParams.get(k)) : undefined);
+        return json(res, 200, searchRoom(opts.dir, room, { q: url.searchParams.get('q') ?? '', from: num('from'), to: num('to'), before: num('before'), limit: num('limit') }));
       }
       if (m === 'GET' && action === 'messages') {
         return json(res, 200, store.history(room, Number(url.searchParams.get('after') ?? 0), Number(url.searchParams.get('limit') ?? 100), url.searchParams.get('topic') || undefined));
