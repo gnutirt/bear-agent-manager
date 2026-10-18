@@ -28,7 +28,7 @@ import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readT
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
-import { leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
+import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
@@ -633,15 +633,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   if (usage) { pollUsage().catch(() => {}); usagePoller = setInterval(() => pollUsage().catch(() => {}), 15 * 60_000); usagePoller.unref(); }
 
   // ---- semi-automatic room lead (T19): open a terminal with the prompt typed in, the user presses Enter ----
-  const leadPending = new Map<string, { cwd: string; at: number }>();   // room -> terminal we opened, waiting for its join
-  function openLead(room: string, cwd: string, auto: boolean) {
-    const notes = store.notes(room).map((n) => n.text);
-    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes, loadSettings(opts.dir, envCap).lead, lang())));
-    leadPending.set(room, { cwd, at: Date.now() });
+  const leadPending = new Map<string, { cwd: string; at: number; from?: string; fromName?: string }>();   // room -> terminal we opened, waiting for its join
+  function openLead(room: string, cwd: string, auto: boolean, replacing?: { id: string; handoff: string }) {
+    const notes = store.notes(room).map((n) => n.text), duties = loadSettings(opts.dir, envCap).lead;
+    (opts.openUrl ?? openUrl)(leadLink(cwd, replacing ? clearPrompt(room, notes, duties, lang(), replacing.handoff) : leadPrompt(room, notes, duties, lang())));
+    leadPending.set(room, { cwd, at: Date.now(), ...(replacing ? { from: replacing.id, fromName: store.session(replacing.id).name } : {}) });
     if (auto) { (store.state.leadOpened ??= []).push(room); store.state.leadOpened = store.state.leadOpened.slice(-500); store.save(); }
     const acct = listAccounts([path.join(usageHome, '.claude')], usageHome)[0];
     const who = acct?.email ? tr('sys.lead.who', { email: maskEmail(acct.email) }) : '';
-    try { broadcast('msg', store.postSystem(room, tr(auto ? 'sys.lead.openedAuto' : 'sys.lead.opened', { cwd, who }))); emitRoom(room); } catch { /* room gone */ }
+    try { broadcast('msg', store.postSystem(room, tr(replacing ? 'sys.lead.cleared' : auto ? 'sys.lead.openedAuto' : 'sys.lead.opened', { cwd, who, name: replacing ? store.session(replacing.id).name : '' }))); emitRoom(room); } catch { /* room gone */ }
   }
   /** Once per room ever (the lock survives restarts), and only when Settings say so. */
   function maybeAutoLead(room: string, cwd: string) {
@@ -655,6 +655,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const pend = leadPending.get(room);
     if (!pend || Date.now() - pend.at > PENDING_MS || !sameDir(pend.cwd, s.cwd) || store.state.rooms[room]?.lead) return;
     leadPending.delete(room);
+    // A cleared lead hands its name over, so the rules keyed by that name (skills, compact, model) follow the new session
+    const old = pend.from ? store.state.sessions[pend.from] : undefined;
+    const name = pend.fromName;
+    if (old && name && old.id !== s.id && s.name !== name) {
+      try {
+        if (old.name === name) for (const n of [`${name}-cu`, `${name}-cu2`, `${name}-cu3`]) { try { store.rename(old.id, n.slice(0, 32)); break; } catch { /* taken, next */ } }
+        store.rename(s.id, name);
+      } catch { /* keeps its own name */ }
+    }
     store.setLead(room, s.id);
     try { broadcast('msg', store.postSystem(room, tr('sys.lead.is', { name: s.name }))); } catch { /* room gone */ }
   }
@@ -1206,7 +1215,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       return json(res, 405, { error: 'method not allowed' });
     }
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead|topics|days)$/);
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|clear-lead|done|open-lead|topics|days)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1219,6 +1228,21 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         emitRoom(room);
         if (action === 'leave' && wasLead) maybeAutoLead(room, s.cwd);
         return json(res, 200, store.roomInfo(room));
+      }
+      if (m === 'POST' && action === 'clear-lead') {
+        // P3: Claude cannot /clear itself, so the lead is replaced: stop it, open a fresh lead terminal with its handoff
+        const b = await readBody(req);
+        const r = store.room(room), lead = r.lead ? store.state.sessions[r.lead] : undefined;
+        if (!lead) throw new StoreError(409, `#${room} has no lead`);
+        const dirty = await dirtyUnlessForced(lead, b.force === true);
+        if (dirty) return json(res, 409, dirty);
+        let handoff = '';
+        try { handoff = fs.readFileSync(path.join(opts.dir, 'handoffs', `${lead.id}.md`), 'utf8'); } catch { /* none yet */ }
+        if (!lead.ended && lead.status !== 'offline') await terminateSession(lead);
+        store.setLead(room, null);
+        emitRoom(room);
+        openLead(room, lead.cwd || os.homedir(), false, { id: lead.id, handoff });
+        return json(res, 200, { ok: true, handoff: !!handoff.trim() });
       }
       if (m === 'POST' && action === 'open-lead') {
         // Manual button: works with autoLead off, no once-only lock. Folder: the lead's, else a member's, else home.

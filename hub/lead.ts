@@ -33,6 +33,13 @@ export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {
   return text.slice(0, MAX_PROMPT);
 }
 
+/** Lead prompt for a fresh session that replaces a cleared lead: the usual prompt plus the previous lead's handoff, all within the link limit. */
+export function clearPrompt(room: string, notes: string[], duties: LeadDuties, lang: Lang, handoff: string): string {
+  const h = handoff.trim();
+  const section = h ? `\n\n${t(lang, 'lead.handoffHead')}\n${h.slice(0, 2000)}${h.length > 2000 ? '\n…' : ''}\n` : '';
+  return leadPrompt(room, notes, duties, lang).slice(0, MAX_PROMPT - section.length) + section;
+}
+
 export const leadLink = (cwd: string, prompt: string) =>
   `claude-cli://open?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(prompt.slice(0, MAX_PROMPT))}`;
 

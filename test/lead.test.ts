@@ -121,3 +121,34 @@ test('T-W open-tab: refused for an online member, opens the tab of an offline on
     assert.equal(opened.length, 2);   // at most once per 10 minutes
   } finally { await h.hub.close(); }
 });
+
+test('P3 clear-lead: stops the lead, opens a fresh lead terminal with its handoff, the new session gets ★ and the old name', async () => {
+  const fs = await import('node:fs'), path = await import('node:path');
+  const opened: string[] = [], killed: number[] = [];
+  const procs: any[] = [{ pid: 900, ppid: 1, name: 'claude.exe', cmd: '"C:/x/claude.exe" --foo', started: 1 }];
+  const h = await makeHub(undefined, () => {}, { openUrl: (u: string) => opened.push(u), listProcs: async () => procs, kill: async (pid: number) => { killed.push(pid); } });
+  try {
+    await assert.rejects(h.call('/api/rooms/r/clear-lead', {}), /no lead|unknown room|not found/i);
+    await h.call('/api/sessions/register', { id: 'old1', cwd: 'C:/leadwork', pid: 900 });
+    await h.call('/api/sessions/old1/rename', { name: 'boss' });
+    await h.call('/api/rooms/r/join', { sessionId: 'old1' });
+    await h.call('/api/rooms/r/lead', { sessionId: 'old1' });
+    await h.call('/api/rooms/r/notes', { text: 'port 4000' }).catch(() => {});
+    fs.mkdirSync(path.join(h.dir, 'handoffs'), { recursive: true });
+    fs.writeFileSync(path.join(h.dir, 'handoffs', 'old1.md'), 'Dang lam T-W, con A1');
+    assert.deepEqual(await h.call('/api/rooms/r/clear-lead', {}), { ok: true, handoff: true });
+    assert.deepEqual(killed, [900]);
+    assert.equal((await h.call<any>('/api/rooms')).find((r: any) => r.name === 'r').lead, null);
+    assert.equal(opened.length, 1);
+    const u = new URL(opened[0]);
+    assert.equal(u.searchParams.get('cwd'), 'C:/leadwork');
+    assert.match(u.searchParams.get('q')!, /Dang lam T-W, con A1/);
+    assert.ok(u.searchParams.get('q')!.length <= 5000);
+    await h.call('/api/sessions/register', { id: 'new1', cwd: 'C:/leadwork' });
+    await h.call('/api/rooms/r/join', { sessionId: 'new1' });
+    const rooms = await h.call<any[]>('/api/rooms');
+    assert.equal(rooms.find((r: any) => r.name === 'r').lead, 'new1');
+    assert.equal((await h.call<any>('/api/sessions/new1')).session.name, 'boss');
+    assert.equal((await h.call<any>('/api/sessions/old1')).session.name, 'boss-cu');
+  } finally { await h.hub.close(); }
+});
