@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Skill library, read side (S1): `GET /api/skill-library?role=&q=&license=` lists the skills of skill-library/ (roles, source, license) with `installed` = the Claude accounts that have it in `<configDir>/skills`, plus role and license counts; `GET /api/skill-packs` lists the role packs. Read again when index.json or packs.json change; unsafe names and pack entries outside the library are dropped. Needs hub restart.
 - Fix: the size after a compact is read from the compact boundary Claude Code writes (`compactMetadata.postTokens`), so the room line says "344k → 12k" instead of the old size twice; "chưa đo được" when the transcript has no size. The token column of a just-compacted chat is right too. Needs hub restart.
 - Update from GitHub (V3): `POST /api/update`, only when `GET /api/version` says `canApply` (a clean checkout of the same repo, a newer release). It fetches the tags of origin, checks the tag is ahead, `git merge --ff-only`, then loads the new hub code in a throwaway process like the Restart button and puts HEAD back if it does not load. Only git runs (no shell), steps go to hub.log. Restart the hub after; plugin copies still need `/plugin update`. Needs hub restart.
 - Releases (V4): `node scripts/release.mjs X.Y.Z` checks a clean tree and green tests, sets the version, moves the Unreleased notes under `## X.Y.Z - <date>`, commits `release: vX.Y.Z` and tags it; it never pushes (README "Releasing").

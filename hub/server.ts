@@ -13,6 +13,7 @@ import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
+import { filterSkills, installedIn, loadLibrary } from './skilllib.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
@@ -105,6 +106,8 @@ export type HubOptions = {
   usageFetch?: typeof fetch | null;
   /** V1 update check against GitHub releases; null turns it off (tests). */
   versionFetch?: typeof fetch | null;
+  /** S1 skill library folder (default <repo>/skill-library; tests use a fake one). */
+  skillLibraryDir?: string;
   /** V3 POST /api/update (stubbed in tests: the real one moves this checkout). */
   applyUpdate?: typeof applyUpdate;
   /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
@@ -742,6 +745,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, lastExport);
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
+    if (m === 'GET' && (p === '/api/skill-library' || p === '/api/skill-packs')) {
+      const lib = loadLibrary(opts.skillLibraryDir ?? path.join(ROOT, 'skill-library'));
+      if (p === '/api/skill-packs') return json(res, 200, { packs: lib.packs });
+      const dirs = usageDirs().filter((d) => fs.existsSync(d));
+      const q = { role: url.searchParams.get('role') ?? '', q: url.searchParams.get('q') ?? '', license: url.searchParams.get('license') ?? '' };
+      const skills = filterSkills(lib.skills, q).map((s) => ({ ...s, installed: installedIn(s.name, dirs) }));
+      return json(res, 200, { skills, total: lib.skills.length, roles: lib.roles, licenses: lib.licenses, configDirs: dirs });
+    }
     if (m === 'GET' && p === '/api/version') return json(res, 200, await versionNow());
     if (m === 'POST' && p === '/api/version/check') { await checkUpdates(true); return json(res, 200, await versionNow()); }
     if (m === 'GET' && p === '/api/i18n') return json(res, 200, { setting: loadSettings(opts.dir, envCap).language, system: systemLang(), dicts: await loadDicts() });
