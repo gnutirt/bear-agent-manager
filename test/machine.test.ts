@@ -85,11 +85,34 @@ test('hub: POST /api/machine/export writes into <archive>/machine, keys only whe
   process.env.BEAR_AGENT_ARCHIVE_DIR = arc;
   const { hub, call } = await makeHub(undefined, undefined, { machineHome: home });
   try {
-    const r = await call<any>('/api/machine/export', { withKeys: false });
+    const started = await call<any>('/api/machine/export', { withKeys: false });
+    assert.deepEqual(started, { started: true, dir: path.join(arc, 'machine') });
+    const done = async () => { for (let i = 0; i < 200; i++) { const g = await call<any>('/api/machine'); if (!g.running && g.last) return g; await new Promise((x) => setTimeout(x, 50)); } throw new Error('export did not finish'); };
+    const r = (await done()).last;
+    assert.equal(r.ok, true);
     assert.equal(r.dir, path.join(arc, 'machine'));
     assert.ok(r.items > 0 && fs.existsSync(path.join(arc, 'machine', 'claude', 'skills', 'local-ai', 'SKILL.md')));
     assert.ok(!fs.existsSync(path.join(arc, 'machine', 'claude', '.credentials.json')));
     assert.deepEqual(r.warnings, []);
-    assert.deepEqual((await call<any>('/api/machine', { withKeys: true }, { method: 'GET', body: undefined })).last.items, r.items);
+    assert.ok(r.copied > 0);
+    // a second export copies only what changed
+    await call('/api/machine/export', { withKeys: false });
+    await new Promise((x) => setTimeout(x, 20));
+    const again = (await done()).last;
+    assert.equal(again.ok, true);
+    assert.ok(again.skipped > 0, 'unchanged files skipped');
+  } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
+});
+
+test('hub: after a restart the last export is read back from manifest.json', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  const arc = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-mach-man-'));
+  fs.mkdirSync(path.join(arc, 'machine'));
+  fs.writeFileSync(path.join(arc, 'machine', 'manifest.json'), JSON.stringify({ exportedAt: '2026-10-18T10:00:00.000Z', withKeys: false, items: ['a', 'b', 'c'] }));
+  process.env.BEAR_AGENT_ARCHIVE_DIR = arc;
+  const { hub, call } = await makeHub();
+  try {
+    const g = await call<any>('/api/machine');
+    assert.deepEqual([g.running, g.last.items, g.last.at, g.last.fromManifest], [null, 3, Date.parse('2026-10-18T10:00:00.000Z'), true]);
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });

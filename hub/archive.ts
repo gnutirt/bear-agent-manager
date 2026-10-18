@@ -1,18 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Worker } from 'node:worker_threads';
+import { probeDir, runWorker } from './slowdir.ts';
 
 export type ArchiveResult = { ok: boolean; reason: string; copiedFiles: number; copiedBytes: number; errors?: string[] };
 export type ArchiveArgs = { configDirs: string[]; archiveDir: string; onlySession?: string; roomChatRoot?: string; roomsRoot?: string };
 
-/** archiveNow in a worker thread: the hub keeps answering hooks while a round copies. */
-export function archiveInWorker(a: ArchiveArgs): Promise<ArchiveResult> {
-  return new Promise((resolve, reject) => {
-    const w = new Worker(new URL('./archive-worker.ts', import.meta.url), { workerData: a });
-    w.once('message', resolve);
-    w.once('error', reject);
-    w.once('exit', (code) => { if (code) reject(new Error(`archive worker exited with ${code}`)); });
-  });
+/**
+ * archiveNow in a worker thread: the hub keeps answering hooks while a round copies. The archive folder is probed
+ * first (a sleeping or lost drive fails in seconds with a reason) and a round that runs past maxMs is stopped.
+ */
+export async function archiveInWorker(a: ArchiveArgs, maxMs = 30 * 60_000): Promise<ArchiveResult> {
+  // the archive folder is the user's choice: never created here; a missing or silent one is a failed round with its reason
+  try { await probeDir(a.archiveDir, 15_000, false); }
+  catch (e) { return { ok: false, reason: `archive dir not writable: ${(e as Error).message}`, copiedFiles: 0, copiedBytes: 0 }; }
+  return runWorker<ArchiveResult>(new URL('./archive-worker.ts', import.meta.url), a, maxMs);
 }
 type Offsets = Record<string, { bytes: number; mtimeMs: number }>;
 

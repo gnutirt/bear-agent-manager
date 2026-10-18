@@ -73,17 +73,39 @@ export function check({ home = os.homedir() } = {}) {
 
 const copy = (from, to) => fs.cpSync(from, to, { recursive: true, filter: (s) => !NEVER.has(path.basename(s)) });
 
-export function exportMachine({ home = os.homedir(), hubHome = path.join(home, '.bear-agent-manager'), dir, withKeys = false } = {}) {
+/**
+ * Export copy: only files that are new or changed (size, or a newer mtime) are written, and the copy keeps the
+ * source mtime, so a second export to a slow or network drive copies almost nothing. Login files are never copied.
+ */
+export function copyChanged(from, to, stats = { copied: 0, skipped: 0, bytes: 0 }) {
+  const st = fs.statSync(from);
+  if (st.isDirectory()) {
+    fs.mkdirSync(to, { recursive: true });
+    for (const n of fs.readdirSync(from)) if (!NEVER.has(n)) copyChanged(path.join(from, n), path.join(to, n), stats);
+    return stats;
+  }
+  if (!st.isFile()) return stats;
+  const d = fs.statSync(to, { throwIfNoEntry: false });
+  if (d && d.size === st.size && Math.floor(d.mtimeMs) >= Math.floor(st.mtimeMs)) { stats.skipped++; return stats; }
+  fs.copyFileSync(from, to);
+  fs.utimesSync(to, st.atime, st.mtime);
+  stats.copied++; stats.bytes += st.size;
+  return stats;
+}
+
+export function exportMachine({ home = os.homedir(), hubHome = path.join(home, '.bear-agent-manager'), dir, withKeys = false, onItem } = {}) {
   const { vs } = dirs(home);
   const out = dir ?? path.join(hubHome, 'machine');
   const items = [];
+  const stats = { copied: 0, skipped: 0, bytes: 0 };
   const put = (rel, from, transform) => {
     if (!exists(from)) return;
     const to = path.join(out, rel);
     fs.mkdirSync(path.dirname(to), { recursive: true });
-    if (transform) fs.writeFileSync(to, transform(fs.readFileSync(from, 'utf8')));
-    else copy(from, to);
+    if (transform) { fs.writeFileSync(to, transform(fs.readFileSync(from, 'utf8'))); stats.copied++; }
+    else copyChanged(from, to, stats);
     items.push(rel.replace(/\\/g, '/'));
+    onItem?.(items.length, items[items.length - 1], stats);
   };
   for (const d of EXPORT_DIRS) put(path.join('claude', d), path.join(vs, d));
   for (const f of EXPORT_FILES) put(path.join('claude', f), path.join(vs, f),
@@ -97,7 +119,7 @@ export function exportMachine({ home = os.homedir(), hubHome = path.join(home, '
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(path.join(out, 'plugins.json'), JSON.stringify(plugins, null, 2));
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ exportedAt: new Date().toISOString(), from: os.hostname(), withKeys, items }, null, 2));
-  return { dir: out, items, warnings: withKeys ? [KEY_WARNING] : [] };
+  return { dir: out, items, warnings: withKeys ? [KEY_WARNING] : [], ...stats };
 }
 
 export function importMachine({ home = os.homedir(), hubHome = path.join(home, '.bear-agent-manager'), dir, force = false } = {}) {

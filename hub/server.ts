@@ -10,7 +10,7 @@ import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
-import { exportMachine } from '../scripts/machine.mjs';
+import { probeDir, runWorker } from './slowdir.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -746,8 +746,21 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
   // The switch can pause archiving without forgetting the folder.
   const archiveDir = () => { const a = loadSettings(opts.dir, envCap).archive; return a.enabled === false ? '' : a.dir || process.env.BEAR_AGENT_ARCHIVE_DIR || ''; };
-  let lastArchive: (ArchiveResult & { at: number }) | null = null;
-  let lastExport: { dir: string; items: number; withKeys: boolean; warnings: string[]; at: number } | null = null;
+  // Kept on disk so the Settings page still shows the last round (or its error) after a hub restart.
+  const ARCHIVE_LAST = path.join(opts.dir, 'archive-last.json');
+  let lastArchive: (ArchiveResult & { at: number }) | null = (() => { try { return JSON.parse(fs.readFileSync(ARCHIVE_LAST, 'utf8')); } catch { return null; } })();
+  const keepArchive = (r: ArchiveResult & { at: number }) => { lastArchive = r; try { fs.writeFileSync(ARCHIVE_LAST, JSON.stringify(r)); } catch { /* memory only */ } };
+  type ExportResult = { dir: string; items: number; withKeys: boolean; warnings: string[]; at: number; ok: boolean; error?: string; copied?: number; skipped?: number; ms?: number; fromManifest?: boolean };
+  let lastExport: ExportResult | null = null;
+  let exporting: { at: number; n: number; item: string; copied: number; skipped: number } | null = null;
+  /** After a hub restart the last export is read back from the manifest it wrote (5 s at most: the drive may be slow). */
+  async function exportFromManifest(dir: string): Promise<ExportResult | null> {
+    try {
+      const text = await Promise.race([fs.promises.readFile(path.join(dir, 'manifest.json'), 'utf8'), new Promise<never>((_, no) => setTimeout(() => no(new Error('slow')), 5000).unref())]);
+      const j = JSON.parse(text);
+      return { dir, items: Array.isArray(j.items) ? j.items.length : 0, withKeys: !!j.withKeys, warnings: [], at: Date.parse(j.exportedAt) || 0, ok: true, fromManifest: true };
+    } catch { return null; }
+  }
   // One round at a time, off the event loop: a round asked for while one runs is skipped (the running
   // round or the next 10-minute one copies the same bytes; offsets make that safe), so no caller waits.
   let archiving: Promise<void> | null = null;
@@ -757,8 +770,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     archiving = (opts.archiveRunner ?? archiveInWorker)({ configDirs: configDirs(), archiveDir: dir, onlySession, roomChatRoot: path.join(HOME, 'room_chat'), roomsRoot: path.join(opts.dir, 'rooms') })
       .then((r) => {
         if (!onlySession && r.ok !== (lastArchive?.ok ?? true)) broadcast('archive', { ok: r.ok, reason: r.reason }); // warn once, clear once
-        if (!onlySession || !r.ok) lastArchive = { ...r, at: Date.now() };
-      }, (e) => { lastArchive = { ok: false, reason: String((e as Error).message), copiedFiles: 0, copiedBytes: 0, at: Date.now() }; })
+        if (!onlySession || !r.ok) keepArchive({ ...r, at: Date.now() });
+      }, (e) => {
+        // a folder that does not answer (probe) or a round past its time limit: say why instead of staying silent
+        keepArchive({ ok: false, reason: String((e as Error).message), copiedFiles: 0, copiedBytes: 0, at: Date.now() });
+        broadcast('archive', { ok: false, reason: lastArchive!.reason });
+      })
       .finally(() => { archiving = null; });
   }
   const archiver = setInterval(runArchive, 10 * 60_000);
@@ -825,12 +842,32 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'GET' && p === '/api/archive') return json(res, 200, { dir: archiveDir(), last: lastArchive });
     // ---- machine export (T17): settings, skills, memory, plugin list for a new machine; never logins ----
     const machineDir = () => path.join(archiveDir() || opts.dir, 'machine');
-    if (m === 'GET' && p === '/api/machine') return json(res, 200, { dir: machineDir(), last: lastExport });
+    if (m === 'GET' && p === '/api/machine') {
+      if (!lastExport) lastExport = await exportFromManifest(machineDir());
+      return json(res, 200, { dir: machineDir(), running: exporting, last: lastExport });
+    }
     if (m === 'POST' && p === '/api/machine/export') {
+      // Runs off the event loop (a slow drive used to freeze the whole hub): 202 now, GET /api/machine shows progress and the result.
       const b = await readBody(req);
-      const r = exportMachine({ home: opts.machineHome ?? os.homedir(), hubHome: opts.dir, dir: machineDir(), withKeys: b.withKeys === true });
-      lastExport = { dir: r.dir, items: r.items.length, withKeys: b.withKeys === true, warnings: r.warnings, at: Date.now() };
-      return json(res, 200, lastExport);
+      if (exporting) return json(res, 409, { error: 'an export is already running', running: exporting });
+      const dir = machineDir(), withKeys = b.withKeys === true, t0 = Date.now();
+      exporting = { at: t0, n: 0, item: '', copied: 0, skipped: 0 };
+      broadcast('machine', { running: exporting });
+      (async () => {
+        try {
+          await probeDir(dir);
+          const r = await runWorker<any>(new URL('./machine-worker.ts', import.meta.url), { home: opts.machineHome ?? os.homedir(), hubHome: opts.dir, dir, withKeys }, 10 * 60_000,
+            (pr) => { if (exporting) { Object.assign(exporting, pr); broadcast('machine', { running: exporting }); } });
+          if (r.error) throw new Error(r.error);
+          lastExport = { dir: r.dir, items: r.items.length, withKeys, warnings: r.warnings, at: Date.now(), ok: true, copied: r.copied, skipped: r.skipped, ms: Date.now() - t0 };
+        } catch (e) {
+          lastExport = { dir, items: 0, withKeys, warnings: [], at: Date.now(), ok: false, error: (e as Error).message, ms: Date.now() - t0 };
+        } finally {
+          exporting = null;
+          broadcast('machine', { running: null, last: lastExport });
+        }
+      })();
+      return json(res, 202, { started: true, dir });
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
     // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
