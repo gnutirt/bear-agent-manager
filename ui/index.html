@@ -102,11 +102,11 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 .att .an,.afile .an{display:flex;flex-direction:column;min-width:0}.att b,.afile b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.att small,.afile small{color:var(--mute)}
 .att button{width:22px;height:22px;border-radius:6px;color:var(--mute)}.att button:hover{background:var(--hover)}
 .compose-wrap.drop #composer{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.atts{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
+.atts{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;margin:6px 0 2px}
 .aimg{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--code);cursor:zoom-in;line-height:0}
 .aimg img{max-width:260px;max-height:200px;object-fit:cover;display:block}
 .afile:hover{border-color:var(--accent)}
-#zoom .zbox.zimg{width:auto;max-width:96vw;padding:14px}#zoom .zimg img{max-width:100%;max-height:84vh;display:block;border-radius:10px}
+#zoom .zbox.zimg{width:auto;max-width:96vw;padding:14px}#zoom .zimg img{max-width:100%;max-height:84vh;display:block;border-radius:10px}#zoom .zimg .zx{position:absolute;top:22px;right:22px;float:none;background:var(--panel);box-shadow:var(--shadow)}
 /* reply: floating button on the hovered message, quote bar above the composer, quote box inside a reply */
 #rplBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
 #rplBtn:hover{background:var(--accent);color:#fff}
@@ -173,8 +173,8 @@ input,textarea{font:inherit;color:inherit}
 .sess .who{flex:1;min-width:0}
 .sess .nm{display:flex;align-items:center;gap:6px;color:var(--side-strong);font-weight:600;font-size:13.5px}
 .sess .nm span.n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sess .sub{font-size:12px;color:var(--side-mute);display:flex;align-items:center;gap:5px;min-width:0;margin-top:1px}
-.sess .sub>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .sub{font-size:12px;color:var(--side-mute);display:flex;flex-wrap:wrap;align-items:center;gap:1px 5px;min-width:0;margin-top:1px}
+.sess .sub>span:last-child{flex:1 1 70px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sess .acts{display:flex;gap:2px;align-items:center}
 .sess .acts [data-a=rename],.sess .acts [data-a=lead]{opacity:0}
 .sess:hover .acts [data-a=lead],.sess:hover .acts [data-a=rename],.sess .acts [data-a=rename]:focus-visible{opacity:1}
@@ -2128,7 +2128,7 @@ $('verBtn').onclick = (e) => {
     </div>
     <div class="mfoot">${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}${v.newer && v.canApply ? `<button class="btn sm primary" data-vupdate>${t('ver.update')}</button>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
     const up = m.querySelector('[data-vupdate]');
-    if (up) up.onclick = () => armed(up, t('ver.updateConfirm', { v: v.latest }), () => api('/api/update', {}).then((r) => { closeMenu(); toast(t('ver.updated', { to: r.to || v.latest })); setTimeout(() => location.reload(), 8000); }, (e) => toast(e.message)));
+    if (up) up.onclick = () => armed(up, t('ver.updateConfirm', { v: v.latest }), () => api('/api/update', {}).then(async (r) => { closeMenu(); toast(t('ver.updated', { to: r.to || v.latest })); if (r.restart) await api('/api/restart', {}).catch(() => {}); setTimeout(() => location.reload(), 8000); }, (e) => toast(e.message)));
     m.querySelector('[data-vcheck]')?.addEventListener('click', () => api('/api/version/check', {}).then((r) => { S.ver = r; renderVersion(); closeMenu(); toast(r.newer ? t('ver.available', { v: r.latest }) : t('ver.upToDate')); }, (err) => toast(err.message)));
   });
 };
