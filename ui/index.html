@@ -414,12 +414,21 @@ header .spacer{flex:1}
 #menu .mem .mi small{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #menu .mem .macts{display:flex;gap:6px;flex:none}
 #menu .item.mem{flex-wrap:wrap}
+#menu .item.mem.mcard{display:block;border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin:8px 0;background:color-mix(in srgb,var(--text) 2%,transparent)}
+#menu .mcard .mhd{display:flex;align-items:center;gap:12px}
+#menu .mblk{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+#menu .mblk h4{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+#menu .mblk .mrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#menu .mblk[hidden]{display:none}
+#menu .mblk.danger h4{color:#E5484D}#menu .mblk.danger{border-top-style:dashed}
+#menu .mblk .mmodel{width:100%;flex:none}
+#menu .mblk .tchip.sm{margin:0}
 #menu .mem .mtop{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding-left:42px}#menu .mem .mtop[hidden]{display:none}#menu .mem .mtop small{color:var(--mute);margin-right:2px}.tchip.sm{padding:2px 9px;font-size:12px}.tchip:disabled{opacity:.7;cursor:default}
 #menu .mem .mctl{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-left:42px}
 #menu .mem .mmodel{flex:1 1 170px;min-width:0;padding:4px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-family:var(--mono)}
 #menu .mem .av .led{border-color:var(--panel)}
 #menu .btn.iconbtn{padding:4px 7px}
-#menu .dirtytag{font-size:11.5px;font-weight:700;color:#A16207;background:color-mix(in srgb,#F5A524 24%,transparent);border-radius:6px;padding:2px 7px;white-space:nowrap;cursor:help}
+#menu .dirtytag{font-size:11.5px;font-weight:700;color:color-mix(in srgb,#F59E0B 50%,var(--text));background:color-mix(in srgb,#F5A524 24%,transparent);border-radius:6px;padding:2px 7px;white-space:nowrap;cursor:help}
 #menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
 /* glass themes: message cards are real frosted glass (agent-tinted sheen, bright rim, depth) */
 html:root[data-theme=glass] .group{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 26%,rgba(255,255,255,.20)),rgba(255,255,255,.05) 70%);border-color:rgba(255,255,255,.38);
@@ -1047,10 +1056,10 @@ async function fillFollows(m) {
     const paint = (list) => {
       const on = new Map(list.map((x) => [x.topic, x.follows]));
       box.hidden = false;
-      box.innerHTML = `<small title="${t('members.follow.tip')}">${t('members.follow')}</small>` + names.map((k) => {
+      box.innerHTML = `<h4 title="${t('members.follow.tip')}">${t('members.follow')}</h4><div class="mrow">` + names.map((k) => {
         const f = lead || !!on.get(k), state = lead ? t('members.follow.lead') : f ? t('members.follow.on') : t('members.follow.off');
         return `<button type="button" class="tchip sm" data-ftopic="${esc(k)}" aria-selected="${f}" title="${esc(t('members.follow.chip', { topic: k, state }))}"${lead ? ' disabled' : ''}>#${esc(k)}</button>`;
-      }).join('');
+      }).join('') + '</div>';
       box.querySelectorAll('[data-ftopic]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(r)}/topics`, { sessionId: sid, topic: b.dataset.ftopic, follow: b.getAttribute('aria-selected') !== 'true' }).then(() => api(`/api/rooms/${enc(r)}/topics?session=${enc(sid)}`)).then(paint, (e) => toast(e.message)));
     };
     api(`/api/rooms/${enc(r)}/topics?session=${enc(sid)}`).then(paint, () => {});
@@ -1059,11 +1068,19 @@ async function fillFollows(m) {
 function membersMenu(anchor) {
   const ms = members(S.current);
   openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem ${s.status}">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small>${LABEL[s.status]}${s.activity ? ' · ' + esc(s.activity) : ''}</small></span><span class="macts"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm iconbtn" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></span><div class="mctl"><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false">${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}<button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button></div><div class="mtop" data-mtop="${esc(s.id)}" hidden></div></div>`).join('')
+    <div class="item mem mcard ${s.status}">
+      <div class="mhd">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span></div>
+      <section class="mblk"><h4>${t('members.blk.role')}</h4><div class="mrow"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out} ${t('members.leave')}</button></div></section>
+      <section class="mblk"><h4>${t('members.blk.model')}</h4><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false"></section>
+      <section class="mblk" data-mtop="${esc(s.id)}" hidden></section>
+      <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button class="btn sm" data-goskill="${esc(normAgent(s.name))}">${t('members.goSkill')}</button>${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}</div></section>
+      <section class="mblk danger"><h4>${t('members.blk.danger')}</h4><div class="mrow"><button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button>${isLead(s.id) ? `<button class="btn sm danger" data-clearlead="${esc(s.id)}" title="${t('members.clearLead.tip')}">${t('members.clearLead')}</button>` : ''}</div></section>
+    </div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { closeMenu(); setLead(b.dataset.lead); });
     fillFollows(m);
+    m.querySelectorAll('[data-goskill]').forEach((b) => b.onclick = () => { S.skAgent = b.dataset.goskill; closeMenu(); showTab('skills'); loadSkillUse(S.skAgent); });
     m.querySelectorAll('[data-opentab]').forEach((b) => b.onclick = () => { closeMenu(); openTab(b.dataset.opentab); });
     const sess = (id) => S.sessions[id];
     // End / Compact stop the chat's tab (VS Code / Antigravity tab dies and must be reopened): two clicks, wording warns when it is busy
@@ -1074,6 +1091,7 @@ function membersMenu(anchor) {
       armed(btn, n ? t('members.confirmDirty', { n }) : s?.status === 'busy' ? t('members.confirmBusy') : ask, () => doIt(id, n > 0).then((r) => { closeMenu(); toast(r); }, (e) => toast(e.message)));
     };
     m.querySelectorAll('[data-end]').forEach((b) => guarded(b, b.dataset.end, (id, force) => api(`/api/sessions/${enc(id)}/terminate`, force ? { force: true } : {}).then(() => t('members.ended', { name: sess(id)?.name })), t('members.confirm')));
+    m.querySelectorAll('[data-clearlead]').forEach((b) => guarded(b, b.dataset.clearlead, (id, force) => api(`/api/rooms/${enc(S.current)}/clear-lead`, force ? { force: true } : {}).then(() => t('members.cleared', { name: sess(id)?.name })), t('members.clearLead.ask')));
     m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id, force) => api(`/api/sessions/${enc(id)}/compact`, { revive: true, ...(force ? { force: true } : {}) }).then(() => t('members.compacting', { name: sess(id)?.name })), t('members.confirm')));
     S.git = S.git || {};
     for (const s of ms) api(`/api/sessions/${enc(s.id)}/git`).then((g) => {
