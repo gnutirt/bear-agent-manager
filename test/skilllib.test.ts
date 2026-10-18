@@ -71,3 +71,56 @@ test('the real skill-library loads: every pack skill exists, every skill has a r
   const names = new Set(lib.skills.map((s) => s.name));
   for (const p of lib.packs) assert.ok(p.skills.length > 0 && p.skills.every((n) => names.has(n)), p.id);
 });
+
+function libraryOnDisk() {
+  const dir = fakeLibrary();
+  const skill = path.join(dir, 'slides', 'y', 'deck-maker');
+  fs.mkdirSync(path.join(skill, 'refs'), { recursive: true });
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), '---\nname: deck-maker\n---\n');
+  fs.writeFileSync(path.join(skill, 'refs', 'a.md'), 'ref');
+  fs.writeFileSync(path.join(dir, 'slides', 'y', 'LICENSE'), 'Apache');
+  fs.mkdirSync(path.join(dir, 'general', 'notes'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'general', 'notes', 'SKILL.md'), 'x');   // no LICENSE anywhere
+  const idx = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+  idx.skills[1].licenseFile = 'slides/y/LICENSE';
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(idx));
+  return dir;
+}
+
+test('installSkill copies files with the LICENSE, never overwrites, refuses a skill without LICENSE or over the size cap; removeSkill', async () => {
+  const { installSkill, removeSkill } = await import('../hub/skilllib.ts');
+  const dir = libraryOnDisk(), cfg = path.join(dir, 'alice-config');
+  const lib = loadLibrary(dir);
+  const deck = lib.skills.find((s) => s.name === 'deck-maker')!, notes = lib.skills.find((s) => s.name === 'notes')!;
+  assert.equal(installSkill(dir, deck, cfg, 3).status, 'error');   // over a 3-byte cap
+  assert.ok(!fs.existsSync(path.join(cfg, 'skills', 'deck-maker')), 'no half skill left');
+  assert.equal(installSkill(dir, deck, cfg).status, 'installed');
+  assert.equal(fs.readFileSync(path.join(cfg, 'skills', 'deck-maker', 'refs', 'a.md'), 'utf8'), 'ref');
+  assert.equal(fs.readFileSync(path.join(cfg, 'skills', 'deck-maker', 'LICENSE'), 'utf8'), 'Apache');
+  fs.writeFileSync(path.join(cfg, 'skills', 'deck-maker', 'SKILL.md'), 'edited by alice');
+  assert.equal(installSkill(dir, deck, cfg).status, 'exists');
+  assert.equal(fs.readFileSync(path.join(cfg, 'skills', 'deck-maker', 'SKILL.md'), 'utf8'), 'edited by alice');
+  assert.match(installSkill(dir, notes, cfg).error!, /LICENSE/);
+  assert.equal(removeSkill(deck, cfg).status, 'removed');
+  assert.equal(removeSkill(deck, cfg).status, 'missing');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('install/uninstall/apply routes follow the contract: known accounts only, pack rules only for installed skills', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  const lib = libraryOnDisk();
+  const { hub, dir, call } = await makeHub(undefined, undefined, { skillLibraryDir: lib });
+  try {
+    const cfg = path.join(dir, '.claude');   // the default login of the fake home
+    fs.mkdirSync(cfg, { recursive: true });
+    await assert.rejects(call('/api/skill-library/install', { names: ['deck-maker'], configDir: path.join(dir, 'elsewhere') }), (e: any) => e.status === 400);
+    assert.deepEqual(await call('/api/skill-library/install', { names: ['deck-maker', 'notes', 'nope'], configDir: cfg }),
+      { done: ['deck-maker'], skipped: [{ name: 'notes', reason: 'no LICENSE in the library' }, { name: 'nope', reason: 'not in the library' }] });
+    assert.deepEqual((await call<any>('/api/skill-library?q=deck')).skills[0].installed.map((d: string) => path.resolve(d)), [path.resolve(cfg)]);
+    await call('/api/sessions/register', { id: 'a1', cwd: dir, name: 'Alice' });
+    assert.deepEqual(await call('/api/skill-packs/apply', { pack: 'slides-core', agent: 'Alice' }), { applied: ['deck-maker'], notInstalled: [] });
+    assert.deepEqual((await call<any>('/api/settings')).agentSkills.alice['deck-maker'], { mode: 'force', when: 'first' });
+    await assert.rejects(call('/api/skill-packs/apply', { pack: 'nope', agent: 'alice' }), (e: any) => e.status === 400);
+    assert.deepEqual(await call('/api/skill-library/uninstall', { names: ['deck-maker'], configDir: cfg }), { done: ['deck-maker'], skipped: [] });
+  } finally { await hub.close(); fs.rmSync(lib, { recursive: true, force: true }); }
+});

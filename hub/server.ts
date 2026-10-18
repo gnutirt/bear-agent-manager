@@ -13,7 +13,7 @@ import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
-import { filterSkills, installedIn, loadLibrary } from './skilllib.ts';
+import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
@@ -746,8 +746,36 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
     // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
+    const libDir = () => opts.skillLibraryDir ?? path.join(ROOT, 'skill-library');
+    if (m === 'POST' && (p === '/api/skill-library/install' || p === '/api/skill-library/uninstall')) {
+      // S2: only into a Claude account the hub knows (config dir of a login or a session), only library skills; never overwrites.
+      const b = await readBody(req), lib = loadLibrary(libDir());
+      const dir = usageDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.configDir ?? '')).toLowerCase());
+      if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
+      const names: string[] = Array.isArray(b.names) ? b.names.map(String).slice(0, 200) : [];
+      const results = names.map((n) => {
+        const sk = lib.skills.find((x) => x.name === n);
+        if (!sk) return { name: n, status: 'error', error: 'not in the library' };
+        return p.endsWith('/install') ? installSkill(libDir(), sk, dir) : removeSkill(sk, dir);
+      });
+      const ok = (x: { status: string }) => x.status === 'installed' || x.status === 'removed';
+      return json(res, 200, { done: results.filter(ok).map((x) => x.name), skipped: results.filter((x) => !ok(x)).map((x) => ({ name: x.name, reason: x.error ?? x.status })) });
+    }
+    if (m === 'POST' && p === '/api/skill-packs/apply') {
+      const b = await readBody(req), lib = loadLibrary(libDir());
+      const pack = lib.packs.find((x) => x.id === String(b.pack ?? ''));
+      const agent = normAgent(String(b.agent ?? ''));
+      if (!pack || !agent) throw new StoreError(400, 'pack and agent required');
+      // The agent's account: config dir of its sessions (default ~/.claude); skills/ is not shared between accounts.
+      const dirs = [...new Set(Object.values(store.state.sessions).filter((x) => normAgent(x.name) === agent).map((x) => x.configDir || path.join(usageHome, '.claude')))];
+      const pp = packPatch(pack, agent, (n) => installedIn(n, dirs).length > 0);
+      const next = patchSettings(loadSettings(opts.dir, envCap), pp.patch);
+      saveSettings(opts.dir, next);
+      broadcast('settings', next);
+      return json(res, 200, { applied: pp.applied, notInstalled: pp.notInstalled });
+    }
     if (m === 'GET' && (p === '/api/skill-library' || p === '/api/skill-packs')) {
-      const lib = loadLibrary(opts.skillLibraryDir ?? path.join(ROOT, 'skill-library'));
+      const lib = loadLibrary(libDir());
       if (p === '/api/skill-packs') return json(res, 200, { packs: lib.packs });
       const dirs = usageDirs().filter((d) => fs.existsSync(d));
       const q = { role: url.searchParams.get('role') ?? '', q: url.searchParams.get('q') ?? '', license: url.searchParams.get('license') ?? '' };

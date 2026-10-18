@@ -72,3 +72,68 @@ export function filterSkills(skills: LibSkill[], q: SkillQuery): LibSkill[] {
 /** Config dirs (accounts) where <configDir>/skills/<name> exists. */
 export const installedIn = (name: string, configDirs: string[]) =>
   configDirs.filter((d) => { try { return fs.statSync(path.join(d, 'skills', name)).isDirectory(); } catch { return false; } });
+
+// ---- S2: install / remove / apply a pack. Copies files only (never runs anything), never overwrites. ----
+
+export const MAX_SKILL_BYTES = 5 * 1024 * 1024;
+export type InstallResult = { name: string; status: 'installed' | 'exists' | 'removed' | 'missing' | 'error'; error?: string };
+
+const inside = (root: string, p: string) => { const r = path.relative(root, p); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
+
+/** Regular files under dir (symlinks and other special files skipped), relative paths; throws past maxBytes. */
+function listFiles(dir: string, maxBytes: number): string[] {
+  const out: string[] = [];
+  let total = 0;
+  const walk = (rel: string) => {
+    for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const r = path.join(rel, e.name);
+      if (e.isDirectory()) walk(r);
+      else if (e.isFile()) {
+        total += fs.statSync(path.join(dir, r)).size;
+        if (total > maxBytes) throw new Error(`larger than ${Math.round(maxBytes / 1048576)} MB`);
+        out.push(r);
+      }
+    }
+  };
+  walk('');
+  return out;
+}
+
+/** Copies a library skill to <configDir>/skills/<name> (with its LICENSE) when it is not there yet. */
+export function installSkill(libDir: string, s: LibSkill, configDir: string, maxBytes = MAX_SKILL_BYTES): InstallResult {
+  const skills = path.join(configDir, 'skills'), dest = path.join(skills, s.name);
+  try {
+    if (fs.existsSync(dest)) return { name: s.name, status: 'exists' };
+    const src = path.resolve(libDir, s.path);
+    if (!inside(path.resolve(libDir), src) || !fs.existsSync(path.join(src, 'SKILL.md'))) return { name: s.name, status: 'error', error: 'not in the library' };
+    const lic = s.licenseFile ? path.resolve(libDir, s.licenseFile) : '';
+    if (!lic || !inside(path.resolve(libDir), lic) || !fs.statSync(lic, { throwIfNoEntry: false })?.isFile()) return { name: s.name, status: 'error', error: 'no LICENSE in the library' };
+    const files = listFiles(src, maxBytes);
+    // Written next to the target and renamed, so a failed copy never leaves a half skill that Claude Code would load.
+    const tmp = path.join(skills, `.${s.name}.installing-${process.pid}`);
+    fs.rmSync(tmp, { recursive: true, force: true });
+    for (const f of files) { fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(src, f), path.join(tmp, f)); }
+    if (!files.some((f) => /^LICEN[CS]E/i.test(f))) fs.copyFileSync(lic, path.join(tmp, 'LICENSE'));
+    fs.renameSync(tmp, dest);
+    return { name: s.name, status: 'installed' };
+  } catch (e) { return { name: s.name, status: 'error', error: (e as Error).message }; }
+}
+
+/** Removes <configDir>/skills/<name>, only for a skill name of the library. */
+export function removeSkill(s: LibSkill, configDir: string): InstallResult {
+  const skills = path.join(configDir, 'skills'), dest = path.join(skills, s.name);
+  try {
+    if (!inside(skills, dest) || !fs.existsSync(dest)) return { name: s.name, status: 'missing' };
+    fs.rmSync(dest, { recursive: true, force: true });
+    return { name: s.name, status: 'removed' };
+  } catch (e) { return { name: s.name, status: 'error', error: (e as Error).message }; }
+}
+
+/** settings.agentSkills patch that turns the pack on for agent: only skills installed on the agent's account; the others are reported. */
+export function packPatch(pack: SkillPack, agent: string, installed: (name: string) => boolean) {
+  const on = pack.skills.filter(installed);
+  return {
+    patch: { agentSkills: { [agent]: Object.fromEntries(on.map((n) => [n, { mode: pack.mode, when: pack.when }])) } },
+    applied: on, notInstalled: pack.skills.filter((n) => !on.includes(n)),
+  };
+}
