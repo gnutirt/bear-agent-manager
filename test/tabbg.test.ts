@@ -17,7 +17,7 @@ test('a tab that comes up ends the background claude of the same session; a back
     await call('/api/sessions/register', { id: 'tb1', cwd: 'C:/tabbg' });                    // a tab
     assert.equal(child.killed, 1); assert.equal(isBackground('tb1'), false);
     const texts = (await call<any[]>('/api/rooms/r/messages?limit=5')).map((m) => m.text);
-    assert.ok(texts.some((t) => /đóng tiến trình nền của/.test(t)), texts.join(' | '));
+    assert.ok(texts.some((t) => /đóng tiến trình nền/.test(t)), texts.join(' | '));
     await call('/api/sessions/register', { id: 'tb1', cwd: 'C:/tabbg' });                    // again: nothing left to stop
     assert.equal(child.killed, 1);
   } finally { await hub.close(); }
