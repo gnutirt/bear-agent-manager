@@ -4,7 +4,7 @@ Ngày 2026-10-18. Yêu cầu của chủ repo: hệ thống phải có phiên b�
 
 ## Hiện trạng
 
-Version đang ghi ở 3 chỗ, hiện đều 0.2.0: `package.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`. Chưa có git tag, chưa có GitHub Release, CHANGELOG chỉ có mục "Unreleased". Hub không biết mình đang chạy phiên bản nào và không biết có bản mới.
+Version đang ghi ở 2 chỗ, hiện đều 0.2.0: `package.json` và `.claude-plugin/plugin.json` (`.claude-plugin/marketplace.json` là marketplace cục bộ `bear-agent-manager-local`, nguồn `./`, không có trường version). Mọi chỗ trong spec nói "3 file" nghĩa là hai file này. Chưa có git tag, chưa có GitHub Release, CHANGELOG chỉ có mục "Unreleased". Hub không biết mình đang chạy phiên bản nào và không biết có bản mới.
 
 ## Mục tiêu / không làm
 
