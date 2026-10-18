@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Releases (V4): `node scripts/release.mjs X.Y.Z` checks a clean tree and green tests, sets the version, moves the Unreleased notes under `## X.Y.Z - <date>`, commits `release: vX.Y.Z` and tags it; it never pushes (README "Releasing").
 - Room lead duties (P2): `settings.lead.delegate`, `distribute`, `handoffOnDone` (on by default). They add steps to the prompt of a lead terminal: find who plans and who codes with room_who and pass work between them, send heavy reading to worker and tidying to osin, record decisions with room_note and leave a handoff when done. No agent or room names in the hub. Needs hub restart.
 - Versions (V1): `GET /api/version` gives the hub version (package.json, the one source; a test keeps plugin.json in step), the plugin copies each Claude account runs its hooks from (`plugins`, `mismatch` when they differ from the hub) and the latest GitHub release of `repository` (`latest`, `newer`, `notes` as plain text, `canApply`/`reason`: only a clean git checkout of the same repo). The hub asks GitHub at most every 6 hours with the ETag and no user data; `POST /api/version/check` asks now; `settings.updates.check` turns it off. Needs hub restart.
 - Fix: `/api/i18n` re-reads vi.ts/en.ts when they change, so new UI strings no longer show as raw key names until a hub restart.
