@@ -3,7 +3,7 @@
 Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 từ các repo GitHub công khai.
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
-Tổng: **120 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
+Tổng: **150 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3 · Pháp lý 20 · Solar 10. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
 ## Cách cài một skill
@@ -55,8 +55,26 @@ Máy này đã có sẵn chúng (`anthropic-skills:pptx` …).
 
 `anthropic/`: skill-creator (tạo skill mới), internal-comms, mcp-builder — anthropics/skills · Apache-2.0.
 
+## Pháp lý (`legal/`) — 20
+
+| Nhóm | Nguồn · Giấy phép | Skill |
+|---|---|---|
+| `anthropic-legal` (8) | [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) · Apache-2.0 | review-contract, triage-nda, legal-risk-assessment, compliance-check, legal-response, brief, meeting-briefing, vendor-check |
+| `casemark` (12) | CaseMark/skills · Apache-2.0 | contract-analysis, contract-summarization, contract-playbook-review, contract-dispute-analysis, due-diligence-checklist, due-diligence-report, confidentiality-nda, employment-contract-summary, loan-and-security-agreement, term-loan-agreement, corporate-compliance-checklist, policy-brief |
+
+Viết theo luật Mỹ và thông lệ quốc tế. Dùng cho hợp đồng theo luật Việt Nam thì đối chiếu Bộ luật Dân sự 2015, Luật Thương mại 2005 và nhờ luật sư xác nhận.
+`review-contract`, `vendor-check` chạy tốt nhất khi có bộ quy tắc đàm phán (playbook) của tổ chức và các kết nối CLM/CRM (xem `CONNECTORS.md` trong skill).
+
+## Solar (`solar/`) — 10
+
+`casemark/` · CaseMark/skills · Apache-2.0: modeling-renewable-resource-yields (sản lượng P50/P90), analyzing-renewable-energy-project-finance, modeling-project-finance-structures, structuring-energy-offtake-agreements, modeling-energy-transition-infrastructure, power-purchase-agreement, epc-contract, interconnection-agreement, solar-site-lease, energy-regulation-summaries.
+
+Đây là skill về tài chính và hợp đồng dự án. Chưa tìm được skill kỹ thuật PV (thiết kế chuỗi, chọn inverter, bóng che, sụt áp) có giấy phép rõ ràng.
+Máy này đã có sẵn `solar-skills` (phân tích dữ liệu Deye/SolisCloud) và `epc-contractor-evaluation` (chấm điểm nhà thầu EPC).
+
 ## Đã tìm nhưng không chép
 
+- Pháp lý: lawve-ai/awesome-legal-skills, cslawyer1985/contract-review-pro (không có giấy phép rõ ràng). Solar: các skill "renewable-energy" trên claudskills.com không rõ repo gốc.
 - `doc-coauthoring` (anthropics/skills): không có file giấy phép kèm theo.
 - [narosemena/master-instructional-design](https://github.com/narosemena/master-instructional-design): giấy phép CC BY-NC-ND 4.0 (không thương mại, không sửa), không hợp để đưa vào kho dùng chung. Chỉ ghi link.
 - [jiji262/claude-design-skill](https://github.com/jiji262/claude-design-skill): chuyển thể từ system prompt nội bộ của Claude.ai, giấy phép MIT do tác giả tự ghi nên không đáng tin. Chỉ ghi link.

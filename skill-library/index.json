@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 120,
+  "count": 150,
   "skills": [
     {
       "name": "3-statement-model",
@@ -1267,6 +1267,268 @@
       "licenseFile": "general/anthropic/skill-creator/LICENSE.txt"
     },
     {
+      "name": "brief",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/brief",
+      "description": "Generate contextual briefings for legal work — daily summary, topic research, or incident response. Use when starting your day and need a scan of legal-relevant items across email, calendar, and contracts, when researching a specific legal question across internal sources, or when a developing situation (data breach, litigation threat, regulatory inquiry) needs rapid context.",
+      "descVi": "Soạn bản tóm tắt cho công việc pháp lý: tổng hợp hằng ngày, nghiên cứu một chủ đề, xử lý sự cố.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "compliance-check",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/compliance-check",
+      "description": "Run a compliance check on a proposed action, product feature, or business initiative, surfacing applicable regulations, required approvals, and risk areas. Use when launching a feature that touches personal data, when marketing or product proposes something with regulatory implications, or when you need to know which approvals and jurisdictional requirements apply before proceeding.",
+      "descVi": "Kiểm tra tuân thủ cho một hành động, tính năng sản phẩm hoặc sáng kiến kinh doanh, nêu quy định áp dụng.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "legal-response",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/legal-response",
+      "description": "Generate a response to a common legal inquiry using configured templates, with built-in escalation checks for situations that shouldn't use a templated reply. Use when responding to data subject requests, litigation hold notices, vendor legal questions, NDA requests from business teams, or subpoenas.",
+      "descVi": "Soạn phản hồi cho câu hỏi pháp lý thường gặp theo mẫu, có kiểm tra khi nào phải chuyển luật sư.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "legal-risk-assessment",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/legal-risk-assessment",
+      "description": "Assess and classify legal risks using a severity-by-likelihood framework with escalation criteria. Use when evaluating contract risk, assessing deal exposure, classifying issues by severity, or determining whether a matter needs senior counsel or outside legal review.",
+      "descVi": "Đánh giá và xếp hạng rủi ro pháp lý theo mức độ nghiêm trọng và khả năng xảy ra.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "meeting-briefing",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/meeting-briefing",
+      "description": "Prepare structured briefings for meetings with legal relevance and track resulting action items. Use when preparing for contract negotiations, board meetings, compliance reviews, or any meeting where legal context, background research, or action tracking is needed.",
+      "descVi": "Chuẩn bị tài liệu cho cuộc họp có yếu tố pháp lý và theo dõi việc cần làm sau họp.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "review-contract",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/review-contract",
+      "description": "Review a contract against your organization's negotiation playbook — flag deviations, generate redlines, provide business impact analysis. Use when reviewing vendor or customer agreements, when you need clause-by-clause analysis against standard positions, or when preparing a negotiation strategy with prioritized redlines and fallback positions.",
+      "descVi": "Rà soát hợp đồng theo bộ quy tắc đàm phán của tổ chức: chỉ ra điểm lệch, đề xuất sửa, đánh giá ảnh hưởng.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "triage-nda",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/triage-nda",
+      "description": "Rapidly triage an incoming NDA and classify it as GREEN (standard approval), YELLOW (counsel review), or RED (full legal review). Use when a new NDA arrives from sales or business development, when screening for embedded non-solicits, non-competes, or missing carveouts, or when deciding whether an NDA can be signed under standard delegation.",
+      "descVi": "Phân loại nhanh thoả thuận bảo mật (NDA): xanh (duyệt chuẩn), vàng (cần luật sư xem), đỏ (rà soát đầy đủ).",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "vendor-check",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/anthropic-legal/vendor-check",
+      "description": "Check the status of existing agreements with a vendor across all connected systems — CLM, CRM, email, and document storage — with gap analysis and upcoming deadlines. Use when onboarding or renewing a vendor, when you need a consolidated view of what's signed and what's missing (MSA, DPA, SOW), or when checking for approaching expirations and surviving obligations.",
+      "descVi": "Kiểm tra tình trạng các thoả thuận hiện có với một nhà cung cấp trên các hệ thống đã kết nối.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/anthropic-legal/LICENSE"
+    },
+    {
+      "name": "confidentiality-nda",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/confidentiality-nda",
+      "description": "Drafts enforceable confidentiality and non-disclosure agreements for corporate transactions, M&A, partnerships, and due diligence. Covers mutual and unilateral structures, defined-term confidential information, permitted disclosures, non-solicitation, standstill, return/destruction obligations, and equitable remedies. Use when drafting an NDA, confidentiality agreement, or mutual confidentiality agreement for business transactions.",
+      "descVi": "Soạn thoả thuận bảo mật thông tin cho giao dịch, M&A, hợp tác.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "contract-analysis",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/contract-analysis",
+      "description": "Analyzes contracts to identify key terms, obligations, risks, and negotiation opportunities. Produces structured risk assessments with executive summary, provision review, risk matrix, and prioritized recommendations. Use when reviewing agreements before execution, during negotiation, at closing, or for compliance monitoring.",
+      "descVi": "Phân tích hợp đồng: điều khoản chính, nghĩa vụ, rủi ro, điểm có thể đàm phán.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "contract-dispute-analysis",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/contract-dispute-analysis",
+      "description": "Produces a structured contract dispute analysis for U.S. commercial litigation. Use when asked to evaluate breach claims, assess merits, prepare for mediation, or develop settlement strategy. Trigger: contract dispute, breach analysis, commercial litigation report, merits assessment, damages analysis, settlement evaluation.",
+      "descVi": "Phân tích tranh chấp hợp đồng: dữ kiện, điều khoản liên quan, lập luận các bên.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "contract-playbook-review",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/contract-playbook-review",
+      "description": "Reviews contracts clause-by-clause against a defined negotiation playbook, grading each clause as acceptable, needs review, or unacceptable and generating specific redline suggestions with winning language. Supports playbook creation from existing contracts, precedent language, or policy documents. Use when reviewing incoming contracts against firm standards, running playbook-based contract reviews, creating or maintaining negotiation playbooks, standardizing contract language across teams, or conducting high-volume contract review with consistent quality. Trigger keywords: playbook, contract review, clause grading, redline, winning language, contract compliance, clause-by-clause, contract standards, playbook review.",
+      "descVi": "Rà soát hợp đồng theo bộ quy tắc (playbook) đàm phán.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "contract-summarization",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/contract-summarization",
+      "description": "Generates structured summaries of U.S. contracts capturing parties, business terms, legal provisions, termination, and dispute resolution. Flags one-sided, ambiguous, or missing standard provisions. Use when summarizing agreements for due diligence, contract review, compliance monitoring, or transaction management — including multi-document sets with exhibits, schedules, and amendments.",
+      "descVi": "Tóm tắt hợp đồng: các bên, điều khoản thương mại, điều khoản pháp lý, chấm dứt.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "corporate-compliance-checklist",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/corporate-compliance-checklist",
+      "description": "Drafts a U.S. corporate compliance program checklist anchored in DOJ ECCP, Federal Sentencing Guidelines Chapter 8, and SEC enforcement priorities. Covers governance, risk assessment, training, monitoring, reporting, domain-specific obligations, documentation, and phased implementation. Use when building, evaluating, or strengthening a compliance program, preparing for regulatory inquiry, or conducting annual program assessments.",
+      "descVi": "Lập danh mục kiểm tra chương trình tuân thủ doanh nghiệp (theo chuẩn Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "due-diligence-checklist",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/due-diligence-checklist",
+      "description": "Drafts due diligence checklists for U.S. corporate transactions (M&A, asset purchases, investments, JVs, restructurings). Covers corporate structure, financials, tax, contracts, IP, litigation, employment, benefits, insurance, and environmental compliance. Surfaces change-of-control triggers, consent requirements, and red flags. Use when preparing for deal closing, board presentations, or investor disclosure.",
+      "descVi": "Lập danh mục thẩm định pháp lý cho giao dịch doanh nghiệp: M&A, mua tài sản, đầu tư, liên doanh.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "due-diligence-report",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/due-diligence-report",
+      "description": "Produces U.S. corporate/M&A due diligence reports summarizing legal risks across corporate records, contracts, liabilities, regulatory compliance, and IP. Use when drafting a diligence report, red flags memo, or legal risk summary for acquisitions, asset purchases, minority investments, or financing. Trigger keywords: due diligence, diligence report, red flags, M&A, acquisition, target review, HSR, CFIUS, reps and warranties, indemnity.",
+      "descVi": "Soạn báo cáo thẩm định pháp lý.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "employment-contract-summary",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/employment-contract-summary",
+      "description": "Produces structured U.S. employment contract summaries with section-level citations, capturing key terms, obligations, risks, and notable omissions. Use when summarizing an employment contract, executive employment agreement, offer letter, or consulting agreement. Triggers on \"employment contract summary,\" \"employment agreement,\" \"compensation,\" \"severance,\" \"non-compete,\" \"non-solicit,\" \"confidentiality,\" or \"restrictive covenant.\"",
+      "descVi": "Tóm tắt hợp đồng lao động có dẫn từng điều khoản: điều kiện chính, nghĩa vụ, chấm dứt.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "loan-and-security-agreement",
+      "category": "legal",
+      "roles": [
+        "legal",
+        "banking"
+      ],
+      "path": "legal/casemark/loan-and-security-agreement",
+      "description": "Drafts a U.S. secured Loan and Security Agreement with UCC Article 9 security interests, perfection mechanics, covenants, and enforcement remedies. Use when documenting secured commercial loans, acquisition financing, working capital facilities, or equipment financing requiring perfected lien documentation.",
+      "descVi": "Soạn hợp đồng vay có bảo đảm (theo luật Mỹ, UCC Article 9).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "policy-brief",
+      "category": "legal",
+      "roles": [
+        "legal"
+      ],
+      "path": "legal/casemark/policy-brief",
+      "description": "Generates structured public policy briefs analyzing legislation across economic, social, legal, and implementation dimensions. Use when drafting legislative impact analyses, policy summaries, regulatory briefs, or government affairs memoranda for lawmakers, lobbyists, or civic organizations.",
+      "descVi": "Soạn bản phân tích chính sách công: tác động kinh tế, xã hội, pháp lý, triển khai.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
+      "name": "term-loan-agreement",
+      "category": "legal",
+      "roles": [
+        "legal",
+        "banking"
+      ],
+      "path": "legal/casemark/term-loan-agreement",
+      "description": "Drafts U.S. corporate finance term loan agreements covering economic terms, covenants, collateral, events of default, and enforcement mechanics. Trigger when the user requests a term loan agreement, commercial loan, senior secured facility, SOFR-based loan, amortization schedule, covenant package, or bilateral loan documentation.",
+      "descVi": "Soạn hợp đồng vay có kỳ hạn (theo luật Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE"
+    },
+    {
       "name": "marp-slide",
       "category": "slides",
       "roles": [
@@ -1415,6 +1677,142 @@
       "source": "https://github.com/ryanbbrown/revealjs-skill",
       "license": "MIT",
       "licenseFile": "slides/revealjs-skill/LICENSE"
+    },
+    {
+      "name": "analyzing-renewable-energy-project-finance",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "banking"
+      ],
+      "path": "solar/casemark/analyzing-renewable-energy-project-finance",
+      "description": "Evaluates renewable energy project economics with PPA structures, merchant tail risk, and production profile analysis. Use when analyzing wind/solar projects, evaluating PPA terms, or modeling renewable energy cash flows.",
+      "descVi": "Đánh giá hiệu quả dự án năng lượng tái tạo: cấu trúc PPA, rủi ro giá thị trường, sản lượng.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "energy-regulation-summaries",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/casemark/energy-regulation-summaries",
+      "description": "Generates structured summaries of U.S. energy sector regulations and landmark cases with compliance-focused analysis. Use when summarizing FERC orders, state PUC decisions, renewable energy incentives, NEPA compliance, environmental review requirements, or energy case law for legal professionals, policymakers, or industry stakeholders.",
+      "descVi": "Tóm tắt quy định ngành năng lượng (Mỹ) và các vụ việc tiêu biểu.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "epc-contract",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/epc-contract",
+      "description": "Drafts turnkey Engineering, Procurement, and Construction (EPC) contracts for industrial facility projects. Covers scope of work, commercial terms, performance guarantees, risk allocation, warranties, and dispute resolution. Use when drafting EPC agreements, turnkey construction contracts, or energy infrastructure project contracts (power plants, petrochemical facilities, water treatment plants).",
+      "descVi": "Soạn hợp đồng EPC (thiết kế, mua sắm, xây dựng) trọn gói cho dự án.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "interconnection-agreement",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/interconnection-agreement",
+      "description": "Drafts U.S. telecommunications Interconnection Agreements (ICAs) under 47 U.S.C. §§ 251-252 and FCC Part 51, covering POIs, traffic classification, reciprocal compensation, access charges, LNP, E911, signaling, and dispute resolution. Use when drafting or revising an ICA, negotiating Section 251/252 terms, defining POI/transport arrangements, structuring ILEC/CLEC or VoIP interconnection, or preparing state PUC filings.",
+      "descVi": "Soạn thoả thuận đấu nối lưới điện.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "modeling-energy-transition-infrastructure",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/casemark/modeling-energy-transition-infrastructure",
+      "description": "Assesses energy transition investments with battery storage, grid modernization, EV charging, and hydrogen infrastructure analysis. Use when modeling energy transition assets, evaluating storage economics, or analyzing grid infrastructure.",
+      "descVi": "Đánh giá đầu tư hạ tầng chuyển dịch năng lượng: pin lưu trữ, lưới điện, trạm sạc, hydro.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "modeling-project-finance-structures",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "banking"
+      ],
+      "path": "solar/casemark/modeling-project-finance-structures",
+      "description": "Builds project finance models with construction period draws, operational cash flows, DSCR covenants, and sculpted debt repayment. Use when modeling project finance, calculating debt service coverage, or structuring project lending.",
+      "descVi": "Lập mô hình tài chính dự án: giải ngân xây dựng, dòng tiền vận hành, DSCR, lịch trả nợ.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "modeling-renewable-resource-yields",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/casemark/modeling-renewable-resource-yields",
+      "description": "Builds renewable energy yield models with resource assessment, capacity factor analysis, and P50/P90 production estimates. Use when modeling wind/solar yields, analyzing resource data, or evaluating production uncertainty.",
+      "descVi": "Lập mô hình sản lượng năng lượng tái tạo: đánh giá tài nguyên, hệ số công suất, P50/P90.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "power-purchase-agreement",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/power-purchase-agreement",
+      "description": "Drafts U.S. power purchase agreements (PPAs) between generators and offtakers covering delivery, pricing, metering, performance guarantees, RECs/carbon attributes, credit support, defaults, and remedies. Triggers on \"PPA\", \"power purchase agreement\", \"offtaker\", \"generator\", \"REC\", \"net output\", \"renewable energy offtake\", \"energy supply agreement\", or \"energy payment\".",
+      "descVi": "Soạn hợp đồng mua bán điện (PPA).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "solar-site-lease",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/solar-site-lease",
+      "description": "Drafts U.S. solar site lease agreements between landowners and solar developers for long-term ground leases of solar PV facilities. Covers option and lease terms, rent structures, easements, construction and operations rights, decommissioning security, insurance and indemnity, tax and REC allocation, assignment and lender protections, defaults, and memorandum of lease. Use when drafting solar farm land leases, solar PV site leases, renewable energy land leases, or solar facility ground lease agreements.",
+      "descVi": "Soạn hợp đồng thuê đất làm dự án điện mặt trời (theo luật Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "structuring-energy-offtake-agreements",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/casemark/structuring-energy-offtake-agreements",
+      "description": "Designs power purchase agreements and energy offtake structures with price mechanics, volume commitments, and curtailment provisions. Use when structuring PPAs, analyzing offtake terms, or evaluating energy contract risk.",
+      "descVi": "Thiết kế hợp đồng bao tiêu điện: cơ chế giá, cam kết sản lượng, cắt giảm công suất.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
     },
     {
       "name": "course-training-skills",

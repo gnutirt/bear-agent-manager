@@ -18,6 +18,8 @@ not the license of bear-agent-manager.
 | `slides/revealjs-skill/` | https://github.com/ryanbbrown/revealjs-skill | MIT | `slides/revealjs-skill/LICENSE` |
 | `slides/agent-toolkit/` | https://github.com/softaworks/agent-toolkit | MIT | `slides/agent-toolkit/LICENSE` |
 | `training/onewave/` | https://github.com/onewave-ai/claude-skills | MIT | `training/onewave/LICENSE` |
+| `legal/anthropic-legal/` | https://github.com/anthropics/knowledge-work-plugins | Apache-2.0 | `legal/anthropic-legal/LICENSE` |
+| `legal/casemark/`, `solar/casemark/` | https://github.com/CaseMark/skills | Apache-2.0 | `LICENSE` in each folder |
 | `training/course-training-skills/` | https://github.com/Mosapmohamd/course-training-skills | MIT | `training/course-training-skills/LICENSE` |
 
 Not included because their licenses do not allow redistribution here: Anthropic's `pptx`, `docx`, `xlsx`, `pdf`

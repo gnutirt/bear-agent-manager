@@ -86,5 +86,44 @@
     ],
     "mode": "auto",
     "when": "every"
+  },
+  {
+    "id": "legal-core",
+    "vi": "Pháp lý — cốt lõi",
+    "en": "Legal — core",
+    "roles": [
+      "legal"
+    ],
+    "skills": [
+      "review-contract",
+      "triage-nda",
+      "legal-risk-assessment",
+      "compliance-check",
+      "contract-analysis",
+      "contract-summarization",
+      "due-diligence-checklist",
+      "legal-response"
+    ],
+    "mode": "auto",
+    "when": "every"
+  },
+  {
+    "id": "solar-core",
+    "vi": "Solar — cốt lõi",
+    "en": "Solar — core",
+    "roles": [
+      "solar"
+    ],
+    "skills": [
+      "modeling-renewable-resource-yields",
+      "analyzing-renewable-energy-project-finance",
+      "modeling-project-finance-structures",
+      "power-purchase-agreement",
+      "epc-contract",
+      "interconnection-agreement",
+      "structuring-energy-offtake-agreements"
+    ],
+    "mode": "auto",
+    "when": "every"
   }
 ]

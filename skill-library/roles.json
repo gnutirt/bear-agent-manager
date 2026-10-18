@@ -42,5 +42,37 @@
   "marp-slide": [
     "slides",
     "training"
+  ],
+  "epc-contract": [
+    "solar",
+    "legal"
+  ],
+  "power-purchase-agreement": [
+    "solar",
+    "legal"
+  ],
+  "interconnection-agreement": [
+    "solar",
+    "legal"
+  ],
+  "solar-site-lease": [
+    "solar",
+    "legal"
+  ],
+  "loan-and-security-agreement": [
+    "legal",
+    "banking"
+  ],
+  "term-loan-agreement": [
+    "legal",
+    "banking"
+  ],
+  "modeling-project-finance-structures": [
+    "solar",
+    "banking"
+  ],
+  "analyzing-renewable-energy-project-finance": [
+    "solar",
+    "banking"
   ]
 }

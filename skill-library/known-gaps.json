@@ -36,5 +36,23 @@
     "diagram.png": "Placeholder in Marp syntax examples, not a real file.",
     "assets/template-": "Filename prefix (template-<theme>.md), the files exist.",
     "assets/theme-": "Filename prefix (theme-<name>.css), the files exist."
+  },
+  "legal/anthropic-legal/brief": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "legal/anthropic-legal/compliance-check": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "legal/anthropic-legal/legal-response": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "legal/anthropic-legal/review-contract": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "legal/anthropic-legal/triage-nda": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "legal/anthropic-legal/vendor-check": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
   }
 }

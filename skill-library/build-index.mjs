@@ -18,6 +18,9 @@ const sources = {
   'slides/anthropic-financial-services': ['https://github.com/anthropics/financial-services-plugins', 'Apache-2.0'],
   'slides/anthropic': ['https://github.com/anthropics/skills', 'Apache-2.0'],
   'slides/frontend-slides': ['https://github.com/zarazhangrui/frontend-slides', 'MIT'],
+  'legal/anthropic-legal': ['https://github.com/anthropics/knowledge-work-plugins', 'Apache-2.0'],
+  'legal/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
+  'solar/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
   'training/course-training-skills': ['https://github.com/Mosapmohamd/course-training-skills', 'MIT'],
   'general/anthropic': ['https://github.com/anthropics/skills', 'Apache-2.0'],
 };

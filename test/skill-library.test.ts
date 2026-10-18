@@ -6,7 +6,7 @@ import { buildIndex, skillRefs } from '../skill-library/build-index.mjs';
 
 const lib = path.join(import.meta.dirname, '..', 'skill-library');
 const read = (f: string) => JSON.parse(fs.readFileSync(path.join(lib, f), 'utf8'));
-const ROLES = ['banking', 'slides', 'training', 'general'];
+const ROLES = ['banking', 'slides', 'training', 'general', 'legal', 'solar'];
 
 const skills = buildIndex();
 const names = new Set(skills.map((s: any) => s.name));
