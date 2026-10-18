@@ -1291,7 +1291,7 @@ $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.tog
 const TABS = ['rooms', 'workers', 'tokens', 'skills', 'settings'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'rooms';
-  S.tab = name;
+  S.tab = name; closeMenu();
   for (const t of TABS) {
     $('view-' + t).hidden = t !== name;
     document.querySelector(`#tabs [data-tab="${t}"]`).setAttribute('aria-selected', String(t === name));
