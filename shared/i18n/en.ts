@@ -589,4 +589,9 @@ export const en: Record<string, string> = {
   'hide.level': 'level {l}',
   'lead.idle': 'Woken background agents stay alive (minutes)',
   'lead.idle.hint': 'After its last reply a background agent waits this many minutes for new messages before exiting; after that it shows offline and is woken again when a message arrives.',
+  'lib.role.legal': 'Legal',
+  'lib.role.solar': 'Solar',
+  'lib.jur.badge': '{j} law',
+  'lib.jur.tip': 'Written for {j} law. For contracts in Vietnam, check Vietnamese law and have a lawyer confirm.',
+  'lib.jur.note': 'Some skills below are written for foreign law (badge "… law"): do not use them as-is for Vietnamese contracts; check and have a lawyer confirm.',
 };

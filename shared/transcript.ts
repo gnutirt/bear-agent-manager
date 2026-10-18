@@ -75,3 +75,19 @@ export function readTitle(transcript: string | undefined): string {
 
 /** A real, saved chat: Claude Code wrote its transcript (background helpers never do). */
 export const isSavedChat = (transcript: string | undefined): boolean => !!transcript && fs.existsSync(transcript);
+
+/** Text of the newest assistant message that has text (tool-only turns skipped); '' when none in the tail. */
+export function readLastAssistantText(transcript: string | undefined): string {
+  const lines = readTail(transcript).split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes('"assistant"')) continue;
+    try {
+      const j = JSON.parse(lines[i]);
+      if (j.type !== 'assistant' || j.isApiErrorMessage) continue;
+      const c = j.message?.content;
+      const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join('\n') : '';
+      if (text.trim()) return text.trim();
+    } catch { /* partial first line of the tail */ }
+  }
+  return '';
+}

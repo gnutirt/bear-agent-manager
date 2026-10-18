@@ -24,6 +24,7 @@ export type Settings = {
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
+  relayChat: boolean;   // safety net: an answer an agent left in its own chat after a room wake is posted to the room
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
@@ -37,7 +38,7 @@ export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: false, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -125,6 +126,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     lead,
     workerRoutes: routes,
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
+    relayChat: bool(p?.relayChat, s.relayChat ?? true),
     language: ['auto', 'vi', 'en'].includes(p?.language) ? p.language : s.language ?? 'auto',
     openTabOnWake: bool(p?.openTabOnWake, s.openTabOnWake ?? false),
     updates: { check: bool(p?.updates?.check, s.updates?.check ?? true) },

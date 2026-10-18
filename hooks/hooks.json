@@ -27,6 +27,11 @@
             ],
             "asyncRewake": true,
             "timeout": 604800
+          },
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:7788/hooks/stop",
+            "timeout": 3
           }
         ]
       }

@@ -589,4 +589,9 @@ export const vi: Record<string, string> = {
   'hide.level': 'mức {l}',
   'lead.idle': 'Agent được gọi dậy nền ở lại (phút)',
   'lead.idle.hint': 'Sau lượt trả lời cuối, agent chạy nền chờ tin mới tới chừng này phút rồi mới thoát; quá hạn nó hiện offline. Gọi dậy lại khi có tin.',
+  'lib.role.legal': 'Pháp lý',
+  'lib.role.solar': 'Solar',
+  'lib.jur.badge': 'Luật {j}',
+  'lib.jur.tip': 'Viết theo luật {j}. Dùng cho hợp đồng ở Việt Nam phải đối chiếu luật Việt Nam và nhờ luật sư xác nhận.',
+  'lib.jur.note': 'Một số skill dưới đây viết theo luật nước ngoài (nhãn "Luật …"): không dùng nguyên văn cho hợp đồng Việt Nam, cần đối chiếu và nhờ luật sư xác nhận.',
 };

@@ -24,7 +24,7 @@ import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, Updat
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, formatDelivery } from '../shared/format.ts';
-import { isSavedChat, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
+import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message } from './routing.ts';
@@ -183,8 +183,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
+  // Safety net (relay): sessions handed room messages, with the room and time, until their turn's Stop hook.
+  const relayWatch = new Map<string, { at: number; room: string }>();
   function consume(sid: string, upTo: number) {
     store.consume(sid, upTo);
+    const last = store.messages.find((m) => m.id === upTo);
+    if (last && last.fromId !== sid) relayWatch.set(sid, { at: Date.now(), room: last.room });
     emitSession(store.session(sid));
   }
 
@@ -446,6 +450,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         // The compaction goes ahead: refresh the handoff SessionStart(compact) reads next time (not awaited).
         if (rule && sess.transcript) startAutoJobs([{ kind: 'handoff', sessionId: sess.id, transcript: sess.transcript, name: sess.name }]);
+        break;
+      }
+      case 'stop': {
+        // A turn woken by room messages that ended without any post to the room: the answer stayed in the agent's own
+        // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
+        const sess = store.session(id), w = relayWatch.get(sess.id);
+        relayWatch.delete(sess.id);
+        if (!w || !loadSettings(opts.dir, envCap).relayChat) break;
+        if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
+        const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
+        if (text.length < 40) break;
+        try { broadcast('msg', store.postSystem(w.room, tr('sys.relay', { name: sess.name, text: text.length > 3000 ? text.slice(0, 3000) + ' …' : text }))); emitRoom(w.room); } catch { /* room gone */ }
         break;
       }
       case 'stop-failure': {
