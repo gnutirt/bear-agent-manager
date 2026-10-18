@@ -504,6 +504,7 @@ export const vi: Record<string, string> = {
   'sys.wake.blocked': 'tài khoản {account} hết hạn mức tới {until}, đã hẹn đánh thức sau đó',
   'sys.terminated': '{name}: claude đã được kết thúc từ hub.',
   'sys.stop.api': '{name}: lượt bị dừng bởi lỗi API ({err}).',
+  'sys.compact.tabOpen': '{name} đang mở tab: gõ /compact ngay trong tab đó (hoặc chọn đóng tab rồi compact).',
   'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',
   'sys.stop.unknown': 'không rõ',
   'sys.stop.limit': '@you {name} hết hạn mức gói. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',

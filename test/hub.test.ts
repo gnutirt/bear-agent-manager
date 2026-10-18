@@ -515,7 +515,7 @@ test('terminate: needs a known claude pid; kills it, marks the session ended', a
   } finally { await hub.close(); }
 });
 
-test('compact: terminates the tab, runs compact on the saved chat, then wakes it only when asked', async () => {
+test('compact: refuses an open tab unless closeTab, then terminates it, runs compact on the saved chat, then wakes it only when asked', async () => {
   const order: string[] = [];
   const procs: any[] = [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }];
   const { hub, dir, call } = await makeHub(undefined, () => { order.push('revive'); }, {
@@ -526,8 +526,28 @@ test('compact: terminates the tab, runs compact on the saved chat, then wakes it
     fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 1000 } } }) + '\n');
     await call('/api/sessions/register', { id: 'c1', cwd: 'C:/fw', transcript: tr, pid: 800 });
     const r = await fetch(hub.url + '/api/sessions/c1/compact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify({ revive: true }) });
-    assert.equal(r.status, 202);
+    assert.equal(r.status, 409, 'an open tab is not killed by default');
+    assert.equal((await r.json() as any).tabOpen, true);
+    assert.deepEqual(order, []);
+    const r2 = await fetch(hub.url + '/api/sessions/c1/compact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify({ revive: true, closeTab: true }) });
+    assert.equal(r2.status, 202);
     await new Promise((res) => setTimeout(res, 150));
     assert.deepEqual(order, ['kill', 'compact', 'revive']);
   } finally { await hub.close(); }
+});
+
+test('killTree ends a child started through a shell together with what it started', async () => {
+  const { spawn } = await import('node:child_process');
+  const { killTree } = await import('../hub/revive.ts');
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const pidFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'kt-')), 'pid');
+  const script = `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 60000)`;
+  const child = spawn(`"${process.execPath}" -e "${script.replace(/"/g, '\\"')}"`, { shell: true, stdio: 'ignore', windowsHide: true });
+  for (let i = 0; i < 100 && !fs.existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 50));
+  const inner = Number(fs.readFileSync(pidFile, 'utf8'));
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  assert.ok(alive(inner));
+  killTree(child);
+  for (let i = 0; i < 100 && alive(inner); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(alive(inner), false);
 });

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: Compact no longer kills an open tab (the editor showed "Claude Code process exited with code 1" and the agent stayed down). `POST /api/sessions/:id/compact` on a session with its tab open answers 409 `{error, tabOpen: true}`; `closeTab: true` keeps the old stop-then-compact. Needs hub restart.
 ## 0.3.0 - 2026-10-18
 
 ### Summary of 0.3.0 (everything since 0.2.0)

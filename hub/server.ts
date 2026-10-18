@@ -1104,7 +1104,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         return json(res, 200, { ok: true });
       }
       if (m === 'POST' && action === 'compact') {
-        // Stop the tab (if any), run /compact on the saved chat in the background, then optionally wake it.
+        // Run /compact on the saved chat of a closed session in the background, then optionally wake it.
         const b = await readBody(req);
         const s = store.session(id);
         if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
@@ -1112,7 +1112,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (dirty) return json(res, 409, dirty);
         const left = b.force === true ? (await worktreeState(s.cwd)).dirty : 0;
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
-        if (!s.ended && s.status !== 'offline') await terminateSession(s);
+        // An open tab is not killed to compact it (the editor shows "process exited with code 1" and the agent stays down):
+        // type /compact in the tab, or pass closeTab to stop it first.
+        if (!s.ended && s.status !== 'offline') {
+          if (b.closeTab !== true) return json(res, 409, { error: tr('sys.compact.tabOpen', { name: s.name }), tabOpen: true });
+          await terminateSession(s);
+        }
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
         emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));

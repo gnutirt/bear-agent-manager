@@ -504,6 +504,7 @@ export const en: Record<string, string> = {
   'sys.wake.blocked': 'account {account} is out of quota until {until}, a wake-up is booked for after that',
   'sys.terminated': '{name}: claude was ended from the hub.',
   'sys.stop.api': '{name}: the turn stopped on an API error ({err}).',
+  'sys.compact.tabOpen': '{name} has its tab open: type /compact in that tab (or choose to close the tab and compact).',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',
