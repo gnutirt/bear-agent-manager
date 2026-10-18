@@ -420,4 +420,5 @@ export const en: Record<string, string> = {
   'ver.howTo': 'To update: git pull in the source folder, restart the hub, then update the Claude Code plugin and reopen your chats.',
   'ver.release': 'View release',
   'ver.check': 'Check now',
+  'usage.unknown': 'Could not read this account’s usage',
 };

@@ -328,6 +328,19 @@ html:root[data-theme=glass] .group .head b{color:#fff!important;text-shadow:0 1p
 html:root[data-theme=glass] .rc.got{color:#86EFAC}html:root[data-theme=glass] .rc.wait,html:root[data-theme=glass] .rc{color:#E4E8FF}
 html:root[data-theme=glasslight] .group{background:linear-gradient(135deg,rgba(255,255,255,.92),color-mix(in srgb,var(--c) 10%,rgba(255,255,255,.55)));border-color:rgba(255,255,255,.95)}
 /* header avatars: all members, side by side (no overlap); idle = green led + floating zzz, busy = led blinks green/amber, offline = grey */
+.uchips{display:flex;gap:6px;align-items:center;margin-right:8px}
+.uchip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px}
+.uchip:hover{border-color:var(--accent)}
+.uchip i{width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.uchip.mid i{background:var(--busy)}.uchip.hi i{background:var(--waiting)}.uchip.nil i{background:var(--offline)}
+.uchip.mid{border-color:color-mix(in srgb,var(--busy) 55%,var(--line))}.uchip.hi{border-color:color-mix(in srgb,var(--waiting) 60%,var(--line))}
+.uchip b{font-weight:600}.uchip span{font-variant-numeric:tabular-nums;color:var(--mute)}.uchip em{font-style:normal;opacity:.5;margin:0 1px}
+header h1{flex:0 1 auto;white-space:nowrap}
+header h1 #titleName{overflow:hidden;text-overflow:ellipsis}
+header .btn,.uchip{white-space:nowrap;flex:none}
+header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1500px){header .meta{display:none}}
+@media (max-width:1200px){.uchips{display:none}}
 .stack{display:flex;gap:10px;align-items:center}
 .stack .mb{position:relative;display:inline-flex;cursor:pointer;border-radius:50%;transition:transform .12s}
 .stack .mb:hover{transform:translateY(-2px)}
@@ -586,6 +599,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <h1 id="title"><span class="h">#</span><span id="titleName">Bear Agent Manager</span></h1>
     <span class="meta" id="meta"></span>
     <span class="spacer"></span>
+    <div class="uchips" id="uchips"></div>
     <div class="stack" id="stack"></div>
     <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng" data-i18n-title="notes.tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg><span data-i18n="notes.title">Biên bản</span> <span id="notesCount">0</span></button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
@@ -1007,7 +1021,19 @@ function renderWorkers() {
 function loadWorkers() { api('/api/workers').then((w) => { S.workers = w; renderWorkers(); }, () => {}); }
 setInterval(() => { if (S.workers.running.length) { renderWorkers(); renderWorkersView(); } }, 5000);
 
+/** One small chip per Claude account in the chat header: 5-hour and weekly %, amber from 80 %, red from 90 %, grey dot when the usage could not be read. */
+function renderUsageChips() {
+  const el = $('uchips'), accts = S.cu?.accounts || [];
+  const lvl = (p) => p >= 90 ? 'hi' : p >= 80 ? 'mid' : 'lo';
+  el.innerHTML = accts.map((a) => {
+    const f = a.fiveHour?.pct, w = a.sevenDay?.pct, bad = f == null && w == null;
+    const tip = bad ? (a.usageError || t('usage.unknown')) : `${a.email || a.label}: ${t('usage.5h')} ${Math.round(f ?? 0)}% · ${t('usage.week')} ${Math.round(w ?? 0)}%`;
+    return `<button type="button" class="uchip ${bad ? 'nil' : lvl(Math.max(f ?? 0, w ?? 0))}" data-gotab="tokens" title="${esc(tip)}"><i></i><b>${esc(a.label)}</b>${bad ? '' : `<span>${Math.round(f ?? 0)}%<em>/</em>${Math.round(w ?? 0)}%</span>`}</button>`;
+  }).join('');
+}
+$('uchips').addEventListener('click', (e) => { if (e.target.closest('.uchip')) showTab('tokens'); });
 function renderHeader() {
+  renderUsageChips();
   const r = room(S.current);
   $('titleName').textContent = r ? r.name : 'Bear Agent Manager';
   document.querySelector('#title .h').style.display = r ? '' : 'none';
@@ -1204,7 +1230,7 @@ function connect() {
   es.addEventListener('rooms', (e) => setRooms(JSON.parse(e.data)));
   es.addEventListener('forget', (e) => { delete S.sessions[JSON.parse(e.data).id]; renderAll(); });
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
-  es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); });
+  es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); renderUsageChips(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
@@ -1436,7 +1462,7 @@ S.tkDays = 7; S.tokens = null;
 try { S.tkDays = Number(localStorage.getItem('bear-agent-manager:tkDays')) || 7; } catch {}
 S.cu = null;   // Claude Pro usage (T10a): { accounts } or { error }
 function loadClaudeUsage(refresh = false) {
-  api('/api/claude-usage' + (refresh ? '?refresh=1' : '')).then((r) => { S.cu = r; renderTokensView(); renderSessions(); }, (e) => { S.cu = { error: e.message }; renderTokensView(); });
+  api('/api/claude-usage' + (refresh ? '?refresh=1' : '')).then((r) => { S.cu = r; renderTokensView(); renderSessions(); renderUsageChips(); }, (e) => { S.cu = { error: e.message }; renderTokensView(); });
 }
 const sameDir = (a, b) => String(a || '').replace(/[\\/]+$/, '').toLowerCase() === String(b || '').replace(/[\\/]+$/, '').toLowerCase();
 /** Which Claude account a chat runs on; only shown once two accounts are logged in. */

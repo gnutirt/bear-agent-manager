@@ -420,4 +420,5 @@ export const vi: Record<string, string> = {
   'ver.howTo': 'Cập nhật: git pull trong thư mục nguồn, restart hub, rồi cập nhật plugin Claude Code và mở lại chat.',
   'ver.release': 'Xem bản phát hành',
   'ver.check': 'Kiểm tra ngay',
+  'usage.unknown': 'Chưa đọc được mức dùng của tài khoản này',
 };
