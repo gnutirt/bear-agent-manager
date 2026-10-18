@@ -72,6 +72,16 @@ html:root[data-theme=glasslight] :is(#side,header,#tabs,.group,#composer,.tblwra
 #menu .vbody{padding:8px 10px;display:grid;gap:8px;font-size:13px}
 #menu .vnotes{max-height:160px;overflow:auto;white-space:pre-wrap;font-size:12.5px;color:var(--mute);background:var(--code);border-radius:8px;padding:8px 10px}
 #menu .vbody .verr{margin:0;padding:8px 10px}
+/* skill library */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}
+.chipf{padding:4px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12.5px;font-weight:600;color:var(--mute)}
+.chipf[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.scard{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.scard .st{display:flex;align-items:center;gap:8px}.scard .st b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scard p{margin:0;font-size:12.5px;color:var(--mute);flex:1}.scard .sf{display:flex;align-items:center;justify-content:space-between;gap:8px}.scard .sf small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lic{font-size:11px;font-weight:700;padding:0 7px;border-radius:6px;background:var(--code);color:var(--mute);white-space:nowrap}
+.packs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}.pack{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 /* search in the room */
 #searchBar{margin:0;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--panel)}#searchBar[hidden]{display:none}
 #searchBar .frow{display:flex;gap:8px;align-items:center;max-width:1480px;margin:0 auto}
@@ -1442,7 +1452,7 @@ function showTab(name) {
   document.body.dataset.tab = name;
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ workers: loadWorkersView, tokens: loadTokens, skills: loadSettingsView, settings: loadSettingsView })[name]?.();
+  ({ workers: loadWorkersView, tokens: loadTokens, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
@@ -1760,9 +1770,58 @@ function providerCard(p) {
 /** Skill tab: per-agent skill rules; shares Cài đặt's data, so every settings re-render lands here too. */
 function renderSkillsView() {
   $('view-skills').innerHTML = `<div class="vw">${!S.settings || !S.skills ? errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`
-    : `<h2>${t('skills.title')}</h2><p class="small muted">${t('skills.note')}</p>
-    ${skillsBlock()}`}</div>`;
+    : `<h2>${t('skills.title')}</h2><p class="small muted">${t('skills.note')}</p>${forceWarning()}
+    ${skillsBlock()}${skillLibBlock()}`}</div>`;
 }
+/* ---------- skill library (S3): filter by role, install / remove per account, apply a role pack to an agent ---------- */
+S.lib = { skills: null, packs: null, err: '', role: 'all', q: '', license: '', acct: '' };
+const LIB_ROLES = { banking: 'lib.role.banking', slides: 'lib.role.slides', training: 'lib.role.training', general: 'lib.role.general' };
+const libList = (d) => Array.isArray(d) ? d : Array.isArray(d?.skills) ? d.skills : null;
+function loadSkillLib() {
+  Promise.all([api('/api/skill-library'), api('/api/skill-packs')]).then(([sk, pk]) => {
+    S.lib.skills = libList(sk); S.lib.packs = Array.isArray(pk) ? pk : Array.isArray(pk?.packs) ? pk.packs : [];
+    S.lib.err = S.lib.skills ? '' : t('lib.noHub'); renderSkillsView();
+  }, (e) => { S.lib.skills = null; S.lib.err = /not found|404/i.test(e.message) ? t('lib.noHub') : e.message; renderSkillsView(); });
+}
+/** More than 15 forced skills for one agent costs tokens on every turn: say so. */
+function forceWarning() {
+  const n = Object.values(S.settings?.agentSkills?.[S.skAgent] || {}).filter((r) => r.mode === 'force').length;
+  return n > 15 ? `<div class="verr small" role="alert">${t('lib.tooMany', { n })}</div>` : '';
+}
+function skillLibBlock() {
+  const L = S.lib;
+  if (!L.skills) return `<h2>${t('lib.title')}</h2><div class="vempty">${L.err || t('common.loading')}</div>`;
+  const accts = (S.cu?.accounts || []).flatMap((a) => (a.configDirs || []).slice(0, 1).map((d) => ({ dir: d, label: a.label })));
+  const acct = L.acct || accts[0]?.dir || '';
+  const roles = ['all', ...Object.keys(LIB_ROLES).filter((r) => L.skills.some((s) => (s.roles || [s.category]).includes(r)))];
+  const q = L.q.toLowerCase();
+  const licenses = [...new Set(L.skills.map((s) => s.license).filter(Boolean))].sort();
+  const shown = L.skills.filter((s) => (L.role === 'all' || (s.roles || [s.category]).includes(L.role)) && (!L.license || s.license === L.license) && (!q || `${s.name} ${s.description}`.toLowerCase().includes(q)));
+  const chips = roles.map((r) => `<button type="button" class="chipf" data-librole="${r}" aria-pressed="${r === L.role}">${r === 'all' ? t('filter.all') : t(LIB_ROLES[r])}</button>`).join('');
+  const isIn = (s) => (s.installed || []).some((d) => sameDir(d, acct));
+  const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span></div><p>${esc(plain(s.description || '', 140))}</p><div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
+  const agents = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => a.indexOf(v) === i);
+  const packs = (L.packs || []).map((p) => `<div class="pack"><b>${esc(p[uiLang()] || p.vi || p.id)}</b><small class="muted">${t('lib.packN', { n: (p.skills || []).length })}</small><button type="button" class="btn sm" data-libpack="${esc(p.id)}">${t('lib.apply')}</button></div>`).join('');
+  return `<h2>${t('lib.title')} <span class="aside">${t('lib.count', { n: shown.length, total: L.skills.length })}</span></h2>
+    <p class="small muted">${t('lib.note')}</p>
+    <div class="skfind"><input class="search" id="libQuery" placeholder="${t('lib.search')}" value="${esc(L.q)}" aria-label="${t('lib.search')}"><select id="libLicense" aria-label="${t('lib.license')}"><option value="">${t('lib.license')}</option>${licenses.map((l) => `<option${l === L.license ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><select id="libAcct" aria-label="${t('lib.account')}">${accts.map((a) => `<option value="${esc(a.dir)}"${a.dir === acct ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}</select></div>
+    <div class="chips">${chips}</div>
+    ${packs ? `<h3>${t('lib.packs')}</h3><div class="packs">${packs}</div><div class="skfind"><label class="small muted">${t('lib.applyTo')} <select id="libAgent">${agents.map((a) => `<option${a === S.skAgent ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></label></div>` : ''}
+    <div class="sgrid">${cards || `<div class="vempty">${t('rule.noMatch')}</div>`}</div>`;
+}
+const libPost = (path, body, okKey, params = {}) => api(path, body).then((r) => { toast(t(okKey, params)); loadSkillLib(); return r; }, (e) => toast(/not found|404/i.test(e.message) ? t('lib.noHub') : e.message));
+$('view-skills').addEventListener('input', (e) => { if (e.target.id !== 'libQuery') return; S.lib.q = e.target.value; renderSkillsView(); const q = $('libQuery'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); });
+$('view-skills').addEventListener('change', (e) => {
+  if (e.target.id === 'libLicense') { S.lib.license = e.target.value; renderSkillsView(); }
+  if (e.target.id === 'libAcct') { S.lib.acct = e.target.value; renderSkillsView(); }
+});
+$('view-skills').addEventListener('click', (e) => {
+  const r = e.target.closest('[data-librole]'); if (r) { S.lib.role = r.dataset.librole; return renderSkillsView(); }
+  const acct = $('libAcct')?.value || S.lib.acct, ins = e.target.closest('[data-libinstall]'), rm = e.target.closest('[data-libremove]'), pk = e.target.closest('[data-libpack]');
+  if (ins) libPost('/api/skill-library/install', { names: [ins.dataset.libinstall], configDir: acct }, 'lib.installed', { name: ins.dataset.libinstall });
+  if (rm) armed(rm, t('common.pressAgainDelete'), () => libPost('/api/skill-library/uninstall', { names: [rm.dataset.libremove], configDir: acct }, 'lib.removed', { name: rm.dataset.libremove }));
+  if (pk) libPost('/api/skill-packs/apply', { pack: pk.dataset.libpack, agent: $('libAgent')?.value || S.skAgent }, 'lib.applied', { agent: $('libAgent')?.value || S.skAgent });
+});
 const ROUTES = lazy({ read: 'route.read', edit: 'route.edit', osin: 'route.osin' });
 /** P1b: per turn type, an off switch plus a provider and model ("Tự động" = free first, then each provider's own chain). */
 function routesBlock() {
