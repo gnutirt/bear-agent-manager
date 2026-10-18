@@ -559,4 +559,11 @@ export const en: Record<string, string> = {
   'lead.more': '…(more, see room_notes)',
   'tab.prompt': 'There are new messages in the bear-agent-manager room. Read them with room_read and answer.',
   'tab.promptTerm': 'Rejoin the room{where} with room_join, read the new messages with room_read and answer.',
+  'members.follow': 'Follows topics',
+  'members.follow.tip': 'Gets full messages only in followed topics; @name always wakes',
+  'members.follow.lead': 'The room lead always follows every topic',
+  'members.follow.chip': '#{topic}: {state}',
+  'members.follow.on': 'following, click to unfollow',
+  'members.follow.off': 'not following, click to follow',
+  'lib.tooManyInstalled': 'This account has {n} library skills installed: every description sits in the prompt on every turn and costs tokens. Keep it under 15 and uninstall what you do not use.',
 };

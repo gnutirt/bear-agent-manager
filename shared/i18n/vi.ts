@@ -559,4 +559,11 @@ export const vi: Record<string, string> = {
   'lead.more': '…(còn nữa, xem room_notes)',
   'tab.prompt': 'Có tin mới trong phòng bear-agent-manager. Đọc bằng room_read rồi trả lời.',
   'tab.promptTerm': 'Vào lại phòng{where} bằng room_join, đọc tin mới bằng room_read rồi trả lời.',
+  'members.follow': 'Theo dõi chủ đề',
+  'members.follow.tip': 'Chỉ nhận đủ tin ở chủ đề đang theo dõi; @tên vẫn luôn đánh thức',
+  'members.follow.lead': 'Trưởng phòng luôn theo dõi mọi chủ đề',
+  'members.follow.chip': '#{topic}: {state}',
+  'members.follow.on': 'đang theo dõi, bấm để bỏ',
+  'members.follow.off': 'không theo dõi, bấm để theo dõi',
+  'lib.tooManyInstalled': 'Tài khoản này đã cài {n} skill từ thư viện: mô tả của từng skill nằm trong lời nhắc ở mọi lượt nên tốn token. Nên giữ dưới 15, gỡ bớt cái không dùng.',
 };
