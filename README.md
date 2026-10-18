@@ -164,11 +164,14 @@ Design docs live in `docs/superpowers/` (specs and implementation plans).
 `package.json` holds the version (semver `X.Y.Z`); a test keeps `.claude-plugin/plugin.json` on the same number. Every change goes under `## Unreleased` in `CHANGELOG.md`.
 
 ```bash
-node scripts/release.mjs 0.3.0    # clean tree + green tests, bumps the version files,
-                                  # CHANGELOG "Unreleased" -> "## 0.3.0 - <date>", commits "release: v0.3.0", tags v0.3.0
-git push origin HEAD v0.3.0       # the script never pushes
-gh release create v0.3.0 --title v0.3.0 --notes-file .git/release-notes-v0.3.0.md
+npm run release -- patch          # fixes: 0.3.0 -> 0.3.1 (minor: new features, major: breaks a contract; or an exact X.Y.Z)
+                                  # green tests, bumps the version files, CHANGELOG "Unreleased" -> "## 0.3.1 - <date>",
+                                  # commits "release: v0.3.1" (only those files) and tags v0.3.1
+git push origin HEAD v0.3.1       # the script never pushes
+gh release create v0.3.1 --title v0.3.1 --notes-file .git/release-notes-v0.3.1.md
 ```
+
+Only `package.json`, `.claude-plugin/*.json` and `CHANGELOG.md` must be committed before a release; other people's unfinished files stay out of it (the script lists them).
 
 Hubs ask GitHub for the latest release at most every 6 hours (`GET /api/version`; off with `updates.check: false` in settings) and show "update available". Installs from a Claude Code marketplace update with `/plugin marketplace update` then `/plugin update`; a git checkout updates with `git pull`. Reopen the chats afterwards, since hooks load when a chat starts, and restart the hub.
 

@@ -7,6 +7,7 @@
   "engines": { "node": ">=22.18" },
   "scripts": {
     "test": "node --no-warnings --test \"test/**/*.test.ts\"",
-    "hub": "node --no-warnings hub/main.ts"
+    "hub": "node --no-warnings hub/main.ts",
+    "release": "node scripts/release.mjs"
   }
 }

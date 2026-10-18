@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// V4: cut a release. node scripts/release.mjs <X.Y.Z> [--no-test]
-// Checks a clean tree and green tests, sets the version in package.json and .claude-plugin/*.json, turns the
+// V4: cut a release. node scripts/release.mjs <X.Y.Z|patch|minor|major> [--no-test]   (npm run release -- patch)
+// Checks that the version files and CHANGELOG are clean (other people's unfinished files may stay; they are listed) and green tests, sets the version in package.json and .claude-plugin/*.json, turns the
 // CHANGELOG "Unreleased" section into "## X.Y.Z - <date>" (with a new empty Unreleased), commits "release: vX.Y.Z"
 // and tags vX.Y.Z. It never pushes: the owner pushes and publishes the GitHub Release (commands printed at the end).
 // --no-test skips the test run (only for this script's own tests, which run inside the suite).
@@ -11,6 +11,15 @@ import { fileURLToPath } from 'node:url';
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const cmp = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
+
+/** Next version for a bump keyword (patch: fixes, minor: new features, major: contract breaks). */
+export function nextVersion(current, kind) {
+  const [a, b, c] = current.split('.').map(Number);
+  if (kind === 'patch') return `${a}.${b}.${c + 1}`;
+  if (kind === 'minor') return `${a}.${b + 1}.0`;
+  if (kind === 'major') return `${a + 1}.0.0`;
+  throw new Error(`unknown bump ${kind}`);
+}
 
 /** The "## Unreleased" body of a changelog ('' when there is no such section). */
 export function unreleased(log) {
@@ -47,10 +56,16 @@ export function setVersion(root, version) {
 
 export function release(root, version, { test = true, date = new Date().toISOString().slice(0, 10), log = console.log } = {}) {
   const git = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8' }).trim();
-  if (!SEMVER.test(version ?? '')) throw new Error('usage: node scripts/release.mjs <X.Y.Z> (no "v")');
   const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  if (['patch', 'minor', 'major'].includes(version)) version = nextVersion(current, version);
+  if (!SEMVER.test(version ?? '')) throw new Error('usage: node scripts/release.mjs <X.Y.Z|patch|minor|major> (no "v")');
   if (cmp(version, current) <= 0) throw new Error(`${version} is not newer than the current ${current}`);
-  if (git('status', '--porcelain')) throw new Error('the working tree has uncommitted or untracked changes; commit or stash them first');
+  // only the files this release writes must be clean; anything else somebody is editing stays untouched (the commit lists its files)
+  const mine = ['package.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'CHANGELOG.md'];
+  const dirtyMine = git('status', '--porcelain', '--', ...mine);
+  if (dirtyMine) throw new Error(`these files have uncommitted changes; commit them first:\n${dirtyMine}`);
+  const others = git('status', '--porcelain').split('\n').filter(Boolean);
+  if (others.length) log(`note: ${others.length} other file(s) are changed and are NOT part of this release:\n${others.map((l) => '  ' + l).join('\n')}`);
   if (git('tag', '--list', `v${version}`)) throw new Error(`tag v${version} already exists`);
   const logFile = path.join(root, 'CHANGELOG.md');
   const notes = unreleased(fs.readFileSync(logFile, 'utf8'));

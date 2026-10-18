@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 // @ts-ignore plain JS script
-import { cutChangelog, release, unreleased } from '../scripts/release.mjs';
+import { cutChangelog, nextVersion, release, unreleased } from '../scripts/release.mjs';
 
 const LOG = '# Changelog\n\n## Unreleased\n\n- New thing.\n\n## 0.1.0\n\n- First.\n';
 
@@ -30,15 +30,28 @@ test('release in a temp repo: refuses a dirty tree or an old version, then bumps
   git('add', '.'); git('commit', '-q', '-m', 'init');
   const quiet = { test: false, date: '2026-10-18', log: () => {} };
   assert.throws(() => release(root, '0.1.0', quiet), /not newer/);
-  fs.writeFileSync(path.join(root, 'scratch.txt'), 'x');
-  assert.throws(() => release(root, '0.2.0', quiet), /uncommitted/);
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), LOG + '\n- half written\n');
+  assert.throws(() => release(root, '0.2.0', quiet), /uncommitted changes/);   // a release file with unsaved edits
+  git('checkout', '--', 'CHANGELOG.md');
+  fs.writeFileSync(path.join(root, 'scratch.txt'), 'x');   // somebody else's unfinished file: stays out of the release
+  const said: string[] = [];
+  const r = release(root, 'minor', { ...quiet, log: (m: string) => said.push(m) });
+  assert.ok(said.some((m) => /scratch\.txt/.test(m)), 'it names the files it leaves alone');
+  assert.equal(fs.readFileSync(path.join(root, 'scratch.txt'), 'utf8'), 'x');
+  assert.equal(git('status', '--porcelain'), '?? scratch.txt');
   fs.rmSync(path.join(root, 'scratch.txt'));
-  const r = release(root, '0.2.0', quiet);
   assert.deepEqual(r.files, ['package.json', '.claude-plugin/plugin.json']);   // the marketplace entry has no version
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8')).version, '0.2.0');
   assert.equal(git('log', '-1', '--format=%s'), 'release: v0.2.0');
   assert.equal(git('tag', '--list'), 'v0.2.0');
   assert.equal(git('status', '--porcelain'), '');
-  assert.throws(() => release(root, '0.3.0', quiet), /empty/);   // nothing new since 0.2.0
+  assert.throws(() => release(root, 'patch', quiet), /empty/);   // nothing new since 0.2.0
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('nextVersion: patch for fixes, minor for features, major for contract breaks', () => {
+  assert.equal(nextVersion('0.3.9', 'patch'), '0.3.10');
+  assert.equal(nextVersion('0.3.9', 'minor'), '0.4.0');
+  assert.equal(nextVersion('0.3.9', 'major'), '1.0.0');
+  assert.throws(() => nextVersion('0.3.9', 'huge'), /unknown bump/);
 });
