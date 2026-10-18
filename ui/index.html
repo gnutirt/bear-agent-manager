@@ -242,6 +242,9 @@ header .spacer{flex:1}
 .donebadge{font-size:11.5px;font-weight:700;color:#16A34A;background:color-mix(in srgb,#16A34A 14%,var(--panel));border-radius:6px;padding:0 7px}
 .sysline{text-align:center;color:var(--mute);font-size:13px;font-weight:600;margin:10px 0 14px}
 .sysline p{margin:0}
+.sysrun summary{cursor:pointer;list-style:none}.sysrun summary::-webkit-details-marker{display:none}
+.sysrun .x{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--hover);color:var(--mute);font-size:11.5px;font-weight:700}
+.sysrun>div{margin-top:4px}
 .group .rn{width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center;color:var(--mute);opacity:.55;align-self:center}
 .group .rn svg{width:13px;height:13px}
 .group:hover .rn{opacity:1}
@@ -1062,10 +1065,22 @@ function renderLog() {
   }
   let html = '', prev = null, prevDay = '';
   const last = lastWakes(ms);
+  const sysRuns = new Map();   // first id of a run of identical system lines -> the run; later ids -> 0
+  for (let i = 0; i < ms.length; i++) {
+    if (ms[i].kind !== 'system') continue;
+    let j = i; while (j + 1 < ms.length && ms[j + 1].kind === 'system' && ms[j + 1].text === ms[i].text) j++;
+    if (j > i) { sysRuns.set(ms[i].id, ms.slice(i, j + 1)); for (let k = i + 1; k <= j; k++) sysRuns.set(ms[k].id, 0); i = j; }
+  }
   for (const m of ms) {
     const day = dayOf(m.ts);
     if (day !== prevDay) { html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
-    if (m.kind === 'system') { html += `<div class="sysline">${md(m.text)}</div>`; prev = null; continue; }
+    if (m.kind === 'system') {
+      // identical system lines in a row (e.g. repeated usage warnings) collapse into one line with ×n; click lists the times
+      const run = sysRuns.get(m.id);
+      if (run === 0) { prev = null; continue; }
+      html += run ? `<details class="sysline sysrun"><summary>${md(m.text)} <span class="x">×${run.length}</span></summary><div class="small muted">${run.map((x) => time(x.ts)).join(' · ')}</div></details>` : `<div class="sysline">${md(m.text)}</div>`;
+      prev = null; continue;
+    }
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome;
     if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${receipts(m, ms, last)}</div></div>`);

@@ -73,6 +73,14 @@ test('i18n: every key the UI uses exists, and no Vietnamese text is left outside
   } finally { await hub.close(); }
 });
 
+test('identical consecutive system lines collapse into one with a count', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['sysRuns', 'class="sysline sysrun"', '×${run.length}']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('inline script never calls $() before declaring it (a TDZ error blanks the whole page)', async () => {
   const { hub } = await makeHub();
   try {
