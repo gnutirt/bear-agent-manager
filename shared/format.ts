@@ -53,7 +53,7 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     for (const n of list) lines.push(`  [${n.id}] ${n.text.replace(/\n/g, ' ')} (${n.by})`);
   }
   for (const r of leadOf) {
-    lines.push(`You are the lead (★) of #${r}: turn the user's request into tasks, assign each to the right member with @name (room_who shows who works on what), collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
+    lines.push(`You are the lead (★) of #${r}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
   }
   if (trimmed) lines.push('Some messages were trimmed; use room_read to see them in full.');
   if (short) lines.push('One-line messages did not mention you; use room_read only if you need one in full.');

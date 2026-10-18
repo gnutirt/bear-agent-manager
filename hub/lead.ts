@@ -18,9 +18,9 @@ export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {
   const steps = [
     t(lang, 'lead.join', { room }),
     t(lang, 'lead.role'),
-    ...(duties.delegate !== false ? [t(lang, 'lead.delegate')] : []),
-    ...(duties.distribute !== false ? [t(lang, 'lead.distribute')] : []),
-    ...(duties.handoffOnDone !== false ? [t(lang, 'lead.handoff')] : []),
+    ...(duties.delegate !== false ? [t(lang, 'lead.step.tasks'), t(lang, 'lead.step.delegate')] : []),
+    ...(duties.distribute !== false ? [t(lang, 'lead.step.distribute')] : []),
+    ...(duties.handoffOnDone !== false ? [t(lang, 'lead.step.handoff')] : []),
   ];
   const head = `${t(lang, 'lead.head', { room })}\n` + steps.map((x, i) => `${i + 1}. ${x}\n`).join('');
   if (!notes.length) return head;
