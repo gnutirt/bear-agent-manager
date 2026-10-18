@@ -508,6 +508,7 @@ export const en: Record<string, string> = {
   'sys.limit.waiting': '{name} hit its usage limit and its tab cannot take messages; it will be woken at {at}.',
   'sys.limit.unstuck': '{name} was stuck after a usage limit: the hub closed the stuck process and wakes it in the background.',
   'sys.limit.stuck': '@you {name} is stuck after a usage limit and takes no messages: open its tab and type to go on.',
+  'sys.relay.more': '(full text in the chat of {name})',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',

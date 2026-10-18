@@ -1,3 +1,6 @@
+export type SysType = 'relay' | 'usage' | 'wake' | 'compact' | 'task' | 'update' | 'error' | 'backup' | 'tab' | 'lead' | 'info';
+export type SysMeta = { type: SysType; level: 'info' | 'warn' | 'error' | 'done'; agent?: string; ref?: number };
+
 export type Message = {
   id: number;
   room: string;
@@ -11,6 +14,7 @@ export type Message = {
   replyTo?: number;      // id of an earlier message in the same room this one answers
   replyQuote?: { from: string; text: string }; // that message's sender and first 80 chars, kept so deliveries need no lookup
   kind?: 'done' | 'system'; // done = a member finished its part; system = hub notice (wakes nobody)
+  sys?: SysMeta;          // system notices: what kind, how serious, about whom (the UI draws them as compact cards)
   attachments?: { id: string; name: string; mime: string; size: number; sha256: string }[];   // A1: files in rooms/<room>/files/<id>
 };
 

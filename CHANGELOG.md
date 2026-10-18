@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hub notices are structured and the relay is quiet: every notice carries `sys: {type, level, agent?}` (type relay, usage, wake, compact, task, update, error, backup, tab, lead or info; level info, warn, error or done), taken from the message key, so the UI can draw them as cards and filter them. The chat relay now fires only for a turn that was handed a message of the user (an agent's @ of another agent needs no answer), is posted under the agent's own name (still a notice that wakes nobody), carries just the answer (no long header) and is cut near 600 characters with "(full text in the chat of X)". Needs hub restart.
 ## 0.3.1 - 2026-10-18
 
 - Fix: opening this repo no longer shows two `room` MCP servers, one failing with CONNECTION_CLOSED. The root `.mcp.json` was read twice (as the plugin's MCP, and as the project's MCP where `${CLAUDE_PLUGIN_ROOT}` is empty); the server is now declared in `.claude-plugin/plugin.json` (`mcpServers.room`) and `.mcp.json` is gone (`claude plugin validate` passes; a test keeps it that way). Update the plugin in BOTH accounts (VS Code `~/.claude` and Antigravity `~/.claude-antigravity`, separately) and reopen the chats.

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../shared/i18n.ts';
-import { LOOP_LIMIT, parseMentions, wakes, type Message } from './routing.ts';
+import { LOOP_LIMIT, parseMentions, wakes, type Message, type SysMeta } from './routing.ts';
 
 export type Status = 'busy' | 'idle' | 'waiting' | 'offline';
 export type Session = {
@@ -340,17 +340,25 @@ export class Store {
     const needed = this.members(roomName).filter((m) => m.status !== 'offline' && m.id !== room.lead);
     let allDone: Message | null = null;
     if (needed.length && needed.every((m) => room.done!.includes(m.id))) {
-      allDone = this.postSystem(roomName, this.tr('sys.done.all', { names: needed.map((m) => m.name).join(', ') }));
+      allDone = this.postSystem(roomName, this.tr('sys.done.all', { names: needed.map((m) => m.name).join(', ') }), undefined, { type: 'task', level: 'done' });
       room.done = [];
     }
     this.save();
     return { message, allDone };
   }
 
+  /** An answer an agent left in its own chat, posted by the hub under the agent's name: a notice (wakes nobody). */
+  postRelay(roomName: string, fromId: string, text: string, topic?: string): Message {
+    const m = this.postSystem(roomName, text, topic, { type: 'relay', level: 'info', agent: this.session(fromId).name });
+    m.from = this.session(fromId).name;
+    m.fromId = this.session(fromId).id;
+    return m;
+  }
+
   /** Hub notice in the room: wakes nobody and leaves the loop guard alone. */
-  postSystem(roomName: string, text: string, topic?: string): Message {
+  postSystem(roomName: string, text: string, topic?: string, sys: SysMeta = { type: 'info', level: 'info' }): Message {
     this.room(roomName);
-    const message: Message = { id: this.lastId() + 1, room: roomName, from: 'bear-agent-manager', fromId: null, mentions: [], text, ts: this.now(), wake: [], kind: 'system', ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
+    const message: Message = { id: this.lastId() + 1, room: roomName, from: 'bear-agent-manager', fromId: null, mentions: [], text, ts: this.now(), wake: [], kind: 'system', sys, ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${roomName}.jsonl`), JSON.stringify(message) + '\n');
     this.save();

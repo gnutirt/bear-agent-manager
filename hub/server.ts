@@ -28,7 +28,7 @@ import { activityFor, formatDelivery } from '../shared/format.ts';
 import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
-import type { Message } from './routing.ts';
+import type { Message, SysMeta } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
@@ -150,7 +150,32 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
   // I3: every text the hub writes into a room (or hands to an agent) follows settings.language
   const lang = (): Lang => resolveLang(loadSettings(opts.dir, envCap).language);
-  const tr = (key: string, params: Record<string, string | number> = {}) => t(lang(), key, params);
+  // Each hub notice is a translated string; the key it came from gives its kind and level (sys), so the UI can draw
+  // notices as cards and filter them, without every call site naming them.
+  const keyOf = new Map<string, string>();
+  const tr = (key: string, params: Record<string, string | number> = {}) => {
+    const text = t(lang(), key, params);
+    keyOf.set(text, key);
+    if (keyOf.size > 300) keyOf.delete(keyOf.keys().next().value!);
+    return text;
+  };
+  const SYS_BY_KEY: [string, SysMeta][] = [
+    ['sys.relay', { type: 'relay', level: 'info' }],
+    ['sys.usage.', { type: 'usage', level: 'warn' }], ['sys.limit.waiting', { type: 'usage', level: 'warn' }],
+    ['sys.stop.limit', { type: 'usage', level: 'warn' }], ['sys.act.limit', { type: 'usage', level: 'warn' }],
+    ['sys.limit.stuck', { type: 'wake', level: 'error' }], ['sys.limit.unstuck', { type: 'wake', level: 'warn' }],
+    ['sys.wake.giveup', { type: 'wake', level: 'error' }], ['sys.wake.failed', { type: 'wake', level: 'error' }],
+    ['sys.wake.compactFailed', { type: 'compact', level: 'error' }], ['sys.wake.compacted', { type: 'compact', level: 'done' }],
+    ['sys.wake.', { type: 'wake', level: 'info' }],
+    ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }],
+    ['sys.tab.', { type: 'tab', level: 'info' }], ['sys.lead.', { type: 'lead', level: 'info' }],
+    ['sys.task.done', { type: 'task', level: 'done' }], ['sys.task.', { type: 'task', level: 'info' }],
+    ['sys.stop.', { type: 'error', level: 'error' }], ['sys.archive', { type: 'backup', level: 'warn' }],
+    ['sys.digest', { type: 'update', level: 'info' }], ['sys.notes', { type: 'update', level: 'info' }], ['sys.handoff', { type: 'update', level: 'info' }],
+  ];
+  const sysMeta = (text: string): SysMeta => { const k = keyOf.get(text) ?? ''; return { ...(SYS_BY_KEY.find(([p]) => k.startsWith(p))?.[1] ?? { type: 'info', level: 'info' }) }; };
+  /** A hub notice with its sys meta (from the key of its text unless given). */
+  const postSys = (room: string, text: string, topic?: string, meta?: SysMeta) => store.postSystem(room, text, topic, meta ?? sysMeta(text));
   const clock = (ms: number, more: Intl.DateTimeFormatOptions = {}) => new Date(ms).toLocaleString(dateLocale(lang()), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', ...more });
   store.tr = tr;
   const cap = () => opts.workerCap ?? loadSettings(opts.dir, envCap).workerCap;   // a test's workerCap wins over the file
@@ -184,12 +209,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
-  // Safety net (relay): sessions handed room messages, with the room and time, until their turn's Stop hook.
+  /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
+  const relayText = (text: string, more: string) => {
+    const flat = text.replace(/\n{3,}/g, '\n\n').trim();
+    if (flat.length <= 600) return flat;
+    const cut = flat.slice(0, 600);
+    return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 500))} … ${more}`;
+  };
+  // Safety net (relay): sessions handed a message of the user, with the room and time, until their turn's Stop hook.
   const relayWatch = new Map<string, { at: number; room: string }>();
   function consume(sid: string, upTo: number) {
+    const before = store.session(sid).cursor;
     store.consume(sid, upTo);
-    const last = store.messages.find((m) => m.id === upTo);
-    if (last && last.fromId !== sid) relayWatch.set(sid, { at: Date.now(), room: last.room });
+    // Only a message of the user counts: agents' mentions of each other often need no answer, and relaying those
+    // turns posted the agent's private reasoning as noise.
+    const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.includes(sid)).pop();
+    if (asked) relayWatch.set(sid, { at: Date.now(), room: asked.room });
     emitSession(store.session(sid));
   }
 
@@ -248,7 +283,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   async function unstick(s: Session) {
     if (unsticking.has(s.id)) return;
     unsticking.add(s.id);
-    const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+    const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     try {
       const cfg = loadSettings(opts.dir, envCap);
       const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
@@ -308,7 +343,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = Object.keys(s.rooms);
     (opts.openUrl ?? openUrl)(tabLink(s, rooms, lang()));
     tabOpened.set(s.id, Date.now());
-    for (const r of rooms) { try { broadcast('msg', store.postSystem(r, tr('sys.tab.opened', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
+    for (const r of rooms) { try { broadcast('msg', postSys(r, tr('sys.tab.opened', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
@@ -335,7 +370,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cfg = loadSettings(opts.dir, envCap), perm = permFor(cfg, s.name), model = cfg.agentModel[normAgent(s.name)];
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
     const tellRooms = (text: string) => {
-      for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
+      for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
     emitSession(store.setStatus(s.id, 'busy', tr(compactFirst ? 'sys.act.compact' : 'sys.act.reviving')));
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send. It is ${clock(Date.now(), { day: 'numeric', month: 'numeric' })} now (you have no clock in the background). ${perm.mode === 'bypass' ? 'You run with full permissions (the owner chose this in Settings > Permissions); work in your folder and report in the room.' : `You cannot ask the user for permissions now, so ${perm.allow.length ? `use only read tools and ${perm.allow.join(', ')}` : 'only read files'} and reply.`}`;
@@ -397,7 +432,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
     emitSession(store.markEnded(s.id));
-    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, tr('sys.terminated', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
+    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.terminated', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
     setImmediate(() => runArchive(s.id));
   }
 
@@ -493,13 +528,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
         const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
         if (text.length < 40) break;
-        try { broadcast('msg', store.postSystem(w.room, tr('sys.relay', { name: sess.name, text: text.length > 3000 ? text.slice(0, 3000) + ' …' : text }), sess.turnTopic?.[w.room])); emitRoom(w.room); } catch { /* room gone */ }
+        const short = relayText(text, tr('sys.relay.more', { name: sess.name }));
+        try { broadcast('msg', store.postRelay(w.room, sess.id, short, sess.turnTopic?.[w.room])); emitRoom(w.room); } catch { /* room gone */ }
         break;
       }
       case 'stop-failure': {
         // A turn that ended in an API error never reaches the Stop hook, so the agent is in no waiter: say why and book the wake.
         const sess = store.session(id), err = String(b.error ?? '');
-        const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+        const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         if (err !== 'rate_limit') { say(tr('sys.stop.api', { name: sess.name, err: err || tr('sys.stop.unknown') })); status('idle', ''); break; }
         const q = quotaResetFromTranscript(String(b.transcript_path ?? sess.transcript ?? ''));
         const hhmm = q ? clock(q.until) : '';
@@ -573,7 +609,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const sent = (store.state.usageAlerts ??= []);
     for (const al of usageAlerts(accounts, sent, lang())) {
       let posted = false;   // no room yet: warn on a later poll instead of losing it
-      for (const r of accountRooms(al.account)) { try { broadcast('msg', store.postSystem(r, al.text)); emitRoom(r); posted = true; } catch { /* room gone */ } }
+      for (const r of accountRooms(al.account)) { try { broadcast('msg', postSys(r, al.text, undefined, { type: 'usage', level: 'warn' })); emitRoom(r); posted = true; } catch { /* room gone */ } }
       if (posted) sent.push(al.key);
     }
     store.state.usageAlerts = sent.slice(-200);
@@ -582,7 +618,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const w of planWakes(accounts, loadSettings(opts.dir, envCap).lead.wake, have)) {
       have[w.key] = w.entry;
       const at = clock(w.entry.at);
-      for (const r of accountRooms(w.account)) { try { broadcast('msg', store.postSystem(r, tr('sys.usage.near', { account: w.account.label, pct: Math.round(w.account.fiveHour!.pct), at }))); emitRoom(r); } catch { /* room gone */ } }
+      for (const r of accountRooms(w.account)) { try { broadcast('msg', postSys(r, tr('sys.usage.near', { account: w.account.label, pct: Math.round(w.account.fiveHour!.pct), at }))); emitRoom(r); } catch { /* room gone */ } }
       scheduleWake(w.key);
     }
     store.save();
@@ -623,7 +659,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = acc ? accountRooms(acc) : [];
     if (acc && ((acc.fiveHour && acc.fiveHour.pct >= cfg.atPct) || blockedUntil(acc) > Date.now())) {
       if (++e.tries > 6) {
-        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, tr('sys.wake.giveup', { account: acc.label }))); emitRoom(r); } catch { /* room gone */ } }
+        for (const r of rooms) { try { broadcast('msg', postSys(r, tr('sys.wake.giveup', { account: acc.label }))); emitRoom(r); } catch { /* room gone */ } }
         delete have[key];
       } else { e.at = Date.now() + 5 * 60_000; scheduleWake(key); }
       store.save();
@@ -649,11 +685,28 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
   // ---- versions (V1): the hub's version, the plugin copies the hooks run from, the latest GitHub release ----
   const pkg = readPackage(ROOT);
+  // The plugin shim (hooks/shim.mjs) runs the hooks and MCP of THIS checkout instead of the frozen plugin copy. Only the hub names
+  // it, only when it runs from a git checkout of the configured remote; the shim re-checks the folder before running anything.
+  let sourceOk = false;
+  gitState(ROOT, pkg.repo).then((g) => {
+    if (!g.git || !g.remoteOk) return;
+    const file = path.join(opts.dir, 'source');
+    let cur = '';
+    try { cur = fs.readFileSync(file, 'utf8').trim(); } catch { /* none yet */ }
+    if (cur !== ROOT) {
+      fs.mkdirSync(opts.dir, { recursive: true });
+      fs.writeFileSync(`${file}.tmp`, ROOT + '
+');
+      fs.renameSync(`${file}.tmp`, file);
+      console.log(`hub: plugin source is now ${ROOT} (was ${cur || 'none'})`);
+    }
+    sourceOk = true;
+  }).catch(() => {});
   const updates = opts.versionFetch === null ? null : new UpdateChecker({ repo: pkg.repo, version: pkg.version, cacheFile: path.join(opts.dir, 'version.json'), fetch: opts.versionFetch ?? fetch });
   const checkUpdates = (force = false) => (updates && loadSettings(opts.dir, envCap).updates.check ? updates.check(force) : Promise.resolve(updates?.cached() ?? null));
   async function versionNow() {
     const check = loadSettings(opts.dir, envCap).updates.check;
-    return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check);
+    return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check, sourceOk);
   }
   /** Loads the hub code in a throwaway process: '' when it loads, else the error. A syntax error must not leave the machine without a hub. */
   const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', new URL('./server.ts', import.meta.url).href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
@@ -672,7 +725,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (auto) { (store.state.leadOpened ??= []).push(room); store.state.leadOpened = store.state.leadOpened.slice(-500); store.save(); }
     const acct = listAccounts([path.join(usageHome, '.claude')], usageHome)[0];
     const who = acct?.email ? tr('sys.lead.who', { email: maskEmail(acct.email) }) : '';
-    try { broadcast('msg', store.postSystem(room, tr(replacing ? 'sys.lead.cleared' : auto ? 'sys.lead.openedAuto' : 'sys.lead.opened', { cwd, who, name: replacing ? store.session(replacing.id).name : '' }))); emitRoom(room); } catch { /* room gone */ }
+    try { broadcast('msg', postSys(room, tr(replacing ? 'sys.lead.cleared' : auto ? 'sys.lead.openedAuto' : 'sys.lead.opened', { cwd, who, name: replacing ? store.session(replacing.id).name : '' }))); emitRoom(room); } catch { /* room gone */ }
   }
   /** Once per room ever (the lock survives restarts), and only when Settings say so. */
   function maybeAutoLead(room: string, cwd: string) {
@@ -696,7 +749,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       } catch { /* keeps its own name */ }
     }
     store.setLead(room, s.id);
-    try { broadcast('msg', store.postSystem(room, tr('sys.lead.is', { name: s.name }))); } catch { /* room gone */ }
+    try { broadcast('msg', postSys(room, tr('sys.lead.is', { name: s.name }))); } catch { /* room gone */ }
   }
 
   // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
@@ -773,7 +826,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let result = '';
     try { result = String(JSON.parse(out.stdout.trim().split(/\r?\n/).pop() ?? '').result ?? '').trim(); } catch { return; }
     if (!result) return;
-    const say = (room: string, text: string) => { try { broadcast('msg', store.postSystem(room, text)); emitRoom(room); } catch { /* room gone */ } };
+    const say = (room: string, text: string) => { try { broadcast('msg', postSys(room, text)); emitRoom(room); } catch { /* room gone */ } };
     if (j.kind === 'handoff') {
       const file = path.join(opts.dir, 'handoffs', `${j.sessionId}.md`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -1156,7 +1209,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
         emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
-        const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+        const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
           say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
         }).finally(() => {
@@ -1265,7 +1318,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (task.owner && task.owner !== before.owner && task.status !== 'done') assign(task);
         if (task.status === 'done' && before.status !== 'done') {
           try {
-            broadcast('msg', store.postSystem(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
+            broadcast('msg', postSys(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
             emitRoom(room);
           } catch { /* room gone */ }
         }

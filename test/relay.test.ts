@@ -20,7 +20,7 @@ async function setup() {
   return h;
 }
 const notices = async (h: Awaited<ReturnType<typeof makeHub>>) =>
-  (await h.call<any[]>('/api/rooms/web/messages?limit=20')).filter((m) => m.kind === 'system' && m.text.includes('↪')).map((m) => m.text);
+  (await h.call<any[]>('/api/rooms/web/messages?limit=20')).filter((m) => m.sys?.type === 'relay').map((m) => m.text);
 
 test('relay: an answer left in the agent\'s own chat after a room wake is posted to the room once, waking nobody', async () => {
   const h = await setup();
@@ -28,7 +28,9 @@ test('relay: an answer left in the agent\'s own chat after a room wake is posted
     await hook(h, 'stop', { session_id: 'a1', last_assistant_message: LONG });
     const n = await notices(h);
     assert.equal(n.length, 1);
-    assert.ok(n[0].includes('alice') && n[0].includes(LONG));
+    assert.equal(n[0], LONG, 'the answer itself, no long header');
+    const m = (await h.call<any[]>('/api/rooms/web/messages?limit=20')).find((x) => x.sys?.type === 'relay');
+    assert.deepEqual([m.from, m.fromId, m.kind, m.wake, m.sys.agent], ['alice', 'a1', 'system', [], 'alice']);
     await hook(h, 'stop', { session_id: 'a1', last_assistant_message: LONG });   // next turn: nothing new was handed over
     assert.equal((await notices(h)).length, 1);
   } finally { await h.hub.close(); }
@@ -70,4 +72,33 @@ test('readLastAssistantText skips tool-only turns and API error lines', () => {
   assert.equal(readLastAssistantText(f), 'final answer');
   assert.equal(readLastAssistantText(path.join(dir, 'none.jsonl')), '');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('relay: not for a turn woken by another agent; a long answer is cut near 600 characters with a pointer', async () => {
+  const h = await makeHub();
+  try {
+    const tr = path.join(h.dir, 'alice.jsonl');
+    fs.writeFileSync(tr, '');
+    await h.call('/api/sessions/register', { id: 'a1', cwd: h.dir, name: 'alice', transcript: tr });
+    await h.call('/api/sessions/register', { id: 'b1', cwd: h.dir, name: 'bob' });
+    await h.call('/api/rooms/web/join', { sessionId: 'a1' });
+    await h.call('/api/rooms/web/join', { sessionId: 'b1' });
+    await h.call('/api/rooms/web/messages', { sessionId: 'b1', text: '@alice FYI the build is green' });
+    await hook(h, 'post-tool', { session_id: 'a1' });
+    await hook(h, 'stop', { session_id: 'a1', last_assistant_message: LONG });
+    assert.deepEqual(await notices(h), [], 'an agent-to-agent mention needs no relay');
+    await h.call('/api/rooms/web/messages', { text: '@alice summary please' });
+    await hook(h, 'post-tool', { session_id: 'a1' });
+    await hook(h, 'stop', { session_id: 'a1', last_assistant_message: ('word ').repeat(400) });
+    const [t] = await notices(h);
+    assert.ok(t.length < 700 && /alice/.test(t) && t.includes('…'), t.slice(-80));
+  } finally { await h.hub.close(); }
+});
+
+test('hub notices carry sys {type, level}: usage limit, terminate, plain notices default to info', async () => {
+  const { Store } = await import('../hub/store.ts');
+  const st = new Store(fs.mkdtempSync(path.join(process.env.TEMP ?? '/tmp', 'sys-')));
+  st.createRoom('web');
+  assert.deepEqual(st.postSystem('web', 'hello').sys, { type: 'info', level: 'info' });
+  assert.deepEqual(st.postSystem('web', 'x', undefined, { type: 'usage', level: 'warn' }).sys, { type: 'usage', level: 'warn' });
 });
