@@ -8,7 +8,11 @@ import path from 'node:path';
 export type LibSkill = {
   name: string; category: string; roles: string[]; path: string; description: string;
   source: string; license: string; licenseFile?: string;
+  descVi?: string;        // one-line Vietnamese description for the UI
+  jurisdiction?: string;  // law the skill is written for (e.g. "US"); the UI warns when it is not the user's
   bundle?: string;   // folder of a multi-skill repo whose shared files (references/, config/...) the skill reads by relative path
+  jurisdiction?: string;   // law a legal/finance skill is written for ("US", "VN"); the UI warns on foreign law
+  descVi?: string;   // one-line Vietnamese description for the Vietnamese UI
 };
 export type SkillPack = { id: string; vi: string; en: string; roles: string[]; skills: string[]; mode: 'auto' | 'force'; when: 'every' | 'first' };
 export type Library = { skills: LibSkill[]; packs: SkillPack[]; roles: { id: string; count: number }[]; licenses: { id: string; count: number }[] };
@@ -29,6 +33,8 @@ function parseSkills(j: any): LibSkill[] {
     out.push({
       name, category, roles, path: str(s.path), description: str(s.description), source: str(s.source), license: str(s.license),
       ...(s.licenseFile ? { licenseFile: str(s.licenseFile) } : {}), ...(s.bundle ? { bundle: str(s.bundle) } : {}),
+      ...(s.descVi ? { descVi: str(s.descVi) } : {}), ...(s.jurisdiction ? { jurisdiction: str(s.jurisdiction) } : {}),
+      ...(str(s.jurisdiction) ? { jurisdiction: str(s.jurisdiction) } : {}), ...(str(s.descVi) ? { descVi: str(s.descVi) } : {}),
     });
   }
   return out;

@@ -10,7 +10,7 @@ function fakeLibrary() {
   fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ count: 4, skills: [
     { name: 'loan-memo', category: 'banking', roles: ['banking'], path: 'banking/x/loan-memo', description: 'Draft a credit memo for a loan', source: 'x', license: 'MIT' },
     { name: 'deck-maker', category: 'slides', roles: ['slides', 'training'], path: 'slides/y/deck-maker', description: 'Build a slide deck', source: 'y', license: 'Apache-2.0' },
-    { name: 'notes', category: 'general', path: 'general/notes', description: 'Meeting notes', source: 'z', license: '' },
+    { name: 'notes', category: 'general', path: 'general/notes', description: 'Meeting notes', source: 'z', license: '', jurisdiction: 'US', descVi: 'Ghi chú họp' },
     { name: '../evil', category: 'general', path: '..', description: 'bad name', source: 'z', license: 'MIT' },
     { name: '..', category: 'general', path: '..', description: 'dots only', source: 'z', license: 'MIT' },
   ] }));
@@ -26,6 +26,9 @@ test('loadLibrary: skills with roles (default [category]), unsafe names and unkn
   const lib = loadLibrary(dir);
   assert.deepEqual(lib.skills.map((s) => s.name), ['loan-memo', 'deck-maker', 'notes']);
   assert.deepEqual(lib.skills[2].roles, ['general']);
+  assert.equal(lib.skills[2].jurisdiction, 'US');
+  assert.equal(lib.skills[2].descVi, 'Ghi chú họp');
+  assert.equal('jurisdiction' in lib.skills[0], false, 'absent fields stay absent');
   assert.deepEqual(lib.packs.map((p) => [p.id, p.skills, p.mode, p.when]), [['slides-core', ['deck-maker'], 'force', 'first']]);
   assert.deepEqual(lib.roles.find((r) => r.id === 'training'), { id: 'training', count: 1 });
   assert.ok(lib.licenses.some((l) => l.id === 'unknown'));
@@ -83,6 +86,7 @@ function libraryOnDisk() {
   fs.writeFileSync(path.join(dir, 'general', 'notes', 'SKILL.md'), 'x');   // no LICENSE anywhere
   const idx = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
   idx.skills[1].licenseFile = 'slides/y/LICENSE';
+  idx.skills[0].descVi = 'Mô tả'; idx.skills[0].jurisdiction = 'US';
   fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(idx));
   return dir;
 }
@@ -141,4 +145,11 @@ test('installSkill of a bundle skill brings the bundle shared files (not its oth
   assert.ok(!fs.existsSync(path.join(got, 'skills')));
   assert.equal(installSkill(dir, { ...skill, name: 'x', bundle: 'slides' }, cfg).status, 'error');   // skill outside its bundle
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('loadLibrary keeps descVi and jurisdiction for the UI', async () => {
+  const lib = loadLibrary(libraryOnDisk());
+  const first = lib.skills.find((s) => s.descVi);
+  assert.equal(first?.descVi, 'Mô tả'); assert.equal(first?.jurisdiction, 'US');
+  assert.ok(lib.skills.some((s) => !s.jurisdiction));
 });
