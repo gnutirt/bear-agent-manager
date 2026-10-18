@@ -353,6 +353,24 @@ header .spacer{flex:1}
 .msg .cb pre{margin:0;border-radius:0;background:none}.msg pre code{color:inherit}
 .lic.jur{background:rgba(245,158,11,.2);color:#B45309;margin-left:4px}
 .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;vertical-align:-1px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.tcount{background:var(--side-2);color:var(--side-text);border-radius:999px;font-size:11px;font-weight:700;padding:0 7px;line-height:18px}
+.vw.wide{max-width:1500px}.thead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}.thead h2{margin:0}.tbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tform{display:grid;gap:8px;grid-template-columns:2fr 2fr 1fr;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:14px}.tform textarea,.tform .row{grid-column:1/-1}.tform .row{display:flex;gap:8px;justify-content:flex-end}
+.tform input,.tform textarea,.tform select,.tbar select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
+.tboard{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:8px}
+.tcol{background:color-mix(in srgb,var(--text) 3%,transparent);border:1px solid var(--line);border-radius:14px;padding:10px;min-height:120px}
+.tboard .tcol h3{margin:0 0 8px;padding:0;font-size:13.5px;display:flex;align-items:center;gap:7px}.tcol h3 small{color:var(--mute);font-weight:600}
+.tdot{width:9px;height:9px;border-radius:50%;background:var(--mute)}.tdot.st-doing{background:#F59E0B}.tdot.st-blocked{background:#EF4444}.tdot.st-done{background:#22C55E}.tdot.st-todo{background:#64748B}
+.tcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--mute);border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:13.5px}
+.tcard.st-doing{border-left-color:#F59E0B}.tcard.st-blocked{border-left-color:#EF4444}.tcard.st-done{border-left-color:#22C55E}.tcard.st-done .tt b{color:var(--mute);font-weight:500}
+.tcard .tid{color:var(--mute);font-weight:600;font-size:12px}.tcard .tt b{font-weight:600}.tcard .tedit{width:calc(100% - 34px);padding:3px 7px;border:1px solid var(--accent);border-radius:7px;background:var(--bg);color:var(--text);font:inherit}
+.tdw{margin-top:4px;color:var(--mute);font-size:12.5px}.tnote{margin-top:4px;font-size:12.5px;color:var(--mute);font-style:italic}.tdet{margin-top:4px;font-size:12.5px}.tdet summary{cursor:pointer;color:var(--accent)}
+.tmeta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px}.town{padding:0 8px;border-radius:999px;border:1px solid var(--c);color:var(--c);font-weight:600;background:color-mix(in srgb,var(--c) 10%,transparent)}
+.tlink{color:var(--accent);font-weight:600;font-size:12px}.tlink:hover{text-decoration:underline}.tcommit{font:11.5px var(--mono);background:var(--code);border-radius:5px;padding:0 5px}.tago{margin-left:auto}
+.tacts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.tacts select{flex:1 1 100px;min-width:90px;max-width:none;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px}
+.tacts .iconbtn{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--mute)}.tacts .iconbtn:hover{background:var(--hover);color:var(--text)}.tacts .iconbtn svg{width:14px;height:14px}
+.tempty{color:var(--mute);font-size:12.5px;padding:8px 4px}
+@media (max-width:900px){.tboard{grid-template-columns:repeat(4,260px)}.tform{grid-template-columns:1fr}}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -706,6 +724,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <nav id="tabs" role="tablist" aria-label="Màn hình" data-i18n-aria="nav.label">
   <button id="tabsMenu" aria-label="Mở danh sách" data-i18n-aria="nav.open"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button role="tab" data-tab="rooms" aria-selected="true" data-i18n="tab.rooms">Phòng</button>
+  <button role="tab" data-tab="tasks"><span data-i18n="tab.tasks">Việc</span> <span class="cap" id="tabTaskCount"></span></button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens">Token</button>
   <button role="tab" data-tab="skills">Skill</button>
@@ -741,6 +760,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="hint" data-i18n-html="composer.hint"><kbd>Enter</kbd> gửi · <kbd>Shift</kbd>+<kbd>Enter</kbd> xuống dòng · <b>@tên</b> đánh thức một Claude, <b>@all</b> cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)</div>
   </div>
 </main>
+<section id="view-tasks" class="view" hidden aria-label="Việc" data-i18n-aria="tab.tasks"></section>
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
@@ -799,7 +819,7 @@ const I = {
 async function api(p, body, method) {
   const r = await fetch(p, { method: method || (body ? 'POST' : 'GET'), headers: { 'content-type': 'application/json', 'x-room-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  if (!r.ok) { const e = new Error(d.error || 'HTTP ' + r.status); e.data = d; throw e; }
   return d;
 }
 /* I1: strings by key from GET /api/i18n; a missing key falls back to vi, then to the key. Changing settings.language re-renders. */
@@ -1106,7 +1126,12 @@ function membersMenu(anchor) {
     };
     m.querySelectorAll('[data-end]').forEach((b) => guarded(b, b.dataset.end, (id, force) => api(`/api/sessions/${enc(id)}/terminate`, force ? { force: true } : {}).then(() => t('members.ended', { name: sess(id)?.name })), t('members.confirm')));
     m.querySelectorAll('[data-clearlead]').forEach((b) => guarded(b, b.dataset.clearlead, (id, force) => api(`/api/rooms/${enc(S.current)}/clear-lead`, force ? { force: true } : {}).then(() => t('members.cleared', { name: sess(id)?.name })), t('members.clearLead.ask')));
-    m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id, force) => api(`/api/sessions/${enc(id)}/compact`, { revive: true, ...(force ? { force: true } : {}) }).then(() => t('members.compacting', { name: sess(id)?.name })), t('members.confirm')));
+    const compactCall = (id, extra) => api(`/api/sessions/${enc(id)}/compact`, { revive: true, ...extra }).then(() => t('members.compacting', { name: sess(id)?.name }));
+    m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id, force) => compactCall(id, force ? { force: true } : {}).catch((err) => {
+      if (!err.data?.tabOpen) throw err;
+      armed(b, t('members.closeTabAsk'), () => compactCall(id, { ...(force ? { force: true } : {}), closeTab: true }).then((msg) => { closeMenu(); toast(msg); }, (e2) => toast(e2.message)));
+      return new Promise(() => {});   // the second click finishes the job
+    }), t('members.confirm')));
     S.git = S.git || {};
     for (const s of ms) api(`/api/sessions/${enc(s.id)}/git`).then((g) => {
       S.git[s.id] = g;
@@ -1126,7 +1151,7 @@ function renderRooms() {
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
-    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}">${I.dots}</button>`;
+    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${openTasks(r.name).length ? `<span class="tcount" title="${t('task.countTip', { n: openTasks(r.name).length })}">${openTasks(r.name).length}</span>` : ''}${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}">${I.dots}</button>`;
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
@@ -1483,6 +1508,7 @@ function connect() {
     S.rooms = snap.rooms;
     S.current = room(S.current) ? S.current : room(saved) ? saved : (S.rooms[0]?.name ?? null);
     select(S.current);
+    for (const r of S.rooms) loadTasks(r.name);
     loadWorkers();
     renderWorkersView();
   });
@@ -1496,6 +1522,7 @@ function connect() {
       renderLog(); renderTopics();
     } else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
+  es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); });
   es.addEventListener('session', (e) => {
     const s = JSON.parse(e.data); S.sessions[s.id] = s;
     if (S.renaming !== s.id) renderSessions();
@@ -1677,7 +1704,7 @@ $('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch
 $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
-const TABS = ['rooms', 'workers', 'tokens', 'skills', 'settings'];
+const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'skills', 'settings'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'rooms';
   S.tab = name; closeMenu();
@@ -1688,11 +1715,80 @@ function showTab(name) {
   document.body.dataset.tab = name;
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ workers: loadWorkersView, tokens: loadTokens, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
+  ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 // Filled in by the Worker / Token / Cài đặt views below.
+/* ---------- Việc tab (K3): the room's tasklist as four columns (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
+S.tasks = {}; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
+const TCOLS = ['todo', 'doing', 'blocked', 'done'];
+const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
+const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
+function loadTasks(r = S.current) {
+  if (!r) return Promise.resolve();
+  return api(`/api/rooms/${enc(r)}/tasks`).then((l) => { S.tasks[r] = Array.isArray(l) ? l : []; if (r === S.current) S.tasksErr = ''; }, (e) => { if (r === S.current) S.tasksErr = e.message; }).then(() => { renderTasks(); renderRooms(); });
+}
+function renderTasks() {
+  const r = S.current, list = S.tasks[r] || [], n = openTasks(r).length;
+  $('tabTaskCount').textContent = n ? n : '';
+  if (S.tab !== 'tasks') return;
+  const members_ = members(r), owners = [...new Set([...members_.map((m) => m.name), ...list.map((x) => x.owner).filter(Boolean)])].sort();
+  const shown = list.filter((x) => !S.tfOwner || (x.owner || '') === S.tfOwner);
+  const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + owners.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  const card = (x) => {
+    const editing = S.taskEdit === x.id;
+    return `<article class="tcard st-${x.status}" data-tid="${x.id}"><div class="tt"><span class="tid">#${x.id}</span> ${editing ? `<input class="tedit" data-tedit-in value="${esc(x.title)}" maxlength="200" aria-label="${t('task.edit')}">` : `<b>${esc(x.title)}</b>`}</div>
+      ${x.doneWhen ? `<div class="tdw">${esc(t('task.doneWhen', { t: x.doneWhen }))}</div>` : ''}
+      ${x.detail ? `<details class="tdet"><summary>${t('task.details')}</summary><div class="msg">${md(x.detail)}</div></details>` : ''}
+      ${x.note ? `<div class="tnote">${esc(x.note)}</div>` : ''}
+      <div class="tmeta">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : `<span class="muted">${t('task.unassigned')}</span>`}${x.fromMsg ? `<button type="button" class="tlink" data-tjump="${x.fromMsg}">${t('task.fromMsg', { id: x.fromMsg })}</button>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}<span class="muted tago">${agoText(x.doneAt || x.updatedAt)}</span></div>
+      <div class="tacts"><select data-tstatus="${x.id}" aria-label="${t('task.status')}">${TCOLS.map((s) => `<option value="${s}"${s === x.status ? ' selected' : ''}>${TCOL_KEY[s]}</option>`).join('')}</select><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><span style="flex:1"></span><button type="button" class="iconbtn" data-tedit="${x.id}" title="${t('task.edit')}" aria-label="${t('task.edit')}">${I.edit}</button><button type="button" class="iconbtn" data-tdel="${x.id}" title="${t('task.delete')}" aria-label="${t('task.delete')}">${I.trash}</button></div></article>`;
+  };
+  const col = (s) => {
+    let items = shown.filter((x) => x.status === s).sort((a, b) => s === 'done' ? (b.doneAt || b.updatedAt) - (a.doneAt || a.updatedAt) : a.id - b.id);
+    const total = items.length;
+    if (s === 'done' && !S.taskDoneAll) items = items.slice(0, 10);
+    return `<section class="tcol" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.map(card).join('') || `<div class="tempty">${t('task.colEmpty')}</div>`}${s === 'done' && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
+  };
+  const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><textarea name="detail" rows="2" placeholder="${t('task.form.detail')}" aria-label="${t('task.form.detail')}"></textarea><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
+  $('view-tasks').innerHTML = `<div class="vw wide"><div class="thead"><h2>${t('task.title')} <span class="aside">#${esc(r || '')}</span></h2><div class="tbar"><select id="taskOwner" aria-label="${t('task.owner')}">${ownerOpts(S.tfOwner, t('task.filterAll'))}</select><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button></div></div>
+    ${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
+    <div class="tboard">${TCOLS.map(col).join('')}</div></div>`;
+  const ed = $('view-tasks').querySelector('[data-tedit-in]'); if (ed) { ed.focus(); ed.select(); }
+}
+$('view-tasks').addEventListener('click', (e) => {
+  const r = S.current, q = (sel) => e.target.closest(sel);
+  if (q('#taskAdd')) { S.taskForm = !S.taskForm; return renderTasks(); }
+  if (q('#taskCancel')) { S.taskForm = false; return renderTasks(); }
+  if (q('#taskDoneAll')) { S.taskDoneAll = true; return renderTasks(); }
+  const imp = q('[data-timport]');
+  if (imp) return api(`/api/rooms/${enc(r)}/tasks/import`, { file: imp.dataset.timport }).then((d) => { toast(t('task.imported', { n: d?.added ?? d?.imported ?? (Array.isArray(d) ? d.length : 0), file: imp.dataset.timport })); loadTasks(r); }, (err) => toast(err.message));
+  const j = q('[data-tjump]'); if (j) { showTab('rooms'); return jumpTo(+j.dataset.tjump); }
+  const ed = q('[data-tedit]'); if (ed) { S.taskEdit = +ed.dataset.tedit; return renderTasks(); }
+  const del = q('[data-tdel]'); if (del) return armed(del, t('task.deleteAsk'), () => api(`/api/rooms/${enc(r)}/tasks/${del.dataset.tdel}/delete`, {}).then(() => loadTasks(r), (err) => toast(err.message)));
+});
+$('view-tasks').addEventListener('change', (e) => {
+  const r = S.current, el = e.target;
+  if (el.id === 'taskOwner') { S.tfOwner = el.value; return renderTasks(); }
+  const post = (id, body) => api(`/api/rooms/${enc(r)}/tasks/${id}`, body).then(() => loadTasks(r), (err) => { toast(err.message); loadTasks(r); });
+  if (el.dataset.tstatus) return post(el.dataset.tstatus, { status: el.value });
+  if (el.dataset.towner) return post(el.dataset.towner, { owner: el.value });
+});
+$('view-tasks').addEventListener('keydown', (e) => {
+  if (!e.target.matches('[data-tedit-in]')) return;
+  const id = e.target.closest('[data-tid]').dataset.tid;
+  if (e.key === 'Escape') { S.taskEdit = null; return renderTasks(); }
+  if (e.key === 'Enter') { const title = e.target.value.trim(); S.taskEdit = null; if (!title) return renderTasks(); api(`/api/rooms/${enc(S.current)}/tasks/${id}`, { title }).then(() => loadTasks(), (err) => toast(err.message)); }
+});
+$('view-tasks').addEventListener('submit', (e) => {
+  if (e.target.id !== 'taskNew') return;
+  e.preventDefault();
+  const f = e.target, body = { title: f.title.value.trim(), doneWhen: f.doneWhen.value.trim(), detail: f.detail.value.trim(), owner: f.owner.value };
+  for (const k of Object.keys(body)) if (!body[k]) delete body[k];
+  api(`/api/rooms/${enc(S.current)}/tasks`, body).then(() => { S.taskForm = false; return loadTasks(); }, (err) => toast(err.message));
+});
+
 /* ---------- Worker tab ---------- */
 S.viewErr = {};
 /** A view whose data failed to load: say what failed and the usual fix (a hub still running older code answers 404). */
