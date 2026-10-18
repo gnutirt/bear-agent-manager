@@ -22,6 +22,14 @@ Không làm: tự cài không hỏi; chạy script bên trong skill khi cài; ch
 - **Giao diện** (tab Skill): thanh chip vai trò (Tất cả · Ngân hàng · Slide · Đào tạo · Chung), ô tìm, lọc giấy phép, thẻ skill (tên, mô tả một dòng, nguồn + giấy phép, trạng thái cài theo từng tài khoản, nút Cài/Gỡ); khung "Gói vai trò" có nút "Áp cho agent…" (chọn agent trong phòng). Chuỗi dùng `t()` vi/en.
 - **Giấy phép**: giao diện hiện giấy phép của từng skill và dẫn tới `NOTICE.md`; không cài skill thiếu LICENSE trong thư viện.
 
+## Hợp đồng API (chốt 2026-10-18, UI đã làm theo)
+
+- `GET /api/skill-library?role=&q=&license=` → `{ skills: [{ name, category, roles, description, source, license, installed: [configDir] }] }`.
+- `GET /api/skill-packs` → `{ packs: [{ id, vi, en, roles, skills: [tên], mode, when }] }`.
+- `POST /api/skill-library/install { names, configDir }` và `POST /api/skill-library/uninstall { names, configDir }` → `{ done: [tên], skipped: [{ name, reason }] }`.
+- `POST /api/skill-packs/apply { pack, agent }` → `{ applied: [tên], notInstalled: [tên] }`.
+Lỗi: HTTP 4xx `{ error }`. Hub phải theo đúng tên route và hình dạng này; nếu cần khác thì sửa mục này và báo @frontend.
+
 ## Giai đoạn
 
 - S1 (@core-improve hoặc @coder): `roles` + `roles.json` + `packs.json` bản đầu, cập nhật `build-index.mjs`, test; `hub/skilllib.ts` + API đọc (`GET`), test với thư mục tạm và tên giả.
