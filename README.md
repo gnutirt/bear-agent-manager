@@ -159,6 +159,16 @@ node scripts/cleanup-ghosts.mjs   # drop hub sessions that are not real chats
 
 Design docs live in `docs/superpowers/` (specs and implementation plans).
 
+## Working together in one tree
+
+Several agents edit the same checkout, so a plain `git add <file>` + `git commit` can sweep in someone else's unfinished lines. Commit with:
+
+```bash
+node scripts/safe-commit.mjs "message" path/one path/two
+```
+
+It commits exactly the files you name (`git commit -m … -- <files>`), refuses when the index already holds other staged files, prints the diffstat of what it commits and lists every other changed file as "not part of this commit". For a file two agents are editing at once, read the diffstat and `git diff <file>` first: only the owner of each hunk should commit it.
+
 ## Releasing
 
 `package.json` holds the version (semver `X.Y.Z`); a test keeps `.claude-plugin/plugin.json` on the same number. Every change goes under `## Unreleased` in `CHANGELOG.md`.
