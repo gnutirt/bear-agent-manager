@@ -27,6 +27,7 @@ export type Session = {
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
+  pids?: { pid: number; headless: boolean; at: number }[];   // every claude that registered for this chat (a tab and a background wake can both exist); End kills all of them
 };
 const TOPIC = /^[a-z0-9-]{1,32}$/;
 export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';

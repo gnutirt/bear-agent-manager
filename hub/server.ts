@@ -431,11 +431,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
   async function terminateSession(s: Session) {
-    if (!s.pid) throw new StoreError(409, `${s.name}: pid of its claude is unknown (it is sent by the hooks; reopen the chat once)`);
-    const proc = (await listProcs()).find((p) => p.pid === s.pid);
-    if (!proc || !/(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(proc.cmd)) throw new StoreError(409, `${s.name}: pid ${s.pid} is not a running claude`);
-    if (proc.started && proc.started > s.lastSeen + 5000) throw new StoreError(409, `${s.name}: pid ${s.pid} started after this session was last seen (pid reused)`);
-    await killProc(s.pid);
+    // A chat can have two claudes (its tab and a background wake): every pid that registered for it and is still a claude of this chat goes
+    const known = [...new Set([...(s.pids ?? []).map((x) => x.pid), ...(s.pid ? [s.pid] : [])])];
+    if (!known.length) throw new StoreError(409, `${s.name}: pid of its claude is unknown (it is sent by the hooks; reopen the chat once)`);
+    const procs = await listProcs(), isClaude = (cmd: string) => /(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(cmd);
+    const victims = known.filter((pid) => { const p = procs.find((x) => x.pid === pid); return p && isClaude(p.cmd) && !(p.started && p.started > s.lastSeen + 5000); });
+    if (!victims.length) {
+      const first = procs.find((p) => p.pid === known[known.length - 1]);
+      throw new StoreError(409, !first || !isClaude(first.cmd) ? `${s.name}: pid ${known[known.length - 1]} is not a running claude` : `${s.name}: pid ${known[known.length - 1]} started after this session was last seen (pid reused)`);
+    }
+    for (const pid of victims) await killProc(pid);
     stopRevive(s.id);
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
@@ -1148,6 +1153,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       if (b.headless !== true && b.id) { try { tabCameUp(store.session(String(b.id)).id); } catch { /* unknown session yet */ } }
       let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
+      if (Number.isInteger(b.pid) && b.pid > 0) {
+        s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
+        store.save();
+      }
       if (b.ide) s = store.setIde(s.id, String(b.ide));
       if (b.title) s = setTitleKeepingRules(s.id, String(b.title));
       emitSession(s);

@@ -39,3 +39,19 @@ test('a background waiter steps aside when a tab already waits; a tab waiter sup
     await tab2;
   } finally { await hub.close(); }
 });
+
+test('End kills every claude that registered for the chat (tab and background), and only claudes', async () => {
+  const { spawn } = await import('node:child_process');
+  const idle = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], { stdio: 'ignore' });   // a live pid that is not a claude
+  const [tabPid, bgPid, otherPid] = [process.pid, process.ppid, idle.pid!];
+  const killed: number[] = [];
+  const procs: any[] = [tabPid, bgPid].map((pid) => ({ pid, ppid: 1, name: 'claude.exe', cmd: '"C:/x/claude.exe" --resume tb3', started: 1 })).concat([{ pid: otherPid, ppid: 1, name: 'node.exe', cmd: 'node x.js', started: 1 }] as any);
+  const { hub, call } = await makeHub(undefined, undefined, { listProcs: async () => procs, kill: async (pid: number) => { killed.push(pid); } });
+  try {
+    await call('/api/sessions/register', { id: 'tb3', cwd: 'C:/tabbg3', pid: tabPid });
+    await call('/api/sessions/register', { id: 'tb3', cwd: 'C:/tabbg3', pid: bgPid, headless: true });
+    await call('/api/sessions/register', { id: 'tb3', cwd: 'C:/tabbg3', pid: otherPid });
+    await call('/api/sessions/tb3/terminate', {});
+    assert.deepEqual(killed.sort(), [tabPid, bgPid].sort());
+  } finally { await hub.close(); idle.kill(); }
+});
