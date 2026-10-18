@@ -2000,7 +2000,7 @@ function skillLibBlock() {
   const packs = (L.packs || []).map((p) => `<div class="pack"><b>${esc(p[uiLang()] || p.vi || p.id)}</b><small class="muted">${t('lib.packN', { n: (p.skills || []).length })}</small><button type="button" class="btn sm" data-libpack="${esc(p.id)}">${t('lib.apply')}</button></div>`).join('');
   return `<h2>${t('lib.title')} <span class="aside">${t('lib.count', { n: shown.length, total: L.skills.length })}</span></h2>
     <p class="small muted">${t('lib.note')}</p>
-    ${shown.some((s) => s.jurisdiction && s.jurisdiction !== 'VN') && (L.role === 'legal' || L.role === 'all') ? `<div class="verr small" role="note">${t('lib.jur.note')}</div>` : ''}
+    ${shown.some((s) => s.jurisdiction && s.jurisdiction !== 'VN') && (L.role === 'legal' || L.role === 'banking') ? `<div class="verr small" role="note">${t('lib.jur.note')}</div>` : ''}
     ${L.skills.filter(isIn).length > 15 ? `<div class="verr small" role="alert">${t('lib.tooManyInstalled', { n: L.skills.filter(isIn).length })}</div>` : ''}
     <div class="skfind"><input class="search" id="libQuery" placeholder="${t('lib.search')}" value="${esc(L.q)}" aria-label="${t('lib.search')}"><select id="libLicense" aria-label="${t('lib.license')}"><option value="">${t('lib.license')}</option>${licenses.map((l) => `<option${l === L.license ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><select id="libAcct" aria-label="${t('lib.account')}">${accts.map((a) => `<option value="${esc(a.dir)}"${a.dir === acct ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}</select></div>
     <div class="chips">${chips}</div>
@@ -2079,6 +2079,7 @@ function renderSettingsView() {
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
       ${sw('openTabOnWake', !!st.openTabOnWake, t('set.openTabOnWake'), t('set.openTabOnWake.hint'))}
+      ${sw('relayChat', st.relayChat ?? true, t('set.relayChat'), t('set.relayChat.hint'))}
     </div>
     <h2>${t('lead.wake.title')}</h2><div class="setbox">
       <p class="small muted note">${t('lead.wake.note')}</p>

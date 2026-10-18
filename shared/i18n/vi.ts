@@ -594,4 +594,6 @@ export const vi: Record<string, string> = {
   'lib.jur.badge': 'Luật {j}',
   'lib.jur.tip': 'Viết theo luật {j}. Dùng cho hợp đồng ở Việt Nam phải đối chiếu luật Việt Nam và nhờ luật sư xác nhận.',
   'lib.jur.note': 'Một số skill dưới đây viết theo luật nước ngoài (nhãn "Luật …"): không dùng nguyên văn cho hợp đồng Việt Nam, cần đối chiếu và nhờ luật sư xác nhận.',
+  'set.relayChat': 'Chuyển câu trả lời trong chat vào phòng',
+  'set.relayChat.hint': 'Khi một agent được gọi từ phòng mà trả lời chỉ trong khung chat riêng (không room_send), hub tự đăng câu cuối vào phòng dưới dạng tin hệ thống gửi @you, không đánh thức ai.',
 };
