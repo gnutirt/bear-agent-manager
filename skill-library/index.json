@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 150,
+  "count": 157,
   "skills": [
     {
       "name": "3-statement-model",
@@ -323,6 +323,20 @@
       "jurisdiction": "US"
     },
     {
+      "name": "collateral-valuation",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/collateral-valuation",
+      "description": "Values collateral and allocates secured vs. unsecured claim portions under U.S. bankruptcy standards, applying Chapter 7 liquidation value, Chapter 13 replacement value (Rash), the 910-day vehicle rule, and § 506(b) oversecured interest. Use when preparing proofs of claim, plan treatment analyses, cramdown disputes, deficiency calculations, or valuation motions under FRBP 3012.",
+      "descVi": "Định giá tài sản bảo đảm và tách phần nợ có bảo đảm và không bảo đảm khi khách hàng phá sản (theo luật phá sản Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
       "name": "conducting-credit-committee-presentations",
       "category": "banking",
       "roles": [
@@ -408,6 +422,20 @@
       "jurisdiction": "US"
     },
     {
+      "name": "managing-collateral-and-margining",
+      "category": "banking",
+      "roles": [
+        "banking"
+      ],
+      "path": "banking/casemark/managing-collateral-and-margining",
+      "description": "Structures CSA terms analysis with initial/variation margin calculation and collateral optimization. Use when managing collateral, calculating margin requirements, or optimizing posting strategies.",
+      "descVi": "Phân tích điều khoản ký quỹ (CSA), tính ký quỹ ban đầu và ký quỹ biến động, tối ưu tài sản bảo đảm.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
       "name": "managing-commercial-loan-underwriting",
       "category": "banking",
       "roles": [
@@ -444,6 +472,21 @@
       "path": "banking/casemark/managing-construction-lending",
       "description": "Structures construction loan analysis with draw schedules, budget tracking, and completion risk assessment. Use when managing construction loans, tracking draw requests, or monitoring construction progress.",
       "descVi": "Phân tích cho vay xây dựng: lịch giải ngân, theo dõi ngân sách, rủi ro hoàn thành.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
+      "name": "managing-construction-loan-administration",
+      "category": "banking",
+      "roles": [
+        "banking",
+        "solar"
+      ],
+      "path": "banking/casemark/managing-construction-loan-administration",
+      "description": "Structures construction loan management with draw processing, inspection tracking, and budget monitoring. Use when administering construction loans, processing draw requests, or monitoring construction budgets.",
+      "descVi": "Quản lý khoản vay xây dựng: xử lý giải ngân theo tiến độ, theo dõi kiểm tra công trường, theo dõi ngân sách.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "banking/casemark/LICENSE",
@@ -1801,6 +1844,21 @@
       "jurisdiction": "US"
     },
     {
+      "name": "insurance-claim-summaries",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/insurance-claim-summaries",
+      "description": "Generates structured summaries of U.S. insurance claim files covering identification, incident narrative, party positions, coverage analysis, and resolution status. Use when synthesizing claim files for adjusters, legal counsel, or claims managers during pre-filing review, discovery, or settlement preparation. Trigger keywords: claim summary, insurance claim, coverage summary, adjuster summary, coverage denial, reservation of rights.",
+      "descVi": "Tóm tắt hồ sơ bồi thường bảo hiểm: sự cố, lập luận các bên, phạm vi bảo hiểm (theo luật Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
       "name": "interconnection-agreement",
       "category": "solar",
       "roles": [
@@ -1814,6 +1872,19 @@
       "license": "Apache-2.0",
       "licenseFile": "solar/casemark/LICENSE",
       "jurisdiction": "US"
+    },
+    {
+      "name": "modeling-carbon-credit-economics",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/casemark/modeling-carbon-credit-economics",
+      "description": "Builds carbon credit models with offset generation analysis, verification costs, and market pricing dynamics for carbon-linked investments. Use when modeling carbon credits, analyzing offset economics, or evaluating carbon market exposure.",
+      "descVi": "Mô hình kinh tế tín chỉ carbon: lượng giảm phát thải, chi phí thẩm định, giá thị trường.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE"
     },
     {
       "name": "modeling-energy-transition-infrastructure",
@@ -1899,6 +1970,21 @@
       "licenseFile": "solar/casemark/LICENSE"
     },
     {
+      "name": "warranty-timeline",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/casemark/warranty-timeline",
+      "description": "Generates a chronological timeline of warranty requests, claims, and complaints for product defect litigation, regulatory proceedings, or internal investigations. Analyzes complaint patterns, establishes manufacturer notice dates, and calculates defect statistics. Use when building warranty claim timelines, product defect chronologies, complaint pattern analysis, discovery summaries, expert report exhibits, or trial timeline exhibits.",
+      "descVi": "Lập dòng thời gian yêu cầu bảo hành, khiếu nại về lỗi thiết bị (pin, inverter) để xử lý tranh chấp hoặc rà soát nội bộ.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
       "name": "pv-system-design",
       "category": "solar",
       "roles": [
@@ -1910,6 +1996,21 @@
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
       "licenseFile": "solar/engineering/LICENSE"
+    },
+    {
+      "name": "vn-quy-dinh-dau-noi-dien-mat-troi",
+      "category": "solar",
+      "roles": [
+        "solar",
+        "legal"
+      ],
+      "path": "solar/vietnam/vn-quy-dinh-dau-noi-dien-mat-troi",
+      "description": "Tra cứu và áp dụng quy định Việt Nam cho điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP) — đối tượng áp dụng, có được bán điện dư lên lưới không và tối đa bao nhiêu, khi nào được miễn giấy phép hoạt động điện lực, thủ tục đăng ký với điện lực, chống phát ngược (zero export). Dùng skill này mỗi khi người dùng hỏi lắp điện mặt trời mái nhà có phải xin phép không, có bán điện cho EVN được không, hệ bao nhiêu kW thì cần giấy phép, thủ tục đấu nối, hoặc soạn hồ sơ/thuyết minh pháp lý cho dự án điện mặt trời mái nhà ở Việt Nam, kể cả khi họ không nêu số hiệu nghị định.",
+      "descVi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực.",
+      "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
+      "license": "MIT",
+      "licenseFile": "solar/vietnam/LICENSE",
+      "jurisdiction": "VN"
     },
     {
       "name": "course-training-skills",

@@ -74,5 +74,21 @@
   "analyzing-renewable-energy-project-finance": [
     "solar",
     "banking"
+  ],
+  "warranty-timeline": [
+    "solar",
+    "legal"
+  ],
+  "insurance-claim-summaries": [
+    "solar",
+    "legal"
+  ],
+  "managing-construction-loan-administration": [
+    "banking",
+    "solar"
+  ],
+  "vn-quy-dinh-dau-noi-dien-mat-troi": [
+    "solar",
+    "legal"
   ]
 }

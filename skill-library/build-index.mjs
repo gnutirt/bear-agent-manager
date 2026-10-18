@@ -12,6 +12,7 @@ const sources = {
   'banking/finance-skills': ['https://github.com/JoelLewis/finance_skills', 'MIT'],
   'banking/kyc-analyst': ['https://github.com/vyayasan/kyc-analyst', 'MIT'],
   'banking/vietnam': ['https://github.com/gnutirt/bear-agent-manager (tự viết)', 'MIT'],
+  'solar/vietnam': ['https://github.com/gnutirt/bear-agent-manager (tự viết)', 'MIT'],
   'slides/revealjs-skill': ['https://github.com/ryanbbrown/revealjs-skill', 'MIT'],
   'slides/agent-toolkit': ['https://github.com/softaworks/agent-toolkit', 'MIT'],
   'training/onewave': ['https://github.com/onewave-ai/claude-skills', 'MIT'],
@@ -34,10 +35,12 @@ const jurisdictionByPath = {
   'banking/second-line/': 'US',
   'banking/finance-skills/': 'US',
   'banking/vietnam/': 'VN',
+  'solar/vietnam/': 'VN',
 };
 const jurisdictionByName = {
   'epc-contract': 'US', 'interconnection-agreement': 'US', 'power-purchase-agreement': 'US',
   'solar-site-lease': 'US', 'energy-regulation-summaries': 'US',
+  'warranty-timeline': 'US', 'insurance-claim-summaries': 'US',
 };
 
 function findSkills(dir, out = []) {

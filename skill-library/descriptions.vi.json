@@ -148,5 +148,12 @@
   "power-purchase-agreement": "Soạn hợp đồng mua bán điện (PPA).",
   "solar-site-lease": "Soạn hợp đồng thuê đất làm dự án điện mặt trời (theo luật Mỹ).",
   "structuring-energy-offtake-agreements": "Thiết kế hợp đồng bao tiêu điện: cơ chế giá, cam kết sản lượng, cắt giảm công suất.",
-  "pv-system-design": "Thiết kế kỹ thuật hệ PV: số tấm mỗi chuỗi theo nhiệt độ, chọn inverter, bảo vệ quá dòng, sụt áp cáp, khoảng cách hàng tránh bóng che."
+  "pv-system-design": "Thiết kế kỹ thuật hệ PV: số tấm mỗi chuỗi theo nhiệt độ, chọn inverter, bảo vệ quá dòng, sụt áp cáp, khoảng cách hàng tránh bóng che.",
+  "collateral-valuation": "Định giá tài sản bảo đảm và tách phần nợ có bảo đảm và không bảo đảm khi khách hàng phá sản (theo luật phá sản Mỹ).",
+  "managing-construction-loan-administration": "Quản lý khoản vay xây dựng: xử lý giải ngân theo tiến độ, theo dõi kiểm tra công trường, theo dõi ngân sách.",
+  "managing-collateral-and-margining": "Phân tích điều khoản ký quỹ (CSA), tính ký quỹ ban đầu và ký quỹ biến động, tối ưu tài sản bảo đảm.",
+  "warranty-timeline": "Lập dòng thời gian yêu cầu bảo hành, khiếu nại về lỗi thiết bị (pin, inverter) để xử lý tranh chấp hoặc rà soát nội bộ.",
+  "insurance-claim-summaries": "Tóm tắt hồ sơ bồi thường bảo hiểm: sự cố, lập luận các bên, phạm vi bảo hiểm (theo luật Mỹ).",
+  "modeling-carbon-credit-economics": "Mô hình kinh tế tín chỉ carbon: lượng giảm phát thải, chi phí thẩm định, giá thị trường.",
+  "vn-quy-dinh-dau-noi-dien-mat-troi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực."
 }

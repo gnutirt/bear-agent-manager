@@ -14,7 +14,7 @@ not the license of bear-agent-manager.
 | `banking/kyc-analyst/` | https://github.com/vyayasan/kyc-analyst | MIT | `banking/kyc-analyst/LICENSE` |
 | `slides/frontend-slides/` | https://github.com/zarazhangrui/frontend-slides | MIT | `slides/frontend-slides/LICENSE` |
 | `slides/anthropic/*`, `general/anthropic/*` | https://github.com/anthropics/skills | Apache-2.0 | `LICENSE.txt` inside each skill |
-| `banking/vietnam/`, `solar/engineering/` | Written for bear-agent-manager | MIT | `LICENSE` in each folder |
+| `banking/vietnam/`, `solar/engineering/`, `solar/vietnam/` | Written for bear-agent-manager | MIT | `LICENSE` in each folder |
 | `slides/revealjs-skill/` | https://github.com/ryanbbrown/revealjs-skill | MIT | `slides/revealjs-skill/LICENSE` |
 | `slides/agent-toolkit/` | https://github.com/softaworks/agent-toolkit | MIT | `slides/agent-toolkit/LICENSE` |
 | `training/onewave/` | https://github.com/onewave-ai/claude-skills | MIT | `training/onewave/LICENSE` |
