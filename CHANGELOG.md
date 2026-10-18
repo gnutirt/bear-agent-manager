@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: ending or opening the tab of a member that runs in the background now kills the whole process tree (`taskkill /T /F` on Windows; before only cmd.exe died and claude.exe stayed, so two claudes ran on one session). `hub/revive.ts` exports `killTree` and `isBackground(id)` (a background claude is running for that session). Needs hub restart.
 - Fix: Compact no longer kills an open tab (the editor showed "Claude Code process exited with code 1" and the agent stayed down). `POST /api/sessions/:id/compact` on a session with its tab open answers 409 `{error, tabOpen: true}`; `closeTab: true` keeps the old stop-then-compact. Needs hub restart.
 ## 0.3.0 - 2026-10-18
 

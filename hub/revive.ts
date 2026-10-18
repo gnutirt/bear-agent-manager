@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -12,12 +12,21 @@ const TOOLS = ['mcp__plugin_bear-agent-manager_room', 'Read', 'Grep', 'Glob', 'L
 
 /** `claude --resume <id> -p` with `text` on stdin, output appended to <logDir>/revive.log; resolves the exit code. */
 const live = new Map<string, ChildProcess>();   // session id -> its background claude
+/** Kills a child and everything it started: on Windows the child is cmd.exe (shell: true) and plain kill() leaves claude.exe running. */
+export function killTree(c: ChildProcess): void {
+  if (process.platform === 'win32' && c.pid) execFile('taskkill', ['/T', '/F', '/PID', String(c.pid)], () => {});
+  else c.kill();
+}
+
+/** True while a background claude (a wake that stays alive) runs for this session. */
+export const isBackground = (id: string): boolean => live.has(id);
+
 /** Stops the background claude of a session (its tab is being opened, or the user ended it). */
 export function stopRevive(id: string): boolean {
   const c = live.get(id);
   if (!c) return false;
   live.delete(id);
-  c.kill();
+  killTree(c);
   return true;
 }
 
@@ -40,7 +49,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   });
   child.stdin?.end(text);
   if (idleMin) live.set(job.id, child);
-  const timer = setTimeout(() => child.kill(), maxMs);
+  const timer = setTimeout(() => killTree(child), maxMs);
   return new Promise((resolve) => {
     const done = (code: number) => { clearTimeout(timer); if (live.get(job.id) === child) live.delete(job.id); fs.closeSync(log); resolve(code); };
     child.on('exit', (code) => done(code ?? 1));
