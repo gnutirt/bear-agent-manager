@@ -20,9 +20,9 @@ test('planWakes: one booking per account and cycle, at reset + delay; off, below
   assert.deepEqual(planWakes([acc(99, null)], cfg, {}), []);
 });
 
-test('lead.wake settings: validated, merged, default off', () => {
+test('lead.wake settings: validated, merged, default on', () => {
   const d = defaultSettings(4);
-  assert.deepEqual(d.lead.wake, { enabled: false, atPct: 90, afterResetMin: 2 });
+  assert.deepEqual(d.lead.wake, { enabled: true, atPct: 90, afterResetMin: 2 });
   const s = patchSettings(d, { lead: { wake: { enabled: true, atPct: 5, afterResetMin: 999 } } });
   assert.deepEqual(s.lead.wake, { enabled: true, atPct: 50, afterResetMin: 120 });
 });

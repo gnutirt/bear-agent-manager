@@ -306,9 +306,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const batching = new Set<string>();
   function deliver(sid: string) {
+    const st = store.session(sid);
+    // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
+    // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
+    // tab at 02:12). Drop that waiter and unstick the chat instead.
+    if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) {
+      const w = waiters.get(sid);
+      if (w) { clearTimeout(w.timer); waiters.delete(sid); json(w.res, 200, { superseded: true }); }
+      void unstick(st);
+      return;
+    }
     if (!waiters.has(sid)) {
-      const st = store.session(sid);
-      if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) { void unstick(st); return; }
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
       if (autoRevive && store.session(sid).ended && !revive(sid) && !reviving.has(sid)) autoOpenTab(sid);
       return;

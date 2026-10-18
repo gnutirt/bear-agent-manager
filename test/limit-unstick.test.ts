@@ -68,3 +68,24 @@ test('closeLimitedTab off: the tab is left alone and @you is told to type in it'
     assert.ok(notices.some((t) => t.startsWith('@you') && t.includes('alice')), notices.join(' | '));
   } finally { await h.hub.close(); }
 });
+
+test('a waiter left from an earlier turn does not swallow the wake of a chat that died on its limit', async () => {
+  const order: string[] = [];
+  const h = await makeHub(undefined, () => { order.push('revive'); }, {
+    listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { order.push('kill'); },
+  });
+  try {
+    const tr = path.join(h.dir, 'alice.jsonl');
+    await h.call('/api/sessions/register', { id: 'a1', cwd: h.dir, name: 'alice', transcript: tr, pid: 800 });
+    await h.call('/api/rooms/web/join', { sessionId: 'a1' });
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    // the stale long-poll of an earlier Stop hook
+    const waiting = fetch(`${h.hub.url}/api/sessions/a1/wait?timeout=30`, { headers: { 'x-room-token': h.hub.token } }).then((r) => r.json());
+    await new Promise((r) => setTimeout(r, 100));
+    await h.call('/api/rooms/web/messages', { text: '@alice the limit reset, go on' });
+    assert.deepEqual(await waiting, { superseded: true }, 'the stale waiter is let go, not handed the message');
+    await new Promise((r) => setTimeout(r, 150));
+    assert.deepEqual(order, ['kill', 'revive']);
+  } finally { await h.hub.close(); }
+});
