@@ -1,7 +1,7 @@
 ---
 name: contract-analysis
 language: en
-description: Analyzes contracts to identify key terms, obligations, risks, and negotiation opportunities. Produces structured risk assessments with executive summary, provision review, risk matrix, and prioritized recommendations. Use when reviewing agreements before execution, during negotiation, at closing, or for compliance monitoring.
+description: Analyzes contracts to identify key terms, obligations, risks, and negotiation opportunities. Produces structured risk assessments with executive summary, provision review, risk matrix, and prioritized recommendations. Use when reviewing agreements before execution, during negotiation, at closing, or for compliance monitoring. Dùng cả khi người dùng nói tiếng Việt, ví dụ phân tích hợp đồng, điều khoản chính, nghĩa vụ các bên, rủi ro hợp đồng.
 ---
 
 # Contract Analysis

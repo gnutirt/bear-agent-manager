@@ -7,6 +7,7 @@ description: >-
   attributes, credit support, defaults, and remedies. Triggers on "PPA", "power
   purchase agreement", "offtaker", "generator", "REC", "net output",
   "renewable energy offtake", "energy supply agreement", or "energy payment".
+  Dùng cả khi người dùng nói tiếng Việt, ví dụ hợp đồng mua bán điện, PPA, bán điện, DPPA.
 tags:
   - agreement
   - drafting

@@ -1,6 +1,6 @@
 ---
 name: legal-risk-assessment
-description: Assess and classify legal risks using a severity-by-likelihood framework with escalation criteria. Use when evaluating contract risk, assessing deal exposure, classifying issues by severity, or determining whether a matter needs senior counsel or outside legal review.
+description: Assess and classify legal risks using a severity-by-likelihood framework with escalation criteria. Use when evaluating contract risk, assessing deal exposure, classifying issues by severity, or determining whether a matter needs senior counsel or outside legal review. Dùng cả khi người dùng nói tiếng Việt, ví dụ đánh giá rủi ro pháp lý, rủi ro pháp lý, mức độ nghiêm trọng, khi nào cần luật sư.
 ---
 
 # Legal Risk Assessment Skill

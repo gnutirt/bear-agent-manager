@@ -1,6 +1,6 @@
 ---
 name: quiz-maker
-description: Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations.
+description: Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations. Dùng cả khi người dùng nói tiếng Việt, ví dụ câu hỏi trắc nghiệm, bài kiểm tra, đề thi, quiz, đúng sai, câu hỏi ôn tập.
 ---
 
 # Quiz Maker

@@ -1,6 +1,6 @@
 ---
 name: course-training-skills
-description: Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course.
+description: Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course. Dùng cả khi người dùng nói tiếng Việt, ví dụ thiết kế khoá đào tạo, giáo án, chương trình training, bài giảng, đào tạo nội bộ.
 ---
 
 # Course Training Skills

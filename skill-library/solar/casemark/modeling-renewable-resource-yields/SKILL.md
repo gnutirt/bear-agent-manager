@@ -1,7 +1,7 @@
 ---
 name: modeling-renewable-resource-yields
 language: en
-description: Builds renewable energy yield models with resource assessment, capacity factor analysis, and P50/P90 production estimates. Use when modeling wind/solar yields, analyzing resource data, or evaluating production uncertainty.
+description: Builds renewable energy yield models with resource assessment, capacity factor analysis, and P50/P90 production estimates. Use when modeling wind/solar yields, analyzing resource data, or evaluating production uncertainty. Dùng cả khi người dùng nói tiếng Việt, ví dụ sản lượng điện mặt trời, sản lượng điện gió, P50 P90, hệ số công suất, bức xạ.
 tags:
   - modeling
   - real-assets-and-natural-resources

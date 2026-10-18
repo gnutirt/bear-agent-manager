@@ -1,7 +1,7 @@
 ---
 name: drafting-credit-memos
 language: en
-description: Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations.
+description: Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations. Dùng cả khi người dùng nói tiếng Việt, ví dụ tờ trình tín dụng, soạn tờ trình cho vay, đề xuất cấp tín dụng.
 tags:
   - drafting
   - fixed-income

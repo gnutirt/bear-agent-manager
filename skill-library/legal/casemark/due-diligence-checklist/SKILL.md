@@ -1,7 +1,7 @@
 ---
 name: due-diligence-checklist
 language: en
-description: Drafts due diligence checklists for U.S. corporate transactions (M&A, asset purchases, investments, JVs, restructurings). Covers corporate structure, financials, tax, contracts, IP, litigation, employment, benefits, insurance, and environmental compliance. Surfaces change-of-control triggers, consent requirements, and red flags. Use when preparing for deal closing, board presentations, or investor disclosure.
+description: Drafts due diligence checklists for U.S. corporate transactions (M&A, asset purchases, investments, JVs, restructurings). Covers corporate structure, financials, tax, contracts, IP, litigation, employment, benefits, insurance, and environmental compliance. Surfaces change-of-control triggers, consent requirements, and red flags. Use when preparing for deal closing, board presentations, or investor disclosure. Dùng cả khi người dùng nói tiếng Việt, ví dụ thẩm định pháp lý, danh mục due diligence, M&A, mua bán doanh nghiệp, góp vốn.
 ---
 
 # Due Diligence Checklist

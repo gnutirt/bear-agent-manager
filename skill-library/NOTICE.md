@@ -1,6 +1,6 @@
 # NOTICE
 
-The skills in this folder are unmodified copies of third-party open-source work, collected on 2026-10-18.
+The skills in this folder are copies of third-party open-source work, collected on 2026-10-18.
 Each source keeps its own license file next to the copied skills; that license governs those files,
 not the license of bear-agent-manager.
 
@@ -21,6 +21,12 @@ not the license of bear-agent-manager.
 | `legal/anthropic-legal/` | https://github.com/anthropics/knowledge-work-plugins | Apache-2.0 | `legal/anthropic-legal/LICENSE` |
 | `legal/casemark/`, `solar/casemark/` | https://github.com/CaseMark/skills | Apache-2.0 | `LICENSE` in each folder |
 | `training/course-training-skills/` | https://github.com/Mosapmohamd/course-training-skills | MIT | `training/course-training-skills/LICENSE` |
+
+Changes made to the copies:
+- 20 skills (the core of each role pack) have one Vietnamese sentence appended to the `description` field of their SKILL.md frontmatter,
+  so Claude also picks them up when the user writes in Vietnamese. The skill body is unchanged. `git log -p` on `skill-library/` shows each change.
+- `banking/second-line/*`: the plugin-level `references/*.md` of each upstream plugin is copied into every skill's own `references/`
+  so a single skill works on its own. `legal/anthropic-legal/*`: the plugin's `CONNECTORS.md` is copied into each skill folder for the same reason.
 
 Not included because their licenses do not allow redistribution here: Anthropic's `pptx`, `docx`, `xlsx`, `pdf`
 skills (proprietary), Anthropic's `doc-coauthoring` (no license file), `narosemena/master-instructional-design` (CC BY-NC-ND 4.0), `espialuso/id-skills-for-claude`

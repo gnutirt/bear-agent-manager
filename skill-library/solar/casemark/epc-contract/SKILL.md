@@ -1,7 +1,7 @@
 ---
 name: epc-contract
 language: en
-description: Drafts turnkey Engineering, Procurement, and Construction (EPC) contracts for industrial facility projects. Covers scope of work, commercial terms, performance guarantees, risk allocation, warranties, and dispute resolution. Use when drafting EPC agreements, turnkey construction contracts, or energy infrastructure project contracts (power plants, petrochemical facilities, water treatment plants).
+description: Drafts turnkey Engineering, Procurement, and Construction (EPC) contracts for industrial facility projects. Covers scope of work, commercial terms, performance guarantees, risk allocation, warranties, and dispute resolution. Use when drafting EPC agreements, turnkey construction contracts, or energy infrastructure project contracts (power plants, petrochemical facilities, water treatment plants). Dùng cả khi người dùng nói tiếng Việt, ví dụ hợp đồng EPC, tổng thầu thiết kế mua sắm xây dựng, hợp đồng thi công trọn gói.
 ---
 
 # EPC Contract

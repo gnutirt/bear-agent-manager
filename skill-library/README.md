@@ -7,16 +7,37 @@ Tổng: **151 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3 �
 Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
-## Cách cài một skill
+## Cài và dùng skill thư viện
 
-Chép thư mục chứa `SKILL.md` vào thư mục skill của Claude Code (máy này: `~/.claude-antigravity/skills/`, mặc định: `~/.claude/skills/`):
+Làm trong giao diện hub (cần hub bản mới, đã restart):
+
+1. **Chọn vai trò:** tab Skill, khung *Thư viện skill*, bấm chip vai trò (Ngân hàng, Slide, Đào tạo, Chung, Pháp lý, Solar) hoặc gõ vào ô tìm.
+2. **Cài:** chọn *Tài khoản cài* (VS Code `~/.claude` hoặc Antigravity `~/.claude-antigravity`; mỗi tài khoản cài riêng), rồi bấm **Cài**. Hub chỉ chép thư mục skill kèm LICENSE: không ghi đè skill đã có, không chạy script nào. Muốn cài cả nhóm thì dùng *Gói vai trò* → **Áp cho agent**.
+3. **Mở lại chat** của agent. Claude Code chỉ nạp skill mới khi phiên bắt đầu.
+4. **Bật cho agent:** tab Skill, mục *Skill theo agent*, chọn agent, đặt từng skill:
+   - *Tự quyết*: không nhắc gì, Claude tự gọi khi thấy hợp (mặc định).
+   - *Ép dùng*: nhắc agent gọi skill ở mỗi tin hoặc chỉ ở tin đầu phiên.
+   - *Cấm*: nhắc agent không dùng.
+5. **Kiểm tra đã dùng chưa:** cạnh mỗi skill có dòng "đã dùng N lần · lần cuối …" hoặc "chưa dùng". Hub ghi từ lần restart gần nhất. Dòng "đang ép nhưng agent chưa dùng" nghĩa là đã ép mà agent vẫn chưa gọi skill.
+6. **Ẩn hẳn:** mục *Ẩn hẳn skill khỏi Claude Code*. Khác *Cấm* (chỉ là lời nhắc): skill bị ẩn không được liệt kê cho Claude và không nạp. Áp theo tài khoản, có hiệu lực khi mở lại chat. Skill của plugin thì dùng `/plugin disable`.
+7. **Gỡ:** bấm **Gỡ** ở thẻ skill.
+
+Không dùng giao diện thì chép tay thư mục chứa `SKILL.md` vào thư mục skill của tài khoản:
 
 ```powershell
 Copy-Item -Recurse skill-library\banking\casemark\assessing-credit-risk "$HOME\.claude-antigravity\skills\"
 ```
 
-Lưu ý: chỉ cài những skill cần dùng. Mỗi skill đã cài tốn khoảng 100 token trong mọi phiên (phần mô tả luôn được nạp).
-Có vài skill trùng tên giữa các nguồn (ví dụ KYC/AML), nên chọn một bản cho mỗi việc.
+Skill con của `course-training-skills` (có trường `bundle`) cần cả thư mục `training/course-training-skills`.
+
+**Lưu ý**
+- Mỗi skill đã cài tốn khoảng 100 token ở mọi lượt (phần mô tả luôn được nạp). Giao diện cảnh báo khi một tài khoản cài hoặc một agent ép quá 15 skill. Chỉ cài cái cần dùng.
+- Giấy phép của từng skill hiện trên thẻ và ghi ở `NOTICE.md`. Dùng lại hoặc phân phối thì giữ file LICENSE đi kèm.
+- Skill có nhãn **"Luật US"** (`jurisdiction: US`) viết theo luật và quy định của Mỹ. Không dùng nguyên văn cho hợp đồng hay hồ sơ Việt Nam: đối chiếu luật Việt Nam và nhờ luật sư xác nhận. Skill `VN` chỉ trích số liệu có trong văn bản gốc đặt ở `references/van-ban/`.
+
+### Install and use (English, short)
+
+In the hub UI: Skills tab → *Skill library* → pick a role chip → choose the account → **Install** (copies the folder and its LICENSE, never overwrites, runs nothing) → reopen the agent's chat → in *Skills per agent* set *Auto*, *Force* (every message or first message) or *Ban* → check "used N times" → *Hide from Claude Code* removes a skill from the listing entirely, per account. Manual install: copy the folder that holds `SKILL.md` into `<configDir>/skills/`. Each installed skill costs about 100 tokens per turn; stay under 15. Skills marked **US law** follow US law: do not apply them to Vietnamese contracts without checking local law and a lawyer.
 
 ## Ngân hàng (`banking/`) — 94
 

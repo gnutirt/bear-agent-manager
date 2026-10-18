@@ -1,6 +1,6 @@
 ---
 name: pptx-author
-description: Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app.
+description: Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app. Dùng cả khi người dùng nói tiếng Việt, ví dụ làm file PowerPoint, tạo pptx, slide thuyết trình.
 ---
 
 # pptx-author

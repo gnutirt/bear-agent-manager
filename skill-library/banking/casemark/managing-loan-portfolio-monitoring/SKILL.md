@@ -1,7 +1,7 @@
 ---
 name: managing-loan-portfolio-monitoring
 language: en
-description: Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists.
+description: Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists. Dùng cả khi người dùng nói tiếng Việt, ví dụ theo dõi danh mục cho vay, chất lượng nợ, danh sách cảnh báo sớm, nợ xấu, tập trung tín dụng.
 tags:
   - management
   - commercial-banking

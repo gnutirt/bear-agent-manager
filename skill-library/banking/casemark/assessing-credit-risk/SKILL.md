@@ -1,7 +1,7 @@
 ---
 name: assessing-credit-risk
 language: en
-description: Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality.
+description: Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality. Dùng cả khi người dùng nói tiếng Việt, ví dụ thẩm định tín dụng, đánh giá rủi ro tín dụng, khả năng trả nợ của khách hàng vay, xếp hạng tín dụng.
 tags:
   - assessment
   - fixed-income

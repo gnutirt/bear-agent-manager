@@ -1,7 +1,7 @@
 ---
 name: analyzing-renewable-energy-project-finance
 language: en
-description: Evaluates renewable energy project economics with PPA structures, merchant tail risk, and production profile analysis. Use when analyzing wind/solar projects, evaluating PPA terms, or modeling renewable energy cash flows.
+description: Evaluates renewable energy project economics with PPA structures, merchant tail risk, and production profile analysis. Use when analyzing wind/solar projects, evaluating PPA terms, or modeling renewable energy cash flows. Dùng cả khi người dùng nói tiếng Việt, ví dụ tài chính dự án năng lượng tái tạo, hiệu quả dự án điện mặt trời, IRR dự án, hợp đồng mua bán điện.
 tags:
   - analysis
   - infrastructure-and-project-finance

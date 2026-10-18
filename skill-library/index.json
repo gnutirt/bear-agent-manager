@@ -301,7 +301,7 @@
         "banking"
       ],
       "path": "banking/casemark/assessing-credit-risk",
-      "description": "Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality.",
+      "description": "Evaluates borrower creditworthiness using financial analysis, industry assessment, and qualitative factors with structured credit opinions. Use when assessing credit risk, writing credit opinions, or evaluating borrower quality. Dùng cả khi người dùng nói tiếng Việt, ví dụ thẩm định tín dụng, đánh giá rủi ro tín dụng, khả năng trả nợ của khách hàng vay, xếp hạng tín dụng.",
       "descVi": "Thẩm định khả năng trả nợ của khách hàng vay: phân tích tài chính, ngành, yếu tố định tính.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -358,7 +358,7 @@
         "banking"
       ],
       "path": "banking/casemark/drafting-credit-memos",
-      "description": "Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations.",
+      "description": "Creates structured credit memos with borrower analysis, risk assessment, and recommendation justification. Use when writing credit memos, documenting credit decisions, or presenting credit recommendations. Dùng cả khi người dùng nói tiếng Việt, ví dụ tờ trình tín dụng, soạn tờ trình cho vay, đề xuất cấp tín dụng.",
       "descVi": "Soạn tờ trình tín dụng: phân tích khách hàng, đánh giá rủi ro, lý do đề xuất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -596,7 +596,7 @@
         "banking"
       ],
       "path": "banking/casemark/managing-loan-portfolio-monitoring",
-      "description": "Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists.",
+      "description": "Structures loan portfolio review with credit quality trends, watch list management, and concentration analysis. Use when monitoring loan portfolios, tracking credit quality, or managing watch lists. Dùng cả khi người dùng nói tiếng Việt, ví dụ theo dõi danh mục cho vay, chất lượng nợ, danh sách cảnh báo sớm, nợ xấu, tập trung tín dụng.",
       "descVi": "Theo dõi danh mục cho vay: xu hướng chất lượng nợ, danh sách cảnh báo, mức tập trung.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1306,7 +1306,7 @@
         "training"
       ],
       "path": "general/anthropic/internal-comms",
-      "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+      "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.). Dùng cả khi người dùng nói tiếng Việt, ví dụ thông báo nội bộ, bản tin công ty, email gửi nhân viên, báo cáo tuần.",
       "descVi": "Viết thông báo nội bộ theo các mẫu quen dùng của công ty.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
@@ -1387,7 +1387,7 @@
         "legal"
       ],
       "path": "legal/anthropic-legal/legal-risk-assessment",
-      "description": "Assess and classify legal risks using a severity-by-likelihood framework with escalation criteria. Use when evaluating contract risk, assessing deal exposure, classifying issues by severity, or determining whether a matter needs senior counsel or outside legal review.",
+      "description": "Assess and classify legal risks using a severity-by-likelihood framework with escalation criteria. Use when evaluating contract risk, assessing deal exposure, classifying issues by severity, or determining whether a matter needs senior counsel or outside legal review. Dùng cả khi người dùng nói tiếng Việt, ví dụ đánh giá rủi ro pháp lý, rủi ro pháp lý, mức độ nghiêm trọng, khi nào cần luật sư.",
       "descVi": "Đánh giá và xếp hạng rủi ro pháp lý theo mức độ nghiêm trọng và khả năng xảy ra.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
@@ -1415,7 +1415,7 @@
         "legal"
       ],
       "path": "legal/anthropic-legal/review-contract",
-      "description": "Review a contract against your organization's negotiation playbook — flag deviations, generate redlines, provide business impact analysis. Use when reviewing vendor or customer agreements, when you need clause-by-clause analysis against standard positions, or when preparing a negotiation strategy with prioritized redlines and fallback positions.",
+      "description": "Review a contract against your organization's negotiation playbook — flag deviations, generate redlines, provide business impact analysis. Use when reviewing vendor or customer agreements, when you need clause-by-clause analysis against standard positions, or when preparing a negotiation strategy with prioritized redlines and fallback positions. Dùng cả khi người dùng nói tiếng Việt, ví dụ rà soát hợp đồng, review hợp đồng, sửa hợp đồng, điều khoản bất lợi, đàm phán hợp đồng.",
       "descVi": "Rà soát hợp đồng theo bộ quy tắc đàm phán của tổ chức: chỉ ra điểm lệch, đề xuất sửa, đánh giá ảnh hưởng.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
@@ -1429,7 +1429,7 @@
         "legal"
       ],
       "path": "legal/anthropic-legal/triage-nda",
-      "description": "Rapidly triage an incoming NDA and classify it as GREEN (standard approval), YELLOW (counsel review), or RED (full legal review). Use when a new NDA arrives from sales or business development, when screening for embedded non-solicits, non-competes, or missing carveouts, or when deciding whether an NDA can be signed under standard delegation.",
+      "description": "Rapidly triage an incoming NDA and classify it as GREEN (standard approval), YELLOW (counsel review), or RED (full legal review). Use when a new NDA arrives from sales or business development, when screening for embedded non-solicits, non-competes, or missing carveouts, or when deciding whether an NDA can be signed under standard delegation. Dùng cả khi người dùng nói tiếng Việt, ví dụ thoả thuận bảo mật, NDA, hợp đồng bảo mật thông tin, xem nhanh NDA.",
       "descVi": "Phân loại nhanh thoả thuận bảo mật (NDA): xanh (duyệt chuẩn), vàng (cần luật sư xem), đỏ (rà soát đầy đủ).",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
@@ -1471,7 +1471,7 @@
         "legal"
       ],
       "path": "legal/casemark/contract-analysis",
-      "description": "Analyzes contracts to identify key terms, obligations, risks, and negotiation opportunities. Produces structured risk assessments with executive summary, provision review, risk matrix, and prioritized recommendations. Use when reviewing agreements before execution, during negotiation, at closing, or for compliance monitoring.",
+      "description": "Analyzes contracts to identify key terms, obligations, risks, and negotiation opportunities. Produces structured risk assessments with executive summary, provision review, risk matrix, and prioritized recommendations. Use when reviewing agreements before execution, during negotiation, at closing, or for compliance monitoring. Dùng cả khi người dùng nói tiếng Việt, ví dụ phân tích hợp đồng, điều khoản chính, nghĩa vụ các bên, rủi ro hợp đồng.",
       "descVi": "Phân tích hợp đồng: điều khoản chính, nghĩa vụ, rủi ro, điểm có thể đàm phán.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1541,7 +1541,7 @@
         "legal"
       ],
       "path": "legal/casemark/due-diligence-checklist",
-      "description": "Drafts due diligence checklists for U.S. corporate transactions (M&A, asset purchases, investments, JVs, restructurings). Covers corporate structure, financials, tax, contracts, IP, litigation, employment, benefits, insurance, and environmental compliance. Surfaces change-of-control triggers, consent requirements, and red flags. Use when preparing for deal closing, board presentations, or investor disclosure.",
+      "description": "Drafts due diligence checklists for U.S. corporate transactions (M&A, asset purchases, investments, JVs, restructurings). Covers corporate structure, financials, tax, contracts, IP, litigation, employment, benefits, insurance, and environmental compliance. Surfaces change-of-control triggers, consent requirements, and red flags. Use when preparing for deal closing, board presentations, or investor disclosure. Dùng cả khi người dùng nói tiếng Việt, ví dụ thẩm định pháp lý, danh mục due diligence, M&A, mua bán doanh nghiệp, góp vốn.",
       "descVi": "Lập danh mục thẩm định pháp lý cho giao dịch doanh nghiệp: M&A, mua tài sản, đầu tư, liên doanh.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1641,7 +1641,7 @@
         "slides"
       ],
       "path": "slides/anthropic-financial-services/deck-refresh",
-      "description": "Updates a presentation with new numbers — quarterly refreshes, earnings updates, comp rolls, rebased market data. Use whenever the user asks to \"update the deck with Q4 numbers\", \"refresh the comps\", \"roll this forward\", \"swap in the new earnings\", \"change all the $485M to $512M\", or any request to swap figures across an existing deck without rebuilding it.",
+      "description": "Updates a presentation with new numbers — quarterly refreshes, earnings updates, comp rolls, rebased market data. Use whenever the user asks to \"update the deck with Q4 numbers\", \"refresh the comps\", \"roll this forward\", \"swap in the new earnings\", \"change all the $485M to $512M\", or any request to swap figures across an existing deck without rebuilding it. Dùng cả khi người dùng nói tiếng Việt, ví dụ cập nhật số liệu slide, làm lại slide quý, sửa số trong bài trình bày.",
       "descVi": "Cập nhật số liệu mới vào bộ slide có sẵn (quý, kết quả kinh doanh, thị trường).",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
@@ -1681,7 +1681,7 @@
         "slides"
       ],
       "path": "slides/anthropic-financial-services/ppt-template-creator",
-      "description": "Creates self-contained PPT template SKILLS (not presentations) from user-provided PowerPoint templates. Use ONLY when a user wants to create a reusable skill from their template. For creating actual presentations, use the pptx skill instead.",
+      "description": "Creates self-contained PPT template SKILLS (not presentations) from user-provided PowerPoint templates. Use ONLY when a user wants to create a reusable skill from their template. For creating actual presentations, use the pptx skill instead. Dùng cả khi người dùng nói tiếng Việt, ví dụ mẫu PowerPoint, template slide công ty, tạo skill từ mẫu pptx.",
       "descVi": "Tạo skill mẫu PowerPoint từ file mẫu .pptx của người dùng.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
@@ -1695,7 +1695,7 @@
         "banking"
       ],
       "path": "slides/anthropic-financial-services/pptx-author",
-      "description": "Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app.",
+      "description": "Produce a .pptx file on disk (headless) instead of driving a live PowerPoint document — for managed-agent sessions with no open Office app. Dùng cả khi người dùng nói tiếng Việt, ví dụ làm file PowerPoint, tạo pptx, slide thuyết trình.",
       "descVi": "Tạo file .pptx trực tiếp trên đĩa, không cần mở PowerPoint.",
       "source": "https://github.com/anthropics/financial-services-plugins",
       "license": "Apache-2.0",
@@ -1736,7 +1736,7 @@
         "training"
       ],
       "path": "slides/anthropic/theme-factory",
-      "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+      "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly. Dùng cả khi người dùng nói tiếng Việt, ví dụ chủ đề màu, giao diện slide, phông chữ, làm đẹp tài liệu.",
       "descVi": "Bộ chủ đề màu và phông để tạo kiểu cho slide, tài liệu, trang HTML.",
       "source": "https://github.com/anthropics/skills",
       "license": "Apache-2.0",
@@ -1750,7 +1750,7 @@
         "training"
       ],
       "path": "slides/frontend-slides",
-      "description": "Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files. Use when the user wants to build a presentation, convert a PPT/PPTX to web, or create slides for a talk/pitch. Helps non-designers discover their aesthetic through visual exploration rather than abstract choices.",
+      "description": "Create stunning, animation-rich HTML presentations from scratch or by converting PowerPoint files. Use when the user wants to build a presentation, convert a PPT/PPTX to web, or create slides for a talk/pitch. Helps non-designers discover their aesthetic through visual exploration rather than abstract choices. Dùng cả khi người dùng nói tiếng Việt, ví dụ làm slide, thuyết trình, bài trình bày HTML, chuyển PowerPoint sang web.",
       "descVi": "Tạo slide HTML có hiệu ứng, hoặc chuyển từ file PowerPoint.",
       "source": "https://github.com/zarazhangrui/frontend-slides",
       "license": "MIT",
@@ -1778,7 +1778,7 @@
         "banking"
       ],
       "path": "solar/casemark/analyzing-renewable-energy-project-finance",
-      "description": "Evaluates renewable energy project economics with PPA structures, merchant tail risk, and production profile analysis. Use when analyzing wind/solar projects, evaluating PPA terms, or modeling renewable energy cash flows.",
+      "description": "Evaluates renewable energy project economics with PPA structures, merchant tail risk, and production profile analysis. Use when analyzing wind/solar projects, evaluating PPA terms, or modeling renewable energy cash flows. Dùng cả khi người dùng nói tiếng Việt, ví dụ tài chính dự án năng lượng tái tạo, hiệu quả dự án điện mặt trời, IRR dự án, hợp đồng mua bán điện.",
       "descVi": "Đánh giá hiệu quả dự án năng lượng tái tạo: cấu trúc PPA, rủi ro giá thị trường, sản lượng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1806,7 +1806,7 @@
         "legal"
       ],
       "path": "solar/casemark/epc-contract",
-      "description": "Drafts turnkey Engineering, Procurement, and Construction (EPC) contracts for industrial facility projects. Covers scope of work, commercial terms, performance guarantees, risk allocation, warranties, and dispute resolution. Use when drafting EPC agreements, turnkey construction contracts, or energy infrastructure project contracts (power plants, petrochemical facilities, water treatment plants).",
+      "description": "Drafts turnkey Engineering, Procurement, and Construction (EPC) contracts for industrial facility projects. Covers scope of work, commercial terms, performance guarantees, risk allocation, warranties, and dispute resolution. Use when drafting EPC agreements, turnkey construction contracts, or energy infrastructure project contracts (power plants, petrochemical facilities, water treatment plants). Dùng cả khi người dùng nói tiếng Việt, ví dụ hợp đồng EPC, tổng thầu thiết kế mua sắm xây dựng, hợp đồng thi công trọn gói.",
       "descVi": "Soạn hợp đồng EPC (thiết kế, mua sắm, xây dựng) trọn gói cho dự án.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1862,7 +1862,7 @@
         "solar"
       ],
       "path": "solar/casemark/modeling-renewable-resource-yields",
-      "description": "Builds renewable energy yield models with resource assessment, capacity factor analysis, and P50/P90 production estimates. Use when modeling wind/solar yields, analyzing resource data, or evaluating production uncertainty.",
+      "description": "Builds renewable energy yield models with resource assessment, capacity factor analysis, and P50/P90 production estimates. Use when modeling wind/solar yields, analyzing resource data, or evaluating production uncertainty. Dùng cả khi người dùng nói tiếng Việt, ví dụ sản lượng điện mặt trời, sản lượng điện gió, P50 P90, hệ số công suất, bức xạ.",
       "descVi": "Lập mô hình sản lượng năng lượng tái tạo: đánh giá tài nguyên, hệ số công suất, P50/P90.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1876,7 +1876,7 @@
         "legal"
       ],
       "path": "solar/casemark/power-purchase-agreement",
-      "description": "Drafts U.S. power purchase agreements (PPAs) between generators and offtakers covering delivery, pricing, metering, performance guarantees, RECs/carbon attributes, credit support, defaults, and remedies. Triggers on \"PPA\", \"power purchase agreement\", \"offtaker\", \"generator\", \"REC\", \"net output\", \"renewable energy offtake\", \"energy supply agreement\", or \"energy payment\".",
+      "description": "Drafts U.S. power purchase agreements (PPAs) between generators and offtakers covering delivery, pricing, metering, performance guarantees, RECs/carbon attributes, credit support, defaults, and remedies. Triggers on \"PPA\", \"power purchase agreement\", \"offtaker\", \"generator\", \"REC\", \"net output\", \"renewable energy offtake\", \"energy supply agreement\", or \"energy payment\". Dùng cả khi người dùng nói tiếng Việt, ví dụ hợp đồng mua bán điện, PPA, bán điện, DPPA.",
       "descVi": "Soạn hợp đồng mua bán điện (PPA).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
@@ -1931,7 +1931,7 @@
         "training"
       ],
       "path": "training/course-training-skills",
-      "description": "Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course.",
+      "description": "Designs complete training courses (outline, agendas, activities, exercises, notebooks, slides, assessments, instructor guide) from requirements. Use for building or reviewing a training course. Dùng cả khi người dùng nói tiếng Việt, ví dụ thiết kế khoá đào tạo, giáo án, chương trình training, bài giảng, đào tạo nội bộ.",
       "descVi": "Thiết kế trọn khoá đào tạo: khung, lịch, hoạt động, bài tập, slide, kiểm tra, hướng dẫn giảng viên.",
       "source": "https://github.com/Mosapmohamd/course-training-skills",
       "license": "MIT",
@@ -2085,7 +2085,7 @@
         "training"
       ],
       "path": "training/onewave/quiz-maker",
-      "description": "Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations.",
+      "description": "Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations. Dùng cả khi người dùng nói tiếng Việt, ví dụ câu hỏi trắc nghiệm, bài kiểm tra, đề thi, quiz, đúng sai, câu hỏi ôn tập.",
       "descVi": "Tạo câu hỏi trắc nghiệm, đúng sai, điền khuyết, nối cặp kèm đáp án và giải thích.",
       "source": "https://github.com/onewave-ai/claude-skills",
       "license": "MIT",
