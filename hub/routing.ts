@@ -11,6 +11,7 @@ export type Message = {
   replyTo?: number;      // id of an earlier message in the same room this one answers
   replyQuote?: { from: string; text: string }; // that message's sender and first 80 chars, kept so deliveries need no lookup
   kind?: 'done' | 'system'; // done = a member finished its part; system = hub notice (wakes nobody)
+  attachments?: { id: string; name: string; mime: string; size: number; sha256: string }[];   // A1: files in rooms/<room>/files/<id>
 };
 
 export const LOOP_LIMIT = 30;

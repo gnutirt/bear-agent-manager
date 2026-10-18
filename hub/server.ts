@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -14,6 +15,7 @@ import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
 import { loadDicts, systemLang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
+import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
@@ -192,6 +194,31 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   // Every wake is a full turn that re-reads the session's whole context, so a burst of messages
   // (several agents answering at once) is collected for batchMs and delivered as one wake.
+  // A1: what uploads said about their files (mime from the client); after a restart the id alone describes them.
+  const attachMeta = new Map<string, Attachment>();
+  const describe = (room: string, id: string, file: string): Attachment => attachMeta.get(`${room}/${id}`) ?? {
+    id, name: id.slice(9), mime: contentInfo(id).mime, size: fs.statSync(file).size,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),
+  };
+  /** Attachments of a posted message: `attachments` = ids uploaded to this room (UI), `attachPaths` = files on this machine (MCP room_send), copied into the room. */
+  function messageAttachments(room: string, b: any): Attachment[] | undefined {
+    const ids = b.attachments == null ? [] : b.attachments, paths = b.attachPaths == null ? [] : b.attachPaths;
+    if (!Array.isArray(paths)) throw new AttachError('attachPaths must be a list of file paths', 400);
+    if ((Array.isArray(ids) ? ids.length : 0) + paths.length > 20) throw new AttachError('too many attachments', 400);
+    const list = requireAttachments(opts.dir, room, ids).map((file, i) => describe(room, String(ids[i]), file));
+    for (const raw of paths) {
+      const file = String(raw ?? '');
+      const st = path.isAbsolute(file) ? fs.statSync(file, { throwIfNoEntry: false }) : undefined;
+      if (!st?.isFile()) throw new AttachError(`not a file: ${file.slice(0, 200)}`, 400);
+      if (st.size > MAX_FILE_BYTES) throw new AttachError(`${path.basename(file)} is larger than ${MAX_FILE_BYTES / 1048576} MB`, 413);
+      const a = saveAttachment(opts.dir, room, { name: path.basename(file), mime: contentInfo(file).mime, data: fs.readFileSync(file) });
+      attachMeta.set(`${room}/${a.id}`, a);
+      list.push(a);
+    }
+    checkMessageTotal(list);
+    return list.length ? list : undefined;
+  }
+
   const batching = new Set<string>();
   function deliver(sid: string) {
     if (!waiters.has(sid)) {
@@ -666,7 +693,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function runArchive(onlySession?: string) {
     const dir = archiveDir();
     if (!dir || archiving) return;
-    archiving = (opts.archiveRunner ?? archiveInWorker)({ configDirs: configDirs(), archiveDir: dir, onlySession, roomChatRoot: path.join(HOME, 'room_chat') })
+    archiving = (opts.archiveRunner ?? archiveInWorker)({ configDirs: configDirs(), archiveDir: dir, onlySession, roomChatRoot: path.join(HOME, 'room_chat'), roomsRoot: path.join(opts.dir, 'rooms') })
       .then((r) => {
         if (!onlySession && r.ok !== (lastArchive?.ok ?? true)) broadcast('archive', { ok: r.ok, reason: r.reason }); // warn once, clear once
         if (!onlySession || !r.ok) lastArchive = { ...r, at: Date.now() };
@@ -1008,6 +1035,37 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
 
+    // ---- attachments (A1): raw upload (name and mime in headers), download by id; files live in rooms/<room>/files ----
+    const fm = p.match(/^\/api\/rooms\/([^/]+)\/files(?:\/([^/]+))?$/);
+    if (fm) {
+      const room = decodeURIComponent(fm[1]);
+      store.room(room);   // 404 for an unknown room
+      try {
+        if (m === 'POST' && !fm[2]) {
+          const data = await collectBody(req);
+          let name = String(req.headers['x-file-name'] ?? 'file');
+          try { name = decodeURIComponent(name); } catch { /* raw */ }
+          const a = saveAttachment(opts.dir, room, { name, mime: String(req.headers['x-file-type'] ?? ''), data });
+          attachMeta.set(`${room}/${a.id}`, a);
+          return json(res, 200, a);
+        }
+        if (m === 'GET' && fm[2]) {
+          const id = decodeURIComponent(fm[2]), f = resolveAttachment(opts.dir, room, id);
+          if (!f) return json(res, 404, { error: 'no such file' });
+          const info = contentInfo(id);
+          res.writeHead(200, {
+            'content-type': info.mime, 'content-length': f.size, 'x-content-type-options': 'nosniff', 'cache-control': 'private, max-age=86400',
+            'content-disposition': `${info.inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(id.slice(9))}`,
+          });
+          fs.createReadStream(f.path).pipe(res);
+          return;
+        }
+      } catch (e) {
+        if (e instanceof AttachError) return json(res, e.status, { error: e.message });
+        throw e;
+      }
+      return json(res, 405, { error: 'method not allowed' });
+    }
     mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead|topics)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
@@ -1032,8 +1090,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (m === 'POST' && (action === 'rename' || action === 'delete')) {
         const b = await readBody(req);
         const affected = store.members(room);
-        if (action === 'rename') store.renameRoom(room, String(b.name ?? ''));
-        else store.deleteRoom(room);
+        if (action === 'rename') {
+          store.renameRoom(room, String(b.name ?? ''));
+          // the room folder (attachments) follows the name; ids stay valid since paths are built from the room at delivery
+          const from = path.join(opts.dir, 'rooms', room), to = path.join(opts.dir, 'rooms', String(b.name ?? '').trim());
+          try { if (fs.existsSync(from) && !fs.existsSync(to)) fs.renameSync(from, to); } catch { /* files stay under the old name */ }
+        } else {
+          store.deleteRoom(room);
+          try { moveRoomToTrash(opts.dir, room); } catch { /* a name that cannot have a folder */ }
+        }
         broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r)));
         for (const s of affected) emitSession(s);
         return json(res, 200, { ok: true, name: action === 'rename' ? b.name : null });
@@ -1060,7 +1125,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'messages') {
         const b = await readBody(req);
-        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''), undefined, b.replyTo == null ? undefined : Number(b.replyTo), b.topic == null ? undefined : String(b.topic));
+        let attachments: Attachment[] | undefined;
+        try { attachments = messageAttachments(room, b); } catch (e) { if (e instanceof AttachError) return json(res, e.status, { error: e.message }); throw e; }
+        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''), undefined, b.replyTo == null ? undefined : Number(b.replyTo), b.topic == null ? undefined : String(b.topic), attachments);
         broadcast('msg', r.message);
         emitRoom(room);
         for (const id of r.message.wake) deliver(store.resolve(id));

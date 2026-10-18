@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Message } from '../hub/routing.ts';
+import { HOME } from './config.ts';
 
 export function activityFor(tool = '', input: Record<string, unknown> = {}): string {
   const pick = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : '');
@@ -17,6 +18,11 @@ const MAX_MSG = 1500;
 const SHORT = 100;   // chars of a message shown to members it did not mention
 export type NoteLite = { id: number; text: string; by: string };
 
+const size = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+/** A1: one line per attachment with its absolute path, so the agent opens it with Read only when it needs it (never inlined). */
+export const attachmentLines = (m: Message, home = HOME) =>
+  (m.attachments ?? []).map((a) => `    📎 ${a.name} (${a.mime}, ${size(a.size)}): ${path.join(home, 'rooms', m.room, 'files', a.id)}`);
+
 /**
  * Text handed to a woken Claude: new messages (long ones trimmed) plus room notes that changed.
  * With forSid, a message that did not wake that session (no @ to it, not from the user or hub, not in a room it leads) is one line: about half of what agents received was such chatter.
@@ -33,12 +39,14 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
       const to = m.mentions?.length ? ' → ' + m.mentions.map((n) => '@' + n).join(' ') : '';
       const text = m.text.replace(/\s+/g, ' ');
       lines.push(`  ${m.from} #${m.id}${m.replyTo != null ? ` ↪ #${m.replyTo}` : ''}${to}: ${text.slice(0, SHORT)}${text.length > SHORT ? '…' : ''}`);
+      lines.push(...attachmentLines(m));
       short = true; continue;
     }
     let body = m.text;
     if (body.length > MAX_MSG) { body = body.slice(0, MAX_MSG) + ` … [trimmed, message #${m.id}]`; trimmed = true; }
     if (m.replyTo != null) lines.push(`  ↪ reply to #${m.replyTo}${m.replyQuote ? ` (${m.replyQuote.from}): ${m.replyQuote.text}` : ''}`);
     lines.push(`  ${m.from}: ${body.replace(/\n/g, '\n    ')}`);
+    lines.push(...attachmentLines(m));
   }
   for (const [r, list] of Object.entries(notes)) {
     lines.push(`Room notes #${r}, new or changed (agreements everyone in the room relies on; room_notes lists all):`);
