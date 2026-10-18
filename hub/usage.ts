@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { dateLocale, t, type Lang } from '../shared/i18n.ts';
 
 // Claude Pro usage (T10a), read only. Claude Code owns the OAuth token: the hub reads <cfg>/.credentials.json
 // into memory for one request, never writes it, never refreshes it and never returns or logs it.
@@ -54,18 +55,18 @@ export function parseUsage(j: any): { fiveHour: Window | null; sevenDay: Window 
 }
 
 /** One usage request for one config dir. Errors come back as text, never with the token or the headers. */
-export async function fetchUsage(cfg: string, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<{ fiveHour: Window | null; sevenDay: Window | null } | { error: string }> {
+export async function fetchUsage(cfg: string, fetchImpl: typeof fetch = fetch, now = Date.now(), lang: Lang = 'vi'): Promise<{ fiveHour: Window | null; sevenDay: Window | null } | { error: string }> {
   const login = readLogin(cfg);
-  if (!login) return { error: process.platform === 'darwin' ? 'macOS giữ token trong Keychain: chưa hỗ trợ' : 'chưa đăng nhập' };
-  if (login.expiresAt && login.expiresAt < now) return { error: 'token hết hạn, mở Claude để làm mới' };
+  if (!login) return { error: t(lang, process.platform === 'darwin' ? 'sys.usage.err.keychain' : 'sys.usage.err.login') };
+  if (login.expiresAt && login.expiresAt < now) return { error: t(lang, 'sys.usage.err.expired') };
   let r: Response;
   try {
     r = await fetchImpl(USAGE_URL, { headers: { authorization: `Bearer ${login.token}`, 'anthropic-beta': 'oauth-2025-04-20' }, signal: AbortSignal.timeout(10_000) });
-  } catch { return { error: 'lỗi mạng' }; }
-  if (r.status === 401) return { error: 'token bị từ chối (401), mở Claude để làm mới' };
-  if (r.status === 429) return { error: 'bị giới hạn tần suất (429), thử lại sau' };
+  } catch { return { error: t(lang, 'sys.usage.err.net') }; }
+  if (r.status === 401) return { error: t(lang, 'sys.usage.err.401') };
+  if (r.status === 429) return { error: t(lang, 'sys.usage.err.429') };
   if (!r.ok) return { error: `HTTP ${r.status}` };
-  try { return parseUsage(await r.json()); } catch { return { error: 'phản hồi không đọc được' }; }
+  try { return parseUsage(await r.json()); } catch { return { error: t(lang, 'sys.usage.err.parse') }; }
 }
 
 /** Per-account cache (5 min); a failed refresh keeps the last numbers and sets usageError. */
@@ -73,6 +74,7 @@ export class UsageReader {
   private cache = new Map<string, AccountUsage>();
   private home: string;
   private fetchImpl: typeof fetch;
+  lang: () => Lang = () => 'vi';   // the hub points this at its language setting
   constructor(home: string, fetchImpl: typeof fetch = fetch) { this.home = home; this.fetchImpl = fetchImpl; }
   async read(configDirs: string[], refresh = false, now = Date.now()): Promise<AccountUsage[]> {
     const out: AccountUsage[] = [];
@@ -80,7 +82,7 @@ export class UsageReader {
       const key = a.email || a.configDirs[0];
       const old = this.cache.get(key);
       if (old && !refresh && now - old.fetchedAt < CACHE_MS) { out.push({ ...old, ...a }); continue; }
-      const r = await fetchUsage(a.configDirs[0], this.fetchImpl, now);
+      const r = await fetchUsage(a.configDirs[0], this.fetchImpl, now, this.lang());
       const row: AccountUsage = 'error' in r
         ? { ...a, fiveHour: old?.fiveHour ?? null, sevenDay: old?.sevenDay ?? null, usageError: r.error, fetchedAt: now }
         : { ...a, ...r, usageError: '', fetchedAt: now };
@@ -96,7 +98,7 @@ export const publicUsage = (a: AccountUsage) => ({ ...a, email: maskEmail(a.emai
 
 export const ALERT_AT = { fiveHour: 80, sevenDay: 90 } as const;
 /** Warnings due now: each (email, window, resets_at) once; a new cycle (resets_at changed) warns again. */
-export function usageAlerts(accounts: AccountUsage[], sent: string[]): { key: string; account: AccountUsage; text: string }[] {
+export function usageAlerts(accounts: AccountUsage[], sent: string[], lang: Lang = 'vi'): { key: string; account: AccountUsage; text: string }[] {
   const out: { key: string; account: AccountUsage; text: string }[] = [];
   for (const a of accounts) {
     for (const w of ['fiveHour', 'sevenDay'] as const) {
@@ -106,8 +108,8 @@ export function usageAlerts(accounts: AccountUsage[], sent: string[]): { key: st
       const cycle = u.resetsAt ? Math.round(Date.parse(u.resetsAt) / 600_000) : '';
       const key = `${a.email || a.configDirs[0]}|${w}|${cycle}`;
       if (sent.includes(key)) continue;
-      const reset = u.resetsAt ? `, reset ${new Date(u.resetsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' })}` : '';
-      out.push({ key, account: a, text: `@you Claude Pro ${a.label} (${maskEmail(a.email)}) đã dùng ${Math.round(u.pct)}% hạn mức ${w === 'fiveHour' ? '5 giờ' : 'tuần'}${reset}.` });
+      const reset = u.resetsAt ? t(lang, 'sys.usage.reset', { at: new Date(u.resetsAt).toLocaleString(dateLocale(lang), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' }) }) : '';
+      out.push({ key, account: a, text: t(lang, 'sys.usage.alert', { account: a.label, email: maskEmail(a.email), pct: Math.round(u.pct), window: t(lang, w === 'fiveHour' ? 'sys.usage.w5' : 'sys.usage.w7'), reset }) });
     }
   }
   return out;

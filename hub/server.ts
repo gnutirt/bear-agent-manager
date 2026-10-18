@@ -13,7 +13,7 @@ import { summarize } from './tokens.ts';
 import { exportMachine } from '../scripts/machine.mjs';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, saveSettings } from './settings.ts';
-import { loadDicts, systemLang } from '../shared/i18n.ts';
+import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
@@ -146,6 +146,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
   const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
+  // I3: every text the hub writes into a room (or hands to an agent) follows settings.language
+  const lang = (): Lang => resolveLang(loadSettings(opts.dir, envCap).language);
+  const tr = (key: string, params: Record<string, string | number> = {}) => t(lang(), key, params);
+  const clock = (ms: number, more: Intl.DateTimeFormatOptions = {}) => new Date(ms).toLocaleString(dateLocale(lang()), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', ...more });
+  store.tr = tr;
   const cap = () => opts.workerCap ?? loadSettings(opts.dir, envCap).workerCap;   // a test's workerCap wins over the file
   const workerLog = path.join(opts.dir, 'workers.jsonl');
   let live: LiveWorker[] = [];
@@ -256,7 +261,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** "344k → 12k" from the compact boundary; "chưa đo được" when the transcript has no size for after (never the same number twice). */
   const compactSize = (before: number, transcript?: string) => {
     const after = readContextTokens(transcript);
-    return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → chưa đo được`;
+    return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → ${tr('sys.size.unknown')}`;
   };
   const reviving = new Set<string>();
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
@@ -265,9 +270,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** T-W: opens the tab of an offline member; the user presses Enter once. */
   function openTab(s: Session) {
     const rooms = Object.keys(s.rooms);
-    (opts.openUrl ?? openUrl)(tabLink(s, rooms));
+    (opts.openUrl ?? openUrl)(tabLink(s, rooms, lang()));
     tabOpened.set(s.id, Date.now());
-    for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Hub đã mở tab cho ${s.name}. Bấm Enter trong tab đó để ${s.name} đọc tin mới.`)); emitRoom(r); } catch { /* room gone */ } }
+    for (const r of rooms) { try { broadcast('msg', store.postSystem(r, tr('sys.tab.opened', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
@@ -296,7 +301,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
-    emitSession(store.setStatus(s.id, 'busy', compactFirst ? 'đang compact' : 'đang hồi sinh'));
+    emitSession(store.setStatus(s.id, 'busy', tr(compactFirst ? 'sys.act.compact' : 'sys.act.reviving')));
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send; you cannot ask the user for permissions now, so ${tools ? `use only read tools and ${tools.join(', ')}` : 'only read files'} and reply.`;
     let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
@@ -306,11 +311,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (compactFirst) {
           // A failed compaction still wakes the agent with a plain resume.
           compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
-          if (!compacted) tellRooms(`${s.name}: compact trước khi gọi dậy bị lỗi, gọi dậy bình thường.`);
-          emitSession(store.setStatus(s.id, 'busy', 'đang hồi sinh'));
+          if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
+          emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
         const code = await Promise.resolve(runRevive({ ...job, text, ...(tools ? { tools } : {}) }));
-        if (typeof code === 'number' && code !== 0) failure = `claude thoát với mã ${code}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
+        if (typeof code === 'number' && code !== 0) failure = `${tr('sys.wake.exit', { code })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
       .finally(() => {
@@ -318,11 +323,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
-          tellRooms(`${s.name} không dậy được (${failure}). Tin vẫn chưa đọc; mở tab của ${s.name} hoặc thử lại sau.`);
+          tellRooms(tr('sys.wake.failed', { name: s.name, why: failure }));
           autoOpenTab(s.id);
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
-        if (compacted) tellRooms(`${s.name} được compact trước khi gọi dậy (${compactSize(before, s.transcript)}).`);
+        if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });
@@ -342,7 +347,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!acc || until <= Date.now()) return '';
     const key = accountKey(acc), have = (store.state.wakeAt ??= {});
     if (!have[key]) { have[key] = { at: until + loadSettings(opts.dir, envCap).lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
-    return `tài khoản ${acc.label} hết hạn mức tới ${new Date(until).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' })}, đã hẹn đánh thức sau đó`;
+    return tr('sys.wake.blocked', { account: acc.label, until: clock(until, { day: 'numeric', month: 'numeric' }) });
   }
 
   /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
@@ -355,7 +360,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
     emitSession(store.markEnded(s.id));
-    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, `${s.name}: claude đã được kết thúc từ hub.`)); emitRoom(r); } catch { /* room gone */ } }
+    for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, tr('sys.terminated', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
     setImmediate(() => runArchive(s.id));
   }
 
@@ -420,7 +425,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const sess = store.session(id);
           const firstTurn = !sess.prompts;
           store.bumpPrompts(sess.id);
-          text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), sess.name, skillCache()), firstTurn);
+          text = skillReminder(effectiveRules(loadSettings(opts.dir, envCap), sess.name, skillCache()), firstTurn, lang());
         } catch { /* no reminder */ }
         if (text) return json(res, 200, { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } });
         break;
@@ -446,9 +451,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A turn that ended in an API error never reaches the Stop hook, so the agent is in no waiter: say why and book the wake.
         const sess = store.session(id), err = String(b.error ?? '');
         const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
-        if (err !== 'rate_limit') { say(`${sess.name}: lượt bị dừng bởi lỗi API (${err || 'không rõ'}).`); status('idle', ''); break; }
+        if (err !== 'rate_limit') { say(tr('sys.stop.api', { name: sess.name, err: err || tr('sys.stop.unknown') })); status('idle', ''); break; }
         const q = quotaResetFromTranscript(String(b.transcript_path ?? sess.transcript ?? ''));
-        const hhmm = q ? new Date(q.until).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }) : '';
+        const hhmm = q ? clock(q.until) : '';
         if (q) {
           sess.limited = q;
           const have = (store.state.wakeAt ??= {});
@@ -456,8 +461,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           store.save();
           scheduleWake(`s:${sess.id}`);
         }
-        say(`@you ${sess.name} hết hạn mức gói${hhmm ? `, dùng lại được lúc ${hhmm}` : ''}. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.`);
-        status('idle', hhmm ? `hết hạn mức tới ${hhmm}` : 'hết hạn mức');
+        say(tr(hhmm ? 'sys.stop.limitAt' : 'sys.stop.limit', { name: sess.name, at: hhmm }));
+        status('idle', hhmm ? tr('sys.act.limitAt', { at: hhmm }) : tr('sys.act.limit'));
         break;
       }
       case 'pre-tool': status('busy', activityFor(b.tool_name, b.tool_input)); break;
@@ -494,6 +499,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const usageHome = opts.usageHome ?? os.homedir();
   const usageDirs = () => [...new Set([path.join(usageHome, '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   const usage = opts.usageFetch === null ? null : new UsageReader(usageHome, opts.usageFetch ?? fetch);
+  if (usage) usage.lang = lang;
   /** Rooms of the sessions running on this account (all rooms when none is in a room). */
   const onAccount = (a: AccountUsage) => (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
   const accountRooms = (a: AccountUsage) => {
@@ -505,7 +511,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!usage || !listAccounts(usageDirs(), usageHome).length) return;
     const accounts = await usage.read(usageDirs());
     const sent = (store.state.usageAlerts ??= []);
-    for (const al of usageAlerts(accounts, sent)) {
+    for (const al of usageAlerts(accounts, sent, lang())) {
       let posted = false;   // no room yet: warn on a later poll instead of losing it
       for (const r of accountRooms(al.account)) { try { broadcast('msg', store.postSystem(r, al.text)); emitRoom(r); posted = true; } catch { /* room gone */ } }
       if (posted) sent.push(al.key);
@@ -515,8 +521,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const have = (store.state.wakeAt ??= {});
     for (const w of planWakes(accounts, loadSettings(opts.dir, envCap).lead.wake, have)) {
       have[w.key] = w.entry;
-      const at = new Date(w.entry.at).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
-      for (const r of accountRooms(w.account)) { try { broadcast('msg', store.postSystem(r, `Claude ${w.account.label} gần hết usage 5 giờ (${Math.round(w.account.fiveHour!.pct)}%): tạm dừng giao việc mới, hẹn đánh thức lúc ${at}.`)); emitRoom(r); } catch { /* room gone */ } }
+      const at = clock(w.entry.at);
+      for (const r of accountRooms(w.account)) { try { broadcast('msg', store.postSystem(r, tr('sys.usage.near', { account: w.account.label, pct: Math.round(w.account.fiveHour!.pct), at }))); emitRoom(r); } catch { /* room gone */ } }
       scheduleWake(w.key);
     }
     store.save();
@@ -543,7 +549,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!s) return;
       for (const r of Object.keys(s.rooms)) {
         try {
-          const posted = store.post(r, null, `@${s.name} hết hạn mức đã qua, làm tiếp việc đang dở.`);
+          const posted = store.post(r, null, tr('sys.wake.resume', { name: s.name }));
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));
@@ -557,7 +563,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = acc ? accountRooms(acc) : [];
     if (acc && ((acc.fiveHour && acc.fiveHour.pct >= cfg.atPct) || blockedUntil(acc) > Date.now())) {
       if (++e.tries > 6) {
-        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, `@you Claude ${acc.label} vẫn chưa reset sau nhiều lần thử, tôi ngừng hẹn giờ đánh thức.`)); emitRoom(r); } catch { /* room gone */ } }
+        for (const r of rooms) { try { broadcast('msg', store.postSystem(r, tr('sys.wake.giveup', { account: acc.label }))); emitRoom(r); } catch { /* room gone */ } }
         delete have[key];
       } else { e.at = Date.now() + 5 * 60_000; scheduleWake(key); }
       store.save();
@@ -571,7 +577,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const targets = lead ? [lead] : ms;
         if (!targets.length) continue;
         try {
-          const posted = store.post(r, null, `${targets.map((s) => '@' + s.name).join(' ')} usage Claude ${acc.label} đã reset, làm tiếp việc đang dở.`);
+          const posted = store.post(r, null, tr('sys.wake.reset', { names: targets.map((s) => '@' + s.name).join(' '), account: acc.label }));
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));
@@ -601,12 +607,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const leadPending = new Map<string, { cwd: string; at: number }>();   // room -> terminal we opened, waiting for its join
   function openLead(room: string, cwd: string, auto: boolean) {
     const notes = store.notes(room).map((n) => n.text);
-    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes, loadSettings(opts.dir, envCap).lead)));
+    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes, loadSettings(opts.dir, envCap).lead, lang())));
     leadPending.set(room, { cwd, at: Date.now() });
     if (auto) { (store.state.leadOpened ??= []).push(room); store.state.leadOpened = store.state.leadOpened.slice(-500); store.save(); }
     const acct = listAccounts([path.join(usageHome, '.claude')], usageHome)[0];
-    const who = acct?.email ? ` (acc VS Code: ${maskEmail(acct.email)})` : '';
-    try { broadcast('msg', store.postSystem(room, `@you ${auto ? 'Phòng chưa có trưởng phòng: hub' : 'Hub'} đã mở một terminal Claude ở ${cwd}${who}. Bấm Enter trong cửa sổ đó để nó vào phòng và làm trưởng phòng.`)); emitRoom(room); } catch { /* room gone */ }
+    const who = acct?.email ? tr('sys.lead.who', { email: maskEmail(acct.email) }) : '';
+    try { broadcast('msg', store.postSystem(room, tr(auto ? 'sys.lead.openedAuto' : 'sys.lead.opened', { cwd, who }))); emitRoom(room); } catch { /* room gone */ }
   }
   /** Once per room ever (the lock survives restarts), and only when Settings say so. */
   function maybeAutoLead(room: string, cwd: string) {
@@ -621,7 +627,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!pend || Date.now() - pend.at > PENDING_MS || !sameDir(pend.cwd, s.cwd) || store.state.rooms[room]?.lead) return;
     leadPending.delete(room);
     store.setLead(room, s.id);
-    try { broadcast('msg', store.postSystem(room, `${s.name} là trưởng phòng ★`)); } catch { /* room gone */ }
+    try { broadcast('msg', store.postSystem(room, tr('sys.lead.is', { name: s.name }))); } catch { /* room gone */ }
   }
 
   // ---- per-agent skill rules (A5): installed skills cached 60s, the prompt hook has a 3s timeout ----
@@ -703,9 +709,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const file = path.join(opts.dir, 'handoffs', `${j.sessionId}.md`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, result);
-      for (const r of Object.keys(store.state.sessions[j.sessionId]?.rooms ?? {})) say(r, `@you hồ sơ bàn giao của ${j.name} đã sẵn sàng: ${file}`);
-    } else if (j.kind === 'digest') say(j.room, `osin — tóm tắt tin #${j.messageId}:\n${result}`);
-    else say(j.room, `@you osin đề xuất dọn biên bản #${j.room} (chưa xoá gì):\n${result}`);
+      for (const r of Object.keys(store.state.sessions[j.sessionId]?.rooms ?? {})) say(r, tr('sys.handoff.ready', { name: j.name, file }));
+    } else if (j.kind === 'digest') say(j.room, tr('sys.digest', { id: j.messageId, result }));
+    else say(j.room, tr('sys.notes.tidy', { room: j.room, result }));
   }
 
   // ---- chat archive (spec chat-archive, phase 1): copy new transcript bytes out, never delete ----
@@ -856,14 +862,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'GET' && p === '/api/brief') {
       const s = loadSettings(opts.dir, envCap);
       const name = store.state.sessions[url.searchParams.get('session') ?? '']?.name ?? '';
-      const text = [workerBrief(s, loadProviders(opts.dir, legacyKey).map(publicProvider), health),
-        name ? skillReminder(effectiveRules(s, name, skillCache()), true) : ''].filter(Boolean).join('\n');
+      const text = [workerBrief(s, loadProviders(opts.dir, legacyKey).map(publicProvider), health, lang()),
+        name ? skillReminder(effectiveRules(s, name, skillCache()), true, lang()) : ''].filter(Boolean).join('\n');
       // SessionStart after compact/clear: agents with a compact rule get their handoff + room notes back.
       const sid = url.searchParams.get('session') ?? '';
       const sess = store.state.sessions[sid];
       if (sess && /^(compact|clear)$/.test(url.searchParams.get('source') ?? '') && s.agentCompact[normAgent(sess.name)]) {
         const notes = Object.keys(sess.rooms ?? {}).map((r) => ({ room: r, texts: store.state.rooms[r] ? store.notes(r).map((n) => n.text) : [] }));
-        const extra = compactContext(opts.dir, sid, notes, Math.max(0, 9_900 - text.length));
+        const extra = compactContext(opts.dir, sid, notes, Math.max(0, 9_900 - text.length), lang());
         if (extra) return json(res, 200, { text: [text, extra].filter(Boolean).join('\n') });
       }
       return json(res, 200, { text });
@@ -1016,10 +1022,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!s.ended && s.status !== 'offline') await terminateSession(s);
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
-        emitSession(store.setStatus(s.id, 'busy', 'đang compact'));
+        emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', store.postSystem(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
-          say(code === 0 ? `${s.name} đã được compact (${compactSize(before, s.transcript)})${left ? `, lúc đó còn ${left} file chưa commit` : ''}.` : `${s.name}: compact bị lỗi (mã ${code}).`);
+          say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
         }).finally(() => {
           reviving.delete(s.id);
           if (b.revive === true && revive(s.id)) return;

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { t, type Lang } from '../shared/i18n.ts';
 import { normAgent, type Settings, type SkillRule } from './settings.ts';
 
 export type SkillInfo = { name: string; source: 'user' | 'plugin'; plugin: string; description: string };
@@ -46,11 +47,11 @@ export function effectiveRules(s: Settings, agentName: string, installed: SkillI
   return out;
 }
 
-export function skillReminder(rules: Record<string, SkillRule>, firstTurn: boolean): string {
+export function skillReminder(rules: Record<string, SkillRule>, firstTurn: boolean, lang: Lang = 'vi'): string {
   const force = Object.entries(rules).filter(([, r]) => r.mode === 'force' && (r.when === 'every' || firstTurn)).map(([n]) => n);
   const ban = Object.entries(rules).filter(([, r]) => r.mode === 'ban').map(([n]) => n);
   const lines: string[] = [];
-  if (force.length) lines.push(`bear-agent-manager (cài đặt của người dùng): BẮT BUỘC gọi Skill tool với ${force.map((n) => '`' + n + '`').join(', ')} trước khi trả lời tin nhắn này, rồi làm theo skill đó.`);
-  if (ban.length) lines.push(`bear-agent-manager (cài đặt của người dùng): KHÔNG dùng skill ${ban.map((n) => '`' + n + '`').join(', ')} trong phiên này.`);
+  if (force.length) lines.push(t(lang, 'skill.force', { names: force.map((n) => '`' + n + '`').join(', ') }));
+  if (ban.length) lines.push(t(lang, 'skill.ban', { names: ban.map((n) => '`' + n + '`').join(', ') }));
   return lines.join('\n');
 }

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { t, type Lang } from '../shared/i18n.ts';
 
 // Semi-automatic room lead (T19). Claude Code never starts a turn by itself from outside: a claude-cli:// deep
 // link opens an interactive `claude` in a new terminal (Windows Terminal, else PowerShell, else cmd) with the
@@ -13,20 +14,20 @@ export const PENDING_MS = 30 * 60_000;   // a session that joins from that folde
 export type LeadDuties = { delegate?: boolean; distribute?: boolean; handoffOnDone?: boolean };
 
 /** Duties (settings.lead, P2) add steps; member names and roles come from room_who at run time, never from here. */
-export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {}): string {
+export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {}, lang: Lang = 'vi'): string {
   const steps = [
-    `Gọi room_join với room "${room}", rồi room_read để xem tình hình.`,
-    `Hub sẽ đặt bạn làm trưởng phòng (★): điều phối các agent trong phòng, giao việc bằng @tên, báo @you khi xong hoặc khi cần quyết định.`,
-    ...(duties.delegate !== false ? [`Xem room_who và biên bản để biết ai lập kế hoạch, ai viết code: nhận việc từ người lập kế hoạch, giao cho người viết code bằng @tên, báo @you khi xong.`] : []),
-    ...(duties.distribute !== false ? [`Việc đọc nhiều (file/log lớn, khảo sát repo) giao skill worker; dọn chat dài, biên bản rối giao skill osin.`] : []),
-    ...(duties.handoffOnDone !== false ? [`Xong một việc: ghi điều đã chốt bằng room_note và để lại hồ sơ bàn giao.`] : []),
+    t(lang, 'lead.join', { room }),
+    t(lang, 'lead.role'),
+    ...(duties.delegate !== false ? [t(lang, 'lead.delegate')] : []),
+    ...(duties.distribute !== false ? [t(lang, 'lead.distribute')] : []),
+    ...(duties.handoffOnDone !== false ? [t(lang, 'lead.handoff')] : []),
   ];
-  const head = `Bạn được mở để làm trưởng phòng #${room} trong bear-agent-manager.\n` + steps.map((x, i) => `${i + 1}. ${x}\n`).join('');
+  const head = `${t(lang, 'lead.head', { room })}\n` + steps.map((x, i) => `${i + 1}. ${x}\n`).join('');
   if (!notes.length) return head;
-  let text = head + '\nBiên bản phòng:\n';
+  let text = head + `\n${t(lang, 'lead.notes')}\n`;
   for (const n of notes) {
     const line = `- ${n.replace(/\s+/g, ' ').trim()}\n`;
-    if (text.length + line.length > MAX_PROMPT - 30) { text += '- …(còn nữa, xem room_notes)\n'; break; }
+    if (text.length + line.length > MAX_PROMPT - 30) { text += `- ${t(lang, 'lead.more')}\n`; break; }
     text += line;
   }
   return text.slice(0, MAX_PROMPT);
@@ -36,11 +37,11 @@ export const leadLink = (cwd: string, prompt: string) =>
   `claude-cli://open?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(prompt.slice(0, MAX_PROMPT))}`;
 
 /** T-W: link that opens the tab of an offline member. The prompt is fixed hub text: never a room message, so no agent can type into another's prompt. */
-export function tabLink(s: { id: string; cwd: string; ide?: string }, rooms: string[]): string {
-  if (!s.ide || s.ide === 'vscode') return `vscode://anthropic.claude-code/open?session=${encodeURIComponent(s.id)}&prompt=${encodeURIComponent('Có tin mới trong phòng bear-agent-manager. Đọc bằng room_read rồi trả lời.')}`;
+export function tabLink(s: { id: string; cwd: string; ide?: string }, rooms: string[], lang: Lang = 'vi'): string {
+  if (!s.ide || s.ide === 'vscode') return `vscode://anthropic.claude-code/open?session=${encodeURIComponent(s.id)}&prompt=${encodeURIComponent(t(lang, 'tab.prompt'))}`;
   // Antigravity and the rest open a new terminal chat (no resume by link): the prompt sends it back to its rooms.
   const where = rooms.length ? ` ${rooms.map((r) => `#${r}`).join(', ')}` : '';
-  return leadLink(s.cwd, `Vào lại phòng${where} bằng room_join, đọc tin mới bằng room_read rồi trả lời.`);
+  return leadLink(s.cwd, t(lang, 'tab.promptTerm', { where }));
 }
 
 /** Hands a URL to the OS handler, detached from the hub; no shell, so the URL is one plain argument. */

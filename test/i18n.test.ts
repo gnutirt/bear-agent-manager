@@ -55,3 +55,22 @@ test('GET /api/i18n gives the setting, the machine language and both dictionarie
     assert.equal(d.dicts.en['settings.language'], 'Language');
   } finally { await hub.close(); }
 });
+
+test('I3: hub notices and agent prompts follow settings.language', async () => {
+  const { leadPrompt, tabLink } = await import('../hub/lead.ts');
+  const { skillReminder } = await import('../hub/skillmodes.ts');
+  assert.match(leadPrompt('fw', [], {}, 'en'), /Call room_join with room "fw"/);
+  assert.match(leadPrompt('fw', [], {}, 'vi'), /Gọi room_join/);
+  assert.match(new URL(tabLink({ id: 's', cwd: 'C:/a' }, [], 'en')).searchParams.get('prompt')!, /new messages/);
+  assert.match(skillReminder({ x: { mode: 'ban' } as any }, true, 'en'), /do NOT use the skill `x`/);
+  const { makeHub } = await import('./helpers.ts');
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'a1', cwd: 'C:/alpha' });
+    await call('/api/rooms/r/join', { sessionId: 'a1' });
+    await call('/api/settings', { language: 'en' }, { method: 'PUT' });
+    await call('/api/rooms/r/done', { sessionId: 'a1', summary: 'x' }).catch(() => {});
+    const texts = (await call<any[]>('/api/rooms/r/messages?limit=10')).map((m) => m.text);
+    assert.ok(texts.some((x) => x.startsWith('✅ Done: x')), texts.join('|'));
+  } finally { await hub.close(); }
+});

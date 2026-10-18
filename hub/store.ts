@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { t } from '../shared/i18n.ts';
 import { LOOP_LIMIT, parseMentions, wakes, type Message } from './routing.ts';
 
 export type Status = 'busy' | 'idle' | 'waiting' | 'offline';
@@ -75,6 +76,7 @@ export function slugTitle(title: string): string {
 
 export class Store {
   state: State = { sessions: {}, rooms: {}, aliases: {} };
+  tr: (key: string, params?: Record<string, string | number>) => string = (key, params) => t('vi', key, params);   // the hub points this at its language setting
   messages: Message[] = [];
   dir: string;
   now: () => number;
@@ -327,13 +329,13 @@ export class Store {
   /** A member finished its part: posts "✅ Xong: …"; when every live member (lead excepted) is done, adds one system line. */
   markDone(roomName: string, fromId: string, summary: string): { message: Message; allDone: Message | null } {
     const room = this.room(roomName);
-    const { message } = this.post(roomName, fromId, `✅ Xong: ${String(summary ?? '').trim() || 'đã hoàn thành phần việc'}`, 'done');
+    const { message } = this.post(roomName, fromId, this.tr('sys.done', { summary: String(summary ?? '').trim() || this.tr('sys.done.default') }), 'done');
     room.done ??= [];
     if (!room.done.includes(message.fromId!)) room.done.push(message.fromId!);
     const needed = this.members(roomName).filter((m) => m.status !== 'offline' && m.id !== room.lead);
     let allDone: Message | null = null;
     if (needed.length && needed.every((m) => room.done!.includes(m.id))) {
-      allDone = this.postSystem(roomName, `✅ Cả phòng đã xong: ${needed.map((m) => m.name).join(', ')}`);
+      allDone = this.postSystem(roomName, this.tr('sys.done.all', { names: needed.map((m) => m.name).join(', ') }));
       room.done = [];
     }
     this.save();

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { t, type Lang } from '../shared/i18n.ts';
 import type { AgentCompact } from './settings.ts';
 
 // Per-agent auto compaction (T18). Claude Code has one threshold for every session; the PreCompact hook asks
@@ -43,12 +44,12 @@ export function wantsWakeCompact(rule: AgentCompact | undefined, ctx: number, mo
 export const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
 
 /** Text SessionStart(compact|clear) adds: the agent's newest handoff file + its rooms' notes, cut to the limit. */
-export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS): string {
+export function compactContext(home: string, sessionId: string, notes: { room: string; texts: string[] }[], max = MAX_CONTEXT_CHARS, lang: Lang = 'vi'): string {
   let handoff = '';
   try { handoff = fs.readFileSync(path.join(home, 'handoffs', `${sessionId}.md`), 'utf8').trim(); } catch { /* none yet */ }
-  const roomNotes = notes.filter((n) => n.texts.length).map((n) => `Biên bản #${n.room}:\n${n.texts.map((t) => `- ${t}`).join('\n')}`).join('\n\n');
+  const roomNotes = notes.filter((n) => n.texts.length).map((n) => `${t(lang, 'compact.notes', { room: n.room })}\n${n.texts.map((t) => `- ${t}`).join('\n')}`).join('\n\n');
   if ((!handoff && !roomNotes) || max < 200) return '';
-  const head = 'bear-agent-manager: context vừa được compact/clear. Hồ sơ bàn giao và biên bản phòng của bạn:\n\n';
+  const head = `${t(lang, 'compact.head')}\n\n`;
   const text = head + [handoff, roomNotes].filter(Boolean).join('\n\n');
-  return text.length <= max ? text : text.slice(0, max - 20) + '\n…(đã cắt bớt)';
+  return text.length <= max ? text : text.slice(0, max - 20) + `\n${t(lang, 'compact.cut')}`;
 }

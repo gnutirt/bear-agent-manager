@@ -12,6 +12,8 @@ const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'i18n');
 
 /** The machine's language: Vietnamese locale gives vi, anything else en. */
 export const systemLang = (): Lang => (/^vi\b/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? 'vi' : 'en');
+/** Locale for dates in hub notices. */
+export const dateLocale = (l: Lang) => (l === 'vi' ? 'vi-VN' : 'en-GB');
 export const resolveLang = (s: LangSetting | undefined): Lang => (s === 'vi' || s === 'en' ? s : systemLang());
 
 /** String for key in lang; a missing key falls back to vi, then to the key itself. {name} takes params.name. */

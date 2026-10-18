@@ -1,5 +1,6 @@
 import type { Provider, PublicProvider } from './providers.ts';
 import type { Settings } from './settings.ts';
+import { t, type Lang } from '../shared/i18n.ts';
 
 export async function probeProvider(p: Provider, fetchImpl: typeof fetch = fetch): Promise<'ok' | 'bad'> {
   try {
@@ -11,18 +12,20 @@ export async function probeProvider(p: Provider, fetchImpl: typeof fetch = fetch
 }
 
 /** Short text SessionStart prints into every chat: which workers exist and when to use them. */
-export function workerBrief(s: Settings, providers: PublicProvider[], health: Record<string, 'ok' | 'bad' | 'unknown'>): string {
+export function workerBrief(s: Settings, providers: PublicProvider[], health: Record<string, 'ok' | 'bad' | 'unknown'>, lang: Lang = 'vi'): string {
   const skills = (['worker', 'osin'] as const).filter((k) => s.skills[k].enabled);
   const usable = providers.filter((p) => p.enabled && p.hasKey);
   const free = usable.filter((p) => p.tier === 'free');
   if (!skills.length || !usable.length) return '';
   const lines = [
-    `bear-agent-manager: skill ${skills.map((k) => '`' + k + '`').join(' và ')} đang bật` +
-      (free.length ? ` trên API miễn phí ${free.map((p) => p.label).join(', ')}` : ' (chỉ có tầng trả tiền)') + '.',
+    t(lang, 'brief.head', {
+      skills: skills.map((k) => '`' + k + '`').join(t(lang, 'brief.and')),
+      where: free.length ? t(lang, 'brief.free', { labels: free.map((p) => p.label).join(', ') }) : t(lang, 'brief.paidOnly'),
+    }),
   ];
-  if (skills.includes('worker')) lines.push('- Việc đọc nhiều (file/log lớn, khảo sát repo, tóm tắt docs) → giao `worker`, chỉ đọc báo cáo ngắn của nó.');
-  if (skills.includes('osin')) lines.push('- Chat quá dài, biên bản phòng rối, cần báo cáo lãng phí token → giao `osin`.');
+  if (skills.includes('worker')) lines.push(t(lang, 'brief.worker'));
+  if (skills.includes('osin')) lines.push(t(lang, 'brief.osin'));
   const bad = free.filter((p) => health[p.id] === 'bad');
-  if (bad.length) lines.push(`- Lưu ý: ${bad.map((p) => p.label).join(', ')} không phản hồi lúc kiểm tra (key hoặc mạng lỗi) — nếu worker thoát mã 1/3 thì tự làm.`);
+  if (bad.length) lines.push(t(lang, 'brief.bad', { labels: bad.map((p) => p.label).join(', ') }));
   return lines.join('\n');
 }
