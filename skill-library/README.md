@@ -4,6 +4,7 @@ Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 t
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
 Tổng: **107 skill** — Ngân hàng 84 · Slide 9 · Training 11 · Chung 3. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
+Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
 ## Cách cài một skill
 

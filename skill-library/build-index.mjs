@@ -1,6 +1,6 @@
-// Regenerates index.json from every SKILL.md under skill-library/. Run: node skill-library/build-index.mjs
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, dirname, sep } from 'node:path';
+// Regenerates index.json from every SKILL.md under skill-library/ (roles from roles.json). Run: node skill-library/build-index.mjs
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -47,13 +47,31 @@ function frontmatter(text) {
   return fields;
 }
 
-const skills = findSkills(root).map((file) => {
-  const path = relative(root, dirname(file)).split(sep).join('/');
-  const group = Object.keys(sources).find((g) => path === g || path.startsWith(g + '/'));
-  const fm = frontmatter(readFileSync(file, 'utf8'));
-  const [source, license] = sources[group] ?? [null, null];
-  return { name: fm.name ?? path.split('/').pop(), category: path.split('/')[0], path, description: fm.description ?? '', source, license };
-}).sort((a, b) => a.path.localeCompare(b.path));
+// Nearest LICENSE / LICENSE.txt at or above the skill folder, stopping at the library root.
+function licenseFile(dir) {
+  for (let d = dir; d.startsWith(root); d = dirname(d)) {
+    const hit = ['LICENSE', 'LICENSE.txt', 'LICENSE.md'].find((n) => existsSync(join(d, n)));
+    if (hit) return relative(root, join(d, hit)).split(sep).join('/');
+    if (d === root) break;
+  }
+  return null;
+}
 
-writeFileSync(join(root, 'index.json'), JSON.stringify({ generated: new Date().toISOString().slice(0, 10), count: skills.length, skills }, null, 2) + '\n');
-console.log(`${skills.length} skills -> index.json`);
+export function buildIndex() {
+  const roleOverrides = JSON.parse(readFileSync(join(root, 'roles.json'), 'utf8'));
+  return findSkills(root).map((file) => {
+    const path = relative(root, dirname(file)).split(sep).join('/');
+    const group = Object.keys(sources).find((g) => path === g || path.startsWith(g + '/'));
+    const fm = frontmatter(readFileSync(file, 'utf8'));
+    const [source, license] = sources[group] ?? [null, null];
+    const name = fm.name ?? path.split('/').pop();
+    const category = path.split('/')[0];
+    return { name, category, roles: roleOverrides[name] ?? [category], path, description: fm.description ?? '', source, license, licenseFile: licenseFile(dirname(file)) };
+  }).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  const skills = buildIndex();
+  writeFileSync(join(root, 'index.json'), JSON.stringify({ generated: new Date().toISOString().slice(0, 10), count: skills.length, skills }, null, 2) + '\n');
+  console.log(`${skills.length} skills -> index.json`);
+}
