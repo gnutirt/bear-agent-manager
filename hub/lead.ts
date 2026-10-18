@@ -10,10 +10,18 @@ import path from 'node:path';
 export const MAX_PROMPT = 5000;   // claude-cli:// `q` limit
 export const PENDING_MS = 30 * 60_000;   // a session that joins from that folder within this time becomes lead
 
-export function leadPrompt(room: string, notes: string[]): string {
-  const head = `Bạn được mở để làm trưởng phòng #${room} trong bear-agent-manager.\n` +
-    `1. Gọi room_join với room "${room}", rồi room_read để xem tình hình.\n` +
-    `2. Hub sẽ đặt bạn làm trưởng phòng (★): điều phối các agent trong phòng, giao việc bằng @tên, báo @you khi xong hoặc khi cần quyết định.\n`;
+export type LeadDuties = { delegate?: boolean; distribute?: boolean; handoffOnDone?: boolean };
+
+/** Duties (settings.lead, P2) add steps; member names and roles come from room_who at run time, never from here. */
+export function leadPrompt(room: string, notes: string[], duties: LeadDuties = {}): string {
+  const steps = [
+    `Gọi room_join với room "${room}", rồi room_read để xem tình hình.`,
+    `Hub sẽ đặt bạn làm trưởng phòng (★): điều phối các agent trong phòng, giao việc bằng @tên, báo @you khi xong hoặc khi cần quyết định.`,
+    ...(duties.delegate !== false ? [`Xem room_who và biên bản để biết ai lập kế hoạch, ai viết code: nhận việc từ người lập kế hoạch, giao cho người viết code bằng @tên, báo @you khi xong.`] : []),
+    ...(duties.distribute !== false ? [`Việc đọc nhiều (file/log lớn, khảo sát repo) giao skill worker; dọn chat dài, biên bản rối giao skill osin.`] : []),
+    ...(duties.handoffOnDone !== false ? [`Xong một việc: ghi điều đã chốt bằng room_note và để lại hồ sơ bàn giao.`] : []),
+  ];
+  const head = `Bạn được mở để làm trưởng phòng #${room} trong bear-agent-manager.\n` + steps.map((x, i) => `${i + 1}. ${x}\n`).join('');
   if (!notes.length) return head;
   let text = head + '\nBiên bản phòng:\n';
   for (const n of notes) {

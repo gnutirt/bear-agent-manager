@@ -536,7 +536,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const leadPending = new Map<string, { cwd: string; at: number }>();   // room -> terminal we opened, waiting for its join
   function openLead(room: string, cwd: string, auto: boolean) {
     const notes = store.notes(room).map((n) => n.text);
-    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes)));
+    (opts.openUrl ?? openUrl)(leadLink(cwd, leadPrompt(room, notes, loadSettings(opts.dir, envCap).lead)));
     leadPending.set(room, { cwd, at: Date.now() });
     if (auto) { (store.state.leadOpened ??= []).push(room); store.state.leadOpened = store.state.leadOpened.slice(-500); store.save(); }
     const acct = listAccounts([path.join(usageHome, '.claude')], usageHome)[0];

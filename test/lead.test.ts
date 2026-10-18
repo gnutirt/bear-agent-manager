@@ -76,3 +76,12 @@ test('autoLead: a lead leaving a room that was never auto-opened opens a termina
     assert.equal(new URL(opened[0]).searchParams.get('cwd'), 'C:\\web');
   } finally { await h.hub.close(); }
 });
+
+test('leadPrompt: settings.lead duties add steps (all on by default) and name no agent', () => {
+  const all = leadPrompt('fw', []);
+  assert.match(all, /room_who/); assert.match(all, /worker/); assert.match(all, /room_note/);
+  const none = leadPrompt('fw', [], { delegate: false, distribute: false, handoffOnDone: false });
+  assert.ok(!/room_who|worker|room_note/.test(none));
+  assert.match(none, /^2\. /m);
+  assert.ok(!/\b(planner|coder|frontend)\b/i.test(all));
+});

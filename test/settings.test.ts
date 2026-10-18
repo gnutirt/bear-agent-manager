@@ -90,3 +90,11 @@ test('agentModel: per agent, trimmed, bad ids ignored, empty clears', () => {
   s = patchSettings(s, { agentModel: { bob: '' } });
   assert.deepEqual(s.agentModel, { cy: 'claude-opus-5-5' });
 });
+
+test('lead duties: delegate, distribute, handoffOnDone on by default, booleans only, wake kept', () => {
+  const d = defaultSettings(4);
+  assert.deepEqual([d.lead.delegate, d.lead.distribute, d.lead.handoffOnDone], [true, true, true]);
+  const s = patchSettings(d, { lead: { delegate: false, distribute: 'no', wake: { enabled: true } } });
+  assert.deepEqual([s.lead.delegate, s.lead.distribute, s.lead.handoffOnDone, s.lead.wake.enabled], [false, true, true, true]);
+  assert.equal(patchSettings(s, { lead: { wake: { atPct: 80 } } }).lead.delegate, false);
+});
