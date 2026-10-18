@@ -10,7 +10,8 @@
       "command": "node",
       "args": [
         "--no-warnings",
-        "${CLAUDE_PLUGIN_ROOT}/mcp/server.ts"
+        "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+        "mcp/server.ts"
       ]
     }
   }

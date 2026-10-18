@@ -8,7 +8,8 @@
             "command": "node",
             "args": [
               "--no-warnings",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.ts"
+              "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+              "hooks/session-start.ts"
             ],
             "timeout": 15
           }
@@ -23,7 +24,8 @@
             "command": "node",
             "args": [
               "--no-warnings",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/waiter.ts"
+              "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+              "hooks/waiter.ts"
             ],
             "asyncRewake": true,
             "timeout": 604800

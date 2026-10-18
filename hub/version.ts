@@ -7,7 +7,7 @@ import path from 'node:path';
 // Nothing is downloaded or run here: the check reads one JSON document and sends no user data.
 
 export type Release = { latest: string; url: string; notes: string; etag?: string; checkedAt: number; error?: string };
-export type PluginCopy = { configDir: string; version: string; path: string };
+export type PluginCopy = { configDir: string; version: string; path: string; shim?: boolean };   // shim: its hooks/MCP start through hooks/shim.mjs, i.e. run the source checkout's code
 export type GitState = { git: boolean; remoteOk: boolean; clean: boolean };
 export type VersionInfo = {
   current: string; repo: string | null; latest: string | null; url: string | null; notes: string;
@@ -58,7 +58,9 @@ export function pluginCopies(configDirs: string[], name = 'bear-agent-manager'):
         seen.add(dir + '|' + p);
         let version = typeof e.version === 'string' ? e.version : '';
         try { version = JSON.parse(fs.readFileSync(path.join(p, '.claude-plugin', 'plugin.json'), 'utf8')).version ?? version; } catch { /* the record's version */ }
-        out.push({ configDir: dir, version, path: p });
+        let shim = false;
+        try { shim = fs.readFileSync(path.join(p, 'hooks', 'hooks.json'), 'utf8').includes('shim.mjs'); } catch { /* no hooks file */ }
+        out.push({ configDir: dir, version, path: p, ...(shim ? { shim } : {}) });
       }
     }
   }
@@ -145,12 +147,12 @@ export async function applyUpdate(root: string, tag: string, tryLoad: () => Prom
   }
 }
 
-export function versionInfo(current: string, repo: string | null, rel: Release | null, plugins: PluginCopy[], g: GitState, check: boolean): VersionInfo {
+export function versionInfo(current: string, repo: string | null, rel: Release | null, plugins: PluginCopy[], g: GitState, check: boolean, sourceOk = false): VersionInfo {
   const latest = rel?.latest || null;
   const newer = !!latest && cmpSemver(latest, current) > 0;
   const reason: VersionInfo['reason'] = !latest ? 'unchecked' : !newer ? 'up-to-date' : !g.git ? 'not-git' : !g.remoteOk ? 'other-remote' : !g.clean ? 'dirty' : 'ok';
   return {
     current, repo, latest, url: rel?.url || null, notes: rel?.notes ?? '', checkedAt: rel?.checkedAt ?? null, ...(rel?.error ? { error: rel.error } : {}),
-    newer, check, plugins, mismatch: plugins.some((p) => p.version !== current), canApply: reason === 'ok', reason,
+    newer, check, plugins, mismatch: plugins.some((p) => p.version !== current && !(p.shim && sourceOk)),   // a shim copy runs the hub's own code while the hub names its source canApply: reason === 'ok', reason,
   };
 }
