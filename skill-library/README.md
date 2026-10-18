@@ -3,7 +3,8 @@
 Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 từ các repo GitHub công khai.
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
-Tổng: **150 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3 · Pháp lý 20 · Solar 10. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
+Tổng: **151 skill** — Ngân hàng 94 · Slide 11 · Training 12 · Chung 3 · Pháp lý 20 · Solar 11.
+Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
 ## Cách cài một skill
@@ -65,7 +66,9 @@ Máy này đã có sẵn chúng (`anthropic-skills:pptx` …).
 Viết theo luật Mỹ và thông lệ quốc tế. Dùng cho hợp đồng theo luật Việt Nam thì đối chiếu Bộ luật Dân sự 2015, Luật Thương mại 2005 và nhờ luật sư xác nhận.
 `review-contract`, `vendor-check` chạy tốt nhất khi có bộ quy tắc đàm phán (playbook) của tổ chức và các kết nối CLM/CRM (xem `CONNECTORS.md` trong skill).
 
-## Solar (`solar/`) — 10
+## Solar (`solar/`) — 11
+
+`engineering/pv-system-design` · tự viết · MIT: thiết kế kỹ thuật PV (số tấm mỗi chuỗi theo nhiệt độ, số chuỗi mỗi MPPT, chọn inverter và tỷ lệ DC/AC, cầu chì chuỗi, sụt áp cáp, khoảng cách hàng tránh bóng che, danh mục tiêu chuẩn IEC). Có script `scripts/string_sizing.py` tính chuỗi từ datasheet. Kết quả là bản tính sơ bộ, kỹ sư có chứng chỉ phải kiểm tra.
 
 `casemark/` · CaseMark/skills · Apache-2.0: modeling-renewable-resource-yields (sản lượng P50/P90), analyzing-renewable-energy-project-finance, modeling-project-finance-structures, structuring-energy-offtake-agreements, modeling-energy-transition-infrastructure, power-purchase-agreement, epc-contract, interconnection-agreement, solar-site-lease, energy-regulation-summaries.
 

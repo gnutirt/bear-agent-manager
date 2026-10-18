@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 150,
+  "count": 151,
   "skills": [
     {
       "name": "3-statement-model",
@@ -235,7 +235,8 @@
       "descVi": "Đánh giá sức khoẻ hệ thống ngân hàng: an toàn vốn, chất lượng tài sản, rủi ro hệ thống.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "analyzing-digital-lending-platforms",
@@ -248,7 +249,8 @@
       "descVi": "Đánh giá mô hình cho vay số: mô hình tín dụng, nguồn vốn, pháp lý.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "analyzing-esg-integration",
@@ -261,7 +263,8 @@
       "descVi": "Phân tích việc tích hợp yếu tố ESG vào quyết định đầu tư và tín dụng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "analyzing-liquidity-risk",
@@ -274,7 +277,8 @@
       "descVi": "Đánh giá thanh khoản danh mục: kiểm tra sức chịu đựng khi rút vốn, ước tính tác động thị trường.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "analyzing-trade-finance-instruments",
@@ -287,7 +291,8 @@
       "descVi": "Đánh giá công cụ tài trợ thương mại: thư tín dụng (L/C), tài trợ chuỗi cung ứng, bao thanh toán.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "assessing-credit-risk",
@@ -300,7 +305,8 @@
       "descVi": "Thẩm định khả năng trả nợ của khách hàng vay: phân tích tài chính, ngành, yếu tố định tính.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "auditing-aml-transactions",
@@ -313,7 +319,8 @@
       "descVi": "Sàng lọc giao dịch đáng ngờ theo dấu hiệu rửa tiền và dựng nội dung báo cáo giao dịch đáng ngờ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "conducting-credit-committee-presentations",
@@ -327,7 +334,8 @@
       "descVi": "Soạn bộ trình hội đồng tín dụng: phân tích khách hàng, rủi ro, cấu trúc, đề xuất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "conducting-stress-testing",
@@ -340,7 +348,8 @@
       "descVi": "Thực hiện kiểm tra sức chịu đựng theo kịch bản và đánh giá ảnh hưởng tới vốn, lợi nhuận.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "drafting-credit-memos",
@@ -353,7 +362,8 @@
       "descVi": "Soạn tờ trình tín dụng: phân tích khách hàng, đánh giá rủi ro, lý do đề xuất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "evaluating-green-bonds",
@@ -366,7 +376,8 @@
       "descVi": "Đánh giá trái phiếu xanh: sử dụng vốn, khung tiêu chuẩn, báo cáo tác động.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "evaluating-sustainability-linked-loans",
@@ -379,7 +390,8 @@
       "descVi": "Đánh giá khoản vay gắn với mục tiêu bền vững (ESG): chỉ tiêu, cơ chế điều chỉnh lãi suất.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-bank-regulatory-reporting",
@@ -392,7 +404,8 @@
       "descVi": "Chuẩn bị báo cáo gửi cơ quan quản lý ngân hàng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-commercial-loan-underwriting",
@@ -405,7 +418,8 @@
       "descVi": "Thẩm định khoản vay doanh nghiệp: phân tích báo cáo tài chính, dòng tiền, xếp hạng rủi ro.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-commercial-real-estate-lending",
@@ -418,7 +432,8 @@
       "descVi": "Thẩm định cho vay bất động sản thương mại: định giá, dòng tiền, môi trường.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-construction-lending",
@@ -431,7 +446,8 @@
       "descVi": "Phân tích cho vay xây dựng: lịch giải ngân, theo dõi ngân sách, rủi ro hoàn thành.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-correspondent-banking",
@@ -444,7 +460,8 @@
       "descVi": "Đánh giá quan hệ ngân hàng đại lý: rủi ro và yêu cầu pháp lý.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-credit-approval-packages",
@@ -457,7 +474,8 @@
       "descVi": "Soạn hồ sơ phê duyệt tín dụng: khách hàng, cấu trúc khoản vay, biện pháp giảm rủi ro.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-credit-portfolio-risk",
@@ -470,7 +488,8 @@
       "descVi": "Phân tích rủi ro danh mục tín dụng: tập trung, tương quan, kiểm tra sức chịu đựng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-credit-risk-models",
@@ -483,7 +502,8 @@
       "descVi": "Đánh giá và theo dõi mô hình rủi ro tín dụng (PD, LGD, EAD).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-deposit-operations",
@@ -496,7 +516,8 @@
       "descVi": "Phân tích sản phẩm tiền gửi: lãi suất, giữ chân khách hàng, tuân thủ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-fraud-operations-banking",
@@ -509,7 +530,8 @@
       "descVi": "Phát hiện gian lận ngân hàng: giám sát giao dịch, điều tra, thu hồi.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-interest-rate-risk-banking",
@@ -522,7 +544,8 @@
       "descVi": "Phân tích rủi ro lãi suất ngân hàng: EVE, độ nhạy NII, khe hở kỳ hạn.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-liquidity-risk",
@@ -535,7 +558,8 @@
       "descVi": "Quản lý rủi ro thanh khoản: dự báo dòng tiền, kiểm tra sức chịu đựng, kế hoạch dự phòng.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-loan-documentation-review",
@@ -548,7 +572,8 @@
       "descVi": "Rà soát hợp đồng vay: trích điều khoản cam kết, phân tích điều kiện, yêu cầu tuân thủ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-loan-loss-provisioning",
@@ -561,7 +586,8 @@
       "descVi": "Ước tính dự phòng rủi ro tín dụng (CECL/ACL): phương pháp, yếu tố định tính, dự báo.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-loan-portfolio-monitoring",
@@ -574,7 +600,8 @@
       "descVi": "Theo dõi danh mục cho vay: xu hướng chất lượng nợ, danh sách cảnh báo, mức tập trung.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-loan-syndication-processes",
@@ -587,7 +614,8 @@
       "descVi": "Điều phối cho vay hợp vốn từ nhận uỷ nhiệm tới ký kết.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-open-banking-integration",
@@ -600,7 +628,8 @@
       "descVi": "Tích hợp API ngân hàng mở: chia sẻ dữ liệu, quản lý đồng ý, bảo mật.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-private-banking-reviews",
@@ -613,7 +642,8 @@
       "descVi": "Rà soát quan hệ khách hàng ngân hàng tư nhân: dịch vụ, phí, chiến lược.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "managing-treasury-management-services",
@@ -626,7 +656,8 @@
       "descVi": "Phân tích dịch vụ quản lý ngân quỹ cho khách hàng doanh nghiệp: thu chi hộ, quản lý tiền mặt.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "modeling-default-and-recovery-analysis",
@@ -639,7 +670,8 @@
       "descVi": "Mô hình hoá vỡ nợ và tỷ lệ thu hồi nợ.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "structuring-asset-based-lending",
@@ -652,7 +684,8 @@
       "descVi": "Thiết kế khoản vay dựa trên tài sản (ABL): hạn mức tính theo tài sản, tiêu chí tài sản bảo đảm.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "banking/casemark/LICENSE"
+      "licenseFile": "banking/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "account-opening-compliance",
@@ -665,7 +698,8 @@
       "descVi": "Gắn kiểm soát tuân thủ vào quy trình mở tài khoản (định danh, KYC).",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "account-opening-workflow",
@@ -678,7 +712,8 @@
       "descVi": "Thiết kế và vận hành quy trình mở tài khoản từ tiếp nhận hồ sơ tới nộp lưu ký.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "anti-money-laundering",
@@ -691,7 +726,8 @@
       "descVi": "Thiết kế chương trình phòng chống rửa tiền, giám sát giao dịch và báo cáo.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "counterparty-risk",
@@ -704,7 +740,8 @@
       "descVi": "Đo lường và quản lý rủi ro tín dụng đối tác trong giao dịch OTC và chứng khoán.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "financial-statements",
@@ -717,7 +754,8 @@
       "descVi": "Phân tích báo cáo tài chính: EBITDA, dòng tiền tự do (FCFF/FCFE), chỉ số.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "know-your-customer",
@@ -730,7 +768,8 @@
       "descVi": "Định danh, thẩm định và cập nhật hồ sơ khách hàng (KYC).",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "lending",
@@ -743,7 +782,8 @@
       "descVi": "Phân tích sản phẩm cho vay (thế chấp, tín chấp, hạn mức) kèm bảng trả nợ và so sánh.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "operational-risk",
@@ -756,7 +796,8 @@
       "descVi": "Nhận diện, đo lường và quản lý rủi ro hoạt động.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "reconciliation",
@@ -769,7 +810,8 @@
       "descVi": "Thiết kế và vận hành quy trình đối soát giữa các hệ thống quản lý, lưu ký, bù trừ.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "time-value-of-money",
@@ -782,7 +824,8 @@
       "descVi": "Tính giá trị hiện tại, tương lai, NPV, IRR, số tiền trả góp và bảng trả nợ.",
       "source": "https://github.com/JoelLewis/finance_skills",
       "license": "MIT",
-      "licenseFile": "banking/finance-skills/LICENSE"
+      "licenseFile": "banking/finance-skills/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "onboarding",
@@ -860,7 +903,8 @@
       "descVi": "Rà soát quan hệ hợp tác ngân hàng và fintech từ phía ngân hàng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "banking-supervision-readiness",
@@ -873,7 +917,8 @@
       "descVi": "Chuẩn bị hồ sơ cho đợt thanh tra, giám sát ngân hàng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "credit-risk-governance",
@@ -886,7 +931,8 @@
       "descVi": "Rà soát quản trị rủi ro tín dụng ở tuyến phòng thủ thứ hai.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "deposit-operations-controls",
@@ -899,7 +945,8 @@
       "descVi": "Lập ma trận kiểm soát nghiệp vụ tiền gửi.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "aml-model-monitoring",
@@ -912,7 +959,8 @@
       "descVi": "Rà soát bằng chứng giám sát định kỳ của hệ thống phát hiện giao dịch rửa tiền.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "cdd-risk-review",
@@ -925,7 +973,8 @@
       "descVi": "Kiểm tra chất lượng hồ sơ thẩm định khách hàng (CDD).",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "edd-escalation-pack",
@@ -938,7 +987,8 @@
       "descVi": "Soạn hồ sơ trình thẩm định tăng cường (EDD) cho khách hàng rủi ro cao.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "negative-news-triage",
@@ -951,7 +1001,8 @@
       "descVi": "Phân loại tin tức bất lợi về khách hàng: độ chắc chắn danh tính, mức nghiêm trọng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "sanctions-screening-qa",
@@ -964,7 +1015,8 @@
       "descVi": "Kiểm tra chất lượng chương trình sàng lọc cấm vận.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "sar-decision-qa",
@@ -977,7 +1029,8 @@
       "descVi": "Kiểm tra chất lượng quyết định có hay không báo cáo giao dịch đáng ngờ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "fintech-partner-controls",
@@ -990,7 +1043,8 @@
       "descVi": "Soạn bộ bằng chứng kiểm soát fintech nộp cho ngân hàng đối tác.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "open-banking-data-controls",
@@ -1003,7 +1057,8 @@
       "descVi": "Lập danh mục kiểm soát chia sẻ dữ liệu khách hàng theo ngân hàng mở.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "payment-operations-incident-review",
@@ -1016,7 +1071,8 @@
       "descVi": "Soạn hồ sơ rà soát sự cố vận hành thanh toán.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "payments-risk-assessment",
@@ -1029,7 +1085,8 @@
       "descVi": "Đánh giá rủi ro hoạt động thanh toán của fintech, ví điện tử, ngân hàng số.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "control-matrix",
@@ -1042,7 +1099,8 @@
       "descVi": "Lập ma trận rủi ro và kiểm soát: nghĩa vụ, mục tiêu, hoạt động kiểm soát, người phụ trách.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "evidence-binder",
@@ -1055,7 +1113,8 @@
       "descVi": "Lập mục lục hồ sơ bằng chứng cho thanh tra, kiểm toán nội bộ, thẩm định mô hình.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "human-review-gates",
@@ -1068,7 +1127,8 @@
       "descVi": "Lập ma trận các điểm cần người duyệt trong một quy trình.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "issue-writeup",
@@ -1081,7 +1141,8 @@
       "descVi": "Viết một phát hiện theo cấu trúc hiện trạng, tiêu chí, nguyên nhân, ảnh hưởng, kèm mức độ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "obligation-mapping",
@@ -1094,7 +1155,8 @@
       "descVi": "Chuyển văn bản quy định thành danh sách nghĩa vụ cần tuân thủ.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "policy-gap-review",
@@ -1107,7 +1169,8 @@
       "descVi": "Đối chiếu chính sách, quy trình với chuẩn tham chiếu để tìm khoảng trống.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "scoping",
@@ -1120,7 +1183,8 @@
       "descVi": "Lập phạm vi công việc rà soát cho các skill tuân thủ khác dùng tiếp.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "attestation-pack",
@@ -1133,7 +1197,8 @@
       "descVi": "Soạn bộ xác nhận định kỳ của ban điều hành.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "bcbs239-gap-assessment",
@@ -1146,7 +1211,8 @@
       "descVi": "Đánh giá khoảng trống tổng hợp dữ liệu và báo cáo rủi ro theo BCBS 239.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "cyber-disclosure-readiness",
@@ -1159,7 +1225,8 @@
       "descVi": "Chuẩn bị công bố thông tin về sự cố an ninh mạng.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "kri-commentary",
@@ -1172,7 +1239,8 @@
       "descVi": "Viết bình luận biến động và vi phạm của chỉ số rủi ro chính (KRI).",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "management-response",
@@ -1185,7 +1253,8 @@
       "descVi": "Soạn phản hồi của ban điều hành với phát hiện của thanh tra hoặc kiểm toán.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "risk-committee-pack",
@@ -1198,7 +1267,8 @@
       "descVi": "Soạn bộ tài liệu họp uỷ ban rủi ro: bản đồ nhiệt, rủi ro hàng đầu, vấn đề trọng yếu.",
       "source": "https://github.com/anotb/second-line-financial-services",
       "license": "MIT",
-      "licenseFile": "banking/second-line/LICENSE"
+      "licenseFile": "banking/second-line/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "vn-phan-loai-no",
@@ -1211,7 +1281,8 @@
       "descVi": "Phân loại nợ theo NHNN (Thông tư 31/2024/TT-NHNN, 5 nhóm nợ): xếp nhóm, chuyển nhóm, đối chiếu CIC.",
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
-      "licenseFile": "banking/vietnam/LICENSE"
+      "licenseFile": "banking/vietnam/LICENSE",
+      "jurisdiction": "VN"
     },
     {
       "name": "vn-phong-chong-rua-tien",
@@ -1224,7 +1295,8 @@
       "descVi": "Phòng, chống rửa tiền theo pháp luật Việt Nam (Luật 14/2022/QH15): KYC, đánh giá rủi ro, giao dịch phải báo cáo.",
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
-      "licenseFile": "banking/vietnam/LICENSE"
+      "licenseFile": "banking/vietnam/LICENSE",
+      "jurisdiction": "VN"
     },
     {
       "name": "internal-comms",
@@ -1277,7 +1349,8 @@
       "descVi": "Soạn bản tóm tắt cho công việc pháp lý: tổng hợp hằng ngày, nghiên cứu một chủ đề, xử lý sự cố.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "compliance-check",
@@ -1290,7 +1363,8 @@
       "descVi": "Kiểm tra tuân thủ cho một hành động, tính năng sản phẩm hoặc sáng kiến kinh doanh, nêu quy định áp dụng.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "legal-response",
@@ -1303,7 +1377,8 @@
       "descVi": "Soạn phản hồi cho câu hỏi pháp lý thường gặp theo mẫu, có kiểm tra khi nào phải chuyển luật sư.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "legal-risk-assessment",
@@ -1316,7 +1391,8 @@
       "descVi": "Đánh giá và xếp hạng rủi ro pháp lý theo mức độ nghiêm trọng và khả năng xảy ra.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "meeting-briefing",
@@ -1329,7 +1405,8 @@
       "descVi": "Chuẩn bị tài liệu cho cuộc họp có yếu tố pháp lý và theo dõi việc cần làm sau họp.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "review-contract",
@@ -1342,7 +1419,8 @@
       "descVi": "Rà soát hợp đồng theo bộ quy tắc đàm phán của tổ chức: chỉ ra điểm lệch, đề xuất sửa, đánh giá ảnh hưởng.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "triage-nda",
@@ -1355,7 +1433,8 @@
       "descVi": "Phân loại nhanh thoả thuận bảo mật (NDA): xanh (duyệt chuẩn), vàng (cần luật sư xem), đỏ (rà soát đầy đủ).",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "vendor-check",
@@ -1368,7 +1447,8 @@
       "descVi": "Kiểm tra tình trạng các thoả thuận hiện có với một nhà cung cấp trên các hệ thống đã kết nối.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "legal/anthropic-legal/LICENSE"
+      "licenseFile": "legal/anthropic-legal/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "confidentiality-nda",
@@ -1381,7 +1461,8 @@
       "descVi": "Soạn thoả thuận bảo mật thông tin cho giao dịch, M&A, hợp tác.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "contract-analysis",
@@ -1394,7 +1475,8 @@
       "descVi": "Phân tích hợp đồng: điều khoản chính, nghĩa vụ, rủi ro, điểm có thể đàm phán.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "contract-dispute-analysis",
@@ -1407,7 +1489,8 @@
       "descVi": "Phân tích tranh chấp hợp đồng: dữ kiện, điều khoản liên quan, lập luận các bên.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "contract-playbook-review",
@@ -1420,7 +1503,8 @@
       "descVi": "Rà soát hợp đồng theo bộ quy tắc (playbook) đàm phán.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "contract-summarization",
@@ -1433,7 +1517,8 @@
       "descVi": "Tóm tắt hợp đồng: các bên, điều khoản thương mại, điều khoản pháp lý, chấm dứt.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "corporate-compliance-checklist",
@@ -1446,7 +1531,8 @@
       "descVi": "Lập danh mục kiểm tra chương trình tuân thủ doanh nghiệp (theo chuẩn Mỹ).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "due-diligence-checklist",
@@ -1459,7 +1545,8 @@
       "descVi": "Lập danh mục thẩm định pháp lý cho giao dịch doanh nghiệp: M&A, mua tài sản, đầu tư, liên doanh.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "due-diligence-report",
@@ -1472,7 +1559,8 @@
       "descVi": "Soạn báo cáo thẩm định pháp lý.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "employment-contract-summary",
@@ -1485,7 +1573,8 @@
       "descVi": "Tóm tắt hợp đồng lao động có dẫn từng điều khoản: điều kiện chính, nghĩa vụ, chấm dứt.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "loan-and-security-agreement",
@@ -1499,7 +1588,8 @@
       "descVi": "Soạn hợp đồng vay có bảo đảm (theo luật Mỹ, UCC Article 9).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "policy-brief",
@@ -1512,7 +1602,8 @@
       "descVi": "Soạn bản phân tích chính sách công: tác động kinh tế, xã hội, pháp lý, triển khai.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "term-loan-agreement",
@@ -1526,7 +1617,8 @@
       "descVi": "Soạn hợp đồng vay có kỳ hạn (theo luật Mỹ).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "legal/casemark/LICENSE"
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "marp-slide",
@@ -1703,7 +1795,8 @@
       "descVi": "Tóm tắt quy định ngành năng lượng (Mỹ) và các vụ việc tiêu biểu.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "solar/casemark/LICENSE"
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "epc-contract",
@@ -1717,7 +1810,8 @@
       "descVi": "Soạn hợp đồng EPC (thiết kế, mua sắm, xây dựng) trọn gói cho dự án.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "solar/casemark/LICENSE"
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "interconnection-agreement",
@@ -1731,7 +1825,8 @@
       "descVi": "Soạn thoả thuận đấu nối lưới điện.",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "solar/casemark/LICENSE"
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "modeling-energy-transition-infrastructure",
@@ -1785,7 +1880,8 @@
       "descVi": "Soạn hợp đồng mua bán điện (PPA).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "solar/casemark/LICENSE"
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "solar-site-lease",
@@ -1799,7 +1895,8 @@
       "descVi": "Soạn hợp đồng thuê đất làm dự án điện mặt trời (theo luật Mỹ).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
-      "licenseFile": "solar/casemark/LICENSE"
+      "licenseFile": "solar/casemark/LICENSE",
+      "jurisdiction": "US"
     },
     {
       "name": "structuring-energy-offtake-agreements",
@@ -1813,6 +1910,19 @@
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "solar/casemark/LICENSE"
+    },
+    {
+      "name": "pv-system-design",
+      "category": "solar",
+      "roles": [
+        "solar"
+      ],
+      "path": "solar/engineering/pv-system-design",
+      "description": "Thiết kế kỹ thuật hệ điện mặt trời (PV) ở giai đoạn thiết kế, trước khi lắp — tính số tấm mỗi chuỗi (string sizing) theo nhiệt độ, số chuỗi song song mỗi MPPT, chọn inverter và tỷ lệ DC/AC, bảo vệ quá dòng chuỗi, sụt áp cáp DC/AC, khoảng cách hàng tránh bóng che, và đối chiếu tiêu chuẩn IEC. Dùng skill này mỗi khi người dùng hỏi nên đấu bao nhiêu tấm một chuỗi, inverter nào hợp với dàn pin, Voc lúc trời lạnh có vượt điện áp inverter không, tiết diện cáp, sụt áp, khoảng cách hàng pin, hoặc cần thuyết minh thiết kế PV, kể cả khi họ không dùng chữ \"string sizing\". Không dùng cho phân tích dữ liệu vận hành của hệ đang chạy (việc đó là của skill solar-skills:analyze).",
+      "descVi": "Thiết kế kỹ thuật hệ PV: số tấm mỗi chuỗi theo nhiệt độ, chọn inverter, bảo vệ quá dòng, sụt áp cáp, khoảng cách hàng tránh bóng che.",
+      "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
+      "license": "MIT",
+      "licenseFile": "solar/engineering/LICENSE"
     },
     {
       "name": "course-training-skills",

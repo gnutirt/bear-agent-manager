@@ -148,5 +148,6 @@
   "modeling-renewable-resource-yields": "Lập mô hình sản lượng năng lượng tái tạo: đánh giá tài nguyên, hệ số công suất, P50/P90.",
   "power-purchase-agreement": "Soạn hợp đồng mua bán điện (PPA).",
   "solar-site-lease": "Soạn hợp đồng thuê đất làm dự án điện mặt trời (theo luật Mỹ).",
-  "structuring-energy-offtake-agreements": "Thiết kế hợp đồng bao tiêu điện: cơ chế giá, cam kết sản lượng, cắt giảm công suất."
+  "structuring-energy-offtake-agreements": "Thiết kế hợp đồng bao tiêu điện: cơ chế giá, cam kết sản lượng, cắt giảm công suất.",
+  "pv-system-design": "Thiết kế kỹ thuật hệ PV: số tấm mỗi chuỗi theo nhiệt độ, chọn inverter, bảo vệ quá dòng, sụt áp cáp, khoảng cách hàng tránh bóng che."
 }

@@ -61,6 +61,13 @@ test('bundled skills point at a library skill and are not in packs', () => {
   for (const p of read('packs.json')) for (const n of p.skills) assert.ok(!bundled.has(n), `${p.id}: ${n} only installs with its bundle`);
 });
 
+test('jurisdiction, when set, is US or VN; every legal skill has one', () => {
+  for (const s of skills) {
+    if ('jurisdiction' in s) assert.ok(['US', 'VN'].includes(s.jurisdiction), `${s.name}: ${s.jurisdiction}`);
+    if (s.category === 'legal') assert.ok(s.jurisdiction, `${s.name}: legal skill without jurisdiction`);
+  }
+});
+
 test('roles.json only names library skills and known roles', () => {
   for (const [name, roles] of Object.entries(read('roles.json')) as [string, string[]][]) {
     assert.ok(names.has(name), `roles.json: unknown skill ${name}`);

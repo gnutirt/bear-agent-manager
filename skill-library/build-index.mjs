@@ -21,8 +21,23 @@ const sources = {
   'legal/anthropic-legal': ['https://github.com/anthropics/knowledge-work-plugins', 'Apache-2.0'],
   'legal/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
   'solar/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
+  'solar/engineering': ['https://github.com/gnutirt/bear-agent-manager (tự viết)', 'MIT'],
   'training/course-training-skills': ['https://github.com/Mosapmohamd/course-training-skills', 'MIT'],
   'general/anthropic': ['https://github.com/anthropics/skills', 'Apache-2.0'],
+};
+
+// Whose law a skill is written for, so the UI can warn before it is used on a Vietnamese contract.
+// Folder prefixes first, then single skills (a solar finance skill is not law; a solar contract skill is).
+const jurisdictionByPath = {
+  'legal/': 'US',
+  'banking/casemark/': 'US',
+  'banking/second-line/': 'US',
+  'banking/finance-skills/': 'US',
+  'banking/vietnam/': 'VN',
+};
+const jurisdictionByName = {
+  'epc-contract': 'US', 'interconnection-agreement': 'US', 'power-purchase-agreement': 'US',
+  'solar-site-lease': 'US', 'energy-regulation-summaries': 'US',
 };
 
 function findSkills(dir, out = []) {
@@ -87,6 +102,8 @@ export function buildIndex() {
     // A skill nested inside another skill only works as part of it: installing it means installing the outer one.
     const outer = dirs.filter((d) => path.startsWith(d + '/')).sort((a, b) => a.length - b.length)[0];
     const entry = { name, category, roles: roleOverrides[name] ?? [category], path, description: fm.description ?? '', descVi: descVi[name] ?? '', source, license, licenseFile: licenseFile(dirname(file)) };
+    const jurisdiction = jurisdictionByName[name] ?? Object.entries(jurisdictionByPath).find(([p]) => (path + '/').startsWith(p))?.[1];
+    if (jurisdiction) entry.jurisdiction = jurisdiction;
     return outer ? { ...entry, bundle: outer } : entry;
   }).sort((a, b) => a.path.localeCompare(b.path));
 }
