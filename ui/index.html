@@ -374,6 +374,8 @@ header .spacer{flex:1}
 .chip:hover{border-color:var(--accent)}
 .chip b{font-weight:600}
 .chip .act{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+#presence .chip.st-busy{background:rgba(245,165,36,.16);border-color:rgba(245,165,36,.55)}#presence .chip.st-idle{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4)}#presence .chip.st-waiting{background:rgba(59,130,246,.14);border-color:rgba(59,130,246,.45)}#presence .chip.st-offline{opacity:.6}
+#presence .chip.lead{box-shadow:inset 0 0 0 1px #F5A524}
 .compose-wrap{position:relative;padding:8px 20px 18px}
 #composer{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 10px 10px 18px;box-shadow:0 4px 18px rgba(17,24,39,.08);transition:border-color .15s,box-shadow .15s}
 #composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),0 4px 18px rgba(17,24,39,.08)}
@@ -416,6 +418,7 @@ header .spacer{flex:1}
 #menu .item.mem{flex-wrap:wrap}
 #menu .mcard .mhd{cursor:pointer;border-radius:10px}#menu .mcard .mhd::after{content:'▸';margin-left:auto;color:var(--mute);font-size:12px}#menu .mcard.open .mhd::after{content:'▾'}
 #menu .mcard .mbody[hidden]{display:none}
+#menu .mcard.open{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,transparent);box-shadow:0 0 0 1px var(--accent)}
 #menu .item.mem.mcard{display:block;border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin:8px 0;background:color-mix(in srgb,var(--text) 2%,transparent)}
 #menu .mcard .mhd{display:flex;align-items:center;gap:12px}
 #menu .mblk{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
@@ -1163,18 +1166,21 @@ $('sessToggle').onclick = () => { S.sessOpen = !S.sessOpen; try { localStorage.s
 /** Hover card for a sidebar row: the details that used to change the row every few seconds (current tool, folder, account...). */
 const sessTip = document.createElement('div'); sessTip.id = 'sesstip'; sessTip.hidden = true; document.body.append(sessTip);
 let sessTipTimer = 0;
-function showSessTip(row) {
+function showSessTip(row, above) {
   const s = S.sessions[row.dataset.sid]; if (!s) return;
   const rows = [[t('sessions.tip.doing'), s.status === 'busy' ? (s.activity || t('status.busy')) : LABEL[s.status]], [t('sessions.tip.dir'), s.cwd], [t('sessions.tip.rooms'), (s.rooms || []).map((x) => '#' + x).join(' ') || '-']];
   sessTip.innerHTML = `<div class="tn"><b>${esc(s.name)}</b><span class="st st-${s.status}">${LABEL[s.status]}</span></div>${s.title ? `<div class="tt">${esc(s.title)}</div>` : ''}${rows.map(([k, v]) => `<div class="tr"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}<div class="tc">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}${ctxBadge(s)}</div>`;
   sessTip.hidden = false;
   const r = row.getBoundingClientRect(), h = sessTip.offsetHeight;
+  if (above) { sessTip.style.left = Math.max(8, Math.min(r.left, innerWidth - sessTip.offsetWidth - 8)) + 'px'; sessTip.style.top = Math.max(8, r.top - h - 8) + 'px'; return; }
   sessTip.style.left = Math.min(r.right + 10, innerWidth - sessTip.offsetWidth - 8) + 'px';
   sessTip.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
 }
 const hideSessTip = () => { clearTimeout(sessTipTimer); sessTip.hidden = true; };
 $('sessions').addEventListener('mouseover', (e) => { const row = e.target.closest('.sess'); if (!row || e.target.closest('.acts, input')) return hideSessTip(); clearTimeout(sessTipTimer); sessTipTimer = setTimeout(() => showSessTip(row), 220); });
 $('sessions').addEventListener('mouseleave', hideSessTip);
+$('presence').addEventListener('mouseover', (e) => { const c = e.target.closest('.chip'); if (!c) return hideSessTip(); clearTimeout(sessTipTimer); sessTipTimer = setTimeout(() => showSessTip(c, true), 180); });
+$('presence').addEventListener('mouseleave', hideSessTip);
 $('sessions').addEventListener('mousedown', hideSessTip);
 document.querySelector('.side-scroll')?.addEventListener('scroll', hideSessTip, { passive: true });
 function renderSessions() {
@@ -1413,8 +1419,8 @@ function renderPresence() {
   el.innerHTML = '';
   for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
     const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = t('presence.call', { name: s.name });
-    const act = s.status === 'busy' ? (s.activity || t('status.busy')) : LABEL[s.status];
-    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b><span class="act">${esc(act)}</span>`;
+    c.dataset.sid = s.id; c.classList.add('st-' + s.status);
+    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>`;
     c.onclick = () => insertMention(s.name);
     el.append(c);
   }
