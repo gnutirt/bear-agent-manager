@@ -335,6 +335,7 @@ header .spacer{flex:1}
 .msg .cbh{display:flex;align-items:center;justify-content:space-between;padding:3px 6px 3px 12px;font:600 11.5px var(--mono);color:var(--mute);text-transform:lowercase;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--text) 4%,transparent)}
 .msg .cbc{font-size:11.5px;font-weight:600;color:var(--mute);padding:2px 9px;border-radius:6px}.msg .cbc:hover{background:var(--hover);color:var(--text)}
 .msg .cb pre{margin:0;border-radius:0;background:none}.msg pre code{color:inherit}
+.lic.jur{background:rgba(245,158,11,.2);color:#B45309;margin-left:4px}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -1970,7 +1971,7 @@ function renderSkillsView() {
 }
 /* ---------- skill library (S3): filter by role, install / remove per account, apply a role pack to an agent ---------- */
 S.lib = { rolesInfo: [], skills: null, packs: null, err: '', role: 'all', q: '', license: '', acct: '' };
-const LIB_ROLES = { banking: 'lib.role.banking', slides: 'lib.role.slides', training: 'lib.role.training', general: 'lib.role.general' };
+const LIB_ROLES = { banking: 'lib.role.banking', legal: 'lib.role.legal', solar: 'lib.role.solar', slides: 'lib.role.slides', training: 'lib.role.training', general: 'lib.role.general' };
 const libList = (d) => Array.isArray(d) ? d : Array.isArray(d?.skills) ? d.skills : null;
 function loadSkillLib() {
   Promise.all([api('/api/skill-library'), api('/api/skill-packs')]).then(([sk, pk]) => {
@@ -1994,11 +1995,12 @@ function skillLibBlock() {
   const shown = L.skills.filter((s) => (L.role === 'all' || (s.roles || [s.category]).includes(L.role)) && (!L.license || s.license === L.license) && (!q || `${s.name} ${s.description}`.toLowerCase().includes(q)));
   const chips = roles.map((r) => `<button type="button" class="chipf" data-librole="${r}" aria-pressed="${r === L.role}">${r === 'all' ? t('filter.all') : t(LIB_ROLES[r])} <small>${r === 'all' ? L.skills.length : (L.rolesInfo.find((x) => x.id === r)?.count ?? '')}</small></button>`).join('');
   const isIn = (s) => (s.installed || []).some((d) => sameDir(d, acct));
-  const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span></div><p>${esc(plain(s.description || '', 140))}</p><div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
+  const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span>${s.jurisdiction && s.jurisdiction !== 'VN' ? `<span class="lic jur" title="${esc(t('lib.jur.tip', { j: s.jurisdiction }))}">${t('lib.jur.badge', { j: esc(s.jurisdiction) })}</span>` : ''}</div><p>${esc(plain(s.description || '', 140))}</p><div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
   const agents = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => a.indexOf(v) === i);
   const packs = (L.packs || []).map((p) => `<div class="pack"><b>${esc(p[uiLang()] || p.vi || p.id)}</b><small class="muted">${t('lib.packN', { n: (p.skills || []).length })}</small><button type="button" class="btn sm" data-libpack="${esc(p.id)}">${t('lib.apply')}</button></div>`).join('');
   return `<h2>${t('lib.title')} <span class="aside">${t('lib.count', { n: shown.length, total: L.skills.length })}</span></h2>
     <p class="small muted">${t('lib.note')}</p>
+    ${shown.some((s) => s.jurisdiction && s.jurisdiction !== 'VN') && (L.role === 'legal' || L.role === 'all') ? `<div class="verr small" role="note">${t('lib.jur.note')}</div>` : ''}
     ${L.skills.filter(isIn).length > 15 ? `<div class="verr small" role="alert">${t('lib.tooManyInstalled', { n: L.skills.filter(isIn).length })}</div>` : ''}
     <div class="skfind"><input class="search" id="libQuery" placeholder="${t('lib.search')}" value="${esc(L.q)}" aria-label="${t('lib.search')}"><select id="libLicense" aria-label="${t('lib.license')}"><option value="">${t('lib.license')}</option>${licenses.map((l) => `<option${l === L.license ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><select id="libAcct" aria-label="${t('lib.account')}">${accts.map((a) => `<option value="${esc(a.dir)}"${a.dir === acct ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}</select></div>
     <div class="chips">${chips}</div>
