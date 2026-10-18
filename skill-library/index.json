@@ -1,6 +1,6 @@
 {
   "generated": "2026-10-18",
-  "count": 157,
+  "count": 163,
   "skills": [
     {
       "name": "3-statement-model",
@@ -1369,6 +1369,63 @@
       "licenseFile": "general/anthropic/mcp-builder/LICENSE.txt"
     },
     {
+      "name": "hr-onboarding",
+      "category": "general",
+      "roles": [
+        "general",
+        "training"
+      ],
+      "path": "general/knowledge-work/hr-onboarding",
+      "description": "Generate an onboarding checklist and first-week plan for a new hire. Use when someone has a start date coming up, building the pre-start task list (accounts, equipment, buddy), scheduling Day 1 and Week 1, or setting 30/60/90-day goals for a new team member.",
+      "descVi": "Lập danh mục việc và kế hoạch tuần đầu cho nhân viên mới: tài khoản, thiết bị, người kèm, mục tiêu 30/60/90 ngày.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "general/knowledge-work/LICENSE"
+    },
+    {
+      "name": "process-doc",
+      "category": "general",
+      "roles": [
+        "general",
+        "banking",
+        "training"
+      ],
+      "path": "general/knowledge-work/process-doc",
+      "description": "Document a business process — flowcharts, RACI, and SOPs. Use when formalizing a process that lives in someone's head, building a RACI to clarify who owns what, writing an SOP for a handoff or audit, or capturing the exceptions and edge cases of how work actually gets done.",
+      "descVi": "Viết tài liệu quy trình (SOP): các bước, người phụ trách, điểm kiểm soát, ngoại lệ.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "general/knowledge-work/LICENSE"
+    },
+    {
+      "name": "sql-queries",
+      "category": "general",
+      "roles": [
+        "general",
+        "banking"
+      ],
+      "path": "general/knowledge-work/sql-queries",
+      "description": "Write correct, performant SQL across all major data warehouse dialects (Snowflake, BigQuery, Databricks, PostgreSQL, etc.). Use when writing queries, optimizing slow SQL, translating between dialects, or building complex analytical queries with CTEs, window functions, or aggregations.",
+      "descVi": "Viết và tối ưu truy vấn SQL cho báo cáo và phân tích dữ liệu.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "general/knowledge-work/LICENSE"
+    },
+    {
+      "name": "statistical-analysis",
+      "category": "general",
+      "roles": [
+        "general",
+        "banking"
+      ],
+      "path": "general/knowledge-work/statistical-analysis",
+      "description": "Apply statistical methods including descriptive stats, trend analysis, outlier detection, and hypothesis testing. Use when analyzing distributions, testing for significance, detecting anomalies, computing correlations, or interpreting statistical results.",
+      "descVi": "Phân tích thống kê dữ liệu: mô tả, kiểm định, tương quan, xu hướng, diễn giải kết quả.",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "license": "Apache-2.0",
+      "licenseFile": "general/knowledge-work/LICENSE"
+    },
+    {
       "name": "compliance-check",
       "category": "legal",
       "roles": [
@@ -1630,6 +1687,36 @@
       "path": "legal/casemark/policy-brief",
       "description": "Generates structured public policy briefs analyzing legislation across economic, social, legal, and implementation dimensions. Use when drafting legislative impact analyses, policy summaries, regulatory briefs, or government affairs memoranda for lawmakers, lobbyists, or civic organizations.",
       "descVi": "Soạn bản phân tích chính sách công: tác động kinh tế, xã hội, pháp lý, triển khai.",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
+      "name": "security-deposit-letter-of-credit",
+      "category": "legal",
+      "roles": [
+        "legal",
+        "banking"
+      ],
+      "path": "legal/casemark/security-deposit-letter-of-credit",
+      "description": "Drafts an irrevocable standby letter of credit securing a commercial lease deposit under ISP98 and UCC Article 5. Covers documentary draw conditions, evergreen/expiry mechanics, transferability, and partial draws. Use when drafting standby LCs for lease security deposits, replacing cash deposits with LC instruments, or structuring beneficiary draw requirements.",
+      "descVi": "Soạn thư tín dụng thay tiền đặt cọc (standby L/C) cho hợp đồng thuê (theo luật Mỹ).",
+      "source": "https://github.com/CaseMark/skills",
+      "license": "Apache-2.0",
+      "licenseFile": "legal/casemark/LICENSE",
+      "jurisdiction": "US"
+    },
+    {
+      "name": "subcontractor-agreement",
+      "category": "legal",
+      "roles": [
+        "legal",
+        "solar"
+      ],
+      "path": "legal/casemark/subcontractor-agreement",
+      "description": "Drafts enforceable U.S. subcontractor agreements governing general contractor/subcontractor relationships for construction and service projects. Covers scope of work, payment and retainage, insurance and bonding, indemnification, schedule compliance, termination, and dispute resolution with state-specific compliance. Use when drafting subcontracts, subcontractor agreements, construction service agreements, or contractor engagement documents.",
+      "descVi": "Soạn hợp đồng thầu phụ: phạm vi công việc, thanh toán, bảo hành, trách nhiệm (theo luật Mỹ).",
       "source": "https://github.com/CaseMark/skills",
       "license": "Apache-2.0",
       "licenseFile": "legal/casemark/LICENSE",

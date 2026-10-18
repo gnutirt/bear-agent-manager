@@ -90,5 +90,30 @@
   "vn-quy-dinh-dau-noi-dien-mat-troi": [
     "solar",
     "legal"
+  ],
+  "process-doc": [
+    "general",
+    "banking",
+    "training"
+  ],
+  "statistical-analysis": [
+    "general",
+    "banking"
+  ],
+  "sql-queries": [
+    "general",
+    "banking"
+  ],
+  "subcontractor-agreement": [
+    "legal",
+    "solar"
+  ],
+  "security-deposit-letter-of-credit": [
+    "legal",
+    "banking"
+  ],
+  "hr-onboarding": [
+    "general",
+    "training"
   ]
 }

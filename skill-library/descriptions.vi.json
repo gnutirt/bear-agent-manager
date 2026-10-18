@@ -155,5 +155,11 @@
   "warranty-timeline": "Lập dòng thời gian yêu cầu bảo hành, khiếu nại về lỗi thiết bị (pin, inverter) để xử lý tranh chấp hoặc rà soát nội bộ.",
   "insurance-claim-summaries": "Tóm tắt hồ sơ bồi thường bảo hiểm: sự cố, lập luận các bên, phạm vi bảo hiểm (theo luật Mỹ).",
   "modeling-carbon-credit-economics": "Mô hình kinh tế tín chỉ carbon: lượng giảm phát thải, chi phí thẩm định, giá thị trường.",
-  "vn-quy-dinh-dau-noi-dien-mat-troi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực."
+  "vn-quy-dinh-dau-noi-dien-mat-troi": "Quy định Việt Nam về điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 135/2024/NĐ-CP): giấy phép, bán điện dư, đăng ký với điện lực.",
+  "process-doc": "Viết tài liệu quy trình (SOP): các bước, người phụ trách, điểm kiểm soát, ngoại lệ.",
+  "statistical-analysis": "Phân tích thống kê dữ liệu: mô tả, kiểm định, tương quan, xu hướng, diễn giải kết quả.",
+  "sql-queries": "Viết và tối ưu truy vấn SQL cho báo cáo và phân tích dữ liệu.",
+  "hr-onboarding": "Lập danh mục việc và kế hoạch tuần đầu cho nhân viên mới: tài khoản, thiết bị, người kèm, mục tiêu 30/60/90 ngày.",
+  "subcontractor-agreement": "Soạn hợp đồng thầu phụ: phạm vi công việc, thanh toán, bảo hành, trách nhiệm (theo luật Mỹ).",
+  "security-deposit-letter-of-credit": "Soạn thư tín dụng thay tiền đặt cọc (standby L/C) cho hợp đồng thuê (theo luật Mỹ)."
 }

@@ -3,7 +3,7 @@
 Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 từ các repo GitHub công khai.
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
-Tổng: **157 skill** — Ngân hàng 97 · Slide 11 · Training 12 · Chung 2 · Pháp lý 20 · Solar 15.
+Tổng: **163 skill** — Ngân hàng 97 · Slide 11 · Training 12 · Chung 6 · Pháp lý 22 · Solar 15.
 Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
@@ -74,16 +74,18 @@ Máy này đã có sẵn chúng (`anthropic-skills:pptx` …).
 | `course-training-skills` (11) | [Mosapmohamd/course-training-skills](https://github.com/Mosapmohamd/course-training-skills) · MIT | Bộ thiết kế khoá học từ yêu cầu tới tài liệu cho giảng viên: course-designer, course-outline, session-designer, activity-designer, assessment-designer, practical-work, slide-designer, instructor-guide, notebook-designer, course-reviewer (+ skill điều phối ở thư mục gốc) |
 | `onewave` | [onewave-ai/claude-skills](https://github.com/onewave-ai/claude-skills) · MIT | quiz-maker: tạo câu hỏi kiểm tra kèm đáp án |
 
-## Chung (`general/`) — 2
+## Chung (`general/`) — 6
 
 `anthropic/`: internal-comms, mcp-builder — anthropics/skills · Apache-2.0.
 
-## Pháp lý (`legal/`) — 20
+`knowledge-work/`: process-doc (viết quy trình, SOP), statistical-analysis, sql-queries, hr-onboarding (kế hoạch hội nhập nhân viên mới) — [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) · Apache-2.0 — anthropics/skills · Apache-2.0.
+
+## Pháp lý (`legal/`) — 22
 
 | Nhóm | Nguồn · Giấy phép | Skill |
 |---|---|---|
 | `anthropic-legal` (8) | [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) · Apache-2.0 | review-contract, triage-nda, legal-risk-assessment, compliance-check, legal-response, legal-brief, meeting-briefing, vendor-check |
-| `casemark` (12) | CaseMark/skills · Apache-2.0 | contract-analysis, contract-summarization, contract-playbook-review, contract-dispute-analysis, due-diligence-checklist, due-diligence-report, confidentiality-nda, employment-contract-summary, loan-and-security-agreement, term-loan-agreement, corporate-compliance-checklist, policy-brief |
+| `casemark` (14) | CaseMark/skills · Apache-2.0 | subcontractor-agreement (hợp đồng thầu phụ), security-deposit-letter-of-credit (thư tín dụng thay đặt cọc), contract-analysis, contract-summarization, contract-playbook-review, contract-dispute-analysis, due-diligence-checklist, due-diligence-report, confidentiality-nda, employment-contract-summary, loan-and-security-agreement, term-loan-agreement, corporate-compliance-checklist, policy-brief |
 
 Viết theo luật Mỹ và thông lệ quốc tế. Dùng cho hợp đồng theo luật Việt Nam thì đối chiếu Bộ luật Dân sự 2015, Luật Thương mại 2005 và nhờ luật sư xác nhận.
 `review-contract`, `vendor-check` chạy tốt nhất khi có bộ quy tắc đàm phán (playbook) của tổ chức và các kết nối CLM/CRM (xem `CONNECTORS.md` trong skill).

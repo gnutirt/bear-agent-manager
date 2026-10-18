@@ -18,6 +18,7 @@ not the license of bear-agent-manager.
 | `slides/revealjs-skill/` | https://github.com/ryanbbrown/revealjs-skill | MIT | `slides/revealjs-skill/LICENSE` |
 | `slides/agent-toolkit/` | https://github.com/softaworks/agent-toolkit | MIT | `slides/agent-toolkit/LICENSE` |
 | `training/onewave/` | https://github.com/onewave-ai/claude-skills | MIT | `training/onewave/LICENSE` |
+| `general/knowledge-work/` | https://github.com/anthropics/knowledge-work-plugins | Apache-2.0 | `general/knowledge-work/LICENSE` |
 | `legal/anthropic-legal/` | https://github.com/anthropics/knowledge-work-plugins | Apache-2.0 | `legal/anthropic-legal/LICENSE` |
 | `legal/casemark/`, `solar/casemark/` | https://github.com/CaseMark/skills | Apache-2.0 | `LICENSE` in each folder |
 | `training/course-training-skills/` | https://github.com/Mosapmohamd/course-training-skills | MIT | `training/course-training-skills/LICENSE` |
@@ -29,7 +30,8 @@ Changes made to the copies:
   so a single skill works on its own. `legal/anthropic-legal/*`: the plugin's `CONNECTORS.md` is copied into each skill folder for the same reason.
 - Renamed to avoid clashing with generic names of other installed skills (folder and frontmatter `name`):
   `banking/kyc-analyst/{onboarding,refresh,screening,risk-assessment,transaction-monitoring}` → `kyc-*`;
-  `legal/anthropic-legal/brief` → `legal-brief` (its `/brief` command examples now read `/legal-brief`).
+  `legal/anthropic-legal/brief` → `legal-brief` (its `/brief` command examples now read `/legal-brief`);
+  `knowledge-work` `onboarding` → `hr-onboarding` (its `/onboarding` examples now read `/hr-onboarding`).
 
 Not included because their licenses do not allow redistribution here: Anthropic's `pptx`, `docx`, `xlsx`, `pdf`
 skills (proprietary), Anthropic's `doc-coauthoring` (no license file), Anthropic's `skill-creator` (a newer copy is already synced from claude.ai), `narosemena/master-instructional-design` (CC BY-NC-ND 4.0), `espialuso/id-skills-for-claude`

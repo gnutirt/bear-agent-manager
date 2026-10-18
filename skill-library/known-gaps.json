@@ -54,5 +54,11 @@
   },
   "legal/anthropic-legal/vendor-check": {
     "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "general/knowledge-work/process-doc": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
+  },
+  "general/knowledge-work/hr-onboarding": {
+    "../../CONNECTORS.md": "Points at the upstream plugin root. The same file is copied into this skill folder as CONNECTORS.md so it survives a single-skill install."
   }
 }

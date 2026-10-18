@@ -23,6 +23,7 @@ const sources = {
   'legal/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
   'solar/casemark': ['https://github.com/CaseMark/skills', 'Apache-2.0'],
   'solar/engineering': ['https://github.com/gnutirt/bear-agent-manager (tự viết)', 'MIT'],
+  'general/knowledge-work': ['https://github.com/anthropics/knowledge-work-plugins', 'Apache-2.0'],
   'training/course-training-skills': ['https://github.com/Mosapmohamd/course-training-skills', 'MIT'],
   'general/anthropic': ['https://github.com/anthropics/skills', 'Apache-2.0'],
 };
