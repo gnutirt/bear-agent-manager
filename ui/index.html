@@ -1661,6 +1661,17 @@ function renderSettingsView() {
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
     </div>
+    <h2>${t('lead.wake.title')}</h2><div class="setbox">
+      <p class="small muted note">${t('lead.wake.note')}</p>
+      ${sw('lead.wake.enabled', !!st.lead?.wake?.enabled, t('lead.wake.on'))}
+      ${num('lead.wake.atPct', st.lead?.wake?.atPct ?? 90, t('lead.wake.at'), t('lead.wake.at.hint'), 50, 100)}
+      ${num('lead.wake.afterResetMin', st.lead?.wake?.afterResetMin ?? 2, t('lead.wake.after'), t('lead.wake.after.hint'), 0, 120)}
+    </div>
+    <h2>${t('lead.duties.title')}</h2><div class="setbox">
+      ${sw('lead.delegate', st.lead?.delegate ?? true, t('lead.delegate'), t('lead.delegate.hint'))}
+      ${sw('lead.distribute', st.lead?.distribute ?? true, t('lead.distribute'), t('lead.distribute.hint'))}
+      ${sw('lead.handoffOnDone', st.lead?.handoffOnDone ?? true, t('lead.handoff'), t('lead.handoff.hint'))}
+    </div>
     <h2>${t('set.auto.title')}</h2><div class="setbox">
       <p class="small muted note">${t('set.auto.note')}</p>
       ${sw('autoJobs.handoff.enabled', aj.handoff.enabled, t('set.handoff'))}
