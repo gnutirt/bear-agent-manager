@@ -7,6 +7,7 @@ export type Message = {
   text: string;
   ts: number;
   wake: string[];        // session ids this message woke (decided at post time)
+  topic?: string;        // sub-topic of the room ([a-z0-9-]{1,32}); missing = 'chung'
   replyTo?: number;      // id of an earlier message in the same room this one answers
   replyQuote?: { from: string; text: string }; // that message's sender and first 80 chars, kept so deliveries need no lookup
   kind?: 'done' | 'system'; // done = a member finished its part; system = hub notice (wakes nobody)

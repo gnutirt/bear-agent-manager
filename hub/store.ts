@@ -22,8 +22,10 @@ export type Session = {
   titleNamed?: boolean;          // name already derived from the title once
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
+  topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
 };
+const TOPIC = /^[a-z0-9-]{1,32}$/;
 export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
 const IDES = new Set<string>(['vscode', 'antigravity', 'cursor', 'cli']);
 const IDE_SUFFIX: Record<Ide, string> = { '': '', vscode: '', antigravity: '-ag', cursor: '-cursor', cli: '-cli' };
@@ -347,7 +349,7 @@ export class Store {
     return message;
   }
 
-  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number): { message: Message; unknownMentions: string[]; paused: boolean } {
+  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number, topic?: string): { message: Message; unknownMentions: string[]; paused: boolean } {
     const room = this.state.rooms[roomName];
     if (!room) throw new StoreError(404, `unknown room ${roomName}`);
     const body = String(text ?? '').trim();
@@ -363,9 +365,13 @@ export class Store {
       if (!orig) throw new StoreError(400, `replyTo #${replyTo} is not a message of #${roomName}`);
       reply = { replyTo: orig.id, replyQuote: { from: orig.from, text: orig.text.replace(/\s+/g, ' ').trim().slice(0, 80) } };
     }
+    const wanted = topic == null || topic === '' ? undefined : String(topic).trim().toLowerCase();
+    if (wanted != null && !TOPIC.test(wanted)) throw new StoreError(400, 'topic must be 1-32 chars of a-z, 0-9 and -');
+    // A reply stays in the topic of the message it answers.
+    const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted) || undefined;
     const message: Message = {
       id: this.lastId() + 1, room: roomName, from: sender?.name ?? 'you', fromId: sender?.id ?? null,
-      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...reply,
+      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply,
     };
     if (!sender) { room.agentWakeStreak = 0; room.paused = false; room.done = []; }
     const members = this.members(roomName);
@@ -382,6 +388,11 @@ export class Store {
       if (room.agentWakeStreak > LOOP_LIMIT) { room.paused = true; wake = []; }
     }
     message.wake = wake;
+    if (message.topic) {   // following a topic: sending into it, or being @-ed in it
+      const follow = (s: Session) => { if (!s.topics?.includes(message.topic!)) (s.topics ??= []).push(message.topic!); };
+      if (sender) follow(sender);
+      for (const mem of members) if (message.mentions.includes('all') || message.mentions.includes(mem.name.toLowerCase())) follow(mem);
+    }
     const names = new Set(members.map((m) => m.name.toLowerCase()));
     const unknownMentions = message.mentions.filter((n) => n !== 'all' && n !== 'you' && !names.has(n));
 
@@ -516,7 +527,37 @@ export class Store {
       m.id > s.cursor && m.room in s.rooms && m.id > s.rooms[m.room] &&
       (m.fromId === null || this.resolve(m.fromId) !== s.id));
     const wake = messages.some((m) => m.wake.some((w) => this.resolve(w) === s.id));
-    return { messages, wake };
+    // Topics: messages in a topic this session does not follow (and that did not wake it) collapse to one line per room/topic.
+    const keep: Message[] = [], muted = new Map<string, Message[]>();
+    for (const m of messages) {
+      const t = m.topic;
+      if (!t || s.topics?.includes(t) || m.wake.some((w) => this.resolve(w) === s.id) || this.state.rooms[m.room]?.lead === s.id) keep.push(m);
+      else { const k = `${m.room}#${t}`; if (!muted.has(k)) muted.set(k, []); muted.get(k)!.push(m); }
+    }
+    for (const list of muted.values()) {
+      const last = list[list.length - 1];
+      keep.push({ id: last.id, room: last.room, from: 'bear-agent-manager', fromId: null, mentions: [], ts: last.ts, wake: [], kind: 'system',
+        text: `${list.length} new message${list.length > 1 ? 's' : ''} in topic #${last.topic} (you do not follow it; room_read with topic "${last.topic}" shows them, room_topics follows it)` });
+    }
+    return { messages: keep.sort((a, b) => a.id - b.id), wake };
+  }
+
+  /** Topics of a room with message counts; follows = whether `sid` gets them in full. */
+  topics(room: string, sid?: string): { topic: string; count: number; last: number; follows: boolean }[] {
+    if (!this.state.rooms[room]) throw new StoreError(404, `unknown room ${room}`);
+    const s = sid ? this.session(sid) : null, by = new Map<string, { count: number; last: number }>([['chung', { count: 0, last: 0 }]]);
+    for (const m of this.messages) if (m.room === room) { const t = m.topic ?? 'chung', e = by.get(t) ?? { count: 0, last: 0 }; e.count++; e.last = m.id; by.set(t, e); }
+    return [...by].map(([topic, e]) => ({ topic, ...e, follows: topic === 'chung' || !!s?.topics?.includes(topic) || (!!s && this.state.rooms[room]?.lead === s.id) }));
+  }
+
+  follow(sid: string, topic: string, on: boolean): string[] {
+    const t = String(topic ?? '').trim().toLowerCase();
+    if (!TOPIC.test(t)) throw new StoreError(400, 'topic must be 1-32 chars of a-z, 0-9 and -');
+    const s = this.session(sid), cur = new Set(s.topics ?? []);
+    if (on) cur.add(t); else cur.delete(t);
+    s.topics = [...cur];
+    this.save();
+    return s.topics;
   }
 
   consume(id: string, upTo: number): void {
@@ -525,9 +566,9 @@ export class Store {
     this.save();
   }
 
-  history(room: string, after = 0, limit = 100): Message[] {
+  history(room: string, after = 0, limit = 100, topic?: string): Message[] {
     if (!this.state.rooms[room]) throw new StoreError(404, `unknown room ${room}`);
-    return this.messages.filter((m) => m.room === room && m.id > after).slice(-Math.max(1, Math.min(limit, 500)));
+    return this.messages.filter((m) => m.room === room && m.id > after && (!topic || (m.topic ?? 'chung') === topic)).slice(-Math.max(1, Math.min(limit, 500)));
   }
 
   /** Marks stale, disconnected sessions offline; prunes long-offline sessions in no room. */

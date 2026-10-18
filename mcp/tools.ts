@@ -11,8 +11,9 @@ export const TOOLS = [
   { name: 'room_who', description: 'Show your bear-agent-manager name, the rooms you are in, and each member with status (busy/idle/waiting/offline), current activity and repo folder. Also lists other rooms.', inputSchema: obj({}) },
   { name: 'room_join', description: 'Join an bear-agent-manager chat room (created if missing). Room names: lowercase letters, digits, - and _.', inputSchema: obj({ room: { type: 'string' } }, ['room']) },
   { name: 'room_leave', description: 'Leave an bear-agent-manager chat room.', inputSchema: obj({ room: { type: 'string' } }, ['room']) },
-  { name: 'room_send', description: 'Post a message to a room. @name wakes that agent, @all wakes everyone, @you addresses the human user. A message with no mention wakes nobody (others see it later as context).', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' }, replyTo: { type: 'number', description: 'Id of the message you answer (shown as #id in deliveries); it must be in the same room' } }, ['text']) },
-  { name: 'room_read', description: 'Read recent messages of a room.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, limit: { type: 'number', description: 'Default 30, max 200' } }) },
+  { name: 'room_send', description: 'Post a message to a room. @name wakes that agent, @all wakes everyone, @you addresses the human user. A message with no mention wakes nobody (others see it later as context).', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' }, replyTo: { type: 'number', description: 'Id of the message you answer (shown as #id in deliveries); it must be in the same room' }, topic: { type: 'string', description: 'Sub-topic of the room, [a-z0-9-]{1,32}; default chung. Only members who follow a topic (sent into it, were @-ed in it, or follow it) get its messages in full. A reply stays in its original topic.' } }, ['text']) },
+  { name: 'room_read', description: 'Read recent messages of a room.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, limit: { type: 'number', description: 'Default 30, max 200' }, topic: { type: 'string', description: 'Only this topic (default: every topic)' } }) },
+  { name: 'room_topics', description: 'List the topics of a room with message counts and whether you follow them; pass topic and follow to follow or unfollow one. Messages in topics you do not follow reach you as a one-line count.', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' }, topic: { type: 'string' }, follow: { type: 'boolean', description: 'true to follow, false to unfollow' } }) },
   { name: 'room_set_name', description: 'Set your display name in bear-agent-manager (what others @mention). Letters, digits, - and _; max 32.', inputSchema: obj({ name: { type: 'string' } }, ['name']) },
   { name: 'room_note', description: 'Record a lasting agreement in the room notes ("biên bản"): API contracts, ports, file ownership, decisions. Every member, in any repo, receives the notes when they change. Keep each note one fact.', inputSchema: obj({ text: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['text']) },
   { name: 'room_notes', description: 'Read the room notes (agreements the room relies on).', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' } }) },
@@ -66,7 +67,7 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
     case 'room_send': {
       const room = await pickRoom(args.room);
       const r = await api<{ message: Message; unknownMentions: string[]; paused: boolean }>(
-        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text: String(args.text ?? ''), ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}) } });
+        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text: String(args.text ?? ''), ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}), ...(args.topic ? { topic: String(args.topic) } : {}) } });
       let out = `Sent to #${room}.`;
       if (r.paused) out += ' The room is paused by the loop guard, so nobody was woken; wait for the user.';
       else if (r.message.wake.length) out += ` Woke ${r.message.wake.length} member(s).`;
@@ -77,9 +78,18 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
     case 'room_read': {
       const room = await pickRoom(args.room);
       const limit = Math.max(1, Math.min(Number(args.limit ?? 30), 200));
-      const msgs = await api<Message[]>(`/api/rooms/${enc(room)}/messages?limit=${limit}`);
+      const msgs = await api<Message[]>(`/api/rooms/${enc(room)}/messages?limit=${limit}${args.topic ? '&topic=' + enc(String(args.topic)) : ''}`);
       if (!msgs.length) return `#${room} has no messages yet.`;
       return [`#${room}, last ${msgs.length}:`, ...msgs.map((m) => `[${time(m.ts)}] ${m.from}: ${m.text}`)].join('\n');
+    }
+    case 'room_topics': {
+      const room = await pickRoom(args.room);
+      if (args.topic && typeof args.follow === 'boolean') {
+        await api(`/api/rooms/${enc(room)}/topics`, { body: { sessionId: sid, topic: String(args.topic), follow: args.follow } });
+        return `${args.follow ? 'Following' : 'Unfollowed'} topic #${args.topic} in #${room}.`;
+      }
+      const list = await api<{ topic: string; count: number; follows: boolean }[]>(`/api/rooms/${enc(room)}/topics?session=${enc(sid)}`);
+      return [`Topics of #${room}:`, ...list.map((t) => `  ${t.topic}: ${t.count} message(s)${t.follows ? ', you follow it' : ''}`)].join('\n');
     }
     case 'room_set_name': {
       const r = await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}/rename`, { body: { name: String(args.name ?? '') } });

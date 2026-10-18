@@ -875,7 +875,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
 
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead)$/);
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|done|open-lead|topics)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -916,12 +916,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         emitRoom(room);
         return json(res, 200, store.roomInfo(room));
       }
+      if (m === 'GET' && action === 'topics') return json(res, 200, store.topics(room, url.searchParams.get('session') || undefined));
+      if (m === 'POST' && action === 'topics') {
+        const b = await readBody(req);
+        const topics = store.follow(String(b.sessionId ?? ''), String(b.topic ?? ''), b.follow !== false);
+        return json(res, 200, { topics });
+      }
       if (m === 'GET' && action === 'messages') {
-        return json(res, 200, store.history(room, Number(url.searchParams.get('after') ?? 0), Number(url.searchParams.get('limit') ?? 100)));
+        return json(res, 200, store.history(room, Number(url.searchParams.get('after') ?? 0), Number(url.searchParams.get('limit') ?? 100), url.searchParams.get('topic') || undefined));
       }
       if (m === 'POST' && action === 'messages') {
         const b = await readBody(req);
-        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''), undefined, b.replyTo == null ? undefined : Number(b.replyTo));
+        const r = store.post(room, b.sessionId ? String(b.sessionId) : null, String(b.text ?? ''), undefined, b.replyTo == null ? undefined : Number(b.replyTo), b.topic == null ? undefined : String(b.topic));
         broadcast('msg', r.message);
         emitRoom(room);
         for (const id of r.message.wake) deliver(store.resolve(id));

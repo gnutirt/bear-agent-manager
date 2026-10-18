@@ -371,3 +371,26 @@ test('register keeps the claude pid; a register without one does not erase it', 
   st.register({ id: 'p1', cwd: path.join('D:', 'x'), pid: 4343 });
   assert.equal(st.session('p1').pid, 4343);
 });
+
+test('topics: a reply keeps its topic; members follow by sending or being @-ed; others get one count line', () => {
+  const st = new Store(tmp());
+  const [a, b, c] = ['a', 'b', 'c'].map((id) => st.register({ id, cwd: path.join('D:', id) }));
+  st.rename(a.id, 'alice'); st.rename(b.id, 'bob'); st.rename(c.id, 'cy');
+  for (const s of [a, b, c]) st.join(s.id, 'r');
+  const m1 = st.post('r', a.id, 'theme question', undefined, undefined, 'ui').message;
+  assert.equal(m1.topic, 'ui');
+  assert.deepEqual(st.session(a.id).topics, ['ui']);
+  const m2 = st.post('r', b.id, 'answer', undefined, m1.id, 'other').message;
+  assert.equal(m2.topic, 'ui', 'reply stays in the original topic');
+  st.post('r', a.id, 'hey @bob look', undefined, undefined, 'ui');
+  assert.deepEqual(st.session(b.id).topics, ['ui']);
+  assert.equal(st.post('r', a.id, 'plain').message.topic, undefined);
+  const p = st.pending(c.id).messages;
+  assert.equal(p.filter((m) => m.kind === 'system' && /3 new messages in topic #ui/.test(m.text)).length, 1, p.map((m) => m.text).join('|'));
+  assert.ok(!p.some((m) => m.text === 'theme question'));
+  assert.deepEqual(st.topics('r', c.id).map((t) => [t.topic, t.count, t.follows]), [['chung', 1, true], ['ui', 3, false]]);
+  st.follow(c.id, 'ui', true);
+  assert.ok(st.pending(c.id).messages.some((m) => m.text === 'theme question'));
+  assert.equal(st.history('r', 0, 100, 'ui').length, 3);
+  assert.throws(() => st.post('r', null, 'x', undefined, undefined, 'Bad Topic'), (e: StoreError) => e.status === 400);
+});
