@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `GET /api/settings` carries `firstRun: boolean`: true only on a brand new hub (no settings.json and no state.json when it started) until a room or a settings file exists, so the "new machine" page can show itself once. Needs hub restart.
 ## 0.6.2 - 2026-10-19
 
 - Release gate: `scripts/release.mjs` now runs `npm run smoke` after the test suite and writes/tags nothing when either is red (`--skip-smoke="reason"` skips only the smoke test and records the reason in that release's CHANGELOG). `npm run smoke` has 11 checks now: added several agents answering in their own topics, relay chat only for a turn the owner asked (sys type relay, under the agent's name, wakes nobody) and `POST /api/agents` answering 429 above `maxBackground`; it never uses port 7788 or a backup drive. Checked that it catches a regression: with the old `endedOnLimit` it fails "the WORKING tab was ended".

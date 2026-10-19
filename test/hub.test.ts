@@ -551,3 +551,19 @@ test('killTree ends a child started through a shell together with what it starte
   for (let i = 0; i < 100 && alive(inner); i++) await new Promise((r) => setTimeout(r, 100));
   assert.equal(alive(inner), false);
 });
+
+test('GET /api/settings says firstRun on a brand new hub until a room or a settings file exists', async () => {
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const { startHub } = await import('../hub/server.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-first-'));
+  const opts = { dir, port: 0, revive: () => {}, batchMs: 0, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no.key'), usageFetch: null, versionFetch: null, usageHome: dir, openUrl: () => {} } as any;
+  const hub = await startHub(opts);
+  const get = async () => (await (await fetch(`${hub.url}/api/settings`, { headers: { 'x-room-token': hub.token } })).json()) as any;
+  try {
+    assert.equal((await get()).firstRun, true);
+    await fetch(`${hub.url}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify({ name: 'first' }) });
+    assert.equal((await get()).firstRun, false, 'a room exists now');
+  } finally { await hub.close(); }
+  const again = await startHub({ ...opts, dir, port: 0 });   // the same folder: it has state now
+  try { assert.equal((await (await fetch(`${again.url}/api/settings`, { headers: { 'x-room-token': again.token } })).json() as any).firstRun, false); } finally { await again.close(); }
+});

@@ -146,6 +146,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const runCompact = opts.compactRevive ?? spawnCompact;
   const autoRevive = opts.autoRevive ?? process.env.BEAR_AGENT_REVIVE === '1';
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
+  // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
+  const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
   const store = new Store(opts.dir);
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
@@ -999,7 +1001,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       })();
       return json(res, 202, { started: true, dir });
     }
-    if (m === 'GET' && p === '/api/settings') return json(res, 200, loadSettings(opts.dir, envCap));
+    if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...loadSettings(opts.dir, envCap), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
     // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
     const libDir = () => opts.skillLibraryDir ?? path.join(ROOT, 'skill-library');
     if (m === 'POST' && (p === '/api/skill-library/install' || p === '/api/skill-library/uninstall')) {
