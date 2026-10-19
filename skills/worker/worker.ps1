@@ -9,7 +9,7 @@ param(
     [string]$Dir = (Get-Location).Path,
     [string]$Tools = "Read,Grep,Glob,Bash",
     [ValidateSet("worker", "osin", "congnhan", "vesinh")][string]$Kind = "worker",
-    [ValidateSet("auto", "free", "paid")][string]$Tier = "auto",
+    [ValidateSet("auto", "local", "free", "paid")][string]$Tier = "auto",
     [string]$Provider = "",                              # pin one provider id from providers.json
     [string]$Task = "",                                  # <=100-char summary for the board; default: first line of the prompt file
     [string]$By = $env:CLAUDE_CODE_SESSION_ID            # who hired the worker (chat name or session id)
@@ -67,12 +67,14 @@ foreach ($p in $providers) {
         $p.key = if ($env:INTERN_API_KEY) { $env:INTERN_API_KEY } elseif (Test-Path $kf) { (Get-Content -Raw $kf).Trim() } else { "" }
     }
 }
-$usable = { param($t) $providers | Where-Object { $_.enabled -and $_.key -and $_.tier -eq $t -and (-not $Provider -or $_.id -eq $Provider) } }
+# "local" providers (an Ollama-style host on this machine/LAN) carry no real key: the owner sets a placeholder when adding one.
+$usable = { param($t) $providers | Where-Object { $_.enabled -and ($_.key -or $_.tier -eq "local") -and $_.tier -eq $t -and (-not $Provider -or $_.id -eq $Provider) } }
 $mkPlan = {
     switch ($Tier) {
+        "local" { @(& $usable "local") }
         "free" { @(& $usable "free") }
         "paid" { @(& $usable "paid") }
-        default { @(& $usable "free") + $(if ($allowPaid) { @(& $usable "paid") } else { @() }) }
+        default { @(& $usable "local") + @(& $usable "free") + $(if ($allowPaid) { @(& $usable "paid") } else { @() }) }
     }
 }
 $routed = $false

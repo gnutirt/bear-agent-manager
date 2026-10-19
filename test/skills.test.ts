@@ -32,7 +32,7 @@ test('worker.ps1 isolates worker transcripts in worker-config', () => {
 
 test('worker.ps1 reads providers.json, supports -Tier and logs usage', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  for (const s of ['providers.json', '[ValidateSet("auto", "free", "paid")][string]$Tier', 'usage = @{', 'exit 4', 'ANTHROPIC_AUTH_TOKEN']) {
+  for (const s of ['providers.json', '[ValidateSet("auto", "local", "free", "paid")][string]$Tier', 'usage = @{', 'exit 4', 'ANTHROPIC_AUTH_TOKEN']) {
     assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
   }
 });
@@ -58,4 +58,9 @@ test('worker.ps1 prints its JSON result as pure ASCII, readable by any caller co
 test('worker.ps1 honours settings.workerRoutes (off -> exit 4, unusable provider -> automatic, explicit -Provider/-Model win)', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
   for (const s of ['$settings.workerRoutes.$routeKey', '$route.enabled -eq $false', 'is not usable', 'if (-not $Provider -and $route', '$Model -eq "auto" -and $route.model']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
+});
+
+test('worker.ps1 tries a "local" tier provider (a LAN/this-machine Ollama-style host) before free/paid, and needs no key for it', () => {
+  const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
+  for (const s of ['$_.tier -eq "local"', '"local" { @(& $usable "local") }', '@(& $usable "local") + @(& $usable "free")']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
 });

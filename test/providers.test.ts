@@ -36,6 +36,14 @@ test('patch: omitted or empty key keeps it, null clears it; save/load round trip
   assert.throws(() => applyPatch(l, 'nope', {}), /unknown provider/);
 });
 
+test('a "local" tier (a LAN/this-machine Ollama-style host) can be added and keeps no real key', () => {
+  const withLocal = [...defaultProviders(), { id: 'ollama-lan', label: 'ollama-lan', tier: 'paid' as const, enabled: false, baseUrl: '', auth: 'api-key' as const, key: '', models: { read: [], edit: [] } }];
+  const next = applyPatch(withLocal, 'ollama-lan', { tier: 'local', baseUrl: 'http://192.168.1.50:11435', enabled: true, models: { edit: ['gemma4:26b'] } });
+  const p = next.find((x) => x.id === 'ollama-lan')!;
+  assert.deepEqual([p.tier, p.baseUrl, p.enabled, p.models.edit], ['local', 'http://192.168.1.50:11435', true, ['gemma4:26b']]);
+  assert.equal(p.key, '');
+});
+
 test('public view never leaks the key', () => {
   const p = publicProvider({ ...defaultProviders()[0], key: 'sk-abcdef1234' });
   assert.equal((p as any).key, undefined);

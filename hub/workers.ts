@@ -22,7 +22,7 @@ export type WorkerRun = {
   id: string; pid: number | null; kind: Kind; dir: string; task: string; tools: string;
   status: 'running' | 'done' | 'failed'; startedAt: number; durationMs: number | null;
   model: string; cost: number | null; error: string; result: string;
-  provider: string; tier: 'free' | 'paid' | ''; usage: Usage;
+  provider: string; tier: 'free' | 'paid' | 'local' | ''; usage: Usage;
   by: string; skill: string; // which chat hired it and through which skill (audit of the room's worker rules)
 };
 
@@ -74,7 +74,7 @@ export function mergeWorkerLog(lines: LogLine[]): WorkerRun[] {
       r.error = String(l.error ?? '');
       r.result = String(l.result ?? '');
       r.provider = String(l.provider ?? '');
-      r.tier = l.tier === 'free' || l.tier === 'paid' ? l.tier : '';
+      r.tier = l.tier === 'free' || l.tier === 'paid' || l.tier === 'local' ? l.tier : '';
       r.usage = toUsage(l.usage);
     }
   }

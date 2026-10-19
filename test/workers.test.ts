@@ -67,3 +67,11 @@ test('mergeWorkerLog reads provider, tier and usage; missing usage is zero', () 
   assert.deepEqual([a.provider, a.tier, a.usage], ['intern', 'free', { in: 1200, out: 300, cacheRead: 50, cacheWrite: 0 }]);
   assert.deepEqual([b.provider, b.tier, b.usage], ['', '', { in: 0, out: 0, cacheRead: 0, cacheWrite: 0 }]);
 });
+
+test('mergeWorkerLog reads a "local" tier (a LAN/this-machine Ollama-style host)', () => {
+  const h = mergeWorkerLog([
+    { event: 'start', id: 'c', kind: 'worker', ts: 1 },
+    { event: 'end', id: 'c', exit: 0, provider: 'ollama-lan', tier: 'local', ts: 2 },
+  ]);
+  assert.deepEqual([h[0].provider, h[0].tier], ['ollama-lan', 'local']);
+});

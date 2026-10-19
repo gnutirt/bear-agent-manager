@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StoreError } from './store.ts';
 
-export type Tier = 'free' | 'paid';
+export type Tier = 'free' | 'paid' | 'local';   // local: an Anthropic-compatible host on this machine/LAN (e.g. Ollama); no real key needed
 export type Provider = {
   id: string; label: string; tier: Tier; enabled: boolean; baseUrl: string;
   auth: 'api-key' | 'auth-token'; key: string; models: { read: string[]; edit: string[] };
@@ -23,7 +23,7 @@ export function defaultProviders(): Provider[] {
 
 const clean = (p: any, base?: Provider): Provider => ({
   id: String(p.id ?? base?.id ?? ''), label: String(p.label ?? base?.label ?? p.id ?? ''),
-  tier: p.tier === 'paid' ? 'paid' : (p.tier === 'free' ? 'free' : base?.tier ?? 'paid'),
+  tier: p.tier === 'paid' ? 'paid' : p.tier === 'free' ? 'free' : p.tier === 'local' ? 'local' : base?.tier ?? 'paid',
   enabled: typeof p.enabled === 'boolean' ? p.enabled : base?.enabled ?? false,
   baseUrl: String(p.baseUrl ?? base?.baseUrl ?? ''),
   auth: p.auth === 'auth-token' ? 'auth-token' : (p.auth === 'api-key' ? 'api-key' : base?.auth ?? 'api-key'),
