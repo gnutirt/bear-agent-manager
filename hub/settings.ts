@@ -24,7 +24,7 @@ export type Settings = {
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   autoUpdatePlugin: boolean;   // the hub keeps this plugin's copy in every Claude account at the hub's version (no button)
   agents: { maxBackground: number };   // background claudes at once, for agents created without an IDE (POST /api/agents)
-  copilot: { autoStart: boolean };   // one standalone Copilot SDK member in the shared room, started with the hub
+  copilot: { autoStart: boolean };   // one standalone Copilot SDK member in its private room, started with the hub
   localSummarize: LocalSummarize;   // summaries by an AI on this machine (Ollama); off by default
   permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default

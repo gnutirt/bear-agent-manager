@@ -8,6 +8,7 @@ import type { Message } from './routing.ts';
 
 const NAME = 'Copilot';
 const ROOM = 'bear-agent-manager';
+const LEGACY_ROOM = 'copilot';
 const IDENTITY_FILE = 'copilot-agent.json';
 const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
@@ -95,7 +96,7 @@ function formatMessages(messages: ReturnType<Store['pending']>['messages'], cwd:
     .filter((m) => m.kind !== 'system')
     .map((m) => `[${m.from}] ${m.text}`)
     .filter(Boolean);
-  return `New messages in the shared Bear Agent Manager room #${ROOM}:\n${items.join('\n\n')}\n\nWork in ${cwd}. This room is visible to its other members. Mention an agent by name only when you need its response; avoid @all unless every member needs to act. Reply directly with your answer; the hub will post your final response to #${ROOM}.`;
+  return `New messages in the shared Bear Agent Manager room #${ROOM}:\n${items.join('\n\n')}\n\nWork in ${cwd}. Address other agents by name only when you need them to respond. Reply directly with your answer; the hub will post your final response to #${ROOM}.`;
 }
 
 function splitMessage(text: string, limit = 7800): string[] {
@@ -181,7 +182,7 @@ export class CopilotAgent {
         saveIdentity(this.file, identity);
       }
       this.setStatus({ state: 'idle', login: auth.login, error: undefined });
-      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, 'Copilot is online and ready in this private room.'));
+      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, 'Copilot is online and ready in the shared room.'));
       void this.wake(identity.hubId).catch((error) => this.reportError(error));
     } catch (error) {
       const failedSession = this.session;
@@ -210,7 +211,7 @@ export class CopilotAgent {
       onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} alongside the user and other agents. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. Mention another agent by its room name only when you need it to respond; avoid @all unless every member needs to act. Reply with a concise status and result when finished.`,
+        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. Address other agents by name only when you need them to respond. Reply with a concise status and result when finished.`,
       },
     };
   }
@@ -221,6 +222,7 @@ export class CopilotAgent {
     const session = this.opts.store.register({ id: identity.hubId, name: NAME, cwd: this.opts.cwd, source: 'copilot' });
     if (session.name !== NAME) throw new Error(`Could not reserve the hub identity ${NAME}.`);
     this.opts.store.join(identity.hubId, ROOM);
+    if (LEGACY_ROOM in session.rooms) this.opts.store.leave(identity.hubId, LEGACY_ROOM);
     this.opts.store.setStatus(identity.hubId, 'idle', 'Starting Copilot SDK');
     this.opts.onChange(this.snapshot());
     this.opts.onRoom(ROOM);

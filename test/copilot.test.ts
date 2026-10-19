@@ -47,10 +47,12 @@ test('Copilot permission policy follows the hub permission mode and refuses mana
   assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, process.cwd())({ kind: 'shell', fullCommandText: 'git push origin' }, { sessionId: uuid }).kind, 'reject');
 });
 
-test('Copilot API is opt-in, starts one private room member, routes messages, and resumes the same SDK session', async () => {
+test('Copilot API joins the shared room with existing members and resumes the same SDK session', async () => {
   const { factory, calls } = fakeFactory();
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
   try {
+    const peer = h.hub.store.register({ id: uuid, name: 'reviewer', cwd: process.cwd() });
+    h.hub.store.join(peer.id, 'bear-agent-manager');
     assert.equal((await h.call<any>('/api/copilot')).autoStart, false);
     assert.equal((await h.call<any>('/api/copilot', { on: true })).done, false);
     assert.equal(calls.created, 0, 'confirmation is required');
@@ -60,20 +62,24 @@ test('Copilot API is opt-in, starts one private room member, routes messages, an
     assert.equal(started.autoStart, true);
     assert.equal(started.login, 'test-user');
     assert.equal(calls.created, 1);
-    assert.deepEqual((await h.call<any>('/api/rooms/copilot/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
+    assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
-    await h.call('/api/rooms/copilot/messages', { text: 'check this change' });
-    await until(async () => (await h.call<any[]>('/api/rooms/copilot/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === 'Copilot reply'), 5000, 'Copilot reply');
+    assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Copilot', 'reviewer']);
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot check this change' });
+    await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === 'Copilot reply'), 5000, 'Copilot reply');
     assert.match(calls.prompts[0], /check this change/);
-    const member = h.hub.store.members('copilot').find((s) => s.name === 'Copilot');
+    assert.match(calls.prompts[0], /shared Bear Agent Manager room #bear-agent-manager/);
+    const member = h.hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot');
     assert.ok(member);
     assert.equal(member.status, 'idle');
+    h.hub.store.join(member.id, 'copilot');
 
     await h.call('/api/copilot', { on: false, confirm: true });
     const restarted = await h.call<any>('/api/copilot', { on: true, confirm: true });
     assert.equal(restarted.state, 'idle');
     assert.equal(calls.created, 1);
     assert.deepEqual(calls.resumed, [calls.providerId]);
+    assert.ok(!('copilot' in h.hub.store.state.sessions[member.id].rooms), 'legacy private-room membership is removed');
   } finally {
     await h.hub.close();
     fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });
@@ -97,7 +103,7 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
     assert.equal(calls.created, 0);
     assert.equal(calls.stopped, 1, 'a failed unauthenticated runtime is stopped');
     assert.equal((await h.call<any>('/api/copilot')).autoStart, true, 'the requested startup setting remains enabled');
-    assert.ok((await h.call<any[]>('/api/rooms/copilot/messages?after=0')).some((m) => /could not start/.test(m.text)));
+    assert.ok((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => /could not start/.test(m.text)));
   } finally {
     await h.hub.close();
     fs.rmSync(h.dir, { recursive: true, force: true });
@@ -128,7 +134,7 @@ test('Copilot keeps its hub identity when auth fails before the first SDK sessio
   const signedIn = fakeFactory();
   hub = await startHub({ ...common, copilotClientFactory: signedIn.factory });
   try {
-    await until(() => hub.store.members('copilot').some((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'Copilot retry after sign-in');
+    await until(() => hub.store.members('bear-agent-manager').some((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'Copilot retry after sign-in');
     assert.equal(signedIn.calls.created, 1);
     assert.equal(Object.values(hub.store.state.sessions).filter((s) => s.name === 'Copilot').length, 1);
   } finally {
@@ -176,12 +182,12 @@ test('hub startup restores the opted-in Copilot agent without an IDE', async () 
   };
   let hub = await startHub({ ...common, copilotClientFactory: first.factory });
   try {
-    await until(() => hub.store.members('copilot').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'startup Copilot session');
+    await until(() => hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'startup Copilot session');
     assert.equal(first.calls.created, 1);
   } finally { await hub.close(); }
   hub = await startHub({ ...common, copilotClientFactory: second.factory });
   try {
-    await until(() => hub.store.members('copilot').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'resumed Copilot session');
+    await until(() => hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'resumed Copilot session');
     assert.equal(second.calls.created, 0);
     assert.deepEqual(second.calls.resumed, [first.calls.providerId]);
   } finally {
