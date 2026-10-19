@@ -364,7 +364,7 @@ export class Store {
     return message;
   }
 
-  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number, topic?: string, attachments?: Message['attachments']): { message: Message; unknownMentions: string[]; paused: boolean } {
+  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number, topic?: string, attachments?: Message['attachments'], sys?: SysMeta): { message: Message; unknownMentions: string[]; paused: boolean } {
     const room = this.state.rooms[roomName];
     if (!room) throw new StoreError(404, `unknown room ${roomName}`);
     const body = String(text ?? '').trim();
@@ -386,8 +386,8 @@ export class Store {
     // message it was handed (users asked in #x expect the answer in #x); `topic: 'chung'` keeps it in #chung.
     const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted ?? (sender ? sender.turnTopic?.[roomName] : undefined)) || undefined;
     const message: Message = {
-      id: this.lastId() + 1, room: roomName, from: sender?.name ?? 'you', fromId: sender?.id ?? null,
-      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}),
+      id: this.lastId() + 1, room: roomName, from: sender?.name ?? (sys ? 'bear-agent-manager' : 'you'), fromId: sender?.id ?? null,
+      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}), ...(sys ? { sys } : {}),
     };
     if (!sender) { room.agentWakeStreak = 0; room.paused = false; room.done = []; }
     const members = this.members(roomName);

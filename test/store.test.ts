@@ -151,6 +151,24 @@ test('user message without mention wakes all members; pending/consume deliver on
   assert.deepEqual(st.pending(fw.id), { messages: [], wake: false });
 });
 
+test('a sys-tagged hub message (fromId null) shows as "bear-agent-manager" and still wakes mentions', () => {
+  const { st, fw, web } = setup();
+  const r = st.post('proj', null, '@fw hết hạn mức đã qua, làm tiếp', undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
+  assert.equal(r.message.from, 'bear-agent-manager');
+  assert.equal(r.message.fromId, null);
+  assert.deepEqual(r.message.sys, { type: 'wake', level: 'info' });
+  assert.equal(r.message.kind, undefined);
+  assert.deepEqual(r.message.wake, [fw.id]);
+  assert.equal(st.pending(web.id).wake, false);
+});
+
+test('a plain hub message (fromId null, no sys) still shows as "you"', () => {
+  const { st } = setup();
+  const r = st.post('proj', null, 'hello team');
+  assert.equal(r.message.from, 'you');
+  assert.equal(r.message.sys, undefined);
+});
+
 test('agent message is not delivered to its sender and unmentioned wakes nobody', () => {
   const { st, fw, web } = setup();
   const r = st.post('proj', fw.id, 'status: compiling');
