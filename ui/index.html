@@ -2413,8 +2413,8 @@ function localBlock(st) {
 function loadHealth() {
   S.health = { loading: true }; if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
   const get = (p) => api(p).catch(() => null);
-  Promise.all([get('/api/version'), get('/api/claude-usage'), get('/api/archive'), get('/api/machine'), get('/api/providers'), get('/api/data'), get('/api/settings'), get('/api/local/status')]).then(([version, usage, archive, machine, providers, data, settings, local]) => {
-    S.health = { version, usage, archive, machine, providers, data, settings, local, at: Date.now() };
+  Promise.all([get('/api/version'), get('/api/claude-usage'), get('/api/archive'), get('/api/machine'), get('/api/providers'), get('/api/data'), get('/api/settings'), get('/api/local/status'), get('/api/accounts'), get('/api/autostart')]).then(([version, usage, archive, machine, providers, data, settings, local, accounts, autostart]) => {
+    S.health = { version, usage, archive, machine, providers, data, settings, local, accounts, autostart, at: Date.now() };
     if (settings) S.settings = settings;
     if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
   });
@@ -2465,6 +2465,13 @@ function healthRows() {
   const all = Object.values(S.sessions), on = all.filter((s) => s.status !== 'offline');
   if (!on.length) row('warn', t('hc.agents'), t('hc.agents.none'), t('hc.agents.noneFix'), 'rooms');
   else row('ok', t('hc.agents'), t('hc.agents.ok', { on: on.length, bg: on.filter((s) => s.bg && !s.tab).length, off: all.length - on.length }), '', 'rooms');
+  // chats shared between editors, hub autostart, background agents
+  const acc = H.accounts;
+  if (acc && acc.accounts.filter((a) => a.exists).length > 1) row(acc.shared ? 'ok' : 'warn', t('hc.share'), acc.shared ? t('hc.share.on') : t('hc.share.off'), acc.shared ? '' : t('hc.share.fix'), 'settings:account');
+  const au = H.autostart;
+  if (au) row(!au.supported ? 'info' : au.on ? 'ok' : 'info', t('hc.autostart'), !au.supported ? t('hc.autostart.unsupported') : au.on ? t('hc.autostart.on') : t('hc.autostart.off'), '', 'settings:account');
+  const maxBg = st.agents?.maxBackground ?? 4, nBg = Object.values(S.sessions).filter((s) => s.bg && !s.tab && s.status !== 'offline').length;
+  row(nBg >= maxBg ? 'warn' : 'ok', t('hc.bgagents'), t(nBg >= maxBg ? 'hc.bgagents.full' : 'hc.bgagents.ok', { n: nBg, max: maxBg }), nBg >= maxBg ? t('hc.bgagents.fix') : '', 'settings:account');
   // 6. switches
   if (st.lead) row(st.lead.wake?.enabled ? 'ok' : 'warn', t('hc.wake'), st.lead.wake?.enabled ? t('hc.wake.on') : t('hc.wake.off'), st.lead.wake?.enabled ? '' : t('hc.wake.fix'), 'settings:lead');
   if (typeof st.relayChat === 'boolean') row(st.relayChat ? 'ok' : 'warn', t('hc.relay'), st.relayChat ? t('hc.relay.on') : t('hc.relay.off'), '', 'settings:lead');
