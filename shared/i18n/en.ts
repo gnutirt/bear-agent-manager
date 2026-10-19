@@ -8,7 +8,7 @@ export const en: Record<string, string> = {
   'rooms.new': 'Create room',
   'rooms.name.ph': 'room-name',
   'rooms.name.label': 'New room name',
-  'sessions.title': 'Running Claude chats',
+  'sessions.title': 'Running agents',
   'sessions.filter': 'Filter by repo',
   'sessions.allRepos': 'All repos',
   'workers.cap.tip': 'Running / machine-wide cap',
