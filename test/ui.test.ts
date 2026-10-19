@@ -173,9 +173,15 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       'data-profile-remove="${esc(p.id)}"',
       "saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd",
       "api('/api/settings', { agents: { profiles } }, 'PUT')",
+      "api('/api/copilot/profiles').then",
+      "status?.auth === 'ok'",
+      "status?.auth === 'no'",
+      "data-profile-confirm=",
+      "api(`/api/copilot/profiles/${enc(id)}`, { on, confirm: true })",
       "t('ac.profile.runtime')",
       "t('ac.profile.login')",
       'data-profile-retry="${esc(p.id)}"',
+      "api(`/api/copilot/profiles/${enc(profileRetry.dataset.profileRetry)}/retry`, {})",
     ]) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });

@@ -861,7 +861,7 @@ export const vi: Record<string, string> = {
   'ac.copilot.enabled': 'Đã bật Copilot agent nền.',
   'ac.copilot.disabled': 'Đã dừng Copilot agent nền.',
   'ac.profile.title': 'Hồ sơ Copilot',
-  'ac.profile.note': 'Có thể lưu danh sách hồ sơ ngay; bật/tắt, trạng thái chạy và đăng nhập theo từng hồ sơ chỉ hoạt động khi hub hỗ trợ nhiều profile.',
+  'ac.profile.note': 'Trạng thái chạy và đăng nhập được hiển thị riêng cho từng hồ sơ. Bật hoặc tắt một hồ sơ không ảnh hưởng các hồ sơ khác.',
   'ac.profile.empty': 'Chưa có hồ sơ Copilot.',
   'ac.profile.id': 'ID hồ sơ (vd. copilot-work)',
   'ac.profile.name': 'Tên agent trong phòng',

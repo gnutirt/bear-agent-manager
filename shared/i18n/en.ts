@@ -861,7 +861,7 @@ export const en: Record<string, string> = {
   'ac.copilot.enabled': 'Background Copilot agent enabled.',
   'ac.copilot.disabled': 'Background Copilot agent stopped.',
   'ac.profile.title': 'Copilot profiles',
-  'ac.profile.note': 'Profiles can be saved now; per-profile enablement, runtime status, and sign-in checks require a hub with multi-profile runtime support.',
+  'ac.profile.note': 'Runtime and sign-in status are shown separately for each profile. Enabling or disabling one profile does not affect the others.',
   'ac.profile.empty': 'No Copilot profiles yet.',
   'ac.profile.id': 'Profile ID (e.g. copilot-work)',
   'ac.profile.name': 'Agent name in the room',

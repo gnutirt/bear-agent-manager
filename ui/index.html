@@ -1789,7 +1789,7 @@ function connect() {
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
   es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); renderUsageChips(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
-  es.addEventListener('copilot', (e) => { S.copilot = { ...S.copilot, ...JSON.parse(e.data) }; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+  es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
@@ -2651,9 +2651,17 @@ function healthBlock() {
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
-S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
+S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
+function loadCopilotProfiles() {
+  return api('/api/copilot/profiles').then((statuses) => {
+    S.copilotProfiles = Object.fromEntries(statuses.map((status) => [status.id, status]));
+    S.copilotProfileError = '';
+  }, (error) => {
+    S.copilotProfileError = error.message;
+  });
+}
 function loadAccounts() {
-  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null)]).then(([a, au, cp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles()]).then(([a, au, cp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
 }
 const SWM = lazy({ off: 'sw.mode.off', ask: 'sw.mode.ask', auto: 'sw.mode.auto' });
 const SWH = lazy({ off: 'sw.mode.hint.off', ask: 'sw.mode.hint.ask', auto: 'sw.mode.hint.auto' });
@@ -2664,8 +2672,28 @@ function switchBlock(st) {
     ${num('accountSwitch.atPct', sw_.atPct, t('sw.atPct'), '', 50, 100)}${num('accountSwitch.minOtherLeftPct', sw_.minOtherLeftPct, t('sw.minLeft'), '', 1, 100)}`;
 }
 async function saveCopilotProfiles(profiles) {
-  try { S.settings = await api('/api/settings', { agents: { profiles } }, 'PUT'); toast(t('settings.saved')); renderSettingsView(); }
+  try {
+    S.settings = await api('/api/settings', { agents: { profiles } }, 'PUT');
+    await loadCopilotProfiles();
+    toast(t('settings.saved'));
+    renderSettingsView();
+  }
   catch (e) { toast(e.message); }
+}
+async function setCopilotProfile(id, on) {
+  try {
+    await api(`/api/copilot/profiles/${enc(id)}`, { on, confirm: true });
+    [S.settings] = await Promise.all([api('/api/settings'), loadCopilotProfiles()]);
+    S.copilotProfileAsk = null;
+    toast(t(on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
+    renderSettingsView();
+  } catch (e) {
+    if (e.status === 429) toast(e.message);
+    else toast(e.message);
+    S.copilotProfileAsk = null;
+    await loadCopilotProfiles();
+    renderSettingsView();
+  }
 }
 function accountBlock(st) {
   if (S.acct === undefined) { S.acct = null; loadAccounts(); }
@@ -2691,16 +2719,17 @@ function accountBlock(st) {
   const autoHtml = !au ? '' : !au.supported ? `<p class="small muted">${t('ac.auto.unsupported')}</p>` : `<div class="pf"><b class="${au.on ? 'okt' : ''}">${au.on ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="autoToggle">${au.on ? t('ac.auto.turnOff') : t('ac.auto.turnOn')}</button></div>${aa ? `<div class="aplan"><p class="small">${esc(t(au.on ? 'ac.auto.removeFile' : 'ac.auto.file', { file: au.file || '' }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="autoCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="autoConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
   const cp = S.copilot, ca = S.copilotAsk;
   const copilotState = !cp ? t('ac.copilot.loading') : cp.state === 'error' ? t('ac.copilot.error') : cp.state === 'busy' ? t('ac.copilot.busy') : cp.state === 'idle' ? t('ac.copilot.ready') : cp.state === 'starting' ? t('ac.copilot.starting') : t('ac.copilot.off');
-  const copilotHtml = !cp ? `<p class="small muted">${copilotState}</p>` : `<div class="pf"><b class="${cp.state === 'idle' || cp.state === 'busy' ? 'okt' : cp.state === 'error' ? 'bad' : ''}">${esc(copilotState)}</b><span class="small muted">${cp.login ? esc(t('ac.copilot.account', { login: cp.login })) : ''}</span><span style="flex:1"></span><b class="${cp.autoStart ? 'okt' : ''}">${cp.autoStart ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="copilotToggle">${cp.autoStart ? t('ac.copilot.turnOff') : t('ac.copilot.turnOn')}</button></div>${cp.error ? `<p class="small bad" role="alert">${esc(cp.error)}</p>` : ''}${ca ? `<div class="aplan"><p class="small pwarn">${esc(t(ca.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff'))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="copilotCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="copilotConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
+  const copilotHtml = !cp ? `<p class="small muted">${copilotState}</p>` : `<div class="pf"><b class="${cp.state === 'idle' || cp.state === 'busy' ? 'okt' : cp.state === 'error' ? 'bad' : ''}">${esc(copilotState)}</b><span class="small muted">${cp.login ? esc(t('ac.copilot.account', { login: cp.login })) : ''}</span><span style="flex:1"></span><b class="${cp.enabled ? 'okt' : ''}">${cp.enabled ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="copilotToggle">${cp.enabled ? t('ac.copilot.turnOff') : t('ac.copilot.turnOn')}</button></div>${cp.error ? `<p class="small bad" role="alert">${esc(cp.error)}</p>` : ''}${ca ? `<div class="aplan"><p class="small pwarn">${esc(t(ca.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff'))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="copilotCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="copilotConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
   const profiles = st.agents?.profiles || [];
   const profileRows = profiles.map((p) => {
-    const isLegacy = p.id === 'copilot' && p.name === 'Copilot';
-    const runtime = isLegacy && cp ? (cp.state === 'error' ? t('ac.copilot.error') : cp.state === 'busy' ? t('ac.copilot.busy') : cp.state === 'idle' ? t('ac.copilot.ready') : cp.state === 'starting' ? t('ac.copilot.starting') : t('ac.copilot.off')) : t('ac.profile.statusUnavailable');
-    const login = isLegacy && cp?.login ? t('ac.profile.signedIn', { login: cp.login }) : isLegacy && /copilot login|not signed in/i.test(cp?.error || '') ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
+    const status = S.copilotProfiles?.[p.id];
+    const ask = S.copilotProfileAsk?.id === p.id ? S.copilotProfileAsk : null;
+    const runtime = status ? t(`ac.copilot.${status.state === 'error' ? 'error' : status.state === 'busy' ? 'busy' : status.state === 'idle' ? 'ready' : status.state === 'starting' ? 'starting' : 'off'}`) : t('ac.profile.statusUnavailable');
+    const login = status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
     return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span><span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
       <div class="small mono">${esc(p.cwd)}</div>${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
-      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t('ac.profile.login')}: <b>${esc(login)}</b></span>${isLegacy && p.enabled && cp?.state === 'error' ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t('ac.profile.retry')}</button>` : ''}</div>
-      ${isLegacy && cp?.error ? `<p class="small bad" role="alert">${esc(cp.error)}</p>` : ''}</article>`;
+      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t('ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t('ac.profile.retry')}</button>` : ''}</div>
+      ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
   const profileForm = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<form class="cprofile-new" id="copilotProfileNew">
     <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
@@ -2710,7 +2739,7 @@ function accountBlock(st) {
     <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
     <button class="btn primary">${t('ac.profile.add')}</button>
   </form>`;
-  const profilesHtml = `${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}`;
+  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}`;
   return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
@@ -2850,8 +2879,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const profileToggle = e.target.closest('[data-profile-enabled]');
     if (profileToggle) {
       const id = profileToggle.dataset.profileEnabled;
-      const profiles = (S.settings.agents?.profiles || []).map((p) => p.id === id ? { ...p, enabled: profileToggle.checked } : p);
-      return saveCopilotProfiles(profiles);
+      const profile = (S.settings.agents?.profiles || []).find((p) => p.id === id);
+      if (!profile) return;
+      S.copilotProfileAsk = { id, on: profileToggle.checked };
+      return renderSettingsView();
     }
     if (e.target.matches('[data-set]')) return saveSetting(e.target);
     if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
@@ -2911,13 +2942,17 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('#autoToggle')) { S.autoAsk = { on: !S.auto.on }; return renderSettingsView(); }
     if (e.target.closest('#autoCancel')) { S.autoAsk = null; return renderSettingsView(); }
     if (e.target.closest('#autoConfirm')) return api('/api/autostart', { on: S.autoAsk.on, confirm: true }).then((d) => { S.auto = { ...S.auto, ...d }; S.autoAsk = null; toast(t('ac.auto.done')); renderSettingsView(); }, (err) => toast(err.message));
-    if (e.target.closest('#copilotToggle')) { S.copilotAsk = { on: !S.copilot.autoStart }; return renderSettingsView(); }
+    if (e.target.closest('#copilotToggle')) { S.copilotAsk = { on: !S.copilot.enabled }; return renderSettingsView(); }
     if (e.target.closest('#copilotCancel')) { S.copilotAsk = null; return renderSettingsView(); }
-    if (e.target.closest('#copilotConfirm')) return api('/api/copilot', { on: S.copilotAsk.on, confirm: true }).then((d) => { S.copilot = d; S.copilotAsk = null; toast(t(d.autoStart ? 'ac.copilot.enabled' : 'ac.copilot.disabled')); renderSettingsView(); }, (err) => { if (err.data?.status) S.copilot = err.data.status; S.copilotAsk = null; toast(err.message); renderSettingsView(); });
+    if (e.target.closest('#copilotConfirm')) return api('/api/copilot', { on: S.copilotAsk.on, confirm: true }).then((d) => { S.copilot = d; S.copilotAsk = null; loadCopilotProfiles().then(renderSettingsView); toast(t(d.enabled ? 'ac.copilot.enabled' : 'ac.copilot.disabled')); renderSettingsView(); }, (err) => { if (err.data?.status) S.copilot = err.data.status; S.copilotAsk = null; toast(err.message); renderSettingsView(); });
     const profileRemove = e.target.closest('[data-profile-remove]');
     if (profileRemove) return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== profileRemove.dataset.profileRemove));
     const profileRetry = e.target.closest('[data-profile-retry]');
-    if (profileRetry) return api('/api/copilot', { on: true, confirm: true }).then((d) => { S.copilot = d; toast(t('ac.profile.retryDone')); renderSettingsView(); }, (err) => { if (err.data?.status) S.copilot = err.data.status; toast(err.message); renderSettingsView(); });
+    if (profileRetry) return api(`/api/copilot/profiles/${enc(profileRetry.dataset.profileRetry)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t('ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
+    if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
+    const profileConfirm = e.target.closest('[data-profile-confirm]');
+    if (profileConfirm) return setCopilotProfile(profileConfirm.dataset.profileConfirm, S.copilotProfileAsk?.on === true);
+    if (e.target.closest('#profileStatusRefresh')) return loadCopilotProfiles().then(renderSettingsView);
     const pmb = e.target.closest('[data-pmode]'); if (pmb) return savePerm(pmb.dataset.pmode, { mode: pmb.dataset.pv || null });
     const prm = e.target.closest('[data-prem]'); if (prm) return api('/api/settings', { permissions: { perAgent: { [prm.dataset.prem]: null } } }, 'PUT').then((s) => { S.settings = s; renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#localCheck')) { S.local = null; renderSettingsView(); return loadLocal(); }
