@@ -775,6 +775,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
+    <div class="sec" id="dmSec" hidden><span data-i18n="rooms.dm.title">Chat riêng</span></div>
+    <div id="dms" hidden></div>
     <div class="sec"><button type="button" id="sessToggle" class="sectoggle" aria-expanded="true"><span class="caret">▾</span> <span data-i18n="sessions.title">Agent đang chạy</span> <span id="sessCount" class="seccount"></span></button> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
     <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy" data-i18n-title="workers.cap.tip">0/4</span></div>
@@ -1190,7 +1192,7 @@ async function fillFollows(m) {
 }
 /** The settings of one member (role, model, topics, skill, danger zone) in a popup over the page; the members menu only lists them. */
 const memberBody = (s) => `
-<section class="mblk"><h4>${t('members.blk.role')}</h4><div class="mrow"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out} ${t('members.leave')}</button></div></section>
+<section class="mblk"><h4>${t('members.blk.role')}</h4><div class="mrow"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm" data-dm="${esc(s.id)}">${t('members.chatDm')}</button><button class="btn sm" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out} ${t('members.leave')}</button></div></section>
       <section class="mblk"><h4>${t('members.blk.model')}</h4><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false"></section>
       <section class="mblk" data-mtop="${esc(s.id)}" hidden></section>
       <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button class="btn sm" data-goskill="${esc(normAgent(s.name))}">${t('members.goSkill')}</button>${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}</div></section>
@@ -1200,6 +1202,7 @@ function wireMember(m, list) {
     const done = () => { zoomBack = null; closeMenu(); closeZoom(); };
     fillFollows(m);
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { done(); setLead(b.dataset.lead); });
+    m.querySelectorAll('[data-dm]').forEach((b) => b.onclick = () => api(`/api/rooms/dm/${enc(b.dataset.dm)}`, {}).then((r) => { done(); select(r.name); }, (e) => toast(e.message)));
     m.querySelectorAll('[data-goskill]').forEach((b) => b.onclick = () => { S.skAgent = b.dataset.goskill; done(); showTab('skills'); loadSkillUse(S.skAgent); });
     m.querySelectorAll('[data-opentab]').forEach((b) => b.onclick = () => { done(); openTab(b.dataset.opentab); });
     const sess = (id) => S.sessions[id];
@@ -1251,8 +1254,9 @@ function membersMenu(anchor) {
 /* ---------- rendering ---------- */
 function renderRooms() {
   const el = $('rooms'); el.innerHTML = '';
-  if (!S.rooms.length) el.innerHTML = `<div class="side-empty">${t('rooms.none')}</div>`;
-  for (const r of S.rooms) {
+  const normal = S.rooms.filter((r) => !r.dm);
+  if (!normal.length) el.innerHTML = `<div class="side-empty">${t('rooms.none')}</div>`;
+  for (const r of normal) {
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
@@ -1261,6 +1265,26 @@ function renderRooms() {
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
     el.append(b);
+  }
+  const dmSec = $('dmSec'), dmEl = $('dms');
+  const dms = S.rooms.filter((r) => r.dm && !r.dmHidden);
+  dmSec.hidden = dmEl.hidden = !dms.length;
+  dmEl.innerHTML = '';
+  for (const r of dms) {
+    const name = S.sessions[r.dm]?.name || r.dm;
+    const b = document.createElement('div');
+    b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
+    const un = S.unread[r.name] || 0;
+    b.innerHTML = `<span class="hash">@</span><span class="rname">${esc(name)}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('members.chatDm.hide')}" title="${t('members.chatDm.hide')}">${I.dots}</button>`;
+    b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
+    b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
+    b.querySelector('.more').onclick = (e) => {
+      e.stopPropagation();
+      api(`/api/rooms/${enc(r.name)}/hide`, {}).then(() => {
+        if (S.current === r.name) select(dms.find((x) => x.name !== r.name)?.name ?? normal[0]?.name ?? null);
+      }, (err) => toast(err.message));
+    };
+    dmEl.append(b);
   }
 }
 
@@ -1713,7 +1737,7 @@ async function select(name) {
 function setRooms(rooms) {
   S.rooms = rooms.sort((a, b) => a.name.localeCompare(b.name));
   for (const k of Object.keys(S.messages)) if (!room(k)) delete S.messages[k];
-  if (!room(S.current)) { S.current = null; return select(S.rooms[0]?.name ?? null); }
+  if (!room(S.current)) { S.current = null; return select(S.rooms.find((r) => !r.dm)?.name ?? S.rooms[0]?.name ?? null); }
   renderAll();
 }
 
@@ -1726,7 +1750,7 @@ function connect() {
     S.messages = {};
     let saved = null; try { saved = localStorage.getItem('bear-agent-manager:room'); } catch {}
     S.rooms = snap.rooms;
-    S.current = room(S.current) ? S.current : room(saved) ? saved : (S.rooms[0]?.name ?? null);
+    S.current = room(S.current) ? S.current : room(saved) ? saved : (S.rooms.find((r) => !r.dm)?.name ?? S.rooms[0]?.name ?? null);
     select(S.current);
     for (const r of S.rooms) loadTasks(r.name);
     loadWorkers();

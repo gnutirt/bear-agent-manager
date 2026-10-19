@@ -77,6 +77,20 @@ test('reply: quote bar, floating button, replyTo sent with the message, quote bo
   } finally { await hub.close(); }
 });
 
+test('T38: private chat per agent — popup button, dm rooms split from the room list, hide action', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'id="dmSec"', 'id="dms"',
+      'data-dm="${esc(s.id)}"', "t('members.chatDm')",
+      "api(`/api/rooms/dm/${enc(b.dataset.dm)}`",
+      "S.rooms.filter((r) => !r.dm)", "S.rooms.filter((r) => r.dm && !r.dmHidden)",
+      "api(`/api/rooms/${enc(r.name)}/hide`",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('i18n: every key the UI uses exists, and no Vietnamese text is left outside data-i18n fallbacks and comments', async () => {
   const { hub } = await makeHub();
   try {
