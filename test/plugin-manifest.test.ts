@@ -15,5 +15,5 @@ test('the room MCP server is declared in plugin.json, not in a root .mcp.json', 
   assert.equal(room?.command, 'node');
   assert.deepEqual(room.args, ['--no-warnings', '${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs', 'mcp/server.ts']);   // through the stable shim
   assert.ok(fs.existsSync(path.join(ROOT, room.args[2])), 'the server file exists');
-  assert.deepEqual(Object.keys(plugin.mcpServers), ['room']);
+  assert.deepEqual(Object.keys(plugin.mcpServers), ['room', 'muse']);
 });

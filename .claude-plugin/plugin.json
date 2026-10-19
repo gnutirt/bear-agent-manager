@@ -13,6 +13,14 @@
         "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
         "mcp/server.ts"
       ]
+    },
+    "muse": {
+      "command": "node",
+      "args": [
+        "--no-warnings",
+        "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+        "mcp/muse-server.ts"
+      ]
     }
   }
 }

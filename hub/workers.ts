@@ -8,8 +8,8 @@ import fs from 'node:fs';
 // status log that worker.ps1 appends to (<hub data>/workers.jsonl).
 
 export type Proc = { pid: number; ppid: number; name: string; cmd: string; started: number };
-export type Kind = 'worker' | 'osin';
-const normKind = (k: unknown): Kind => (/^(osin|vesinh)$/i.test(String(k ?? '')) ? 'osin' : 'worker');
+export type Kind = 'worker' | 'osin' | 'muse';
+const normKind = (k: unknown): Kind => (/^(osin|vesinh)$/i.test(String(k ?? '')) ? 'osin' : /^muse$/i.test(String(k ?? '')) ? 'muse' : 'worker');
 export type LiveWorker = {
   pid: number; childPid: number | null; kind: Kind; model: string; tools: string; canEdit: boolean;
   dir: string; promptFile: string; startedAt: number;

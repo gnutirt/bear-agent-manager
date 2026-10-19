@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const ALLOWED = new Set(['hooks/session-start.ts', 'hooks/waiter.ts', 'mcp/server.ts']);
+const ALLOWED = new Set(['hooks/session-start.ts', 'hooks/waiter.ts', 'mcp/server.ts', 'mcp/muse-server.ts']);
 const NAME = 'bear-agent-manager';
 const target = String(process.argv[2] ?? '');
 if (!ALLOWED.has(target)) { console.error(`shim: unknown target ${target}`); process.exit(1); }
