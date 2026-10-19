@@ -1,6 +1,8 @@
 ---
 name: vn-quy-dinh-dau-noi-dien-mat-troi
 description: Tra cứu và áp dụng quy định Việt Nam cho điện mặt trời mái nhà tự sản xuất, tự tiêu thụ (Nghị định 58/2025/NĐ-CP, thay Nghị định 135/2024/NĐ-CP) — đối tượng áp dụng, có được bán điện dư lên lưới không và tối đa bao nhiêu, khi nào được miễn giấy phép hoạt động điện lực, thủ tục đăng ký với điện lực, chống phát ngược (zero export). Dùng skill này mỗi khi người dùng hỏi lắp điện mặt trời mái nhà có phải xin phép không, có bán điện cho EVN được không, hệ bao nhiêu kW thì cần giấy phép, thủ tục đấu nối, hoặc soạn hồ sơ/thuyết minh pháp lý cho dự án điện mặt trời mái nhà ở Việt Nam, kể cả khi họ không nêu số hiệu nghị định.
+legalAsOf: 2026-10-19
+legalDocs: [58/2025/NĐ-CP, 135/2024/NĐ-CP]
 ---
 
 # Điện mặt trời mái nhà tự sản xuất, tự tiêu thụ — quy định Việt Nam

@@ -44,6 +44,11 @@ const jurisdictionByName = {
   'warranty-timeline': 'US', 'insurance-claim-summaries': 'US',
 };
 
+// Skills whose instructions include commands that change data or reach outside: shown as a warning before install.
+const cautionByName = {
+  'sql-queries': 'Có ví dụ câu lệnh ghi dữ liệu (MERGE, INSERT). Chỉ chạy trên kho dữ liệu khi người dùng đã duyệt từng câu.',
+};
+
 function findSkills(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
@@ -108,12 +113,36 @@ export function buildIndex() {
     const entry = { name, category, roles: roleOverrides[name] ?? [category], path, description: fm.description ?? '', descVi: descVi[name] ?? '', source, license, licenseFile: licenseFile(dirname(file)) };
     const jurisdiction = jurisdictionByName[name] ?? Object.entries(jurisdictionByPath).find(([p]) => (path + '/').startsWith(p))?.[1];
     if (jurisdiction) entry.jurisdiction = jurisdiction;
+    if (cautionByName[name]) entry.caution = cautionByName[name];
+    // Vietnamese-law skills record when their legal sources were last checked and which documents they rely on.
+    if (fm.legalAsOf) entry.legalAsOf = fm.legalAsOf;
+    if (fm.legalDocs) entry.legalDocs = fm.legalDocs.replace(/^\[|\]$/g, '').split(',').map((d) => d.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
     return outer ? { ...entry, bundle: outer } : entry;
   }).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+const ROLE_VI = { banking: 'Ngân hàng', slides: 'Slide', training: 'Đào tạo', general: 'Chung', legal: 'Pháp lý', solar: 'Solar' };
+
+// One table per role (a skill appears under its first role), for the owner to review the whole library in one place.
+export function catalog(skills) {
+  const cell = (t) => String(t ?? '').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+  const out = ['# Danh mục thư viện skill', '', `Tự sinh bởi \`node skill-library/build-index.mjs\` từ index.json. Không sửa tay. Tổng ${skills.length} skill.`, ''];
+  for (const [role, vi] of Object.entries(ROLE_VI)) {
+    const rows = skills.filter((s) => s.roles[0] === role).sort((a, b) => a.name.localeCompare(b.name));
+    if (!rows.length) continue;
+    out.push(`## ${vi} (${rows.length})`, '', '| Skill | Vai trò | Mô tả | Giấy phép | Luật | Ghi chú |', '|---|---|---|---|---|---|');
+    for (const s of rows) {
+      const notes = [s.bundle ? `cài cùng bộ \`${s.bundle}\`` : '', s.caution ?? '', s.legalAsOf ? `rà ${s.legalAsOf}` : ''].filter(Boolean).join('; ');
+      out.push(`| \`${s.name}\` | ${s.roles.map((r) => ROLE_VI[r] ?? r).join(', ')} | ${cell(s.descVi || s.description)} | ${s.license} | ${s.jurisdiction ?? ''} | ${cell(notes)} |`);
+    }
+    out.push('');
+  }
+  return out.join('\n');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const skills = buildIndex();
   writeFileSync(join(root, 'index.json'), JSON.stringify({ generated: new Date().toISOString().slice(0, 10), count: skills.length, skills }, null, 2) + '\n');
-  console.log(`${skills.length} skills -> index.json`);
+  writeFileSync(join(root, 'CATALOG.md'), catalog(skills));
+  console.log(`${skills.length} skills -> index.json, CATALOG.md`);
 }

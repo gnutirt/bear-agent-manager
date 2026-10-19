@@ -4,7 +4,8 @@ Kho skill dự trữ cho hệ thống bear-agent-manager. Gom ngày 2026-10-18 t
 Thư mục này **không** tự nạp vào Claude Code (khác với `skills/` của plugin) — muốn dùng skill nào thì cài skill đó.
 
 Tổng: **163 skill** — Ngân hàng 97 · Slide 11 · Training 12 · Chung 6 · Pháp lý 22 · Solar 15.
-Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`.
+Trường `jurisdiction` trong index ghi skill viết theo luật nước nào (`US` hoặc `VN`); giao diện cảnh báo khi dùng skill luật Mỹ cho việc ở Việt Nam. Danh sách máy đọc: `index.json` (tạo lại bằng `node skill-library/build-index.mjs`). Nguồn và giấy phép: `NOTICE.md`. **Duyệt cả thư viện một chỗ: `CATALOG.md`** (tự sinh, bảng tên, vai trò, mô tả, giấy phép, luật, ghi chú).
+Skill quy định Việt Nam có `legalAsOf` (ngày rà văn bản gần nhất) và `legalDocs` trong frontmatter, kèm `references/van-ban/INDEX.md` ghi tình trạng hiệu lực từng văn bản; test báo khi quá 180 ngày chưa rà.
 Vai trò: mỗi skill có `roles` (mặc định là nhóm của nó; ngoại lệ ghi tay ở `roles.json`). Gói vai trò "cốt lõi" (tối đa 8 skill mỗi gói) ở `packs.json`. Mô tả tiếng Việt (`descVi`) ghi tay ở `descriptions.vi.json`. Skill con của `course-training-skills` có trường `bundle`: chỉ chạy khi cài cả bộ. File mà kho gốc vốn thiếu được ghi ở `known-gaps.json`. Kiểm tra: `node --test test/skill-library.test.ts`.
 
 ## Cài và dùng skill thư viện

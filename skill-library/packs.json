@@ -38,6 +38,26 @@
     "when": "every"
   },
   {
+    "id": "banking-ops",
+    "vi": "Ngân hàng — vận hành và dữ liệu",
+    "en": "Banking — operations and data",
+    "roles": [
+      "banking"
+    ],
+    "skills": [
+      "process-doc",
+      "sql-queries",
+      "statistical-analysis",
+      "collateral-valuation",
+      "managing-construction-loan-administration",
+      "gl-recon",
+      "variance-commentary",
+      "xlsx-author"
+    ],
+    "mode": "auto",
+    "when": "every"
+  },
+  {
     "id": "slides-core",
     "vi": "Slide — cốt lõi",
     "en": "Slides — core",

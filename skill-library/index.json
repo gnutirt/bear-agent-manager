@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-18",
+  "generated": "2026-10-19",
   "count": 163,
   "skills": [
     {
@@ -1325,7 +1325,12 @@
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
       "licenseFile": "banking/vietnam/LICENSE",
-      "jurisdiction": "VN"
+      "jurisdiction": "VN",
+      "legalAsOf": "2026-10-19",
+      "legalDocs": [
+        "31/2024/TT-NHNN",
+        "37/2025/TT-NHNN"
+      ]
     },
     {
       "name": "vn-phong-chong-rua-tien",
@@ -1334,12 +1339,18 @@
         "banking"
       ],
       "path": "banking/vietnam/vn-phong-chong-rua-tien",
-      "description": "Hỗ trợ công việc phòng, chống rửa tiền (PCRT/AML) theo pháp luật Việt Nam cho ngân hàng và tổ chức tín dụng — nhận biết khách hàng (KYC), đánh giá và phân loại rủi ro khách hàng, rà soát giao dịch đáng ngờ, giao dịch phải báo cáo, lưu giữ hồ sơ, soạn quy định nội bộ hoặc báo cáo PCRT. Dùng skill này mỗi khi người dùng nhắc tới rửa tiền, PCRT, AML, KYC, Luật 14/2022/QH15, Nghị định 19/2023, Thông tư 09/2023/TT-NHNN, giao dịch đáng ngờ, Cục Phòng, chống rửa tiền, hoặc hỏi một khách hàng/giao dịch có phải báo cáo không, kể cả khi họ không nói chữ \"rửa tiền\".",
+      "description": "Hỗ trợ công việc phòng, chống rửa tiền (PCRT/AML) theo pháp luật Việt Nam cho ngân hàng và tổ chức tín dụng — nhận biết khách hàng (KYC), đánh giá và phân loại rủi ro khách hàng, rà soát giao dịch đáng ngờ, giao dịch phải báo cáo, lưu giữ hồ sơ, soạn quy định nội bộ hoặc báo cáo PCRT. Dùng skill này mỗi khi người dùng nhắc tới rửa tiền, PCRT, AML, KYC, Luật 14/2022/QH15, Nghị định 19/2023, Thông tư 27/2025/TT-NHNN (hoặc Thông tư 09/2023 cũ), giao dịch đáng ngờ, Cục Phòng, chống rửa tiền, hoặc hỏi một khách hàng/giao dịch có phải báo cáo không, kể cả khi họ không nói chữ \"rửa tiền\".",
       "descVi": "Phòng, chống rửa tiền theo pháp luật Việt Nam (Luật 14/2022/QH15): KYC, đánh giá rủi ro, giao dịch phải báo cáo.",
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
       "licenseFile": "banking/vietnam/LICENSE",
-      "jurisdiction": "VN"
+      "jurisdiction": "VN",
+      "legalAsOf": "2026-10-19",
+      "legalDocs": [
+        "14/2022/QH15",
+        "19/2023/NĐ-CP",
+        "27/2025/TT-NHNN"
+      ]
     },
     {
       "name": "internal-comms",
@@ -1409,7 +1420,8 @@
       "descVi": "Viết và tối ưu truy vấn SQL cho báo cáo và phân tích dữ liệu.",
       "source": "https://github.com/anthropics/knowledge-work-plugins",
       "license": "Apache-2.0",
-      "licenseFile": "general/knowledge-work/LICENSE"
+      "licenseFile": "general/knowledge-work/LICENSE",
+      "caution": "Có ví dụ câu lệnh ghi dữ liệu (MERGE, INSERT). Chỉ chạy trên kho dữ liệu khi người dùng đã duyệt từng câu."
     },
     {
       "name": "statistical-analysis",
@@ -2097,7 +2109,12 @@
       "source": "https://github.com/gnutirt/bear-agent-manager (tự viết)",
       "license": "MIT",
       "licenseFile": "solar/vietnam/LICENSE",
-      "jurisdiction": "VN"
+      "jurisdiction": "VN",
+      "legalAsOf": "2026-10-19",
+      "legalDocs": [
+        "58/2025/NĐ-CP",
+        "135/2024/NĐ-CP"
+      ]
     },
     {
       "name": "course-training-skills",

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildIndex, skillRefs } from '../skill-library/build-index.mjs';
+import { buildIndex, catalog, skillRefs } from '../skill-library/build-index.mjs';
 
 const lib = path.join(import.meta.dirname, '..', 'skill-library');
 const read = (f: string) => JSON.parse(fs.readFileSync(path.join(lib, f), 'utf8'));
@@ -68,6 +68,20 @@ test('jurisdiction, when set, is US or VN; every legal skill has one', () => {
     if ('jurisdiction' in s) assert.ok(['US', 'VN'].includes(s.jurisdiction), `${s.name}: ${s.jurisdiction}`);
     if (s.category === 'legal') assert.ok(s.jurisdiction, `${s.name}: legal skill without jurisdiction`);
   }
+});
+
+test('Vietnamese-law skills record legalAsOf (checked within 180 days), legalDocs and a van-ban/INDEX.md', () => {
+  for (const s of skills.filter((x: any) => x.jurisdiction === 'VN')) {
+    assert.match(s.legalAsOf ?? '', /^\d{4}-\d{2}-\d{2}$/, `${s.name}: legalAsOf missing in frontmatter`);
+    const days = (Date.now() - Date.parse(s.legalAsOf)) / 86400000;
+    assert.ok(days <= 180, `${s.name}: legal sources last checked ${s.legalAsOf}, over 180 days ago; review and update legalAsOf`);
+    assert.ok(Array.isArray(s.legalDocs) && s.legalDocs.length > 0, `${s.name}: legalDocs missing`);
+    assert.ok(fs.existsSync(path.join(lib, s.path, 'references', 'van-ban', 'INDEX.md')), `${s.name}: references/van-ban/INDEX.md missing`);
+  }
+});
+
+test('CATALOG.md is up to date with index.json', () => {
+  assert.equal(fs.readFileSync(path.join(lib, 'CATALOG.md'), 'utf8'), catalog(skills), 'run: node skill-library/build-index.mjs');
 });
 
 test('roles.json only names library skills and known roles', () => {
