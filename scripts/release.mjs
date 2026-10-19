@@ -3,7 +3,9 @@
 // Checks that the version files and CHANGELOG are clean (other people's unfinished files may stay; they are listed) and green tests, sets the version in package.json and .claude-plugin/*.json, turns the
 // CHANGELOG "Unreleased" section into "## X.Y.Z - <date>" (with a new empty Unreleased), commits "release: vX.Y.Z"
 // and tags vX.Y.Z. It never pushes: the owner pushes and publishes the GitHub Release (commands printed at the end).
-// --no-test skips the test run (only for this script's own tests, which run inside the suite).
+// The tests AND `npm run smoke` (scripts/smoke.ts, a real hub with a fake claude) must both pass before anything is written or tagged.
+// --skip-smoke="reason" skips only the smoke test, and writes the reason into the CHANGELOG of that release.
+// --no-test skips both (only for this script's own tests, which run inside the suite).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,7 +56,7 @@ export function setVersion(root, version) {
   return files;
 }
 
-export function release(root, version, { test = true, date = new Date().toISOString().slice(0, 10), log = console.log } = {}) {
+export function release(root, version, { test = true, smoke = test, skipSmoke = undefined, date = new Date().toISOString().slice(0, 10), log = console.log } = {}) {
   const git = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8' }).trim();
   const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   if (['patch', 'minor', 'major'].includes(version)) version = nextVersion(current, version);
@@ -68,11 +70,22 @@ export function release(root, version, { test = true, date = new Date().toISOStr
   if (others.length) log(`note: ${others.length} other file(s) are changed and are NOT part of this release:\n${others.map((l) => '  ' + l).join('\n')}`);
   if (git('tag', '--list', `v${version}`)) throw new Error(`tag v${version} already exists`);
   const logFile = path.join(root, 'CHANGELOG.md');
-  const notes = unreleased(fs.readFileSync(logFile, 'utf8'));
-  const cut = cutChangelog(fs.readFileSync(logFile, 'utf8'), version, date);   // fails before anything is written
+  let changelog = fs.readFileSync(logFile, 'utf8');
+  if (smoke && skipSmoke !== undefined && !String(skipSmoke).trim()) throw new Error('--skip-smoke needs a reason: --skip-smoke="why"');
+  if (smoke && skipSmoke !== undefined) {
+    changelog = changelog.replace(/^## Unreleased[^\n]*\n\n?/m, (h) => `${h}- Released WITHOUT the smoke test: ${String(skipSmoke).trim().replace(/\s+/g, ' ')}\n`);
+    smoke = false;
+  }
+  const notes = unreleased(changelog);
+  const cut = cutChangelog(changelog, version, date);   // fails before anything is written
   if (test) {
     log('running the tests…');
     execFileSync(process.execPath, ['--no-warnings', '--test', 'test/**/*.test.ts'], { cwd: root, stdio: 'inherit' });
+  }
+  if (smoke) {
+    if (!fs.existsSync(path.join(root, 'scripts', 'smoke.ts'))) throw new Error('scripts/smoke.ts is missing: cannot run the smoke test (use --skip-smoke="reason" to release without it)');
+    log('running the smoke test…');
+    execFileSync(process.execPath, ['--no-warnings', 'scripts/smoke.ts'], { cwd: root, stdio: 'inherit' });
   }
   const files = setVersion(root, version);
   fs.writeFileSync(logFile, cut);
@@ -87,6 +100,7 @@ export function release(root, version, { test = true, date = new Date().toISOStr
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  try { release(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), args.find((a) => !a.startsWith('--')), { test: !args.includes('--no-test') }); }
+  const skip = args.find((a) => a === '--skip-smoke' || a.startsWith('--skip-smoke='));
+  try { release(path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), args.find((a) => !a.startsWith('--')), { test: !args.includes('--no-test'), ...(skip !== undefined ? { skipSmoke: skip.includes('=') ? skip.slice(skip.indexOf('=') + 1) : '' } : {}) }); }
   catch (e) { console.error(`release: ${e.message}`); process.exit(1); }
 }

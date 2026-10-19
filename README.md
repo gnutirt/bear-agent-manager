@@ -210,6 +210,8 @@ git push origin HEAD v0.3.1       # the script never pushes
 gh release create v0.3.1 --title v0.3.1 --notes-file .git/release-notes-v0.3.1.md
 ```
 
+A release runs the whole test suite AND `npm run smoke` and writes nothing (no version, no tag) when either is red. `--skip-smoke="reason"` skips only the smoke test and records the reason under that release in the CHANGELOG.
+
 Only `package.json`, `.claude-plugin/*.json` and `CHANGELOG.md` must be committed before a release; other people's unfinished files stay out of it (the script lists them).
 
 Hubs ask GitHub for the latest release at most every 6 hours (`GET /api/version`; off with `updates.check: false` in settings) and show "update available". Installs from a Claude Code marketplace update with `/plugin marketplace update` then `/plugin update`; a git checkout updates with `git pull`. Reopen the chats afterwards, since hooks load when a chat starts, and restart the hub.

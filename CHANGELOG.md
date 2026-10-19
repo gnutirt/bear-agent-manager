@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Release gate: `scripts/release.mjs` now runs `npm run smoke` after the test suite and writes/tags nothing when either is red (`--skip-smoke="reason"` skips only the smoke test and records the reason in that release's CHANGELOG). `npm run smoke` has 11 checks now: added several agents answering in their own topics, relay chat only for a turn the owner asked (sys type relay, under the agent's name, wakes nobody) and `POST /api/agents` answering 429 above `maxBackground`; it never uses port 7788 or a backup drive. Checked that it catches a regression: with the old `endedOnLimit` it fails "the WORKING tab was ended".
 ## 0.6.1 - 2026-10-19
 
 - `npm run smoke` (scripts/smoke.ts + scripts/smoke/fake-claude.mjs): an end-to-end check on a throw-away hub (random port, temp home, a fake `claude` on PATH, the real waiter): @mention wake, a background wake that survives 3 turns with answers in their topic, a tab ending the background claude, usage limit then reset (stuck tab woken, working tab untouched), tasks, attachments, machine export, End/Compact 409 on uncommitted files. PASS/FAIL table, non-zero exit on failure (README Smoke test).

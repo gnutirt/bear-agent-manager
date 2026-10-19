@@ -24,6 +24,8 @@ if (process.platform === 'win32') fs.writeFileSync(path.join(bin, 'claude.cmd'),
 else { fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\nexec node "${fake}" "$@"\n`); fs.chmodSync(path.join(bin, 'claude'), 0o755); }
 process.env.PATH = bin + path.delimiter + process.env.PATH;
 process.env.BEAR_AGENT_HOME = home;
+delete process.env.BEAR_AGENT_ARCHIVE_DIR;   // a clean machine has no backup drive: never write to the real one
+delete process.env.AGENT_ROOM_HOME;
 fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ language: 'vi', lead: { idleMin: 1 } }));
 fs.mkdirSync(path.join(fakeHome, '.claude', 'skills', 'demo'), { recursive: true });
 fs.writeFileSync(path.join(fakeHome, '.claude', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: smoke\n---\n');
@@ -169,6 +171,50 @@ await check('End and Compact refuse a folder with uncommitted files (409) unless
   await call('/api/sessions/frank/terminate', { force: true });
   await until('the process to end', () => !alive(pid), 5000);
   return 'both 409 with the dirty count, force ends it';
+});
+
+await check('several agents answering: each answer stays in the topic its own turn was asked in', async () => {
+  for (const [id, name] of [['hank', 'hank'], ['iris', 'iris']]) {
+    await member(id, name, { transcript: transcript(id, [{ type: 'user', message: { content: 'hi' } }]) });
+    await hook('end', { session_id: id });
+  }
+  const ack = async (id: string, n: number) => (await msgs()).find((m) => m.fromId === id && m.text.startsWith(`ack ${n} `));
+  await call('/api/rooms/smoke/messages', { text: '@hank @iris check the ops', topic: 'ops' });
+  const [h1, i1] = [await until('hank ack 1', () => ack('hank', 1), 20_000), await until('iris ack 1', () => ack('iris', 1), 20_000)];
+  if (h1.topic !== 'ops' || i1.topic !== 'ops') throw new Error(`topics after the first turn: hank=${h1.topic} iris=${i1.topic}`);
+  await until('hank in its waiter', async () => (await call<any>('/api/sessions/hank')).session.status === 'idle');
+  await call('/api/rooms/smoke/messages', { text: '@hank and now something general' });   // no topic: the main room
+  const h2 = await until('hank ack 2', () => ack('hank', 2), 15_000);
+  if (h2.topic) throw new Error(`hank's answer to a main-room message went to #${h2.topic}`);
+  return 'ops/ops, then the main room';
+});
+
+await check('relay chat: only a turn the owner asked, as a hub notice with sys type relay under the agent name', async () => {
+  await member('gina', 'gina');
+  const long = 'This is the answer that stayed in the private chat of the agent and should reach the room, long enough to count.';
+  const stopTurn = async (waiterMsg: () => Promise<unknown>) => {
+    const w = spawnWaiter('gina'); await sleep(500); await waiterMsg(); await Promise.race([w.exit, sleep(6000)]); w.kill();
+    await hook('stop', { session_id: 'gina', last_assistant_message: long });
+  };
+  const relays = async () => (await msgs()).filter((m) => m.sys?.type === 'relay' && m.fromId === 'gina');
+  await stopTurn(() => callTool(api, 'alice', 'room_send', { text: '@gina agent to agent, no owner' }));   // an agent asked: nothing is relayed
+  if ((await relays()).length) throw new Error('a turn asked by another agent was relayed');
+  await stopTurn(() => call('/api/rooms/smoke/messages', { text: '@gina owner question' }));
+  const r = (await relays())[0];
+  if (!r) throw new Error('the owner\'s turn was not relayed');
+  if (r.from !== 'gina' || r.kind !== 'system' || r.sys.level !== 'info' || r.wake.length) throw new Error(`relay shape: from=${r.from} kind=${r.kind} level=${r.sys?.level} wake=${r.wake}`);
+  return 'agent turn: none; owner turn: 1 relay';
+});
+
+await check('POST /api/agents answers 429 above settings.agents.maxBackground', async () => {
+  for (const pid of fakePids()) try { process.kill(pid); } catch { /* gone */ }   // the earlier background agents count too: make room first
+  await sleep(800);
+  await call('/api/settings', { agents: { maxBackground: 1 } }, { method: 'PUT' });
+  const first = await call<any>('/api/agents', { name: 'newbie', cwd: repo, room: 'smoke', confirm: true });
+  await until('the new agent to run', () => fs.existsSync(path.join(home, `fake-claude-${first.id}.log`)), 15_000);
+  const second = await call('/api/agents', { name: 'newbie2', cwd: repo, room: 'smoke', confirm: true }).then(() => null, (e: any) => e);
+  if (second?.status !== 429) throw new Error(`the second agent answered ${second ? second.status : 'ok'}`);
+  return '1 running, the 2nd refused with 429';
 });
 
 // ---- report ----

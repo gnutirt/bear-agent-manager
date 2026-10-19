@@ -55,3 +55,37 @@ test('nextVersion: patch for fixes, minor for features, major for contract break
   assert.equal(nextVersion('0.3.9', 'major'), '1.0.0');
   assert.throws(() => nextVersion('0.3.9', 'huge'), /unknown bump/);
 });
+
+function tempRepo(smokeScript?: string) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rel-smoke-'));
+  const git = (...a: string[]) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8' }).trim();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'tool', version: '0.1.0' }));
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), LOG);
+  if (smokeScript !== undefined) { fs.mkdirSync(path.join(root, 'scripts')); fs.writeFileSync(path.join(root, 'scripts', 'smoke.ts'), smokeScript); }
+  git('init', '-q'); git('config', 'user.email', 'a@b.c'); git('config', 'user.name', 'a'); git('add', '.'); git('commit', '-q', '-m', 'init');
+  return { root, git };
+}
+const loud = { date: '2026-10-19', log: () => {} };
+
+test('release: the smoke test must pass before anything is tagged; a red or missing smoke test stops it', () => {
+  const red = tempRepo('process.exit(1);');
+  assert.throws(() => release(red.root, 'minor', { ...loud, test: false, smoke: true }));
+  assert.equal(red.git('tag', '--list'), '', 'nothing tagged');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(red.root, 'package.json'), 'utf8')).version, '0.1.0', 'version untouched');
+  assert.equal(fs.readFileSync(path.join(red.root, 'CHANGELOG.md'), 'utf8'), LOG, 'changelog untouched');
+  const none = tempRepo();
+  assert.throws(() => release(none.root, 'minor', { ...loud, test: false, smoke: true }), /smoke\.ts is missing/);
+  const green = tempRepo('process.exit(0);');
+  release(green.root, 'minor', { ...loud, test: false, smoke: true });
+  assert.equal(green.git('tag', '--list'), 'v0.2.0');
+});
+
+test('release --skip-smoke needs a reason and writes it into the CHANGELOG of that release', () => {
+  const r = tempRepo('process.exit(1);');   // would fail if it ran
+  assert.throws(() => release(r.root, 'minor', { ...loud, test: false, smoke: true, skipSmoke: '  ' }), /needs a reason/);
+  assert.equal(r.git('tag', '--list'), '');
+  const out = release(r.root, 'minor', { ...loud, test: false, smoke: true, skipSmoke: 'no claude on this CI machine' });
+  assert.match(out.notes, /Released WITHOUT the smoke test: no claude on this CI machine/);
+  assert.match(fs.readFileSync(path.join(r.root, 'CHANGELOG.md'), 'utf8'), /## 0\.2\.0 - 2026-10-19\n\n- Released WITHOUT the smoke test: no claude on this CI machine\n- New thing\./);
+  assert.equal(r.git('tag', '--list'), 'v0.2.0');
+});
