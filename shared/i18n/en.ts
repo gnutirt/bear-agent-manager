@@ -901,4 +901,6 @@ export const en: Record<string, string> = {
   'sw.now': 'Switch now to {to}',
   'sw.done': 'Switched; the agent is continuing in the background.',
   'sw.needShare': 'Share chats between the editors first (Accounts tab).',
+  'task.markedDone': 'Task #{id} marked done',
+  'task.undo': 'Undo',
 };

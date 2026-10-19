@@ -901,4 +901,6 @@ export const vi: Record<string, string> = {
   'sw.now': 'Chuyển ngay sang {to}',
   'sw.done': 'Đã chuyển; agent đang làm tiếp ở chế độ nền.',
   'sw.needShare': 'Cần dùng chung chat giữa hai IDE trước (tab Tài khoản).',
+  'task.markedDone': 'Đã đánh dấu xong việc #{id}',
+  'task.undo': 'Hoàn tác',
 };

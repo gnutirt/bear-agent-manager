@@ -432,6 +432,7 @@ header .spacer{flex:1}
 .tdetail{flex:0 0 100%;padding:4px 0 2px 36px;font-size:13.5px}.tdetail p{margin:4px 0}.tmeta2{display:flex;gap:10px;align-items:center;margin-top:6px}.tdetail .tacts{margin-top:10px}
 .tfilter{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.tmore{position:relative}.tmore summary{list-style:none;cursor:pointer}.tmore summary::-webkit-details-marker{display:none}.tmenu2{position:absolute;right:0;top:110%;z-index:5;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:210px}
 .tform{grid-template-columns:2fr 1fr 2fr}
+.toastundo{margin-left:8px;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,.16);color:inherit;font-weight:700}#toast.show:has(.toastundo){pointer-events:auto}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -1066,9 +1067,10 @@ function mdRaw(src) {
 }
 
 let toastTimer;
-function toast(text) {
+function toast(text, undo) {
   const t = $('toast'); t.textContent = text; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  if (undo) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toastundo'; b.textContent = undo.label; b.onclick = () => { t.classList.remove('show'); clearTimeout(toastTimer); undo.fn(); }; t.append(' ', b); }
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), undo ? undo.ms : 2200);
 }
 function note(e) { $('notice').textContent = e ? (e.message || String(e)) : ''; }
 async function copy(text, done) {
@@ -1938,7 +1940,19 @@ function renderTasks() {
 }
 $('view-tasks').addEventListener('click', (e) => {
   const r = S.current, q = (sel) => e.target.closest(sel);
-  const tn = q('[data-tnext]'); if (tn) { const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext); if (x) { const ns = x.status === 'done' ? 'todo' : 'done'; return api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: ns }).then(() => loadTasks(r), (err) => toast(err.message)); } }
+  const tn = q('[data-tnext]'); if (tn) {
+    const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext);
+    if (x) {
+      if (x.status !== 'done') {   // marking done is announced to the whole room: give a few seconds to take it back before the hub hears of it
+        const before = x.status; let undone = false;
+        x.status = 'done'; renderTasks();
+        const timer = setTimeout(() => { if (!undone) api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: 'done' }).then(() => loadTasks(r), (err) => { toast(err.message); loadTasks(r); }); }, 6000);
+        toast(t('task.markedDone', { id: x.id }), { label: t('task.undo'), ms: 6000, fn: () => { undone = true; clearTimeout(timer); x.status = before; renderTasks(); } });
+        return;
+      }
+      return api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: 'todo' }).then(() => loadTasks(r), (err) => toast(err.message));
+    }
+  }
   const tf = q('[data-townerf]'); if (tf) { S.tfOwner = tf.dataset.townerf; return renderTasks(); }
   const tt = q('[data-ttoggle]'); if (tt && !q('.tedit') && !q('a,button')) { const id = +tt.dataset.ttoggle; S.taskOpen = S.taskOpen === id ? null : id; return renderTasks(); }
   if (q('#taskAdd')) { S.taskForm = !S.taskForm; return renderTasks(); }
