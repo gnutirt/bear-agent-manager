@@ -11,21 +11,7 @@ import { startHub } from '../hub/server.ts';
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
 
 function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string; start?: () => Promise<void> } = {}) {
-  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
-  const factory = () => ({
-    start: async () => { calls.started++; await start(); },
-    getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
-    createSession: async (config: { sessionId?: string }) => {
-      calls.created++;
-      calls.providerId = config.sessionId ?? uuid;
-      return session(calls.providerId);
-    },
-    resumeSession: async (id: string) => {
-      calls.resumed.push(id);
-      return session(id);
-    },
-    stop: async () => { calls.stopped++; return []; },
-  });
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; clientOptions?: { cwd: string; baseDirectory: string } } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
   function session(sessionId: string) {
     return {
       sessionId,
@@ -33,6 +19,23 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
       disconnect: async () => {},
     };
   }
+  const factory = (cwd: string, baseDirectory: string) => {
+    calls.clientOptions = { cwd, baseDirectory };
+    return {
+      start: async () => { calls.started++; await start(); },
+      getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
+      createSession: async (config: { sessionId?: string }) => {
+        calls.created++;
+        calls.providerId = config.sessionId ?? uuid;
+        return session(calls.providerId);
+      },
+      resumeSession: async (id: string) => {
+        calls.resumed.push(id);
+        return session(id);
+      },
+      stop: async () => { calls.stopped++; return []; },
+    };
+  };
   return { factory, calls };
 }
 
@@ -62,6 +65,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(started.autoStart, true);
     assert.equal(started.login, 'test-user');
     assert.equal(calls.created, 1);
+    assert.deepEqual(calls.clientOptions, { cwd: process.cwd(), baseDirectory: h.dir });
     assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Copilot', 'reviewer']);
@@ -95,6 +99,41 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
       body: JSON.stringify({ on: true, confirm: true }),
+    });
+
+    test('Copilot reclaims its name from an ended session but refuses a live session', async () => {
+      const stale = await makeHub(undefined, undefined, { copilotClientFactory: fakeFactory().factory });
+      try {
+        const old = stale.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy' });
+        stale.hub.store.rename(old.id, 'Copilot');
+        stale.hub.store.markEnded(old.id);
+        const started = await stale.call<any>('/api/copilot', { on: true, confirm: true });
+        assert.equal(started.state, 'idle');
+        assert.equal(stale.hub.store.session(old.id).name, `Copilot-old-${old.id.slice(0, 8)}`);
+        assert.ok(stale.hub.store.members('bear-agent-manager').some((s) => s.name === 'Copilot'));
+      } finally {
+        await stale.hub.close();
+        fs.rmSync(stale.dir, { recursive: true, force: true });
+      }
+
+      const liveFactory = fakeFactory();
+      const live = await makeHub(undefined, undefined, { copilotClientFactory: liveFactory.factory });
+      try {
+        const peer = live.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy', pid: process.pid });
+        live.hub.store.rename(peer.id, 'Copilot');
+        const response = await fetch(live.hub.url + '/api/copilot', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-room-token': live.hub.token },
+          body: JSON.stringify({ on: true, confirm: true }),
+        });
+        assert.equal(response.status, 503);
+        const result = await response.json() as any;
+        assert.match(result.error, /different hub session is already named Copilot/);
+        assert.equal(liveFactory.calls.started, 0);
+      } finally {
+        await live.hub.close();
+        fs.rmSync(live.dir, { recursive: true, force: true });
+      }
     });
     assert.equal(response.status, 503);
     const body = await response.json() as any;

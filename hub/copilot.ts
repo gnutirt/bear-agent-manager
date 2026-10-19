@@ -18,7 +18,7 @@ export type CopilotStatus = { state: State; room: string; cwd: string; login?: s
 
 type Session = Pick<CopilotSession, 'sessionId' | 'sendAndWait' | 'disconnect'>;
 type Client = Pick<CopilotClient, 'start' | 'stop' | 'getAuthStatus' | 'createSession' | 'resumeSession'>;
-export type CopilotClientFactory = (cwd: string) => Client | Promise<Client>;
+export type CopilotClientFactory = (cwd: string, baseDirectory: string) => Client | Promise<Client>;
 
 export type CopilotAgentOptions = {
   dir: string;
@@ -33,7 +33,12 @@ export type CopilotAgentOptions = {
 };
 
 // Loaded on first start: the SDK calls createRequire(process.argv[1]) at import, which throws under `node -e` (the hub's restart load check).
-const defaultClient: CopilotClientFactory = async (cwd) => new (await import('@github/copilot-sdk')).CopilotClient({ mode: 'empty', workingDirectory: cwd, logLevel: 'error' });
+const defaultClient: CopilotClientFactory = async (cwd, baseDirectory) => new (await import('@github/copilot-sdk')).CopilotClient({
+  mode: 'empty',
+  workingDirectory: cwd,
+  baseDirectory: path.join(baseDirectory, 'copilot-sdk'),
+  logLevel: 'error',
+});
 
 function mappedToolName(request: PermissionRequest): string {
   if (request.kind === 'read') return 'Read';
@@ -169,7 +174,7 @@ export class CopilotAgent {
       const identity = this.identity ?? (this.identity = readIdentity(this.file));
       if (!fs.existsSync(this.file)) saveIdentity(this.file, identity);
       this.ensureRoom(identity);
-      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd);
+      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd, this.opts.dir);
       createdClient = made instanceof Promise ? await made : made;
       this.client = createdClient;
       await createdClient.start();
@@ -219,8 +224,18 @@ export class CopilotAgent {
   }
 
   private ensureRoom(identity: Identity): void {
+    this.opts.store.createRoom(ROOM);
     const existing = Object.values(this.opts.store.state.sessions).find((s) => s.name.toLowerCase() === NAME.toLowerCase() && s.id !== identity.hubId);
-    if (existing) throw new Error(`A different hub session is already named ${NAME}; rename it before starting Copilot.`);
+    if (existing && existing.status !== 'offline' && !existing.ended) {
+      throw new Error(`A different hub session is already named ${NAME}; rename it before starting Copilot.`);
+    }
+    if (existing) {
+      let oldName = `${NAME}-old-${existing.id.slice(0, 8)}`;
+      for (let suffix = 2; Object.values(this.opts.store.state.sessions).some((s) => s.id !== existing.id && s.name.toLowerCase() === oldName.toLowerCase()); suffix++) {
+        oldName = `${NAME}-old-${existing.id.slice(0, 8)}-${suffix}`;
+      }
+      this.opts.store.rename(existing.id, oldName);
+    }
     const session = this.opts.store.register({ id: identity.hubId, name: NAME, cwd: this.opts.cwd, source: 'copilot' });
     if (session.name !== NAME) throw new Error(`Could not reserve the hub identity ${NAME}.`);
     this.opts.store.join(identity.hubId, ROOM);
