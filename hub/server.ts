@@ -726,7 +726,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!s) return;
       for (const r of Object.keys(s.rooms)) {
         try {
-          const posted = store.post(r, null, tr('sys.wake.resume', { name: s.name }));
+          const posted = store.post(r, null, tr('sys.wake.resume', { name: s.name }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));
@@ -754,7 +754,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const targets = lead ? [lead] : ms;
         if (!targets.length) continue;
         try {
-          const posted = store.post(r, null, tr('sys.wake.reset', { names: targets.map((s) => '@' + s.name).join(' '), account: acc.label }));
+          const posted = store.post(r, null, tr('sys.wake.reset', { names: targets.map((s) => '@' + s.name).join(' '), account: acc.label }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));
@@ -1458,7 +1458,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated)
         const assign = (t: Task) => {
           const extra = `${t.detail ? `\n${t.detail}` : ''}${t.doneWhen ? `\n${tr('sys.task.doneWhen', { text: t.doneWhen })}` : ''}${t.fromMsg ? ` ${tr('sys.task.src', { id: t.fromMsg })}` : ''}`;
-          const r = store.post(room, who?.id ?? null, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }));
+          const r = store.post(room, who?.id ?? null, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
           broadcast('msg', r.message);
           emitRoom(room);
           for (const id of r.message.wake) deliver(store.resolve(id));
