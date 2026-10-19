@@ -62,5 +62,5 @@ test('worker.ps1 honours settings.workerRoutes (off -> exit 4, unusable provider
 
 test('worker.ps1 tries a "local" tier provider (a LAN/this-machine Ollama-style host) before free/paid, and needs no key for it', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  for (const s of ['$_.tier -eq "local"', '"local" { @(& $usable "local") }', '@(& $usable "local") + @(& $usable "free")']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
+  for (const s of ['$_.tier -eq "local"', '"local" { @(& $usable "local") }', '@(& $usable "local") + @(& $usable "free")', '$credential = if ($prov.tier -eq "local" -and -not $prov.key) { "ollama" }', '$cost = if ($prov.tier -eq "local") { 0 }']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
 });

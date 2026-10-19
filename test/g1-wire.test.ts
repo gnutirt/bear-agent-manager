@@ -98,6 +98,25 @@ test('#20: a dirty file only another agent wrote (shared working tree) does not 
   } finally { await h.hub.close(); }
 });
 
+test('G1: a dirty file beyond the display limit still blocks end and compact when this agent wrote it', async () => {
+  const h = await makeHub();
+  try {
+    const repo = path.join(h.dir, 'many-files');
+    fs.mkdirSync(repo);
+    execFileSync('git', ['-C', repo, 'init', '-q']);
+    const changed = Array.from({ length: 25 }, (_, i) => `file-${String(i).padStart(2, '0')}.txt`);
+    for (const f of changed) fs.writeFileSync(path.join(repo, f), 'x');
+    const tr = path.join(h.dir, 'many-files.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Write', input: { file_path: path.join(repo, changed[24]) } }] } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'many', cwd: repo, name: 'many', transcript: tr });
+    clearWorktreeCache();
+    const g = await h.call<any>('/api/sessions/many/git');
+    assert.equal(g.dirty, 25);
+    assert.equal(g.files.length, 20);
+    await assert.rejects(h.call('/api/sessions/many/terminate', {}), (e: any) => e.status === 409 && /has 1 uncommitted file/.test(e.message));
+  } finally { await h.hub.close(); }
+});
+
 test('G1: room search (q folds case and Vietnamese marks, id range, paging back) and days; plain reads stay an array', async () => {
   const h = await makeHub();
   try {

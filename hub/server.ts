@@ -19,7 +19,7 @@ import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
-import { ownDirtyFiles, worktreeState } from './gitstate.ts';
+import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
@@ -299,10 +299,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
    */
   async function dirtyUnlessForced(s: Session, force: boolean) {
     if (force) return null;
-    const g = await worktreeState(s.cwd);
+    const g = await worktreeState(s.cwd, { fresh: true });
+    if (g.error) throw new StoreError(503, `cannot safely check uncommitted files for ${s.name}: ${g.error}`);
     if (!g.dirty) return null;
     const files = ownDirtyFiles(g.files, s.transcript, s.cwd);
-    return files.length ? { error: `${s.name} has ${files.length} uncommitted file(s); pass force to go on`, dirty: files.length, files } : null;
+    return files.length ? { error: `${s.name} has ${files.length} uncommitted file(s); pass force to go on`, dirty: files.length, files: files.slice(0, MAX_FILES) } : null;
   }
 
   // ---- alive but deaf: a tab whose turn died on a usage limit never reaches the Stop hook, so no @ reaches it ----
@@ -691,7 +692,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const health: Record<string, 'ok' | 'bad' | 'unknown'> = {};
   const withHealth = (list: Provider[]) => list.map((x) => ({ ...publicProvider(x), health: health[x.id] ?? 'unknown' }));
   const probeAll = async () => {
-    for (const pr of loadProviders(opts.dir, legacyKey).filter((x) => x.enabled && x.key)) health[pr.id] = await (opts.probe ?? probeProvider)(pr);
+    for (const pr of loadProviders(opts.dir, legacyKey).filter((x) => x.enabled && (x.key || x.tier === 'local'))) health[pr.id] = await (opts.probe ?? probeProvider)(pr);
     broadcast('providers', withHealth(loadProviders(opts.dir, legacyKey)));
   };
   let prober: NodeJS.Timeout | undefined;
@@ -1384,7 +1385,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         return json(res, 200, { model: next.agentModel[normAgent(s.name)] ?? '' });
       }
       // G1: uncommitted files in the agent's folder (Session.cwd, never a path from the client)
-      if (m === 'GET' && action === 'git') return json(res, 200, await worktreeState(store.session(id).cwd));
+      if (m === 'GET' && action === 'git') {
+        const g = await worktreeState(store.session(id).cwd);
+        return json(res, 200, { ...g, files: g.files.slice(0, MAX_FILES) });
+      }
       if (m === 'POST' && action === 'switch') {
         // D2 "Switch now": resume this agent on another Claude account of the machine (chats must be shared).
         const b = await readBody(req), s = store.session(id);
@@ -1410,7 +1414,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
         const dirty = await dirtyUnlessForced(s, b.force === true);
         if (dirty) return json(res, 409, dirty);
-        const left = b.force === true ? (await worktreeState(s.cwd)).dirty : 0;
+        const left = b.force === true ? (await worktreeState(s.cwd, { fresh: true })).dirty : 0;
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
         // An open tab is not killed to compact it (the editor shows "process exited with code 1" and the agent stays down):
         // type /compact in the tab, or pass closeTab to stop it first.

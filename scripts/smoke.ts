@@ -164,7 +164,10 @@ await check('machine export: 202, then a manifest', async () => {
 
 await check('End and Compact refuse a folder with uncommitted files (409) unless forced', async () => {
   const pid = dummy().pid!; asClaude.add(pid);
-  await member('frank', 'frank', { pid, transcript: transcript('frank', [{ type: 'user', message: { content: 'hi' } }, { type: 'assistant', message: { content: [{ type: 'text', text: 'ok' }] } }]) });
+  await member('frank', 'frank', { pid, transcript: transcript('frank', [
+    { type: 'user', message: { content: 'hi' } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: path.join(repo, 'a.txt') } }, { type: 'text', text: 'ok' }] } },
+  ]) });
   const refused = (p: string) => call(p, {}).then(() => false, (e: any) => e.status === 409 && e.body?.dirty > 0);
   if (!(await refused('/api/sessions/frank/compact'))) throw new Error('compact was not refused');
   if (!(await refused('/api/sessions/frank/terminate'))) throw new Error('terminate was not refused');

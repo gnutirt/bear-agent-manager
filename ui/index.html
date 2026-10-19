@@ -359,20 +359,16 @@ header .spacer{flex:1}
 .vw.wide{max-width:1500px}.thead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}.thead h2{margin:0}.tbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tform{display:grid;gap:8px;grid-template-columns:2fr 2fr 1fr;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:14px}.tform textarea,.tform .row{grid-column:1/-1}.tform .row{display:flex;gap:8px;justify-content:flex-end}
 .tform input,.tform textarea,.tform select,.tbar select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
-.tboardOLD{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:8px}
-.tcol{background:color-mix(in srgb,var(--text) 3%,transparent);border:1px solid var(--line);border-radius:14px;padding:10px;min-height:120px}
-.tboard .tcol h3{margin:0 0 8px;padding:0;font-size:13.5px;display:flex;align-items:center;gap:7px}.tcol h3 small{color:var(--mute);font-weight:600}
+.tstatusbar{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
+.tstatus{display:flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;font-size:12.5px;font-weight:600}
+.tstatus:hover:not(:disabled){border-color:var(--accent);background:var(--hover)}.tstatus:disabled{opacity:.55;cursor:default}.tstatus b{font-variant-numeric:tabular-nums}
 .tdot{width:9px;height:9px;border-radius:50%;background:var(--mute)}.tdot.st-doing{background:#F59E0B}.tdot.st-blocked{background:#EF4444}.tdot.st-done{background:#22C55E}.tdot.st-todo{background:#64748B}
-.tcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--mute);border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:13.5px}
-.tcard.st-doing{border-left-color:#F59E0B}.tcard.st-blocked{border-left-color:#EF4444}.tcard.st-done{border-left-color:#22C55E}.tcard.st-done .tt b{color:var(--mute);font-weight:500}
-.tcard .tid{color:var(--mute);font-weight:600;font-size:12px}.tcard .tt b{font-weight:600}.tcard .tedit{width:calc(100% - 34px);padding:3px 7px;border:1px solid var(--accent);border-radius:7px;background:var(--bg);color:var(--text);font:inherit}
-.tdw{margin-top:4px;color:var(--mute);font-size:12.5px}.tnote{margin-top:4px;font-size:12.5px;color:var(--mute);font-style:italic}.tdet{margin-top:4px;font-size:12.5px}.tdet summary{cursor:pointer;color:var(--accent)}
-.tmeta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px}.town{padding:0 8px;border-radius:999px;border:1px solid var(--c);color:var(--c);font-weight:600;background:color-mix(in srgb,var(--c) 10%,transparent)}
-.tlink{color:var(--accent);font-weight:600;font-size:12px}.tlink:hover{text-decoration:underline}.tcommit{font:11.5px var(--mono);background:var(--code);border-radius:5px;padding:0 5px}.tago{margin-left:auto}
+.tnote{margin-top:4px;font-size:12.5px;color:var(--mute);font-style:italic}.town{padding:0 8px;border-radius:999px;border:1px solid var(--c);color:var(--c);font-weight:600;background:color-mix(in srgb,var(--c) 10%,transparent)}
+.tlink{color:var(--accent);font-weight:600;font-size:12px}.tlink:hover{text-decoration:underline}.tcommit{font:11.5px var(--mono);background:var(--code);border-radius:5px;padding:0 5px}
 .tacts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.tacts select{flex:1 1 100px;min-width:90px;max-width:none;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px}
 .tacts .iconbtn{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--mute)}.tacts .iconbtn:hover{background:var(--hover);color:var(--text)}.tacts .iconbtn svg{width:14px;height:14px}
 .tempty{color:var(--mute);font-size:12.5px;padding:8px 4px}
-@media (max-width:900px){.tboard{grid-template-columns:repeat(4,260px)}.tform{grid-template-columns:1fr}}
+@media (max-width:900px){.tform{grid-template-columns:1fr}}
 
 .roomtools{display:flex;align-items:center;gap:10px;padding:6px 20px;border-bottom:1px solid var(--line);background:var(--panel)}.roomtools #topicBar{flex:1;padding:0;border:0;background:none;min-width:0}.roomtools #topicBar[hidden]{display:none}.roomtools .sysseg{margin-left:auto}
 .sysseg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}.sysseg button{padding:4px 10px;font-size:12.5px;color:color-mix(in srgb,var(--text) 92%,var(--mute));font-weight:600}.sysseg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent,#fff)}.sysseg button:not([aria-pressed=true]):hover{background:var(--hover);color:var(--text)}
@@ -423,9 +419,9 @@ header .spacer{flex:1}
 .seg.sysseg button:not([aria-pressed=true]){color:color-mix(in srgb,var(--text) 92%,var(--mute))}
 :root:is([data-theme=light],[data-theme=gray],[data-theme=solarized],[data-theme=rose],[data-theme=ocean],[data-theme=glasslight],[data-theme=excel]) .group.you .head>b{color:color-mix(in srgb,var(--accent) 72%,#000)!important}
 @media (prefers-color-scheme:light){:root[data-theme=auto] .group.you .head>b{color:color-mix(in srgb,var(--accent) 72%,#000)!important}}
-.tsec{margin:0 0 18px}.tsec h3{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:8px}.tsec h3 small{color:var(--mute);font-weight:600}
-.tlist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
-.trow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 10px;padding:10px 14px;border-bottom:1px solid var(--line)}.trow:last-child{border-bottom:0}.trow:hover{background:var(--hover)}
+.tsec{scroll-margin-top:16px;margin:0 0 12px;padding:11px 12px 9px;border:1px solid var(--line);border-radius:13px;background:var(--panel)}.tsec h3{margin:0 0 8px;padding:0 2px 8px;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;align-items:center;gap:8px}.tsec h3 small{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums;font-weight:600}
+.tlist{list-style:none;margin:0;padding:0}
+.trow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 10px;margin:6px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.trow:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--hover)}
 .tdotb{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin-top:-2px}.tdotb:hover{background:var(--hover)}.tbox{width:18px;height:18px;border-radius:5px;border:2px solid var(--mute);display:grid;place-items:center;color:#fff}.tbox svg{width:12px;height:12px}.tbox.st-doing{border-color:#F59E0B}.tbox.st-blocked{border-color:#EF4444}.tbox.st-done{background:#15803D;border-color:#15803D}
 .tmain{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:3px}.ttitle{font-weight:600;font-size:14.5px;line-height:1.4}.trow.st-done .ttitle{color:var(--mute);font-weight:500;text-decoration:line-through}
 .tinfo{display:flex;gap:10px;align-items:center;font-size:12px}
@@ -1424,10 +1420,12 @@ function receipts(m, list, last = lastWakes(list)) {
 }
 
 const plain = (t, n = 80) => { const s = String(t).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+const isHubMessage = (m) => !m.fromId && (m.kind === 'system' || m.from === 'bear-agent-manager' || (m.sys && m.from !== 'you'));
+const messageName = (m) => m.fromId ? (S.sessions[m.fromId]?.name || m.from) : isHubMessage(m) ? (m.sys?.agent || m.from || t('relay.badge')) : t('you');
 function quote(m) {
   if (m.replyTo == null) return '';
   const o = (S.messages[S.current] || []).find((x) => x.id === m.replyTo);
-  return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(o.fromId ? (S.sessions[o.fromId]?.name || o.from) : t('you'))}</b>: ${esc(plain(o.text))}` : t('quote.msg', { id: m.replyTo })}</button>`;
+  return `<button type="button" class="quote" data-goto="${m.replyTo}">↪ ${o ? `<b>${esc(messageName(o))}</b>: ${esc(plain(o.text))}` : t('quote.msg', { id: m.replyTo })}</button>`;
 }
 /* ---------- topics (GĐ2): chips filter the chat, the composer picks where to send, unread counts per topic ---------- */
 S.topics = {}; S.tfilter = {}; S.ctopic = {}; S.tunread = {};
@@ -1550,7 +1548,7 @@ function renderLog() {
   const last = lastWakes(ms);
   // system layer (mockup approved): quiet rail items, one usage card per account, relay cards under the agent's name
   const mode = S.sysMode, relayOf = (m) => m.sys?.type === 'relay';
-  const shownSys = (m) => (m.kind === 'system' || (m.sys && !m.fromId && m.from !== 'you')) && (mode !== 'off' || relayOf(m) || m.sys?.level === 'error');
+  const shownSys = (m) => (m.kind === 'system' || isHubMessage(m)) && (mode !== 'off' || relayOf(m) || m.sys?.level === 'error');
   const sysRuns = new Map();   // first id of a run of identical notices -> the run; later ids -> 0
   const usageLast = new Map(), usageSeen = new Map(), usageHist = new Map();
   for (let i = 0; i < ms.length; i++) {
@@ -1568,7 +1566,7 @@ function renderLog() {
   for (const m of ms) {
     const day = dayOf(m.ts);
     if (day !== prevDay) { closeRail(); html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
-    if (m.kind === 'system' || (m.sys && !m.fromId && m.from !== 'you')) {   // hub-sent messages that still wake an agent (kind stays normal) are drawn as system rows
+    if (m.kind === 'system' || isHubMessage(m)) {   // hub-sent messages that still wake an agent (kind stays normal) are drawn as system rows
       if (!shownSys(m)) continue;
       const run = sysRuns.get(m.id);
       if (run === 0) continue;
@@ -1584,7 +1582,7 @@ function renderLog() {
     if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
-      const who = s ? s.name : m.from;
+      const who = messageName(m);
       html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
@@ -1691,7 +1689,7 @@ function connect() {
     const list = S.messages[m.room];
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
     if (m.room === S.current && S.around !== m.room) {
-      if (m.kind !== 'system' || m.sys?.level === 'error') announce(`${m.fromId ? (S.sessions[m.fromId]?.name || m.from) : (m.kind === 'system' ? '' : t('you'))}: ${plain(m.text, 160)}`.replace(/^: /, ''));
+      if (m.kind !== 'system' || m.sys?.level === 'error') announce(`${m.fromId ? (S.sessions[m.fromId]?.name || m.from) : isHubMessage(m) ? messageName(m) : (m.kind === 'system' ? '' : t('you'))}: ${plain(m.text, 160)}`.replace(/^: /, ''));
       const tf = S.tfilter[m.room];
       if (tf && topicOf(m) !== tf) { const u = (S.tunread[m.room] ??= {}); u[topicOf(m)] = (u[topicOf(m)] || 0) + 1; }
       queueLog();
@@ -1895,7 +1893,7 @@ function showTab(name) {
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 // Filled in by the Worker / Token / Cài đặt views below.
-/* ---------- Việc tab (K3): the room's tasklist as four columns (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
+/* ---------- Việc tab (K3): grouped task list (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
 S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
 const TCOLS = ['todo', 'doing', 'blocked', 'done'];
 const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
@@ -1911,6 +1909,7 @@ function renderTasks() {
   const owners = [...new Set(list.map((x) => x.owner).filter(Boolean))].sort();
   const allNames = [...new Set([...members(r).map((m) => m.name), ...owners])].sort();
   const shown = list.filter((x) => !S.tfOwner || (x.owner || '') === S.tfOwner);
+  const statusCounts = Object.fromEntries(TCOLS.map((s) => [s, shown.filter((x) => x.status === s).length]));
   const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + allNames.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
   const row = (x) => {
     const open = S.taskOpen === x.id, editing = S.taskEdit === x.id;
@@ -1929,17 +1928,19 @@ function renderTasks() {
     if (!total && s !== 'todo') return '';
     const collapsed = s === 'done' && !S.taskDoneAll;
     if (collapsed) items = items.slice(0, 5);
-    return `<section class="tsec" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
+    return `<section class="tsec" id="task-${s}" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
   };
+  const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TCOLS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
   const chips = [`<button type="button" class="tchip" data-townerf="" aria-selected="${!S.tfOwner}">${t('task.filterAll')}</button>`, ...owners.map((o) => `<button type="button" class="tchip" data-townerf="${esc(o)}" aria-selected="${S.tfOwner === o}">${esc(o)}</button>`)].join('');
   const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
   $('view-tasks').innerHTML = `<div class="vw"><div class="thead"><h2>${t('task.title')} <span class="aside">#${esc(r || '')}</span></h2><div class="tbar"><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button><details class="tmore"><summary class="btn" aria-label="${t('task.more')}">⋯</summary><div class="tmenu2"><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button></div></details></div></div>
     ${owners.length > 1 ? `<div class="tfilter">${chips}</div>` : ''}${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
-    ${['doing', 'todo', 'blocked', 'done'].map(sec).join('')}</div>`;
+    ${statusBar}${TCOLS.map(sec).join('')}</div>`;
   const ed = $('view-tasks').querySelector('[data-tedit-in]'); if (ed) { ed.focus(); ed.select(); }
 }
 $('view-tasks').addEventListener('click', (e) => {
   const r = S.current, q = (sel) => e.target.closest(sel);
+  const sectionJump = q('[data-task-jump]'); if (sectionJump) { $('task-' + sectionJump.dataset.taskJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   const tn = q('[data-tnext]'); if (tn) {
     const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext);
     if (x) {
@@ -2030,8 +2031,9 @@ function renderWorkersView() {
   const { running, recent, cap } = S.workers;
   const provs = S.providers.map((p) => {
     const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
-    const ready = p.enabled && p.hasKey;
-    const state = !p.enabled ? t('prov.off') : !p.hasKey ? t('prov.noKey') : ht;
+    const needsKey = p.tier !== 'local' && !p.hasKey;
+    const ready = p.enabled && !needsKey;
+    const state = !p.enabled ? t('prov.off') : needsKey ? t('prov.noKey') : ht;
     return `<div class="prov${ready ? '' : ' off'}" title="${esc(p.baseUrl)}"><span class="led ${ready ? ledCls : ''}"></span><div><div class="pn">${esc(p.label)} ${tierBadge(p.tier)}</div><div class="ps">${esc(state)}${p.hasKey ? t('prov.keyHint', { hint: esc(p.keyHint) }) : ''}</div></div></div>`;
   }).join('') || `<div class="vempty">${t('prov.unreadable')}</div>`;
   const runRows = running.map((w) => {
@@ -2318,11 +2320,12 @@ const isIntern = (p) => /intern-ai\.org\.cn/.test(p.baseUrl);
 const mph = (p) => p.models.read.length || p.models.edit.length || isIntern(p) ? ` placeholder="${t('prov.ph.intern')}"` : ` placeholder="${t('prov.ph.none')}" class="warn"`;
 function providerCard(p) {
   const [ledCls, ht] = HEALTH[p.health] || HEALTH.unknown;
+  const ready = p.enabled && (p.hasKey || p.tier === 'local');
   return `<form class="pcard" data-prov="${esc(p.id)}">
-    <div class="ph"><span class="led ${p.enabled && p.hasKey ? ledCls : ''}" title="${esc(ht)}"></span><b>${esc(p.label)}</b> ${tierBadge(p.tier)}<span class="spacer"></span><label class="inline"><input type="checkbox" name="enabled"${p.enabled ? ' checked' : ''}> ${t('common.on')}</label></div>
+    <div class="ph"><span class="led ${ready ? ledCls : ''}" title="${esc(ht)}"></span><b>${esc(p.label)}</b> ${tierBadge(p.tier)}<span class="spacer"></span><label class="inline"><input type="checkbox" name="enabled"${p.enabled ? ' checked' : ''}> ${t('common.on')}</label></div>
     <label>Base URL<input name="baseUrl" value="${esc(p.baseUrl)}" spellcheck="false"></label>
     <div class="two"><label>${t('prov.auth')}<select name="auth"><option value="api-key"${p.auth === 'api-key' ? ' selected' : ''}>x-api-key</option><option value="auth-token"${p.auth === 'auth-token' ? ' selected' : ''}>Bearer token</option></select></label>
-    <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? t('prov.keySaved', { hint: esc(p.keyHint) }) : t('prov.noKey')}"></label></div>
+    <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? t('prov.keySaved', { hint: esc(p.keyHint) }) : p.tier === 'local' ? t('prov.localNoKey') : t('prov.noKey')}"></label></div>
     <div class="two"><label>${t('prov.modelRead')}<input name="read" value="${esc(p.models.read.join(', '))}"${mph(p)}></label><label>${t('prov.modelEdit')}<input name="edit" value="${esc(p.models.edit.join(', '))}"${mph(p)}></label></div>
     <div class="pf"><button class="btn primary">${t('common.save')}</button>${p.hasKey ? `<button type="button" class="btn" data-clearkey>${t('prov.clearKey')}</button>` : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : `<button type="button" class="btn danger" data-delprov>${t('prov.delete')}</button>`}</div>
   </form>`;
@@ -2853,7 +2856,7 @@ S.reply = null;
 const rplBtn = document.createElement('button'); rplBtn.id = 'rplBtn'; rplBtn.type = 'button'; rplBtn.dataset.i18n = 'reply.btn'; rplBtn.textContent = t('reply.btn'); document.body.appendChild(rplBtn);
 let rplFor = null;
 function setReply(m) {
-  S.reply = m ? { id: m.id, name: m.fromId ? (S.sessions[m.fromId]?.name || m.from) : t('you'), text: plain(m.text) } : null;
+  S.reply = m ? { id: m.id, name: messageName(m), text: plain(m.text) } : null;
   const bar = $('replyBar');
   bar.hidden = !S.reply;
   bar.innerHTML = S.reply ? `<span>${t('reply.to', { name: `<b>${esc(S.reply.name)}</b>` })}: ${esc(S.reply.text)}</span><button type="button" aria-label="${t('reply.cancel')}">✕</button>` : '';
@@ -2905,7 +2908,7 @@ function renderFind() {
   bar.hidden = !f.open || !S.current;
   if (bar.hidden) return;
   const days = (f.days || []).slice().reverse().map((d) => `<option value="${d.firstId}">${esc(d.day)} (${d.count})</option>`).join('');
-  const rows = f.results == null ? '' : f.results.length ? f.results.map((m) => `<button type="button" class="fres" data-jump="${m.id}"><time>${esc(dayOf(m.ts))} ${esc(time(m.ts))}</time><b>${m.fromId ? esc(S.sessions[m.fromId]?.name || m.from) : esc(t('you'))}</b><span>${hl(m.text, f.q)}</span></button>`).join('') : `<div class="small muted">${t('search.none')}</div>`;
+  const rows = f.results == null ? '' : f.results.length ? f.results.map((m) => `<button type="button" class="fres" data-jump="${m.id}"><time>${esc(dayOf(m.ts))} ${esc(time(m.ts))}</time><b>${esc(messageName(m))}</b><span>${hl(m.text, f.q)}</span></button>`).join('') : `<div class="small muted">${t('search.none')}</div>`;
   const keep = bar.querySelector('#searchQ') === document.activeElement;
   bar.innerHTML = `<div class="frow"><input id="searchQ" type="search" value="${esc(f.q)}" placeholder="${t('search.ph')}" aria-label="${t('search.title')}" autocomplete="off"><select id="searchDay" aria-label="${t('search.day')}"><option value="">${t('search.day')}</option>${days}</select><button type="button" class="btn" id="searchX" aria-label="${t('common.close')}">✕</button></div>${f.msg ? `<div class="small muted">${esc(f.msg)}</div>` : ''}<div class="fresults">${rows}</div>`;
   if (keep) { const q = $('searchQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }

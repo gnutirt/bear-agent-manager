@@ -27,6 +27,27 @@ test('UI inline script compiles and the workers panel is wired (list, live updat
   } finally { await hub.close(); }
 });
 
+test('tasks use grouped status sections with a completed checklist and an undo window', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['class="tstatusbar"', 'data-task-jump="${s}"', 'id="task-${s}"', 'TCOLS.map(sec)', 'role="checkbox"', "label: t('task.undo')", 'ms: 6000']) {
+      assert.ok(html.includes(s), `missing ${s}`);
+    }
+    assert.ok(html.indexOf("const TCOLS = ['todo', 'doing', 'blocked', 'done']") < html.indexOf('TCOLS.map(sec)'), 'status groups are ordered from open work to completed');
+  } finally { await hub.close(); }
+});
+
+test('UI distinguishes hub notices with no session id from messages sent by the user', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ["const isHubMessage = (m) => !m.fromId", "m.from === 'bear-agent-manager'", 'm.kind === \'system\' || isHubMessage(m)', 'const who = messageName(m)', 'messageName(m) : (m.kind === \'system\'']) {
+      assert.ok(html.includes(s), `missing ${s}`);
+    }
+  } finally { await hub.close(); }
+});
+
 test('chat log sticks to the bottom by intent, not by measuring before render', async () => {
   const { hub } = await makeHub();
   try {

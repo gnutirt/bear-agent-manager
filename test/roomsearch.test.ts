@@ -85,3 +85,18 @@ test('worktreeState on a temporary git repo: clean, dirty, cached for 10 s, and 
   assert.equal((await worktreeState(plain)).repo, false);
   assert.equal((await worktreeState(path.join(plain, 'gone'))).repo, false);
 });
+
+test('worktreeState: fresh checks bypass cache; Git execution errors are not reported as a clean non-repo', async () => {
+  clearWorktreeCache();
+  const dir = tmp();
+  let status = '## main\n';
+  const run = async () => status;
+  const clean = await worktreeState(dir, { run });
+  assert.equal(clean.dirty, 0);
+  status += ' M own.ts\n';
+  assert.equal((await worktreeState(dir, { run })).dirty, 0, 'normal reads may use the short cache');
+  assert.equal((await worktreeState(dir, { run, fresh: true })).dirty, 1, 'destructive checks get current state');
+  assert.equal((await worktreeState(dir, { run })).dirty, 1, 'the fresh result replaces the cached state');
+  const failed = await worktreeState(dir, { run: async () => { throw new Error('git timed out'); }, fresh: true });
+  assert.match(failed.error ?? '', /git timed out/);
+});

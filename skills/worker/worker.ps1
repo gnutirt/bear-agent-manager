@@ -32,7 +32,7 @@ function Log-Line($obj) {
 }
 function Short($s, $n) { $s = "$s" -replace '\s+', ' '; if ($s.Length -gt $n) { $s.Substring(0, $n - 1) + "…" } else { $s.Trim() } }
 function Finish($code, $model, $j, $err) {
-    $cost = if ($j -and $j.total_cost_usd -ne $null) { $j.total_cost_usd } else { $null }
+    $cost = if ($prov.tier -eq "local") { 0 } elseif ($j -and $j.total_cost_usd -ne $null) { $j.total_cost_usd } else { $null }
     $res = if ($j -and $code -eq 0) { Short $j.result 200 } else { "" }
     $u = if ($j -and $j.usage) { $j.usage } else { $null }
     $usage = @{ in = [int]$u.input_tokens; out = [int]$u.output_tokens; cacheRead = [int]$u.cache_read_input_tokens; cacheWrite = [int]$u.cache_creation_input_tokens }
@@ -67,7 +67,7 @@ foreach ($p in $providers) {
         $p.key = if ($env:INTERN_API_KEY) { $env:INTERN_API_KEY } elseif (Test-Path $kf) { (Get-Content -Raw $kf).Trim() } else { "" }
     }
 }
-# "local" providers (an Ollama-style host on this machine/LAN) carry no real key: the owner sets a placeholder when adding one.
+# "local" providers need no real key. Claude CLI requires a credential to stay in API mode; Ollama ignores this placeholder.
 $usable = { param($t) $providers | Where-Object { $_.enabled -and ($_.key -or $_.tier -eq "local") -and $_.tier -eq $t -and (-not $Provider -or $_.id -eq $Provider) } }
 $mkPlan = {
     switch ($Tier) {
@@ -130,8 +130,9 @@ foreach ($prov in $plan) {
     # Env set here lives only in this process. auth-token providers (OpenRouter) must not also send x-api-key:
     # assigning "" removes ANTHROPIC_API_KEY in PowerShell 5.1, which is what we want (--bare + own config dir: no OAuth to fall back to).
     $env:ANTHROPIC_BASE_URL = $prov.baseUrl
-    if ($prov.auth -eq "auth-token") { $env:ANTHROPIC_AUTH_TOKEN = $prov.key; $env:ANTHROPIC_API_KEY = "" }
-    else { $env:ANTHROPIC_API_KEY = $prov.key; Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue }
+    $credential = if ($prov.tier -eq "local" -and -not $prov.key) { "ollama" } else { "$($prov.key)" }
+    if ($prov.auth -eq "auth-token") { $env:ANTHROPIC_AUTH_TOKEN = $credential; $env:ANTHROPIC_API_KEY = "" }
+    else { $env:ANTHROPIC_API_KEY = $credential; Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue }
     $models = $prov.models
     if (-not ($models -and (@($models.read).Count -or @($models.edit).Count))) {
         if ($prov.baseUrl -notmatch 'intern-ai\.org\.cn') { Write-Output "[worker] provider=$($prov.id) has no models configured: skipped"; continue }

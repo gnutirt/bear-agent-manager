@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -146,6 +147,49 @@ test('waiter exits 2 with the message on stderr when mentioned', async () => {
     assert.match(r.stderr, /you: @fw flash the board/);
     assert.equal((await call<any>('/api/sessions/s1')).session.status, 'busy');
   } finally { await hub.close(); }
+});
+
+test('waiter re-registers after a 404 from its long poll and retries delivery', async () => {
+  let polls = 0;
+  let registrations = 0;
+  const server = createServer((req, res) => {
+    const json = (status: number, body: object) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    if (req.url === '/api/sessions/s1') return json(200, { session: { id: 's1' } });
+    if (req.url === '/api/sessions/register') { registrations++; return json(200, {}); }
+    if (req.url === '/api/sessions/s1/status') return json(200, {});
+    if (req.url?.startsWith('/api/sessions/s1/wait')) {
+      polls++;
+      if (polls === 1) return json(404, { error: 'session expired' });
+      return json(200, {
+        messages: [{ id: 1, room: 'proj', from: 'worker', fromId: 's2', mentions: [], text: 'delivery after retry', ts: Date.now() }],
+        notes: {},
+        lead: [],
+      });
+    }
+    return json(404, { error: 'not found' });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-waiter-retry-'));
+  const w = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, {
+    BEAR_AGENT_HOME: home,
+    BEAR_AGENT_PORT: String(address.port),
+    BEAR_AGENT_HEADLESS: '1',
+  });
+  try {
+    const result = await w.done;
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /delivery after retry/);
+    assert.equal(polls, 2);
+    assert.equal(registrations, 2);
+  } finally {
+    if (w.child.exitCode === null) w.child.kill();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test('an older waiter exits 0 when superseded', async () => {

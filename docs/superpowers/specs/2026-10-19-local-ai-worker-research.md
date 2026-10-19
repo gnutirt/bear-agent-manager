@@ -1,29 +1,28 @@
 # Nghiên cứu: AI local (Ollama) và GitHub Copilot làm tầng worker rẻ
 
-Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
+Cập nhật 2026-10-20, core-improve. Nguồn ở cuối trang; phần Ollama đã được thử với worker và cập nhật theo kết quả thực tế.
 
 ## Kết luận
 
 | Phương án | Nên? | Lý do ngắn |
 |---|---|---|
-| Ollama + Qwen 2.5 7B chạy **qua worker hiện có** (Claude Code headless) | **Không** | Mỗi lượt Claude Code gửi lời nhắc hệ thống và định nghĩa tool rất dài; 7B gọi tool nhiều bước kém; trên iGPU, phần đọc lời nhắc có thể mất vài phút mỗi lượt [cần đo]. |
+| Ollama + Qwen 2.5 7B chạy **qua worker hiện có** (Claude Code headless) | Chưa thử trên LAN | Chưa có số đo cho model này; không suy rộng kết quả của model khác. |
 | Ollama + 7B qua **đường "chỉ tóm tắt"** mới (hub gọi thẳng API, không vòng tool) | **Nên, nếu muốn tiết kiệm thêm** | Tóm tắt file/log, commit message từ diff, trích ý chính: việc 7B làm được, miễn phí, dữ liệu không ra khỏi máy. Claude chính vẫn kiểm. |
-| Ollama + model lớn hơn mà Ollama khuyên dùng cho Claude Code (`qwen3-coder`) qua worker hiện có | Thử được | Máy có 61.8 GB RAM. Không cần sửa code, chỉ thêm provider. Tốc độ trên Radeon 780M [cần đo]. |
+| Ollama LAN + Qwen 3.8 qua worker hiện có | Thử được cho việc đọc đơn giản | Đã xác nhận gọi tool `Read` end-to-end trên fixture; hai lượt mẫu mất khoảng 39–58 giây. Chưa thử sửa code. |
 | GitHub Copilot CLI làm worker | **Không ưu tiên** | Không miễn phí: mỗi prompt tính vào hạn mức premium/usage của gói Copilot. Phải viết thêm engine trong worker.ps1. Điều khoản dùng làm backend cho agent khác [cần xác minh]. |
 
 ## Ollama
 
 - **API:** Ollama có API tương thích Anthropic (`/v1/messages`: messages, streaming, system, tools, tool_result, thinking, ảnh base64). Không có `tool_choice`, `count_tokens`, prompt caching, batches. Có cả API tương thích OpenAI (`/v1/chat/completions`). Khoá API không bị kiểm tra.
-- **Nối vào worker hiện có, không sửa code:** worker.ps1 đặt `ANTHROPIC_BASE_URL` và `ANTHROPIC_AUTH_TOKEN` theo provider, nên chỉ cần thêm provider ở Cài đặt: `baseUrl = http://localhost:11434`, `auth = auth-token`, `key = ollama` (giá trị giả: worker bỏ qua provider không có key), `tier = free`, `models.read = ["qwen2.5:7b"]`, `models.edit = []`. Rồi trỏ `workerRoutes.read` vào provider này. Lưu ý: `-Tier auto` thử mọi provider free theo thứ tự, nên provider local sẽ chen vào mọi việc đọc; muốn chỉ dùng cho một số việc thì để nó tắt và gọi bằng `-Provider ollama`.
-- **Phải sửa nếu làm thật:**
-  1. Độ dài ngữ cảnh: Claude Code cần ngữ cảnh lớn, mà mặc định của Ollama nhỏ. Phải đặt `OLLAMA_CONTEXT_LENGTH` khi chạy `ollama serve` [cần xác minh giá trị mặc định của bản đang cài].
-  2. Mã thoát 3 (hết hạn mức) không áp dụng cho local; khi Ollama tắt, worker nên báo "provider local không chạy" thay vì thử tiếp.
-  3. Đường "chỉ tóm tắt": một hàm hub mới gọi `/api/chat` (đặt `num_ctx`), đưa vào nội dung file, trả chữ. Đặt sau một công tắc, mặc định tắt.
+- **Cấu hình worker đã thêm:** provider `ollama-lan` trỏ tới `http://192.168.0.127:11435`, `tier = local`, không cần key, `models.read = ["qwen3.8:latest"]`, `models.edit = []`. Worker dùng credential placeholder `ollama` để Claude CLI vào API mode; Ollama không kiểm tra giá trị này. Tier `local` không bị lẫn vào lựa chọn `free`.
+- **Trạng thái vận hành:** provider đã được lưu vào cấu hình hub, nhưng health còn `unknown` do hub chưa được restart/re-probe. Chưa đổi route edit sang Ollama; tác vụ sửa code tiếp tục dùng provider khác.
+- **Đã có đường tóm tắt trực tiếp:** `hub/localai.ts` gọi `/api/chat` không dùng tool. Đây là đường riêng với worker Claude Code, và chưa được benchmark trong lượt thử LAN này.
+- **Còn cần xác minh:** giới hạn context thực tế của Ollama trên máy chủ và xử lý khi endpoint LAN không sẵn sàng; không suy ra tốc độ hay chất lượng của máy chủ LAN từ cấu hình Radeon 780M ở phần ghi chú cũ.
 - **Qwen 2.5 7B làm được:** tóm tắt file và log dài vừa phải, viết commit message từ diff, phân loại và trích trường, dịch thô Anh–Việt.
   **Không nên giao:** sửa code nhiều file, gọi tool nhiều bước, lập luận dài, mọi thứ cần chính xác pháp lý hay số liệu (ví dụ quy định NHNN).
 - **Tài nguyên:** bản 7B lượng tử Q4 khoảng 4–5 GB RAM, cộng bộ nhớ đệm KV theo độ dài ngữ cảnh: dư sức với 61.8 GB.
   Tốc độ: trên Windows, Radeon 780M không chắc có ROCm, nhưng Ollama có Vulkan cho GPU AMD; số đo cộng đồng cho APU tương tự khoảng vài chục token/giây [cần đo trên máy này].
-- **Đo thật:** **máy này chưa cài Ollama** (không có lệnh `ollama`, cổng 11434 không mở), nên chưa đo được. @you dùng Ollama ở máy khác thì chạy ở máy đó: `ollama run qwen2.5:7b --verbose` với một file mẫu, ghi lại tốc độ đọc lời nhắc (prompt eval) và tốc độ sinh chữ (eval).
+- **Đo thật:** endpoint LAN `http://192.168.0.127:11435` có các model `qwen-coder-3b:latest`, `qwen3.8:latest`, `qwen:latest`, `gemma4:26b`. Phép thử ban đầu cho thấy Qwen Coder 3B trả JSON trong text nhưng không tạo `tool_use`; Qwen 3.8 tạo `tool_use` qua `/v1/messages` sau 40,24 giây.
 
 ## GitHub Copilot
 
@@ -41,18 +40,14 @@ Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
   - Không có system message. Gần hết quota thì request lỗi, extension phải tự xử lý.
   - Người dùng thấy được mỗi extension gửi bao nhiêu request.
 - **Gói Free:**
-  - Trang plans chính thức (docs.github.com, đọc 19/10) ghi Free "2000 completions per month".
-  - Chat/premium: trang chỉ ghi "an allowance of GitHub AI Credits", không có con số.
-  - Free chỉ có "auto model selection", không chọn được model.
-  - Nguồn thứ cấp ghi 50 premium request/tháng, mỗi tin chat tính một request [cần xác minh]. Với 50 request/tháng, Free chỉ đủ thử nghiệm, không đủ làm tầng worker.
-- **Điều khoản:** chưa đọc được văn bản "GitHub Copilot extensibility acceptable development and use policy". Tài liệu VS Code chỉ nói extension phát hành lên Marketplace phải tuân theo nó [cần xác minh]. Dùng Copilot làm backend tự động hàng loạt cho agent khác là vùng xám; nếu làm thì chỉ để tóm tắt theo yêu cầu, có giới hạn tần suất.
+  - Tài liệu GitHub hiện ghi Copilot Free có một allowance GitHub AI Credits nhưng không công bố số lượng Free trên bảng gói; 2.000 completions/tháng là hạn mức gợi ý code, không phải hạn mức chat.
+  - Free chỉ cho chọn model tự động. Tính năng/agentic chat dùng AI Credits; tác vụ agent phức tạp có thể phát sinh nhiều lần gọi model. Không dùng số "50 premium requests" từ bài bên thứ ba hay tài liệu billing cũ làm định mức cho Free.
+  - Muốn biết allowance còn lại phải xem dashboard tài khoản; không thể kết luận Free đủ cho worker nền hoặc dự trù số task/tháng từ tài liệu công khai hiện có.
+- **Điều khoản và vận hành:** Language Model API cần consent của người dùng; VS Code khuyến nghị gọi `selectChatModels` từ hành động do người dùng khởi chạy. API chỉ tồn tại trong extension host đang chạy, nên không phục vụ hub/headless khi VS Code đóng. Chưa xác minh điều khoản có cho phép dùng extension API làm backend tự động cho agent khác hay không; không suy diễn đây là hành vi được cho phép hoặc bị cấm.
 - **Kết luận #12:**
-  - Kỹ thuật làm được (cầu nối extension + `vscode.lm`) nhưng **không nên ưu tiên**.
-  - Free gần như không có hạn mức chat.
-  - Cách này cần VS Code mở, trái hướng D3.
-  - Điều khoản chưa rõ.
+  - Kỹ thuật làm được cho thao tác do người dùng chủ động bấm trong VS Code, nhưng **không phù hợp làm worker nền mặc định**: phụ thuộc VS Code đang mở, consent người dùng, quota AI Credits không được công bố rõ cho Free và điều khoản dùng tự động chưa xác minh.
+  - Có thể thử sau dưới dạng lệnh tường minh trong extension, có giới hạn lượt, báo lỗi quota và không tự chạy; trước khi phát hành cần kiểm tra điều khoản hiện hành.
   - Đường rẻ đã chốt vẫn là `localSummarize` (Ollama, chạy trên máy) và worker Intern AI.
-  - Nếu @you có gói Copilot Pro (300 premium/tháng theo nguồn thứ cấp) và muốn dùng, làm thử một lệnh "Tóm tắt bằng Copilot" do người dùng bấm (đúng khuyến nghị user-initiated), không tự động.
 
 ### Đo thật Ollama LAN (192.168.0.127:11435, RTX 3060, core-improve 2026-10-19)
 
@@ -65,13 +60,15 @@ Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
 | Viết test node:test cho `cmpSemver` | 2 (không import hàm, đoán sai giá trị trả về; test sẽ đỏ) | 5,5 s | không ra chữ (hết 500 token khi đang "nghĩ") | 128 s |
 | Đổi tên biến trong một đoạn | 5 | 1,1 s | 5 | 50 s |
 | Giải thích một hàm | 4 | 1,0 s | chưa đo | |
+| Worker Claude Code gọi tool `Read` trên fixture tổng hợp, trả đúng nội dung | không tạo `tool_use` trong lần probe | — | đạt, 39–58 s | 39–58 s |
 
-Kết luận đo: **qwen-coder-3b** nhanh (≤7 s) và đủ cho đổi tên, commit message, giải thích ngắn; KHÔNG dùng để viết test hay sửa logic (sai mà trông đúng, cần người review). **qwen3.8** chất lượng tốt hơn rõ nhưng 50-150 s mỗi việc và cần `max_tokens` lớn (hoặc tắt chế độ nghĩ) cho việc sinh code. Gợi ý cho `workerRoutes`: 3B cho việc "read"/tóm tắt/commit message; việc "edit" vẫn qua Intern AI hoặc coder; qwen3.8 chỉ cho tóm tắt không gấp. Endpoint `/v1/messages` (Anthropic) không trả lời trong 5 s lúc thăm dò; @Coder_No_2 đang đo phần đó (#16).
+Kết luận đo: các phép thử qua `/v1/chat/completions` phía trên và thử worker qua `/v1/messages` là hai đường khác nhau. **Qwen Coder 3B** không tạo `tool_use` ở lần probe này; điều đó không đánh giá khả năng trả lời plain-text trên đường `localSummarize`. **Qwen 3.8** đã dùng được tool `Read` qua worker trên fixture tổng hợp; hai lượt mất 39–58 giây. Chưa xác minh khả năng sửa file hoặc độ ổn định nhiều lượt. Lượt kiểm tra worker mới nhất trả kết quả chính xác, exit 0, và log ghi cost 0 dù response của Ollama chứa `total_cost_usd` khác 0.
 
 ## Đề xuất việc tiếp (chờ duyệt)
 
-1. @you đo Qwen 2.5 7B ở máy có Ollama (lệnh ở trên) và gửi hai con số tốc độ.
-2. Nếu đủ nhanh: @core-improve hoặc @coder làm đường "chỉ tóm tắt" (hàm hub gọi `/api/chat`, công tắc mặc định tắt, provider kiểu `local`), có test với máy chủ giả.
+1. Restart/re-probe hub để xác nhận provider LAN reachable và model `qwen3.8:latest` đã được nhận diện.
+2. Đo `localSummarize` riêng bằng fixture tổng hợp; không gửi secrets hoặc dữ liệu repo thật tới máy LAN.
+3. Sau khi model/tool-use ổn định, thử edit trên repo fixture độc lập trước khi cân nhắc đặt model vào `workerRoutes.edit`.
 3. Copilot: để sau, chỉ làm khi @you có gói Copilot trả tiền và muốn dùng hạn mức đó.
 
 ## Nguồn
@@ -84,6 +81,7 @@ Kết luận đo: **qwen-coder-3b** nhanh (≤7 s) và đủ cho đổi tên, co
 - Mã repo: `skills/worker/worker.ps1` (đặt biến môi trường theo provider), `hub/providers.ts`, `hub/settings.ts` (`workerRoutes`)
 - VS Code, Language Model API: https://code.visualstudio.com/api/extension-guides/ai/language-model
 - VS Code, GitHub Copilot extensibility: https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview
-- GitHub, Copilot plans (Free: 2000 completions/tháng, auto model selection): https://docs.github.com/en/copilot/get-started/plans
-- Nguồn thứ cấp về hạn mức Free (50 premium/tháng, cần xác minh): https://costbench.com/software/ai-coding-assistants/github-copilot/free-plan/ , https://fast.io/resources/github-copilot-free-access/
+- GitHub, Copilot plans (Free: allowance AI Credits, auto model selection, 2,000 completions/tháng): https://docs.github.com/en/copilot/get-started/plans
+- GitHub, usage-based billing for individuals (AI Credits và allowance theo gói): https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing
+- GitHub, legacy premium requests (chỉ áp dụng một số gói Pro/Pro+ cũ còn billing theo request): https://docs.github.com/en/copilot/reference/copilot-billing/request-based-billing-legacy/copilot-requests
 - Roo Code dùng vscode.lm: https://docs.roocode.com/providers/vscode-lm
