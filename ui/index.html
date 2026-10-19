@@ -426,7 +426,7 @@ header .spacer{flex:1}
 .tsec{margin:0 0 18px}.tsec h3{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:8px}.tsec h3 small{color:var(--mute);font-weight:600}
 .tlist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
 .trow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 10px;padding:10px 14px;border-bottom:1px solid var(--line)}.trow:last-child{border-bottom:0}.trow:hover{background:var(--hover)}
-.tdotb{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin-top:-2px}.tdotb:hover{background:var(--hover)}
+.tdotb{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin-top:-2px}.tdotb:hover{background:var(--hover)}.tbox{width:18px;height:18px;border-radius:5px;border:2px solid var(--mute);display:grid;place-items:center;color:#fff}.tbox svg{width:12px;height:12px}.tbox.st-doing{border-color:#F59E0B}.tbox.st-blocked{border-color:#EF4444}.tbox.st-done{background:#15803D;border-color:#15803D}
 .tmain{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:3px}.ttitle{font-weight:600;font-size:14.5px;line-height:1.4}.trow.st-done .ttitle{color:var(--mute);font-weight:500;text-decoration:line-through}
 .tinfo{display:flex;gap:10px;align-items:center;font-size:12px}
 .tdetail{flex:0 0 100%;padding:4px 0 2px 36px;font-size:13.5px}.tdetail p{margin:4px 0}.tmeta2{display:flex;gap:10px;align-items:center;margin-top:6px}.tdetail .tacts{margin-top:10px}
@@ -1911,12 +1911,12 @@ function renderTasks() {
   const row = (x) => {
     const open = S.taskOpen === x.id, editing = S.taskEdit === x.id;
     return `<li class="trow st-${x.status}${open ? ' open' : ''}" data-tid="${x.id}">
-      <button type="button" class="tdotb" data-tnext="${x.id}" title="${TCOL_KEY[x.status]} → ${TCOL_KEY[TCOLS[(TCOLS.indexOf(x.status) + 1) % 4]]}" aria-label="${t('task.status')}: ${TCOL_KEY[x.status]}"><span class="tdot st-${x.status}"></span></button>
+      <button type="button" class="tdotb" data-tnext="${x.id}" role="checkbox" aria-checked="${x.status === 'done'}" title="${x.status === 'done' ? t('task.reopen') : t('task.markDone')}" aria-label="${esc(x.title)}"><span class="tbox st-${x.status}">${x.status === 'done' ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>' : ''}</span></button>
       <div class="tmain" data-ttoggle="${x.id}">${editing ? `<input class="tedit" data-tedit-in value="${esc(x.title)}" maxlength="200" aria-label="${t('task.edit')}">` : `<span class="ttitle">${esc(x.title)}</span>`}
-        <span class="tinfo">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : ''}<span class="muted">${agoText(x.doneAt || x.updatedAt)}</span></span></div>
+        <span class="tinfo">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}<span class="muted">${agoText(x.doneAt || x.updatedAt)}</span></span></div>
       ${open ? `<div class="tdetail">${x.doneWhen ? `<p><b>${t('task.doneWhenLabel')}</b> ${esc(x.doneWhen)}</p>` : ''}${x.detail ? `<div class="msg">${md(x.detail)}</div>` : ''}${x.note ? `<p class="tnote">${esc(x.note)}</p>` : ''}
         <div class="tmeta2">${x.fromMsg ? `<button type="button" class="tlink" data-tjump="${x.fromMsg}">${t('task.fromMsg', { id: x.fromMsg })}</button>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}</div>
-        <div class="tacts"><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><button type="button" class="btn sm" data-tedit="${x.id}">${t('task.edit')}</button><button type="button" class="btn sm danger" data-tdel="${x.id}">${t('task.delete')}</button></div></div>` : ''}
+        <div class="tacts"><select data-tstatus="${x.id}" aria-label="${t('task.status')}">${TCOLS.map((k) => `<option value="${k}"${k === x.status ? ' selected' : ''}>${TCOL_KEY[k]}</option>`).join('')}</select><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><button type="button" class="btn sm" data-tedit="${x.id}">${t('task.edit')}</button><button type="button" class="btn sm danger" data-tdel="${x.id}">${t('task.delete')}</button></div></div>` : ''}
     </li>`;
   };
   const sec = (s) => {
@@ -1936,7 +1936,7 @@ function renderTasks() {
 }
 $('view-tasks').addEventListener('click', (e) => {
   const r = S.current, q = (sel) => e.target.closest(sel);
-  const tn = q('[data-tnext]'); if (tn) { const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext); if (x) { const ns = TCOLS[(TCOLS.indexOf(x.status) + 1) % 4]; return api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: ns }).then(() => loadTasks(r), (err) => toast(err.message)); } }
+  const tn = q('[data-tnext]'); if (tn) { const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext); if (x) { const ns = x.status === 'done' ? 'todo' : 'done'; return api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: ns }).then(() => loadTasks(r), (err) => toast(err.message)); } }
   const tf = q('[data-townerf]'); if (tf) { S.tfOwner = tf.dataset.townerf; return renderTasks(); }
   const tt = q('[data-ttoggle]'); if (tt && !q('.tedit') && !q('a,button')) { const id = +tt.dataset.ttoggle; S.taskOpen = S.taskOpen === id ? null : id; return renderTasks(); }
   if (q('#taskAdd')) { S.taskForm = !S.taskForm; return renderTasks(); }
