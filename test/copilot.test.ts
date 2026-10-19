@@ -48,16 +48,16 @@ function callRoomMcp(config: { command?: string; args?: string[]; env?: Record<s
   });
 }
 
-function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string | ((prompt: string) => string); start?: () => Promise<void> } = {}) {
+function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string | ((prompt: string) => string | Promise<string>); start?: () => Promise<void> } = {}) {
   type McpConfig = { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string };
-  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig> } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig>; systemPrompt?: string } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
   function session(sessionId: string) {
     return {
       sessionId,
       sendAndWait: async (prompt: string | { prompt: string }) => {
         const text = typeof prompt === 'string' ? prompt : prompt.prompt;
         calls.prompts.push(text);
-        return { data: { content: typeof response === 'function' ? response(text) : response } };
+        return { data: { content: typeof response === 'function' ? await response(text) : response } };
       },
       disconnect: async () => {},
     };
@@ -66,17 +66,19 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
     return {
       start: async () => { calls.started++; await start(); },
       getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
-      createSession: async (config: { sessionId?: string; availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig> }) => {
+      createSession: async (config: { sessionId?: string; availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig>; systemMessage?: { content?: string } }) => {
         calls.created++;
         calls.providerId = config.sessionId ?? uuid;
         calls.availableTools = config.availableTools ? [...config.availableTools] : undefined;
         calls.mcpServers = config.mcpServers;
+        calls.systemPrompt = config.systemMessage?.content;
         return session(calls.providerId);
       },
-      resumeSession: async (id: string, config?: { availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig> }) => {
+      resumeSession: async (id: string, config?: { availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig>; systemMessage?: { content?: string } }) => {
         calls.resumed.push(id);
         calls.availableTools = config?.availableTools ? [...config.availableTools] : undefined;
         calls.mcpServers = config?.mcpServers;
+        calls.systemPrompt = config?.systemMessage?.content;
         return session(id);
       },
       stop: async () => { calls.stopped++; return []; },
@@ -230,6 +232,40 @@ test('Copilot processes pending messages per room and replies in each originatin
     assert.equal(calls.prompts.length, 2);
     assert.ok(calls.prompts.some((prompt) => prompt.includes('room #bear-agent-manager:') && prompt.includes('public request') && !prompt.includes('private request')));
     assert.ok(calls.prompts.some((prompt) => prompt.includes(`room #${privateRoom}:`) && prompt.includes('private request') && !prompt.includes('public request')));
+  } finally {
+    await h.hub.close();
+    fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot does not relay its final response when it already sent to that room with room_send', async () => {
+  let h: Awaited<ReturnType<typeof makeHub>>;
+  let copilotId = '';
+  const toolMessage = 'I posted this through room_send.';
+  const finalResponse = 'This final response would duplicate the room_send message.';
+  const { factory, calls } = fakeFactory({
+    response: async () => {
+      await callRoomMcp(calls.mcpServers!['bear-agent-manager'], 'room_send', { room: 'bear-agent-manager', text: toolMessage });
+      return finalResponse;
+    },
+  });
+  h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await h.call('/api/copilot', { on: true, confirm: true });
+    copilotId = h.hub.store.members('bear-agent-manager').find((member) => member.name === 'Copilot')!.id;
+    assert.match(calls.systemPrompt ?? '', /If you use room_send to post in the room for the current turn, do not repeat that message/);
+
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot send one room message only' });
+    await until(async () => {
+      const messages = await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0');
+      const copilot = h.hub.store.state.sessions[copilotId];
+      return copilot?.status === 'idle' && messages.some((message) => message.fromId === copilotId && message.text === toolMessage);
+    }, COPILOT_ASYNC_TIMEOUT_MS, 'Copilot room_send and turn completion');
+
+    const posted = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0'))
+      .filter((message) => message.fromId === copilotId && [toolMessage, finalResponse].includes(message.text));
+    assert.deepEqual(posted.map((message) => message.text), [toolMessage]);
   } finally {
     await h.hub.close();
     fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });

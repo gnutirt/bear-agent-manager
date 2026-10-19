@@ -268,7 +268,7 @@ export class CopilotAgent {
       onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), this.name), this.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${this.name}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
+        content: `You are ${this.name}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you use room_send to post in the room for the current turn, do not repeat that message in your final response: the hub suppresses its automatic relay, so a one-line confirmation is enough. Reply with a concise status and result when finished.`,
       },
     };
   }
@@ -331,12 +331,16 @@ export class CopilotAgent {
         this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
         this.setStatus({ state: 'busy', error: undefined });
         this.opts.onChange(this.snapshot());
+        const lastRoomMessageId = this.opts.store.history(room, 0, 500).at(-1)?.id ?? 0;
         const response = await session.sendAndWait({ prompt }, TURN_TIMEOUT_MS);
         const content = response?.data.content?.trim();
-        if (!content) throw new Error(`Copilot finished without a final response for #${room}.`);
-        for (const part of splitMessage(content)) {
-          const posted = this.opts.store.post(room, id, part);
-          this.opts.onMessage(room, posted.message);
+        const alreadyPosted = this.opts.store.history(room, lastRoomMessageId, 500).some((message) => message.fromId === id);
+        if (!alreadyPosted) {
+          if (!content) throw new Error(`Copilot finished without a final response for #${room}.`);
+          for (const part of splitMessage(content)) {
+            const posted = this.opts.store.post(room, id, part);
+            this.opts.onMessage(room, posted.message);
+          }
         }
       }
       this.opts.store.consume(id, upTo);
