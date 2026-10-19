@@ -11,6 +11,7 @@
     "test": "node --no-warnings --test \"test/**/*.test.ts\"",
     "hub": "node --no-warnings hub/main.ts",
     "release": "node scripts/release.mjs",
-    "vsix": "node scripts/install-vscode.mjs --build-only"
+    "vsix": "node scripts/install-vscode.mjs --build-only",
+    "smoke": "node --no-warnings scripts/smoke.ts"
   }
 }

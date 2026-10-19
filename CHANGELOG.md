@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `npm run smoke` (scripts/smoke.ts + scripts/smoke/fake-claude.mjs): an end-to-end check on a throw-away hub (random port, temp home, a fake `claude` on PATH, the real waiter): @mention wake, a background wake that survives 3 turns with answers in their topic, a tab ending the background claude, usage limit then reset (stuck tab woken, working tab untouched), tasks, attachments, machine export, End/Compact 409 on uncommitted files. PASS/FAIL table, non-zero exit on failure (README Smoke test).
 ## 0.6.0 - 2026-10-19
 
 - Review fixes for D1/D3: `POST /api/agents` now takes only an absolute local folder (no relative path, no network share), resolves it to its real path before the "known folder" check, never treats a drive root or the home folder as known (always needs `confirm`), and obeys the new `settings.agents.maxBackground` (default 4, 1-16; counts background wakes too, 429 when full; a finished agent frees its place); chat sharing (`/api/accounts`, `/api/accounts/share`) only considers folders that really are Claude config dirs (a login, `projects/` or installed plugins), so a look-alike such as `~/.claude-mem` never gets a junction. Needs hub restart.

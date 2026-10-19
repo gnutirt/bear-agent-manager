@@ -184,6 +184,10 @@ node scripts/cleanup-ghosts.mjs   # drop hub sessions that are not real chats
 
 Design docs live in `docs/superpowers/` (specs and implementation plans).
 
+## Smoke test
+
+`npm run smoke` checks the whole chain in about a minute, without touching your data: it starts the real hub on a random port with a temporary home, puts a fake `claude` (a node script, no model) first on `PATH`, and runs the real `hooks/waiter.ts`. It prints a PASS/FAIL table and exits non-zero when something fails. It covers: register + `room_send` + @mention wake; a background wake that stays alive over 3 turns with the answers staying in their topic; a tab opening ends the background claude; usage limit then reset (a stuck tab is ended and woken, a working tab is left alone); tasks add/next/done; attachment upload/download; machine export (202 + manifest); End/Compact refusing a folder with uncommitted files (409) unless forced. `SMOKE_KEEP=1` keeps the temporary home (its path is printed) to read the fake claude's logs. Run it after changing the hub, hooks or waiter, and before a release.
+
 ## Working together in one tree
 
 Several agents edit the same checkout, so a plain `git add <file>` + `git commit` can sweep in someone else's unfinished lines. Commit with:
