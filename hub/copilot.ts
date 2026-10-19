@@ -16,6 +16,8 @@ type Identity = { hubId: string; providerId?: string };
 type State = 'off' | 'starting' | 'idle' | 'busy' | 'error';
 export type CopilotStatus = { state: State; room: string; cwd: string; login?: string; error?: string };
 
+export class CopilotAuthError extends Error {}
+
 type Session = Pick<CopilotSession, 'sessionId' | 'sendAndWait' | 'disconnect'>;
 type Client = Pick<CopilotClient, 'start' | 'stop' | 'getAuthStatus' | 'createSession' | 'resumeSession'>;
 export type CopilotClientFactory = (cwd: string) => Client | Promise<Client>;
@@ -117,7 +119,7 @@ function formatMessages(messages: ReturnType<Store['pending']>['messages'], cwd:
     .filter((m) => m.kind !== 'system')
     .map((m) => `[${m.from}] ${m.text}`)
     .filter(Boolean);
-  return `New messages in the shared Bear Agent Manager room #${ROOM}:\n${items.join('\n\n')}\n\nWork in ${cwd}. Address other agents by name only when you need them to respond. Reply directly with your answer; the hub will post your final response to #${ROOM}.`;
+  return `New messages in the shared Bear Agent Manager room #${ROOM}:\n${items.join('\n\n')}\n\nWork in ${cwd}. When you need another agent to respond, write @ followed by their exact room name (for example @Coder_No_2); the hub parses that as a mention and wakes them. You can reply to the room only with your final response; the hub posts it for you.`;
 }
 
 function splitMessage(text: string, limit = 7800): string[] {
@@ -194,7 +196,7 @@ export class CopilotAgent {
       this.client = createdClient;
       await createdClient.start();
       const auth = await createdClient.getAuthStatus();
-      if (!auth.isAuthenticated) throw new Error('Copilot CLI is not signed in. Run `copilot login` in a terminal as this Windows user, then start Copilot again.');
+      if (!auth.isAuthenticated) throw new CopilotAuthError('Copilot CLI is not signed in. Run `copilot login` in a terminal as this Windows user, then enable Copilot again in Settings.');
       const session = identity.providerId
         ? await createdClient.resumeSession(identity.providerId, this.sessionConfig())
         : await createdClient.createSession({ ...this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
@@ -222,7 +224,7 @@ export class CopilotAgent {
       if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) this.opts.store.markEnded(this.identity.hubId);
       this.opts.onChange(this.snapshot());
       this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `Copilot could not start: ${message}`, undefined, { type: 'error', level: 'error', agent: NAME }));
-      throw new Error(message);
+      throw error instanceof CopilotAuthError ? new CopilotAuthError(message) : new Error(message);
     }
   }
 
@@ -240,7 +242,7 @@ export class CopilotAgent {
       onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. Address other agents by name only when you need them to respond. Reply with a concise status and result when finished.`,
+        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. You cannot send room messages directly; the hub posts your final response. Reply with a concise status and result when finished.`,
       },
     };
   }

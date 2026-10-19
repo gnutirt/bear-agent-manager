@@ -70,10 +70,10 @@ test('Copilot runtime does not inherit host CLI/IDE flags or keychain-disable se
 });
 
 test('Copilot API joins the shared room with existing members and resumes the same SDK session', async () => {
-  const { factory, calls } = fakeFactory();
+  const { factory, calls } = fakeFactory({ response: '@Coder_No_2 please review this change' });
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
   try {
-    const peer = h.hub.store.register({ id: uuid, name: 'reviewer', cwd: process.cwd() });
+    const peer = h.hub.store.register({ id: uuid, name: 'Coder_No_2', cwd: process.cwd() });
     h.hub.store.join(peer.id, 'bear-agent-manager');
     assert.equal((await h.call<any>('/api/copilot')).autoStart, false);
     assert.equal((await h.call<any>('/api/copilot', { on: true })).done, false);
@@ -87,11 +87,15 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(calls.availableTools, undefined, 'Copilot CLI mode should keep its native file and shell tools');
     assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
-    assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Copilot', 'reviewer']);
+    assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Coder_No_2', 'Copilot']);
     await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot check this change' });
-    await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === 'Copilot reply'), 5000, 'Copilot reply');
+    await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === '@Coder_No_2 please review this change'), 5000, 'Copilot reply with mention');
     assert.match(calls.prompts[0], /check this change/);
     assert.match(calls.prompts[0], /shared Bear Agent Manager room #bear-agent-manager/);
+    assert.match(calls.prompts[0], /write @ followed by their exact room name/);
+    const mention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.from === 'Copilot');
+    assert.deepEqual(mention.mentions, ['coder_no_2']);
+    assert.deepEqual(mention.wake, [peer.id], 'a final Copilot response mentioning an underscore name wakes that agent');
     const member = h.hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot');
     assert.ok(member);
     assert.equal(member.status, 'idle');
@@ -114,6 +118,27 @@ test('Copilot API joins the shared room with existing members and resumes the sa
 test('Copilot startup reports missing CLI login and does not create an SDK session', async () => {
   const { factory, calls } = fakeFactory({ authenticated: false });
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  const eventsAbort = new AbortController();
+  const eventsResponse = await fetch(`${h.hub.url}/api/events?token=${h.hub.token}`, { signal: eventsAbort.signal });
+  const eventsReader = eventsResponse.body!.getReader();
+  const decoder = new TextDecoder();
+  let eventBuffer = '';
+  const copilotDisabledEvent = (async () => {
+    for (;;) {
+      const { done, value } = await eventsReader.read();
+      if (done) throw new Error('SSE closed before Copilot autostart was disabled');
+      eventBuffer += decoder.decode(value, { stream: true });
+      const blocks = eventBuffer.split('\n\n');
+      eventBuffer = blocks.pop() ?? '';
+      for (const block of blocks) {
+        if (!block.startsWith('event: copilot\n')) continue;
+        const data = block.split('\n').find((line) => line.startsWith('data: '));
+        if (!data) continue;
+        const status = JSON.parse(data.slice(6));
+        if (status.autoStart === false) return status;
+      }
+    }
+  })();
   try {
     const response = await fetch(h.hub.url + '/api/copilot', {
       method: 'POST',
@@ -161,16 +186,26 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
     assert.equal(body.status.state, 'error');
     assert.equal(calls.created, 0);
     assert.equal(calls.stopped, 1, 'a failed unauthenticated runtime is stopped');
-    assert.equal((await h.call<any>('/api/copilot')).autoStart, true, 'the requested startup setting remains enabled');
-    assert.ok((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => /could not start/.test(m.text)));
+    assert.equal(body.status.autoStart, false, 'failed authentication disables automatic retries');
+    assert.equal((await h.call<any>('/api/copilot')).autoStart, false);
+    assert.equal((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).filter((m) => /could not start/.test(m.text)).length, 1);
+    let timeout: NodeJS.Timeout | undefined;
+    const notified = await Promise.race([
+      copilotDisabledEvent,
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Copilot autostart change was not broadcast')), 5000); }),
+    ]);
+    if (timeout) clearTimeout(timeout);
+    assert.equal((notified as any).autoStart, false, 'open Settings clients receive the disabled autostart state');
   } finally {
+    eventsAbort.abort();
     await h.hub.close();
     fs.rmSync(h.dir, { recursive: true, force: true });
   }
 });
 
-test('Copilot keeps its hub identity when auth fails before the first SDK session', async () => {
+test('Copilot auth failure disables autostart and waits for an explicit retry', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-retry-'));
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ copilot: { autoStart: true } }));
   const common = {
     dir, port: 0, usageFetch: null, versionFetch: null, probe: null,
     listProcs: async () => [], legacyKeyFile: path.join(dir, 'no-legacy.key'), usageHome: dir, pluginUpdateEveryMs: null,
@@ -178,14 +213,11 @@ test('Copilot keeps its hub identity when auth fails before the first SDK sessio
   const missingLogin = fakeFactory({ authenticated: false });
   let hub = await startHub({ ...common, copilotClientFactory: missingLogin.factory });
   try {
-    const response = await fetch(hub.url + '/api/copilot', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
-      body: JSON.stringify({ on: true, confirm: true }),
-    });
-    assert.equal(response.status, 503);
+    await until(() => missingLogin.calls.stopped === 1, 5000, 'failed Copilot autostart cleanup');
     const identity = JSON.parse(fs.readFileSync(path.join(dir, 'copilot-agent.json'), 'utf8'));
     assert.match(identity.hubId, /^[0-9a-f-]{36}$/i);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).copilot.autoStart, false);
+    assert.equal((await fetch(hub.url + '/api/rooms/bear-agent-manager/messages?after=0', { headers: { 'x-room-token': hub.token } }).then((r) => r.json()) as any[]).filter((m) => /could not start/.test(m.text)).length, 1);
   } finally {
     await hub.close();
   }
@@ -193,7 +225,16 @@ test('Copilot keeps its hub identity when auth fails before the first SDK sessio
   const signedIn = fakeFactory();
   hub = await startHub({ ...common, copilotClientFactory: signedIn.factory });
   try {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(signedIn.calls.started, 0, 'auth failure must not retry on the next hub launch');
+    const response = await fetch(hub.url + '/api/copilot', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ on: true, confirm: true }),
+    });
+    assert.equal(response.status, 200, 'enabling Copilot in Settings is an explicit retry');
     await until(() => signedIn.calls.created === 1, 5000, 'Copilot retry after sign-in');
+    assert.equal(signedIn.calls.started, 1);
     assert.equal(Object.values(hub.store.state.sessions).filter((s) => s.name === 'Copilot').length, 1);
   } finally {
     await hub.close();

@@ -15,7 +15,7 @@ import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, pla
 import { pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
-import { CopilotAgent, type CopilotClientFactory } from './copilot.ts';
+import { CopilotAgent, CopilotAuthError, type CopilotClientFactory } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -244,6 +244,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
     createClient: opts.copilotClientFactory,
   });
+  function disableCopilotAutoStart(): void {
+    const current = loadSettings(opts.dir, envCap);
+    if (!current.copilot.autoStart) return;
+    const next = patchSettings(current, { copilot: { autoStart: false } });
+    saveSettings(opts.dir, next);
+    broadcast('settings', next);
+    broadcast('copilot', { ...copilot.snapshot(), autoStart: false });
+  }
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
@@ -1215,7 +1223,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (next.copilot.autoStart) await copilot.start();
         else await copilot.stop();
       } catch (error) {
-        const status = { ...copilot.snapshot(), autoStart: next.copilot.autoStart };
+        if (error instanceof CopilotAuthError) disableCopilotAutoStart();
+        const status = { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart };
         return json(res, 503, { error: error instanceof Error ? error.message : String(error), status });
       }
       return json(res, 200, { ...copilot.snapshot(), autoStart: next.copilot.autoStart, done: true });
@@ -1778,7 +1787,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   heartbeat.unref();
 
   if (loadSettings(opts.dir, envCap).copilot.autoStart) {
-    void copilot.start().catch((error) => console.error('[copilot] autostart failed:', error));
+    void copilot.start().catch((error) => {
+      if (error instanceof CopilotAuthError) disableCopilotAutoStart();
+      console.error('[copilot] autostart failed:', error);
+    });
   }
 
   return {
