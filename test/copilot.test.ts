@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { makeHub, until } from './helpers.ts';
 import { copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
 import { defaultSettings } from '../hub/settings.ts';
@@ -10,8 +11,44 @@ import { startHub } from '../hub/server.ts';
 
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
 
+function callRoomMcp(config: { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string }, toolName: string, args: Record<string, unknown>): Promise<string> {
+  assert.ok(config.command && config.args && config.env && config.workingDirectory);
+  const child = spawn(config.command, config.args, {
+    cwd: config.workingDirectory,
+    env: { ...process.env, ...config.env },
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (data: string) => { stdout += data; });
+    child.stderr.setEncoding('utf8').on('data', (data: string) => { stderr += data; });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code !== 0) return reject(new Error(`room MCP exited ${code}: ${stderr}`));
+      try {
+        const responses = stdout.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+        const listed = responses.find((response) => response.id === 2);
+        const called = responses.find((response) => response.id === 3);
+        assert.ok(listed?.result?.tools?.some((tool: { name: string }) => tool.name === toolName));
+        assert.equal(called?.result?.isError, undefined, JSON.stringify(called?.result));
+        resolve(called.result.content[0].text);
+      } catch (error) {
+        reject(new Error(`invalid room MCP response: ${stderr}\n${stdout}`, { cause: error }));
+      }
+    });
+    child.stdin.end([
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: toolName, arguments: args } },
+    ].map((request) => JSON.stringify(request)).join('\n') + '\n');
+  });
+}
+
 function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string; start?: () => Promise<void> } = {}) {
-  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[] } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
+  type McpConfig = { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string };
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig> } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
   function session(sessionId: string) {
     return {
       sessionId,
@@ -23,15 +60,17 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
     return {
       start: async () => { calls.started++; await start(); },
       getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
-      createSession: async (config: { sessionId?: string; availableTools?: readonly string[] }) => {
+      createSession: async (config: { sessionId?: string; availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig> }) => {
         calls.created++;
         calls.providerId = config.sessionId ?? uuid;
         calls.availableTools = config.availableTools ? [...config.availableTools] : undefined;
+        calls.mcpServers = config.mcpServers;
         return session(calls.providerId);
       },
-      resumeSession: async (id: string, config?: { availableTools?: readonly string[] }) => {
+      resumeSession: async (id: string, config?: { availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig> }) => {
         calls.resumed.push(id);
         calls.availableTools = config?.availableTools ? [...config.availableTools] : undefined;
+        calls.mcpServers = config?.mcpServers;
         return session(id);
       },
       stop: async () => { calls.stopped++; return []; },
@@ -47,6 +86,9 @@ test('Copilot permission policy follows the hub permission mode and refuses mana
   assert.equal(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'write', fileName: 'D:\\outside.txt' }, { sessionId: uuid }).kind, 'reject');
   assert.equal(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'shell' }, { sessionId: uuid }).kind, 'reject');
   assert.equal(copilotPermissionHandler({ mode: 'default', allow: [], deny: [] }, process.cwd())(request, { sessionId: uuid }).kind, 'user-not-available');
+  assert.deepEqual(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'mcp', serverName: 'bear-agent-manager', toolName: 'room_tasks' }, { sessionId: uuid }), { kind: 'approve-once' });
+  assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['room_tasks'] }, process.cwd())({ kind: 'mcp', serverName: 'bear-agent-manager', toolName: 'room_tasks' }, { sessionId: uuid }).kind, 'reject');
+  assert.equal(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'mcp', serverName: 'other-server', toolName: 'dangerous' }, { sessionId: uuid }).kind, 'reject');
   assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: [] }, process.cwd())({ kind: 'shell', managedApprovalRequired: true }, { sessionId: uuid }).kind, 'user-not-available');
   assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, process.cwd())({ kind: 'shell', fullCommandText: 'git push origin' }, { sessionId: uuid }).kind, 'reject');
 });
@@ -85,6 +127,21 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(started.login, 'test-user');
     assert.equal(calls.created, 1);
     assert.equal(calls.availableTools, undefined, 'Copilot CLI mode should keep its native file and shell tools');
+    const copilot = h.hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot');
+    assert.ok(copilot);
+    assert.deepEqual(calls.mcpServers?.['bear-agent-manager'], {
+      type: 'stdio',
+      command: process.execPath,
+      args: ['--no-warnings', path.resolve('mcp/server.ts')],
+      workingDirectory: process.cwd(),
+      env: {
+        CLAUDE_CODE_SESSION_ID: copilot.id,
+        BEAR_AGENT_HOME: h.dir,
+        BEAR_AGENT_PORT: String(h.hub.port),
+      },
+    });
+    const roomMcp = calls.mcpServers['bear-agent-manager'];
+    assert.match(await callRoomMcp(roomMcp, 'room_tasks', { action: 'list', room: 'bear-agent-manager' }), /#bear-agent-manager has no tasks yet\./);
     assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Coder_No_2', 'Copilot']);
@@ -96,6 +153,10 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     const mention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.from === 'Copilot');
     assert.deepEqual(mention.mentions, ['coder_no_2']);
     assert.deepEqual(mention.wake, [peer.id], 'a final Copilot response mentioning an underscore name wakes that agent');
+    assert.match(await callRoomMcp(roomMcp, 'room_send', { room: 'bear-agent-manager', text: '**@Coder_No_2** MCP mention test' }), /Woke 1/);
+    const mcpMention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.text === '**@Coder_No_2** MCP mention test');
+    assert.deepEqual(mcpMention?.mentions, ['coder_no_2']);
+    assert.deepEqual(mcpMention?.wake, [peer.id], 'markdown mentions sent with room_send wake the target member');
     const member = h.hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot');
     assert.ok(member);
     assert.equal(member.status, 'idle');
@@ -107,6 +168,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(calls.created, 1);
     assert.deepEqual(calls.resumed, [calls.providerId]);
     assert.equal(calls.availableTools, undefined, 'resumed sessions should keep native file and shell tools');
+    assert.equal(calls.mcpServers?.['bear-agent-manager']?.env?.CLAUDE_CODE_SESSION_ID, member.id);
     assert.ok(!('copilot' in h.hub.store.state.sessions[member.id].rooms), 'legacy private-room membership is removed');
   } finally {
     await h.hub.close();

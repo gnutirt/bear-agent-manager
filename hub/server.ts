@@ -232,7 +232,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
   const copilot = new CopilotAgent({
-    dir: opts.dir, cwd: ROOT, store,
+    dir: opts.dir, cwd: ROOT, port: () => port, store,
     settings: () => loadSettings(opts.dir, envCap),
     onChange: (status) => {
       broadcast('copilot', status);

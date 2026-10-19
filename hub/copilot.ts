@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest } from '@github/copilot-sdk';
+import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
 import { permFor, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
@@ -10,6 +11,7 @@ const NAME = 'Copilot';
 const ROOM = 'bear-agent-manager';
 const LEGACY_ROOM = 'copilot';
 const IDENTITY_FILE = 'copilot-agent.json';
+const MCP_SERVER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../mcp/server.ts');
 const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 type Identity = { hubId: string; providerId?: string };
@@ -25,6 +27,7 @@ export type CopilotClientFactory = (cwd: string) => Client | Promise<Client>;
 export type CopilotAgentOptions = {
   dir: string;
   cwd: string;
+  port: () => number;
   store: Store;
   settings: () => Settings;
   onChange: (status: CopilotStatus) => void;
@@ -61,6 +64,7 @@ function mappedToolName(request: PermissionRequest): string {
   if (request.kind === 'read') return 'Read';
   if (request.kind === 'write') return 'Edit';
   if (request.kind === 'shell') return 'Bash';
+  if (request.kind === 'mcp') return request.toolName;
   return 'toolName' in request && typeof request.toolName === 'string' ? request.toolName : request.kind;
 }
 
@@ -82,6 +86,7 @@ export function copilotPermissionHandler(rule: PermRule, cwd: string): Permissio
   return (request) => {
     if (request.managedApprovalRequired) return { kind: 'user-not-available' };
     if (rule.deny.some((spec) => ruleMatches(spec, request))) return { kind: 'reject', feedback: 'This operation is denied by Bear Agent Manager settings.' };
+    if (request.kind === 'mcp' && request.serverName === 'bear-agent-manager') return { kind: 'approve-once' };
     if (rule.mode === 'bypass') return { kind: 'approve-once' };
     if (rule.mode === 'acceptEdits' && (request.kind === 'read' || request.kind === 'write')) {
       const requestedPath = request.kind === 'read' ? request.path : request.fileName;
@@ -198,8 +203,8 @@ export class CopilotAgent {
       const auth = await createdClient.getAuthStatus();
       if (!auth.isAuthenticated) throw new CopilotAuthError('Copilot CLI is not signed in. Run `copilot login` in a terminal as this Windows user, then enable Copilot again in Settings.');
       const session = identity.providerId
-        ? await createdClient.resumeSession(identity.providerId, this.sessionConfig())
-        : await createdClient.createSession({ ...this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
+        ? await createdClient.resumeSession(identity.providerId, this.sessionConfig(identity.hubId))
+        : await createdClient.createSession({ ...this.sessionConfig(identity.hubId), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
       this.session = session;
       if (session.sessionId !== identity.providerId) {
         identity.providerId = session.sessionId;
@@ -228,7 +233,7 @@ export class CopilotAgent {
     }
   }
 
-  private sessionConfig() {
+  private sessionConfig(hubId: string) {
     const rule = permFor(this.opts.settings(), NAME);
     return {
       workingDirectory: this.opts.cwd,
@@ -239,10 +244,23 @@ export class CopilotAgent {
       enableSkills: false,
       memory: { enabled: false },
       customAgentsLocalOnly: true,
+      mcpServers: {
+        'bear-agent-manager': {
+          type: 'stdio' as const,
+          command: process.execPath,
+          args: ['--no-warnings', MCP_SERVER],
+          workingDirectory: this.opts.cwd,
+          env: {
+            CLAUDE_CODE_SESSION_ID: hubId,
+            BEAR_AGENT_HOME: this.opts.dir,
+            BEAR_AGENT_PORT: String(this.opts.port()),
+          },
+        },
+      },
       onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. You cannot send room messages directly; the hub posts your final response. Reply with a concise status and result when finished.`,
+        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
       },
     };
   }
