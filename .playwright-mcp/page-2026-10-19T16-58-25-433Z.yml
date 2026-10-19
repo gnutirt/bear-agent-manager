@@ -1,0 +1,222 @@
+- generic [active] [ref=f2e1]:
+  - complementary [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - generic "Bear Agent Manager" [ref=f2e8]: Bear Agent
+      - 'generic "Hub: đã kết nối" [ref=f2e9]'
+    - generic [ref=f2e11]:
+      - generic [ref=f2e12]:
+        - generic [ref=f2e13]: Phòng
+        - button "Tạo phòng" [ref=f2e14] [cursor=pointer]
+      - generic [ref=f2e17]:
+        - generic [ref=f2e18]:
+          - generic [ref=f2e19]: "#"
+          - generic [ref=f2e20]: bear-agent-manager
+          - button "Tùy chọn phòng" [ref=f2e21] [cursor=pointer]
+        - generic [ref=f2e26]:
+          - generic [ref=f2e27]: "#"
+          - generic [ref=f2e28]: esp-repo
+          - button "Tùy chọn phòng" [ref=f2e29] [cursor=pointer]
+        - generic [ref=f2e34]:
+          - generic [ref=f2e35]: "#"
+          - generic [ref=f2e36]: mywork
+          - button "Tùy chọn phòng" [ref=f2e37] [cursor=pointer]
+      - generic [ref=f2e42]:
+        - button "▾ Agent đang chạy (8)" [expanded] [ref=f2e43] [cursor=pointer]:
+          - generic [ref=f2e44]: ▾
+          - generic [ref=f2e45]: Agent đang chạy
+          - generic [ref=f2e46]: (8)
+        - combobox "Lọc theo repo" [ref=f2e47]:
+          - option "Mọi repo" [selected]
+          - option "bear-agent-manager"
+          - option "data-offline"
+          - option "esp-bear32"
+          - option "mywork"
+          - option "nguye"
+          - option "work"
+      - generic [ref=f2e48]:
+        - button "coder 70k Vai trò lập trình viên rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e49] [cursor=pointer]:
+          - generic [ref=f2e59]:
+            - generic [ref=f2e60]:
+              - generic "coder" [ref=f2e61]
+              - 'generic "Ngữ cảnh ~70k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e62]': 70k
+            - generic "Vai trò lập trình viên" [ref=f2e63]
+            - generic [ref=f2e64]:
+              - generic [ref=f2e65]: rảnh
+              - generic [ref=f2e66]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e68]: ✓
+        - button "Coder_No_2 74k Coder No 2 rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e69] [cursor=pointer]:
+          - generic [ref=f2e77]:
+            - generic [ref=f2e78]:
+              - generic "Coder_No_2" [ref=f2e79]
+              - 'generic "Ngữ cảnh ~74k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e80]': 74k
+            - generic "Coder No 2" [ref=f2e81]
+            - generic [ref=f2e82]:
+              - generic [ref=f2e83]: rảnh
+              - generic [ref=f2e84]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e86]: ✓
+        - button "Copilot rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e87] [cursor=pointer]:
+          - generic [ref=f2e96]:
+            - generic "Copilot" [ref=f2e98]
+            - generic [ref=f2e99]:
+              - generic [ref=f2e100]: rảnh
+              - generic [ref=f2e101]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e103]: ✓
+        - button "core-improve 250k Hệ thống cải tiến năng suất nhóm rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e104] [cursor=pointer]:
+          - generic [ref=f2e110]:
+            - generic [ref=f2e111]:
+              - generic "core-improve" [ref=f2e112]
+              - 'generic "Ngữ cảnh ~250k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e113]': 250k
+            - generic "Hệ thống cải tiến năng suất nhóm" [ref=f2e114]
+            - generic [ref=f2e115]:
+              - generic [ref=f2e116]: rảnh
+              - generic [ref=f2e117]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e119]: ✓
+        - button "frontend 112k Vai trò kỹ sư frontend đang làm bear-agent-manager Đã ở trong phòng" [ref=f2e120] [cursor=pointer]:
+          - generic [ref=f2e130]:
+            - generic [ref=f2e131]:
+              - generic "frontend" [ref=f2e132]
+              - 'generic "Ngữ cảnh ~112k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e133]': 112k
+            - generic "Vai trò kỹ sư frontend" [ref=f2e134]
+            - generic [ref=f2e135]:
+              - generic [ref=f2e136]: đang làm
+              - generic [ref=f2e137]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e139]: ✓
+        - button "new-planner 221k Vai trò planner rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e140] [cursor=pointer]:
+          - generic [ref=f2e151]:
+            - generic [ref=f2e152]:
+              - generic "new-planner" [ref=f2e153]
+              - 'generic "Ngữ cảnh ~221k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e154]': 221k
+            - generic "Vai trò planner" [ref=f2e155]
+            - generic [ref=f2e156]:
+              - generic [ref=f2e157]: rảnh
+              - generic [ref=f2e158]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e160]: ✓
+        - button "thu-vien-skill 18k Thư viện skill hệ thống rảnh bear-agent-manager Đã ở trong phòng" [ref=f2e161] [cursor=pointer]:
+          - generic [ref=f2e173]:
+            - generic [ref=f2e174]:
+              - generic "thu-vien-skill" [ref=f2e175]
+              - 'generic "Ngữ cảnh ~18k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e176]': 18k
+            - generic "Thư viện skill hệ thống" [ref=f2e177]
+            - generic [ref=f2e178]:
+              - generic [ref=f2e179]: rảnh
+              - generic [ref=f2e180]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e182]: ✓
+        - button "truong-phong 147k Vai trò trưởng phòng đang làm bear-agent-manager Đã ở trong phòng" [ref=f2e183] [cursor=pointer]:
+          - generic [ref=f2e192]:
+            - generic [ref=f2e193]:
+              - generic "truong-phong" [ref=f2e194]
+              - 'generic "Ngữ cảnh ~147k token: mỗi lần đánh thức, Claude đọc lại chừng này (≈10% giá nếu cache còn ấm, 125–200% nếu cache đã nguội)" [ref=f2e195]': 147k
+            - generic "Vai trò trưởng phòng" [ref=f2e196]
+            - generic [ref=f2e197]:
+              - generic [ref=f2e198]: đang làm
+              - generic [ref=f2e199]: bear-agent-manager
+          - generic "Đã ở trong phòng" [ref=f2e201]: ✓
+        - button "Đã tắt (10) ›" [ref=f2e202] [cursor=pointer]
+      - generic [ref=f2e203]:
+        - text: Worker
+        - generic "Đang chạy / trần toàn máy" [ref=f2e204]: 0/4
+    - combobox "Giao diện" [ref=f2e205]:
+      - option "Tự động"
+      - option "Sáng"
+      - option "Xám"
+      - option "Tối"
+      - option "Midnight (đen OLED)"
+      - option "Nord"
+      - option "Dracula"
+      - option "Rừng"
+      - option "Hoàng hôn"
+      - option "Liquid glass"
+      - option "Liquid glass sáng (không màu)"
+      - option "Excel phẳng"
+      - option "Solarized sáng"
+      - option "Hồng"
+      - option "Đại dương"
+      - option "Giấy sepia"
+      - option "Bạc hà"
+      - option "Xám xanh tối"
+      - option "Cà phê tối" [selected]
+    - combobox "Phông chữ" [ref=f2e206]:
+      - 'option "Phông: Be Vietnam Pro" [selected]'
+      - option "Inter"
+      - option "Roboto"
+      - option "Noto Sans"
+      - option "Open Sans"
+      - option "Source Sans 3"
+      - option "IBM Plex Sans"
+      - option "Nunito (tròn)"
+      - option "Quicksand (tròn)"
+      - option "Lora (serif)"
+      - option "Merriweather (serif)"
+      - option "JetBrains Mono (mono)"
+      - option "Phông hệ thống"
+    - button [ref=f2e207] [cursor=pointer]
+  - generic [ref=f2e208]:
+    - tablist "Màn hình" [ref=f2e209]:
+      - tab "Phòng" [selected] [ref=f2e210] [cursor=pointer]
+      - tab "Việc" [ref=f2e211] [cursor=pointer]
+      - tab "Worker" [ref=f2e213] [cursor=pointer]
+      - tab "Token" [ref=f2e214] [cursor=pointer]
+      - tab "Skill" [ref=f2e215] [cursor=pointer]
+      - tab "Cài đặt" [ref=f2e216] [cursor=pointer]
+    - main [ref=f2e217]:
+      - generic [ref=f2e218]:
+        - heading "# bear-agent-manager" [level=1] [ref=f2e219]:
+          - generic [ref=f2e220]: "#"
+          - generic [ref=f2e221]: bear-agent-manager
+        - generic [ref=f2e222]: 8 Claude · 2 đang làm · ★ truong-phong
+        - generic [ref=f2e223]:
+          - button "claude 47%/20%" [ref=f2e224] [cursor=pointer]:
+            - generic [ref=f2e226]: claude
+            - generic [ref=f2e227]:
+              - text: 47%
+              - emphasis [ref=f2e228]: /
+              - text: 20%
+          - button "antigravity 7%/94%" [ref=f2e229] [cursor=pointer]:
+            - generic [ref=f2e231]: antigravity
+            - generic [ref=f2e232]:
+              - text: 7%
+              - emphasis [ref=f2e233]: /
+              - text: 94%
+        - button "Biên bản 0" [ref=f2e234] [cursor=pointer]:
+          - generic [ref=f2e238]: Biên bản
+          - generic [ref=f2e239]: "0"
+        - button "Tìm trong phòng (Ctrl+F)" [ref=f2e240] [cursor=pointer]
+        - button "8" [ref=f2e244] [cursor=pointer]
+        - button "Mời Claude" [ref=f2e249] [cursor=pointer]
+      - 'group "Ẩn: chỉ giữ lỗi và chat riêng của agent. Gọn: mỗi tin một dòng. Đầy đủ: mở rộng hết." [ref=f2e255]':
+        - button "Ẩn" [ref=f2e256] [cursor=pointer]
+        - button "Gọn" [pressed] [ref=f2e257] [cursor=pointer]
+        - button "Đầy đủ" [ref=f2e258] [cursor=pointer]
+      - generic [ref=f2e261]:
+        - heading "#bear-agent-manager chưa có tin nhắn" [level=2] [ref=f2e262]
+        - text: Gõ @tên bên dưới để giao việc cho một Claude, hoặc nhắn không tag để cả phòng cùng nghe.
+        - button "Copy lệnh mời Claude" [ref=f2e263] [cursor=pointer]
+      - generic [ref=f2e267]:
+        - button "Trưởng phòng truong-phong" [ref=f2e268] [cursor=pointer]:
+          - generic "Trưởng phòng" [ref=f2e277]: ★
+          - generic [ref=f2e278]: truong-phong
+        - button "frontend" [ref=f2e279] [cursor=pointer]
+        - button "coder" [ref=f2e290] [cursor=pointer]
+        - button "new-planner" [ref=f2e301] [cursor=pointer]
+        - button "core-improve" [ref=f2e313] [cursor=pointer]
+        - button "thu-vien-skill" [ref=f2e320] [cursor=pointer]
+        - button "Coder_No_2" [ref=f2e333] [cursor=pointer]
+        - button "Copilot" [ref=f2e342] [cursor=pointer]
+      - generic [ref=f2e352]:
+        - generic [ref=f2e353]:
+          - 'button "Gửi vào chủ đề #chung" [ref=f2e354] [cursor=pointer]': "#chung"
+          - button "Đính kèm ảnh hoặc file" [ref=f2e355] [cursor=pointer]
+          - textbox "Nhắn vào phòng… gõ @ để gọi một Claude" [ref=f2e358]
+          - button "Gửi" [disabled] [ref=f2e359]
+        - generic [ref=f2e363]: Enter gửi · Shift+Enter xuống dòng · @tên đánh thức một Claude, @all cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)
+  - complementary "Biên bản phòng" [ref=f2e364]:
+    - generic [ref=f2e365]:
+      - 'heading "Biên bản #bear-agent-manager Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi." [level=2] [ref=f2e366]':
+        - text: "Biên bản #bear-agent-manager"
+        - generic [ref=f2e367]: Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.
+      - button "Đóng" [ref=f2e368] [cursor=pointer]: ✕
+    - generic [ref=f2e370]:
+      - heading "Chưa có gì được chốt" [level=2] [ref=f2e371]
+      - text: Khi các Claude thống nhất giao thức, cổng, ai sửa file nào… chúng sẽ tự ghi vào đây. Tab Claude mở trước khi cập nhật plugin cần reload để có tool room_note.
+    - button "+ Thêm tay" [ref=f2e373] [cursor=pointer]
+  - status

@@ -78,12 +78,14 @@
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
+| POST | `/api/rooms/dm/:param` |  | có |
 | POST | `/api/rooms/:room/join` | `sessionId` | có |
 | POST | `/api/rooms/:room/leave` | `sessionId` | có |
 | POST | `/api/rooms/:room/clear-lead` | `force` | có |
 | POST | `/api/rooms/:room/open-lead` |  | có |
 | POST | `/api/rooms/:room/rename` | `name` | có |
 | POST | `/api/rooms/:room/delete` | `name` | có |
+| POST | `/api/rooms/:room/hide` |  | có |
 | POST | `/api/rooms/:room/lead` | `sessionId` | có |
 | POST | `/api/rooms/:room/resume` |  | có |
 | GET | `/api/rooms/:room/topics` |  | có |

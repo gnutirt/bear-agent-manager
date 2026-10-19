@@ -1,0 +1,93 @@
+- generic [active] [ref=f1e1]:
+  - complementary [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - generic "Bear Agent Manager" [ref=f1e8]: Bear Agent
+      - 'generic "Hub: đã kết nối" [ref=f1e9]'
+    - generic [ref=f1e11]:
+      - generic [ref=f1e12]:
+        - generic [ref=f1e13]: Phòng
+        - button "Tạo phòng" [ref=f1e14] [cursor=pointer]
+      - generic [ref=f1e17]: Chưa có phòng nào.
+      - generic [ref=f1e19]:
+        - button "▾ Claude đang chạy" [expanded] [ref=f1e20] [cursor=pointer]:
+          - generic [ref=f1e21]: ▾
+          - generic [ref=f1e22]: Claude đang chạy
+        - combobox "Lọc theo repo" [ref=f1e23]:
+          - option "Mọi repo" [selected]
+      - generic [ref=f1e24]: Chưa có Claude nào chạy. Mở một tab Claude Code là nó tự hiện ở đây.
+      - generic [ref=f1e26]:
+        - text: Worker
+        - generic "Đang chạy / trần toàn máy" [ref=f1e27]: 0/4
+    - combobox "Giao diện" [ref=f1e28]:
+      - option "Tự động" [selected]
+      - option "Sáng"
+      - option "Xám"
+      - option "Tối"
+      - option "Midnight (đen OLED)"
+      - option "Nord"
+      - option "Dracula"
+      - option "Rừng"
+      - option "Hoàng hôn"
+      - option "Liquid glass"
+      - option "Liquid glass sáng (không màu)"
+      - option "Excel phẳng"
+      - option "Solarized sáng"
+      - option "Hồng"
+      - option "Đại dương"
+    - combobox "Phông chữ" [ref=f1e29]:
+      - 'option "Phông: Be Vietnam Pro" [selected]'
+      - option "Inter"
+      - option "Roboto"
+      - option "Noto Sans"
+      - option "Open Sans"
+      - option "Source Sans 3"
+      - option "IBM Plex Sans"
+      - option "Nunito (tròn)"
+      - option "Quicksand (tròn)"
+      - option "Lora (serif)"
+      - option "Merriweather (serif)"
+      - option "JetBrains Mono (mono)"
+      - option "Phông hệ thống"
+    - button [ref=f1e30] [cursor=pointer]
+  - generic [ref=f1e31]:
+    - tablist "Màn hình" [ref=f1e32]:
+      - tab "Phòng" [selected] [ref=f1e33] [cursor=pointer]
+      - tab "Việc" [ref=f1e34] [cursor=pointer]
+      - tab "Worker" [ref=f1e36] [cursor=pointer]
+      - tab "Token" [ref=f1e37] [cursor=pointer]
+      - tab "Skill" [ref=f1e38] [cursor=pointer]
+      - tab "Cài đặt" [ref=f1e39] [cursor=pointer]
+    - main [ref=f1e40]:
+      - generic [ref=f1e41]:
+        - heading "Bear Agent Manager" [level=1] [ref=f1e42]
+        - button "Biên bản 0" [ref=f1e44] [cursor=pointer]:
+          - generic [ref=f1e48]: Biên bản
+          - generic [ref=f1e49]: "0"
+        - button "Tìm trong phòng (Ctrl+F)" [ref=f1e50] [cursor=pointer]
+        - button "0" [ref=f1e54] [cursor=pointer]
+        - button "Mời Claude" [ref=f1e59] [cursor=pointer]
+      - 'group "Ẩn: chỉ giữ lỗi và chat riêng của agent. Gọn: mỗi tin một dòng. Đầy đủ: mở rộng hết." [ref=f1e65]':
+        - button "Ẩn" [ref=f1e66] [cursor=pointer]
+        - button "Gọn" [pressed] [ref=f1e67] [cursor=pointer]
+        - button "Đầy đủ" [ref=f1e68] [cursor=pointer]
+      - generic [ref=f1e71]:
+        - heading "Tạo phòng đầu tiên" [level=2] [ref=f1e72]
+        - text: Phòng là nơi các Claude nói chuyện với nhau và với bạn. Tạo một phòng, rồi thêm các Claude đang chạy ở cột trái vào.
+        - button "Tạo phòng" [ref=f1e73] [cursor=pointer]
+      - generic [ref=f1e77]:
+        - generic [ref=f1e78]:
+          - button "Đính kèm ảnh hoặc file" [ref=f1e79] [cursor=pointer]
+          - textbox "Nhắn vào phòng… gõ @ để gọi một Claude" [disabled] [ref=f1e82]
+          - button "Gửi" [disabled] [ref=f1e83]
+        - generic [ref=f1e87]: Enter gửi · Shift+Enter xuống dòng · @tên đánh thức một Claude, @all cả phòng, không tag = trưởng phòng ★ (hoặc cả phòng nếu chưa có)
+  - complementary "Biên bản phòng" [ref=f1e88]:
+    - generic [ref=f1e89]:
+      - 'heading "Biên bản # Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi." [level=2] [ref=f1e90]':
+        - text: "Biên bản #"
+        - generic [ref=f1e91]: Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.
+      - button "Đóng" [ref=f1e92] [cursor=pointer]: ✕
+    - generic [ref=f1e94]:
+      - heading "Chưa có gì được chốt" [level=2] [ref=f1e95]
+      - text: Khi các Claude thống nhất giao thức, cổng, ai sửa file nào… chúng sẽ tự ghi vào đây. Tab Claude mở trước khi cập nhật plugin cần reload để có tool room_note.
+    - button "+ Thêm tay" [ref=f1e97] [cursor=pointer]
+  - status

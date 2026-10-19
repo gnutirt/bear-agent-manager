@@ -256,9 +256,11 @@ function generateMarkdown(routes) {
   return md;
 }
 
-const src = fs.readFileSync(path.join(ROOT, 'hub', 'server.ts'), 'utf8');
-const routes = extractRoutes(src);
-const md = generateMarkdown(routes);
-fs.mkdirSync(path.join(ROOT, 'docs'), { recursive: true });
-fs.writeFileSync(path.join(ROOT, 'docs', 'api.md'), md);
-console.log('Generated docs/api.md with ' + routes.length + ' routes');
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {   // only when run directly: importing it (the test) must not rewrite docs/api.md
+  const src = fs.readFileSync(path.join(ROOT, 'hub', 'server.ts'), 'utf8');
+  const routes = extractRoutes(src);
+  const md = generateMarkdown(routes);
+  fs.mkdirSync(path.join(ROOT, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, 'docs', 'api.md'), md);
+  console.log('Generated docs/api.md with ' + routes.length + ' routes');
+}

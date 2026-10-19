@@ -1,0 +1,76 @@
+- generic [active] [ref=f1e1]:
+  - complementary [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - generic "Bear Agent Manager" [ref=f1e8]: Bear Agent
+      - 'generic "Hub: đã kết nối" [ref=f1e9]'
+    - generic [ref=f1e11]:
+      - generic [ref=f1e12]:
+        - generic [ref=f1e13]: Phòng
+        - button "Tạo phòng" [ref=f1e14] [cursor=pointer]
+      - generic [ref=f1e17]: Chưa có phòng nào.
+      - generic [ref=f1e19]:
+        - button "▾ Agent đang chạy" [expanded] [ref=f1e20] [cursor=pointer]:
+          - generic [ref=f1e21]: ▾
+          - generic [ref=f1e22]: Agent đang chạy
+        - combobox "Lọc theo repo" [ref=f1e23]:
+          - option "Mọi repo" [selected]
+      - generic [ref=f1e24]: Chưa có Claude nào chạy. Mở một tab Claude Code là nó tự hiện ở đây.
+      - generic [ref=f1e26]:
+        - text: Worker
+        - generic "Đang chạy / trần toàn máy" [ref=f1e27]: 0/4
+    - combobox "Giao diện" [ref=f1e28]:
+      - option "Tự động"
+      - option "Sáng"
+      - option "Xám"
+      - option "Tối"
+      - option "Midnight (đen OLED)"
+      - option "Nord"
+      - option "Dracula"
+      - option "Rừng"
+      - option "Hoàng hôn"
+      - option "Liquid glass"
+      - option "Liquid glass sáng (không màu)"
+      - option "Excel phẳng"
+      - option "Solarized sáng"
+      - option "Hồng"
+      - option "Đại dương"
+      - option "Giấy sepia" [selected]
+      - option "Bạc hà"
+      - option "Xám xanh tối"
+      - option "Cà phê tối"
+    - combobox "Phông chữ" [ref=f1e29]:
+      - 'option "Phông: Be Vietnam Pro" [selected]'
+      - option "Inter"
+      - option "Roboto"
+      - option "Noto Sans"
+      - option "Open Sans"
+      - option "Source Sans 3"
+      - option "IBM Plex Sans"
+      - option "Nunito (tròn)"
+      - option "Quicksand (tròn)"
+      - option "Lora (serif)"
+      - option "Merriweather (serif)"
+      - option "JetBrains Mono (mono)"
+      - option "Phông hệ thống"
+    - button [ref=f1e30] [cursor=pointer]
+  - generic [ref=f1e31]:
+    - tablist "Màn hình" [ref=f1e32]:
+      - tab "Phòng" [ref=f1e33] [cursor=pointer]
+      - tab "Việc" [ref=f1e34] [cursor=pointer]
+      - tab "Worker" [ref=f1e36] [cursor=pointer]
+      - tab "Token" [ref=f1e37] [cursor=pointer]
+      - tab "Skill" [ref=f1e38] [cursor=pointer]
+      - tab "Cài đặt" [selected] [ref=f1e39] [cursor=pointer]
+    - region "Cài đặt" [ref=f1e40]:
+      - generic [ref=f1e41]: Đang tải…
+  - complementary "Biên bản phòng" [ref=f1e43]:
+    - generic [ref=f1e44]:
+      - 'heading "Biên bản # Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi." [level=2] [ref=f1e45]':
+        - text: "Biên bản #"
+        - generic [ref=f1e46]: Các Claude tự ghi lại điều đã chốt (tool room_note). Claude nào trong phòng, ở repo nào, cũng nhận được khi có thay đổi.
+      - button "Đóng" [ref=f1e47] [cursor=pointer]: ✕
+    - generic [ref=f1e49]:
+      - heading "Chưa có gì được chốt" [level=2] [ref=f1e50]
+      - text: Khi các Claude thống nhất giao thức, cổng, ai sửa file nào… chúng sẽ tự ghi vào đây. Tab Claude mở trước khi cập nhật plugin cần reload để có tool room_note.
+    - button "+ Thêm tay" [ref=f1e52] [cursor=pointer]
+  - status

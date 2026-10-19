@@ -10,6 +10,8 @@ import { defaultSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
 
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
+// The full suite runs test files concurrently and Copilot tests spawn MCP/runtime processes.
+const COPILOT_ASYNC_TIMEOUT_MS = 15_000;
 
 function callRoomMcp(config: { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string }, toolName: string, args: Record<string, unknown>): Promise<string> {
   assert.ok(config.command && config.args && config.env && config.workingDirectory);
@@ -154,7 +156,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Coder_No_2', 'Copilot']);
     await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot check this change' });
-    await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === '@Coder_No_2 please review this change'), 5000, 'Copilot reply with mention');
+    await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === '@Coder_No_2 please review this change'), COPILOT_ASYNC_TIMEOUT_MS, 'Copilot reply with mention');
     assert.match(calls.prompts[0], /check this change/);
     assert.match(calls.prompts[0], /Bear Agent Manager room #bear-agent-manager/);
     assert.match(calls.prompts[0], /write @ followed by their exact room name/);
@@ -210,7 +212,7 @@ test('Copilot processes pending messages per room and replies in each originatin
       const privateMessages = await h.call<any[]>(`/api/rooms/${privateRoom}/messages?after=0`);
       return publicMessages.some((m) => m.from === 'Copilot' && m.text === 'Reply in #bear-agent-manager')
         && privateMessages.some((m) => m.from === 'Copilot' && m.text === `Reply in #${privateRoom}`);
-    }, 5000, 'Copilot replies in the public and private rooms');
+    }, COPILOT_ASYNC_TIMEOUT_MS, 'Copilot replies in the public and private rooms');
 
     assert.equal(calls.prompts.length, 2);
     assert.ok(calls.prompts.some((prompt) => prompt.includes('room #bear-agent-manager:') && prompt.includes('public request') && !prompt.includes('private request')));
@@ -253,40 +255,6 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
       body: JSON.stringify({ on: true, confirm: true }),
     });
 
-    test('Copilot reclaims its name from an ended session but refuses a live session', async () => {
-      const stale = await makeHub(undefined, undefined, { copilotClientFactory: fakeFactory().factory });
-      try {
-        const old = stale.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy' });
-        stale.hub.store.rename(old.id, 'Copilot');
-        stale.hub.store.markEnded(old.id);
-        const started = await stale.call<any>('/api/copilot', { on: true, confirm: true });
-        assert.equal(started.state, 'idle');
-        assert.equal(stale.hub.store.session(old.id).name, `Copilot-old-${old.id.slice(0, 8)}`);
-        assert.ok(stale.hub.store.members('bear-agent-manager').some((s) => s.name === 'Copilot'));
-      } finally {
-        await stale.hub.close();
-        fs.rmSync(stale.dir, { recursive: true, force: true });
-      }
-
-      const liveFactory = fakeFactory();
-      const live = await makeHub(undefined, undefined, { copilotClientFactory: liveFactory.factory });
-      try {
-        const peer = live.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy', pid: process.pid });
-        live.hub.store.rename(peer.id, 'Copilot');
-        const response = await fetch(live.hub.url + '/api/copilot', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-room-token': live.hub.token },
-          body: JSON.stringify({ on: true, confirm: true }),
-        });
-        assert.equal(response.status, 503);
-        const result = await response.json() as any;
-        assert.match(result.error, /different hub session is already named Copilot/);
-        assert.equal(liveFactory.calls.started, 0);
-      } finally {
-        await live.hub.close();
-        fs.rmSync(live.dir, { recursive: true, force: true });
-      }
-    });
     assert.equal(response.status, 503);
     const body = await response.json() as any;
     assert.match(body.error, /Run `copilot login`/);
@@ -299,7 +267,7 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
     let timeout: NodeJS.Timeout | undefined;
     const notified = await Promise.race([
       copilotDisabledEvent,
-      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Copilot autostart change was not broadcast')), 5000); }),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Copilot autostart change was not broadcast')), COPILOT_ASYNC_TIMEOUT_MS); }),
     ]);
     if (timeout) clearTimeout(timeout);
     assert.equal((notified as any).autoStart, false, 'open Settings clients receive the disabled autostart state');
@@ -307,6 +275,41 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
     eventsAbort.abort();
     await h.hub.close();
     fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot reclaims its name from an ended session but refuses a live session', async () => {
+  const stale = await makeHub(undefined, undefined, { copilotClientFactory: fakeFactory().factory });
+  try {
+    const old = stale.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy' });
+    stale.hub.store.rename(old.id, 'Copilot');
+    stale.hub.store.markEnded(old.id);
+    const started = await stale.call<any>('/api/copilot', { on: true, confirm: true });
+    assert.equal(started.state, 'idle');
+    assert.equal(stale.hub.store.session(old.id).name, `Copilot-old-${old.id.slice(0, 8)}`);
+    assert.ok(stale.hub.store.members('bear-agent-manager').some((s) => s.name === 'Copilot'));
+  } finally {
+    await stale.hub.close();
+    fs.rmSync(stale.dir, { recursive: true, force: true });
+  }
+
+  const liveFactory = fakeFactory();
+  const live = await makeHub(undefined, undefined, { copilotClientFactory: liveFactory.factory });
+  try {
+    const peer = live.hub.store.register({ id: uuid, cwd: process.cwd(), name: 'Legacy', pid: process.pid });
+    live.hub.store.rename(peer.id, 'Copilot');
+    const response = await fetch(live.hub.url + '/api/copilot', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-room-token': live.hub.token },
+      body: JSON.stringify({ on: true, confirm: true }),
+    });
+    assert.equal(response.status, 503);
+    const result = await response.json() as any;
+    assert.match(result.error, /different hub session is already named Copilot/);
+    assert.equal(liveFactory.calls.started, 0);
+  } finally {
+    await live.hub.close();
+    fs.rmSync(live.dir, { recursive: true, force: true });
   }
 });
 
@@ -320,7 +323,7 @@ test('Copilot auth failure disables autostart and waits for an explicit retry', 
   const missingLogin = fakeFactory({ authenticated: false });
   let hub = await startHub({ ...common, copilotClientFactory: missingLogin.factory });
   try {
-    await until(() => missingLogin.calls.stopped === 1, 5000, 'failed Copilot autostart cleanup');
+    await until(() => missingLogin.calls.stopped === 1, COPILOT_ASYNC_TIMEOUT_MS, 'failed Copilot autostart cleanup');
     const identity = JSON.parse(fs.readFileSync(path.join(dir, 'copilot-agent.json'), 'utf8'));
     assert.match(identity.hubId, /^[0-9a-f-]{36}$/i);
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).copilot.autoStart, false);
@@ -340,7 +343,7 @@ test('Copilot auth failure disables autostart and waits for an explicit retry', 
       body: JSON.stringify({ on: true, confirm: true }),
     });
     assert.equal(response.status, 200, 'enabling Copilot in Settings is an explicit retry');
-    await until(() => signedIn.calls.created === 1, 5000, 'Copilot retry after sign-in');
+    await until(() => signedIn.calls.created === 1, COPILOT_ASYNC_TIMEOUT_MS, 'Copilot retry after sign-in');
     assert.equal(signedIn.calls.started, 1);
     assert.equal(Object.values(hub.store.state.sessions).filter((s) => s.name === 'Copilot').length, 1);
   } finally {
@@ -362,7 +365,7 @@ test('concurrent Copilot start and stop requests do not leave overlapping runtim
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
   try {
     const enabling = h.call('/api/copilot', { on: true, confirm: true });
-    await until(() => calls.started === 1, 5000, 'Copilot CLI startup');
+    await until(() => calls.started === 1, COPILOT_ASYNC_TIMEOUT_MS, 'Copilot CLI startup');
     const disabling = h.call('/api/copilot', { on: false, confirm: true });
     const reenabling = h.call('/api/copilot', { on: true, confirm: true });
     releaseStart();
@@ -388,11 +391,11 @@ test('hub startup restores the opted-in Copilot agent without an IDE', async () 
   };
   let hub = await startHub({ ...common, copilotClientFactory: first.factory });
   try {
-    await until(() => first.calls.created === 1, 5000, 'startup Copilot session');
+    await until(() => first.calls.created === 1, COPILOT_ASYNC_TIMEOUT_MS, 'startup Copilot session');
   } finally { await hub.close(); }
   hub = await startHub({ ...common, copilotClientFactory: second.factory });
   try {
-    await until(() => second.calls.resumed.length === 1, 5000, 'resumed Copilot session');
+    await until(() => second.calls.resumed.length === 1, COPILOT_ASYNC_TIMEOUT_MS, 'resumed Copilot session');
     assert.deepEqual(second.calls.resumed, [first.calls.providerId]);
   } finally {
     await hub.close();
