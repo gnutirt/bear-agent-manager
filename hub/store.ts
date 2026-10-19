@@ -52,6 +52,7 @@ export const SESSION_NAME = /^[A-Za-z0-9_-]{1,32}$/;
 const RESERVED = new Set(['all', 'you']);
 const STATUSES = new Set<Status>(['busy', 'idle', 'waiting', 'offline']);
 const STALE_MS = 180_000;
+const ENDED_QUIET_MS = 300_000;
 const MAX_PID_QUIET_MS = 6 * 3600_000;
 /** Whether a process exists (signal 0 only checks; EPERM means it exists but belongs to someone else). */
 export const pidAlive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } };
@@ -637,7 +638,9 @@ export class Store {
         continue;
       }
       if (s.status !== 'offline' && now - s.lastSeen > STALE_MS) { s.status = 'offline'; s.activity = ''; changed.push(s); }
-      else if (s.status === 'offline' && Object.keys(s.rooms).length === 0 && now - s.lastSeen > PRUNE_MS) delete this.state.sessions[s.id];
+      // A tab killed before the hub knew its pid sends no SessionEnd: after 5 quiet minutes with no living pid, call it ended so deliver() can revive it.
+      if (s.status === 'offline' && !s.ended && now - s.lastSeen > ENDED_QUIET_MS && !pids.some((p) => isAlive(p))) { s.ended = true; if (!changed.includes(s)) changed.push(s); }
+      if (s.status === 'offline' && Object.keys(s.rooms).length === 0 && now - s.lastSeen > PRUNE_MS) delete this.state.sessions[s.id];
     }
     if (changed.length) this.save();
     return changed;

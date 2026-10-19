@@ -435,7 +435,7 @@ test('sweep judges a session with a pid by its process: alive stays busy past 3 
   assert.deepEqual(changed, ['b1', 'c1']);
   assert.equal(st.session('a1').status, 'busy');
   assert.equal(st.session('b1').ended, true);
-  assert.ok(!st.session('c1').ended);
+  assert.equal(st.session('c1').ended, true);   // no pid, offline > 5 min: a hard-closed tab, revivable
   alive.clear();
   st.sweep(() => false, t, (pid) => alive.has(pid));
   assert.equal(st.session('a1').status, 'offline');
@@ -443,6 +443,23 @@ test('sweep judges a session with a pid by its process: alive stays busy past 3 
   st.register({ id: 'd1', cwd: path.join('D:', 'old'), pid: 333 });
   t += 7 * 3600_000;
   assert.deepEqual(st.sweep(() => false, t, () => true).map((s) => s.id), ['d1']);
+});
+
+test('sweep: offline no-pid session is ended only after 5 quiet minutes and only when no pid lives', () => {
+  let t = 1_000_000;
+  const st = new Store(tmp(), () => t);
+  st.register({ id: 'n1', cwd: path.join('D:', 'x') });
+  t += 240_000;
+  st.sweep(() => false, t, () => false);
+  assert.equal(st.session('n1').status, 'offline');
+  assert.ok(!st.session('n1').ended);
+  t += 120_000;
+  st.sweep(() => false, t, () => false);
+  assert.equal(st.session('n1').ended, true);
+  st.register({ id: 'n2', cwd: path.join('D:', 'y'), pid: 5 });
+  t += 400_000;
+  st.sweep(() => false, t, () => true);   // process still alive: never revive a duplicate
+  assert.ok(!st.session('n2').ended);
 });
 
 test('private chat: dmRoom is idempotent, keyed by session id, hide keeps history and dmRoom reopens it', () => {
