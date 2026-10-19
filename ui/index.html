@@ -400,6 +400,8 @@ header .spacer{flex:1}
 .hlist{display:flex;flex-direction:column;gap:8px}.hrow{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.hrow .hdot{margin-top:6px}
 .hrow .hb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.hrow .hb span{color:var(--mute);font-size:13.5px}.hrow .hb small{color:color-mix(in srgb,#F59E0B 55%,var(--text));font-size:12.5px}.hrow.bad .hb small{color:color-mix(in srgb,#EF4444 60%,var(--text))}
 .olderbtn{display:block;margin:6px auto 12px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);font-weight:600;font-size:13px}.olderbtn:hover{border-color:var(--accent)}
+.agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}.acard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}.acard .ah{display:flex;align-items:center;gap:8px}.okt{color:color-mix(in srgb,#22C55E 55%,var(--text));font-weight:600;font-size:13px}.acard .mono{font:12px var(--mono);word-break:break-all}
+.aplan{margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb,#F59E0B 55%,var(--line));border-radius:12px;background:rgba(245,158,11,.08)}.aplan ul{margin:6px 0 6px 18px;padding:0;font-size:13px}.aplan li{margin:3px 0;word-break:break-all}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -2382,6 +2384,12 @@ function permsBlock(st) {
     <h3>${t('perm.default')} ${dm === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}</h3>${radios(dm, 'default', false)}<p class="small ${dm === 'bypass' ? 'pwarn' : 'muted'}">${PHINT[dm]}</p>${lists('default', pm.default)}<p class="small muted">${t('perm.list.hint')}</p></div>
     <h2>${t('perm.perAgent')}</h2><div class="setbox permbox">${rows || `<p class="small muted">${t('perm.noneAgent')}</p>`}${free.length ? `<select id="permAdd" aria-label="${t('perm.addAgent')}"><option value="">${t('perm.addAgent')}</option>${free.map((n) => `<option>${esc(n)}</option>`).join('')}</select>` : ''}</div>`;
 }
+function createAgent(body) {
+  api('/api/agents', body).then((d) => { S.agentAsk = null; toast(t('ac.agent.created', { name: d.name, cwd: d.cwd, room: d.room })); renderSettingsView(); }, (err) => {
+    if (err.data?.needConfirm) { S.agentAsk = { body, needConfirm: true }; return renderSettingsView(); }
+    toast(err.message);
+  });
+}
 function savePerm(who, patch) {
   const body = { permissions: who === 'default' ? { default: patch } : { perAgent: { [who]: patch } } };
   api('/api/settings', body, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (e) => toast(e.message));
@@ -2481,6 +2489,38 @@ function healthBlock() {
     <div class="hsum ${worst}"><span class="hdot ${worst}"></span><b>${sum}</b><span style="flex:1"></span><span class="small muted">${fmtWhen(H.at)}</span><button type="button" class="btn sm" id="healthRefresh">${t('hc.refresh')}</button></div>
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
+/** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
+S.acct = undefined; S.auto = undefined; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null;
+function loadAccounts() {
+  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null)]).then(([a, au]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+}
+function accountBlock(st) {
+  if (S.acct === undefined) { S.acct = null; loadAccounts(); }
+  const A = S.acct;
+  if (!A) return `<h2>${t('ac.accounts')}</h2><p class="small muted">${t('hc.loading')}</p>`;
+  const usage = (dir) => (S.cu?.accounts || []).find((u) => (u.configDirs || []).some((d) => sameDir(d, dir)));
+  const cards = A.accounts.map((a, i) => {
+    const u = usage(a.dir), p = a.projects;
+    const lim = u?.fiveHour || u?.sevenDay ? t('ac.limits', { a: u.fiveHour?.pct ?? '?', b: u.sevenDay?.pct ?? '?' }) : '';
+    return `<div class="acard"><div class="ah"><b>${esc(a.label)}</b>${i === 0 ? `<span class="lic">${t('ac.primary')}</span>` : ''}<span class="${a.loggedIn ? 'okt' : 'bad'}">${a.loggedIn ? t('ac.signedIn') : t('ac.signedOut')}</span><span style="flex:1"></span>${u?.plan ? `<span class="muted small">${esc(u.plan)}</span>` : ''}</div>
+      <div class="small muted mono">${esc(a.dir)}</div>
+      ${lim ? `<div class="small">${lim}</div>` : u?.usageError ? `<div class="small bad">${t('ac.expired')}</div>` : ''}
+      <div class="small muted">${p.link ? t('ac.chats.linked', { target: esc(p.target) }) : p.exists ? t('ac.chats.own') : t('ac.chats.none')}</div></div>`;
+  }).join('');
+  const multi = A.accounts.filter((a) => a.exists).length > 1;
+  const plan = S.sharePlan;
+  const planHtml = plan ? `<div class="aplan"><b>${t('ac.share.planTitle')}</b><ul>${plan.plan.length ? plan.plan.map((x) => `<li>${x.do === 'rename' ? t('ac.share.rename', { from: esc(x.from || ''), to: esc(x.to || '') }) : x.do === 'link' ? t('ac.share.link', { path: esc(x.path || '') }) : t('ac.share.unlink', { path: esc(x.path || '') })}</li>`).join('') : `<li>${t('ac.share.noPlan')}</li>`}</ul><p class="small pwarn">${t('ac.share.warn')}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="shareCancel">${t('ac.cancel')}</button>${plan.plan.length ? `<button type="button" class="btn primary" id="shareConfirm">${t('ac.share.confirm')}</button>` : ''}</div>${plan.error ? `<p class="small bad">${esc(plan.error)}</p>` : ''}</div>` : '';
+  const rooms = S.rooms.map((r) => r.name);
+  const ask = S.agentAsk;
+  const acctOpts = `<option value="">${t('ac.agent.auto')}</option>` + A.accounts.filter((a) => a.exists).map((a) => `<option value="${esc(a.dir)}">${esc(a.label)}</option>`).join('');
+  const agent = `<form class="tform" id="agentNew"><input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}"><input name="cwd" placeholder="${t('ac.agent.cwd')}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" value="${esc(ask?.body.cwd || '')}"><select name="room" aria-label="${t('ac.agent.room')}">${rooms.map((r) => `<option${r === S.current ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select><select name="account" aria-label="${t('ac.agent.account')}">${acctOpts}</select><textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea><div class="row"><button class="btn primary">${t('ac.agent.create')}</button></div></form>${ask?.needConfirm ? `<div class="aplan"><b>${t('ac.agent.confirmTitle')}</b><p class="small pwarn">${esc(t('ac.agent.confirmText', { cwd: ask.body.cwd }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="agentCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="agentConfirm">${t('ac.agent.confirm')}</button></div></div>` : ''}`;
+  const au = S.auto, aa = S.autoAsk;
+  const autoHtml = !au ? '' : !au.supported ? `<p class="small muted">${t('ac.auto.unsupported')}</p>` : `<div class="pf"><b class="${au.on ? 'okt' : ''}">${au.on ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="autoToggle">${au.on ? t('ac.auto.turnOff') : t('ac.auto.turnOn')}</button></div>${aa ? `<div class="aplan"><p class="small">${esc(t(au.on ? 'ac.auto.removeFile' : 'ac.auto.file', { file: au.file || '' }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="autoCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="autoConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
+  return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
+    <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
+    <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
+    <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -2552,9 +2592,7 @@ function renderSettingsView() {
     providers: `    <h2>${t('prov.workerTitle')}</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
     <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
-    account: `    <h2>${t('acct.title')}</h2>
-    <div class="setbox"><p class="small note"><b>${t('acct.usage')}</b></p><p class="small muted note">${t('acct.note')}</p>
-      <div class="pf"><button class="btn" disabled>${t('acct.save')}</button></div></div>`,
+    account: accountBlock(st),
   };
   const bar = `<span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
@@ -2600,14 +2638,28 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (f.dataset.prov) return saveProvider(f);
     if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast(t('prov.added')); loadSettingsView(); }, (err) => toast(err.message));
   });
+  sv.addEventListener('submit', (e) => {
+    if (e.target.id !== 'agentNew') return;
+    e.preventDefault();
+    const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
+    createAgent(body);
+  });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health') loadHealth(); return renderSettingsView(); }
+    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
     if (e.target.closest('#healthRefresh')) { loadHealth(); return; }
     const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
+    if (e.target.closest('#shareToggle')) { const on = !S.acct.shared; return api('/api/accounts/share', { on }).then((d) => { S.sharePlan = { on, plan: d.plan || [] }; renderSettingsView(); }, (err) => toast(err.message)); }
+    if (e.target.closest('#shareCancel')) { S.sharePlan = null; return renderSettingsView(); }
+    if (e.target.closest('#shareConfirm')) { const sp = S.sharePlan; return api('/api/accounts/share', { on: sp.on, confirm: true }).then((d) => { S.acct = { accounts: d.accounts, primary: d.primary, shared: d.shared }; S.sharePlan = null; toast(t('ac.share.done')); renderSettingsView(); }, (err) => { sp.error = err.message; renderSettingsView(); }); }
+    if (e.target.closest('#agentCancel')) { S.agentAsk = null; return renderSettingsView(); }
+    if (e.target.closest('#agentConfirm')) return createAgent({ ...S.agentAsk.body, confirm: true });
+    if (e.target.closest('#autoToggle')) { S.autoAsk = { on: !S.auto.on }; return renderSettingsView(); }
+    if (e.target.closest('#autoCancel')) { S.autoAsk = null; return renderSettingsView(); }
+    if (e.target.closest('#autoConfirm')) return api('/api/autostart', { on: S.autoAsk.on, confirm: true }).then((d) => { S.auto = { ...S.auto, ...d }; S.autoAsk = null; toast(t('ac.auto.done')); renderSettingsView(); }, (err) => toast(err.message));
     const pmb = e.target.closest('[data-pmode]'); if (pmb) return savePerm(pmb.dataset.pmode, { mode: pmb.dataset.pv || null });
     const prm = e.target.closest('[data-prem]'); if (prm) return api('/api/settings', { permissions: { perAgent: { [prm.dataset.prem]: null } } }, 'PUT').then((s) => { S.settings = s; renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#localCheck')) { S.local = null; renderSettingsView(); return loadLocal(); }
