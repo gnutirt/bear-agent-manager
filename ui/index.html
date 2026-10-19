@@ -775,7 +775,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
-    <div class="sec" id="dmSec" hidden><span data-i18n="rooms.dm.title">Chat riêng</span></div>
+    <div class="sec" id="dmSec" style="display:none"><span data-i18n="rooms.dm.title">Chat riêng</span></div>
     <div id="dms" hidden></div>
     <div class="sec"><button type="button" id="sessToggle" class="sectoggle" aria-expanded="true"><span class="caret">▾</span> <span data-i18n="sessions.title">Agent đang chạy</span> <span id="sessCount" class="seccount"></span></button> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
@@ -1268,7 +1268,8 @@ function renderRooms() {
   }
   const dmSec = $('dmSec'), dmEl = $('dms');
   const dms = S.rooms.filter((r) => r.dm && !r.dmHidden);
-  dmSec.hidden = dmEl.hidden = !dms.length;
+  dmSec.style.display = dms.length ? '' : 'none';   // .sec{display:flex} beats the hidden attribute on equal specificity
+  dmEl.hidden = !dms.length;
   dmEl.innerHTML = '';
   for (const r of dms) {
     const name = S.sessions[r.dm]?.name || r.dm;
@@ -1454,8 +1455,10 @@ $('uchips').addEventListener('click', (e) => { if (e.target.closest('.uchip')) s
 function renderHeader() {
   renderUsageChips();
   const r = room(S.current);
-  $('titleName').textContent = r ? r.name : 'Bear Agent Manager';
-  document.querySelector('#title .h').style.display = r ? '' : 'none';
+  $('titleName').textContent = r ? (r.dm ? (S.sessions[r.dm]?.name || r.name) : r.name) : 'Bear Agent Manager';
+  const titleHash = document.querySelector('#title .h');
+  titleHash.style.display = r ? '' : 'none';
+  titleHash.textContent = r?.dm ? '@' : '#';
   const ms = r ? members(r.name) : [];
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;
