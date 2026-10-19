@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CopilotClient, type CopilotSession, type PermissionHandler, type PermissionRequest } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest } from '@github/copilot-sdk';
 import type { Store } from './store.ts';
 import { permFor, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
@@ -18,7 +18,7 @@ export type CopilotStatus = { state: State; room: string; cwd: string; login?: s
 
 type Session = Pick<CopilotSession, 'sessionId' | 'sendAndWait' | 'disconnect'>;
 type Client = Pick<CopilotClient, 'start' | 'stop' | 'getAuthStatus' | 'createSession' | 'resumeSession'>;
-export type CopilotClientFactory = (cwd: string) => Client;
+export type CopilotClientFactory = (cwd: string) => Client | Promise<Client>;
 
 export type CopilotAgentOptions = {
   dir: string;
@@ -32,7 +32,8 @@ export type CopilotAgentOptions = {
   createClient?: CopilotClientFactory;
 };
 
-const defaultClient: CopilotClientFactory = (cwd) => new CopilotClient({ mode: 'empty', workingDirectory: cwd, logLevel: 'error' });
+// Loaded on first start: the SDK calls createRequire(process.argv[1]) at import, which throws under `node -e` (the hub's restart load check).
+const defaultClient: CopilotClientFactory = async (cwd) => new (await import('@github/copilot-sdk')).CopilotClient({ mode: 'empty', workingDirectory: cwd, logLevel: 'error' });
 
 function mappedToolName(request: PermissionRequest): string {
   if (request.kind === 'read') return 'Read';
@@ -168,7 +169,8 @@ export class CopilotAgent {
       const identity = this.identity ?? (this.identity = readIdentity(this.file));
       if (!fs.existsSync(this.file)) saveIdentity(this.file, identity);
       this.ensureRoom(identity);
-      createdClient = (this.opts.createClient ?? defaultClient)(this.opts.cwd);
+      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd);
+      createdClient = made instanceof Promise ? await made : made;
       this.client = createdClient;
       await createdClient.start();
       const auth = await createdClient.getAuthStatus();
