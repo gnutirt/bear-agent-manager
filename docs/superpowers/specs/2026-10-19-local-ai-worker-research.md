@@ -32,6 +32,28 @@ Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
 - **Nối vào hub:** không đi qua `ANTHROPIC_BASE_URL` được. Phải thêm một "engine" thứ hai trong worker.ps1 (gọi `copilot -p`, đọc JSONL) cùng phần cài đặt token. Máy này chưa cài `copilot` lẫn `gh`.
 - **Điều khoản:** chưa tìm thấy điều khoản nói rõ có được dùng Copilot CLI làm backend tự động cho agent khác hay không [cần xác minh trước khi làm].
 
+### Copilot Chat qua extension VS Code (việc #12, core-improve, 2026-10-19)
+
+- **Cơ chế có thật:** VS Code cho extension gọi model của Copilot qua Language Model API: `vscode.lm.selectChatModels({ vendor: 'copilot' })` rồi `model.sendRequest(messages, {}, token)`, trả lời dạng stream. Extension `bear-agent-manager-vscode` (vscode/extension.js, đang chỉ nhúng UI hub ở cổng 7788) có thể làm cầu nối: hub gửi việc tóm tắt tới extension qua localhost, extension gọi `vscode.lm`, trả chữ về hub. Cline và Roo Code đã dùng đúng đường này.
+- **Điều kiện cứng:**
+  - Chỉ chạy khi VS Code đang mở, có extension Copilot và người dùng đăng nhập GitHub có gói Copilot. Vậy nó không giúp được chế độ "không IDE" (D3).
+  - Lần đầu phải bấm đồng ý ("Copilot's language models require consent from the user"). Tài liệu khuyên chỉ gọi `selectChatModels` từ một hành động của người dùng (một lệnh).
+  - Không có system message. Gần hết quota thì request lỗi, extension phải tự xử lý.
+  - Người dùng thấy được mỗi extension gửi bao nhiêu request.
+- **Gói Free:**
+  - Trang plans chính thức (docs.github.com, đọc 19/10) ghi Free "2000 completions per month".
+  - Chat/premium: trang chỉ ghi "an allowance of GitHub AI Credits", không có con số.
+  - Free chỉ có "auto model selection", không chọn được model.
+  - Nguồn thứ cấp ghi 50 premium request/tháng, mỗi tin chat tính một request [cần xác minh]. Với 50 request/tháng, Free chỉ đủ thử nghiệm, không đủ làm tầng worker.
+- **Điều khoản:** chưa đọc được văn bản "GitHub Copilot extensibility acceptable development and use policy". Tài liệu VS Code chỉ nói extension phát hành lên Marketplace phải tuân theo nó [cần xác minh]. Dùng Copilot làm backend tự động hàng loạt cho agent khác là vùng xám; nếu làm thì chỉ để tóm tắt theo yêu cầu, có giới hạn tần suất.
+- **Kết luận #12:**
+  - Kỹ thuật làm được (cầu nối extension + `vscode.lm`) nhưng **không nên ưu tiên**.
+  - Free gần như không có hạn mức chat.
+  - Cách này cần VS Code mở, trái hướng D3.
+  - Điều khoản chưa rõ.
+  - Đường rẻ đã chốt vẫn là `localSummarize` (Ollama, chạy trên máy) và worker Intern AI.
+  - Nếu @you có gói Copilot Pro (300 premium/tháng theo nguồn thứ cấp) và muốn dùng, làm thử một lệnh "Tóm tắt bằng Copilot" do người dùng bấm (đúng khuyến nghị user-initiated), không tự động.
+
 ## Đề xuất việc tiếp (chờ duyệt)
 
 1. @you đo Qwen 2.5 7B ở máy có Ollama (lệnh ở trên) và gửi hai con số tốc độ.
@@ -46,3 +68,8 @@ Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
 - GitHub, Running Copilot CLI programmatically: https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically
 - Thảo luận premium requests của Copilot CLI: https://github.com/orgs/community/discussions/194343
 - Mã repo: `skills/worker/worker.ps1` (đặt biến môi trường theo provider), `hub/providers.ts`, `hub/settings.ts` (`workerRoutes`)
+- VS Code, Language Model API: https://code.visualstudio.com/api/extension-guides/ai/language-model
+- VS Code, GitHub Copilot extensibility: https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview
+- GitHub, Copilot plans (Free: 2000 completions/tháng, auto model selection): https://docs.github.com/en/copilot/get-started/plans
+- Nguồn thứ cấp về hạn mức Free (50 premium/tháng, cần xác minh): https://costbench.com/software/ai-coding-assistants/github-copilot/free-plan/ , https://fast.io/resources/github-copilot-free-access/
+- Roo Code dùng vscode.lm: https://docs.roocode.com/providers/vscode-lm
