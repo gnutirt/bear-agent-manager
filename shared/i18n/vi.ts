@@ -596,6 +596,7 @@ export const vi: Record<string, string> = {
   'lib.tooManyInstalled': 'Tài khoản này đã cài {n} skill từ thư viện: mô tả của từng skill nằm trong lời nhắc ở mọi lượt nên tốn token. Nên giữ dưới 15, gỡ bớt cái không dùng.',
   'code.copy': 'Chép',
   'code.copied': 'Đã chép đoạn code.',
+  'msg.copied': 'Đã chép tin nhắn.',
   'md.status.ok': 'xong|done|ok|pass(?:ed)?|đạt|hoàn thành|thành công|success|sạch|đã commit|đã chạy',
   'md.status.bad': 'lỗi|error|fail(?:ed)?|hỏng|thất bại|blocked|bị chặn|chưa xong|không chạy',
   'md.status.warn': 'cảnh báo|warning|lưu ý|chú ý|cần|chưa|todo|pending|đang làm|doing|wip|in progress|chờ',

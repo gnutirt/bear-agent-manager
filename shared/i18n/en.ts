@@ -596,6 +596,7 @@ export const en: Record<string, string> = {
   'lib.tooManyInstalled': 'This account has {n} library skills installed: every description sits in the prompt on every turn and costs tokens. Keep it under 15 and uninstall what you do not use.',
   'code.copy': 'Copy',
   'code.copied': 'Code copied.',
+  'msg.copied': 'Message copied.',
   'md.status.ok': 'done|ok|pass(?:ed)?|success|clean|committed|finished|fixed|xong',
   'md.status.bad': 'error|fail(?:ed)?|broken|blocked|not done|lỗi',
   'md.status.warn': 'warning|note|todo|pending|doing|wip|in progress|waiting|needs?|not yet|cảnh báo',

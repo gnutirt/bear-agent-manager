@@ -128,6 +128,8 @@ html:root[data-theme=glasslight] .group{background:linear-gradient(135deg,rgba(2
 #zoom .zbox.zimg{width:auto;max-width:96vw;padding:14px}#zoom .zimg img{max-width:100%;max-height:84vh;display:block;border-radius:10px}#zoom .zimg .zx{position:absolute;top:22px;right:22px;float:none;background:var(--panel);box-shadow:var(--shadow)}
 /* reply: floating button on the hovered message, quote bar above the composer, quote box inside a reply */
 #rplBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
+#cpyBtn{position:fixed;z-index:30;display:none;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+#cpyBtn:hover{background:var(--hover)}
 #rplBtn:hover{background:var(--accent);color:var(--on-accent,#fff)}
 #replyBar{display:flex;align-items:center;gap:10px;margin:0 0 6px;padding:6px 8px 6px 12px;border-left:3px solid var(--accent);border-radius:8px;background:var(--accent-soft);font-size:13px}
 #replyBar[hidden]{display:none}
@@ -158,7 +160,7 @@ button.rc.dead{cursor:pointer}
 button.rc.dead:hover{background:color-mix(in srgb,#E5484D 10%,var(--panel))}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;font:14.5px/1.5 var(--font);color:var(--text);background:var(--bg);display:grid;grid-template-columns:304px minmax(0,1fr);overflow:hidden}
+body{margin:0;font:14.5px/1.5 var(--font);color:var(--text);background:var(--bg);display:grid;grid-template-columns:304px minmax(0,1fr);grid-template-rows:minmax(0,1fr);overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 :root :is(button,input,textarea,select,summary,a[href],[tabindex],[role=tab],[role=radio]):focus-visible:not(#text){outline:2px solid var(--accent);outline-offset:2px}
@@ -2862,6 +2864,7 @@ $('log').addEventListener('contextmenu', (e) => {
 // reply: hover a message -> floating "Trả lời"; quote bar above the composer; quote box click -> jump to the original
 S.reply = null;
 const rplBtn = document.createElement('button'); rplBtn.id = 'rplBtn'; rplBtn.type = 'button'; rplBtn.dataset.i18n = 'reply.btn'; rplBtn.textContent = t('reply.btn'); document.body.appendChild(rplBtn);
+const cpyBtn = document.createElement('button'); cpyBtn.id = 'cpyBtn'; cpyBtn.type = 'button'; cpyBtn.dataset.i18n = 'code.copy'; cpyBtn.textContent = t('code.copy'); document.body.appendChild(cpyBtn);
 let rplFor = null;
 function setReply(m) {
   S.reply = m ? { id: m.id, name: messageName(m), text: plain(m.text) } : null;
@@ -2879,12 +2882,13 @@ $('log').addEventListener('mouseover', (e) => {
   rplFor = el.dataset.mid;
   // sits on the card's top edge (like a hover toolbar) so it never covers text; hidden when that edge is scrolled out of the log
   const g = el.closest('.group').getBoundingClientRect(), lg = $('log').getBoundingClientRect();
-  if (g.top - 14 < lg.top) { rplBtn.style.display = 'none'; return; }
-  rplBtn.style.display = 'block'; rplBtn.style.top = (g.top - 14) + 'px'; rplBtn.style.left = (g.right - 112) + 'px';
+  if (g.top - 14 < lg.top) { rplBtn.style.display = cpyBtn.style.display = 'none'; return; }
+  rplBtn.style.display = cpyBtn.style.display = 'block'; rplBtn.style.top = cpyBtn.style.top = (g.top - 14) + 'px'; rplBtn.style.left = (g.right - 112) + 'px'; cpyBtn.style.left = (g.right - 112 - cpyBtn.offsetWidth - 6) + 'px';
 });
-$('log').addEventListener('mouseleave', (e) => { if (e.relatedTarget !== rplBtn) rplBtn.style.display = 'none'; });
-$('log').addEventListener('scroll', () => { rplBtn.style.display = 'none'; });
-rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log')) rplBtn.style.display = 'none'; };
+$('log').addEventListener('mouseleave', (e) => { if (e.relatedTarget !== rplBtn && e.relatedTarget !== cpyBtn) rplBtn.style.display = cpyBtn.style.display = 'none'; });
+$('log').addEventListener('scroll', () => { rplBtn.style.display = cpyBtn.style.display = 'none'; });
+cpyBtn.onmouseleave = rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log') && e.relatedTarget !== rplBtn && e.relatedTarget !== cpyBtn) rplBtn.style.display = cpyBtn.style.display = 'none'; };
+cpyBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = cpyBtn.style.display = 'none'; if (m) copy(m.text || '', t('msg.copied')); };
 rplBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = 'none'; if (m) setReply(m); };
 $('log').addEventListener('click', (e) => {
   if (e.target.closest('#olderBtn')) return showOlder(150);
