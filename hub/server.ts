@@ -19,7 +19,7 @@ import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
-import { worktreeState } from './gitstate.ts';
+import { ownDirtyFiles, worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
@@ -290,11 +290,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return list.length ? list : undefined;
   }
 
-  /** G1: 409 body { error, dirty, files } when the agent's folder has uncommitted files and the caller did not pass force. */
+  /**
+   * G1 + #20: 409 body { error, dirty, files } when the agent's folder has uncommitted files it actually wrote, and the
+   * caller did not pass force. Several agents can share one working tree (room_chat, skill-library, …): a file dirty
+   * only because of someone ELSE's edits must not block this session's own end/compact, so the dirty list is narrowed
+   * to files this session's own transcript wrote (editedFiles) before counting. A missing/unreadable transcript falls
+   * back to the old, conservative "every dirty file counts" (ownDirtyFiles returns the full list unchanged then).
+   */
   async function dirtyUnlessForced(s: Session, force: boolean) {
     if (force) return null;
     const g = await worktreeState(s.cwd);
-    return g.dirty ? { error: `${s.name} has ${g.dirty} uncommitted file(s); pass force to go on`, dirty: g.dirty, files: g.files } : null;
+    if (!g.dirty) return null;
+    const files = ownDirtyFiles(g.files, s.transcript, s.cwd);
+    return files.length ? { error: `${s.name} has ${files.length} uncommitted file(s); pass force to go on`, dirty: files.length, files } : null;
   }
 
   // ---- alive but deaf: a tab whose turn died on a usage limit never reaches the Stop hook, so no @ reaches it ----

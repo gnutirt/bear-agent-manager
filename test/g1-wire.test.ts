@@ -4,7 +4,36 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeHub } from './helpers.ts';
-import { clearWorktreeCache } from '../hub/gitstate.ts';
+import { clearWorktreeCache, editedFiles, ownDirtyFiles } from '../hub/gitstate.ts';
+import os from 'node:os';
+
+test('editedFiles: only Edit/Write/MultiEdit/NotebookEdit tool_use blocks count, Read does not; missing transcript -> null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-edited-'));
+  const tr = path.join(dir, 't.jsonl');
+  const line = (content: any[]) => JSON.stringify({ type: 'assistant', message: { content } });
+  fs.writeFileSync(tr, [
+    line([{ type: 'tool_use', name: 'Read', input: { file_path: path.join(dir, 'a.ts') } }]),
+    line([{ type: 'tool_use', name: 'Edit', input: { file_path: path.join(dir, 'b.ts') } }]),
+    line([{ type: 'tool_use', name: 'Write', input: { file_path: 'c.ts' } }]),   // already relative
+    line([{ type: 'tool_use', name: 'NotebookEdit', input: { notebook_path: path.join(dir, 'd.ipynb') } }]),
+    line([{ type: 'tool_use', name: 'Edit', input: { file_path: path.join(dir, '..', 'outside.ts') } }]),   // escapes cwd: dropped
+    '',
+  ].join('\n'));
+  assert.deepEqual([...editedFiles(tr, dir)!].sort(), ['b.ts', 'c.ts', 'd.ipynb']);
+  assert.equal(editedFiles(path.join(dir, 'missing.jsonl'), dir), null);
+  assert.equal(editedFiles(undefined, dir), null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('ownDirtyFiles: narrows a dirty list to this session\'s own edits; no readable transcript keeps the full list (safe default)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-owndirty-'));
+  const tr = path.join(dir, 't.jsonl');
+  fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: path.join(dir, 'mine.ts') } }] } }) + '\n');
+  assert.deepEqual(ownDirtyFiles(['mine.ts', 'someone-elses.ts'], tr, dir), ['mine.ts']);
+  assert.deepEqual(ownDirtyFiles(['someone-elses.ts'], tr, dir), []);
+  assert.deepEqual(ownDirtyFiles(['a.ts', 'b.ts'], undefined, dir), ['a.ts', 'b.ts']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('G1: GET /api/sessions/:id/git, terminate/compact refuse a dirty folder without force', async () => {
   const kills: number[] = [];
@@ -18,7 +47,11 @@ test('G1: GET /api/sessions/:id/git, terminate/compact refuse a dirty folder wit
     execFileSync('git', ['-C', repo, 'init', '-q']);
     fs.writeFileSync(path.join(repo, 'a.ts'), 'x');
     const tr = path.join(h.dir, 'alice.jsonl');
-    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 10 } } }) + '\n');
+    // alice's own transcript shows her writing a.ts: the dirty file is hers, so end/compact must still refuse it.
+    fs.writeFileSync(tr, [
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 10 } } }),
+      JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: path.join(repo, 'a.ts') } }] } }),
+    ].join('\n') + '\n');
     await h.call('/api/sessions/register', { id: 'a1', cwd: repo, name: 'alice', transcript: tr, pid: 4242 });
     clearWorktreeCache();
     const g = await h.call<any>('/api/sessions/a1/git');
@@ -33,6 +66,35 @@ test('G1: GET /api/sessions/:id/git, terminate/compact refuse a dirty folder wit
     // a folder that is not a repo
     await h.call('/api/sessions/register', { id: 'b1', cwd: h.dir, name: 'bob' });
     assert.equal((await h.call<any>('/api/sessions/b1/git')).repo, false);
+  } finally { await h.hub.close(); }
+});
+
+test('#20: a dirty file only another agent wrote (shared working tree) does not block this one\'s end/compact; one of its own still does', async () => {
+  const kills: number[] = [];
+  const h = await makeHub(undefined, () => {}, {
+    listProcs: async () => [{ pid: 5151, cmd: 'claude.exe', started: 0 }, { pid: 5152, cmd: 'claude.exe', started: 0 }],
+    kill: async (pid: number) => { kills.push(pid); },
+  });
+  try {
+    const repo = path.join(h.dir, 'repo2');
+    fs.mkdirSync(repo);
+    execFileSync('git', ['-C', repo, 'init', '-q']);
+    fs.writeFileSync(path.join(repo, 'skill.md'), 'x');   // dirty only through thu-vien-skill's own edits
+    const skillTr = path.join(h.dir, 'thu-vien-skill.jsonl');
+    fs.writeFileSync(skillTr, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Write', input: { file_path: path.join(repo, 'skill.md') } }] } }) + '\n');
+    await h.call('/api/sessions/register', { id: 's1', cwd: repo, name: 'thu-vien-skill', transcript: skillTr, pid: 5151 });
+    // coder shares the same working tree (room_chat-style) but never touched skill.md in its own transcript.
+    const coderTr = path.join(h.dir, 'coder.jsonl');
+    fs.writeFileSync(coderTr, JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 10 } } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'c1', cwd: repo, name: 'coder', transcript: coderTr, pid: 5152 });
+    clearWorktreeCache();
+    // coder: the only dirty file is thu-vien-skill's own -> terminate succeeds without force.
+    await h.call('/api/sessions/c1/terminate', {});
+    assert.deepEqual(kills, [5152]);
+    // thu-vien-skill itself: the same dirty file IS its own -> still 409 without force.
+    await assert.rejects(h.call('/api/sessions/s1/terminate', {}), (e: any) => e.status === 409);
+    await h.call('/api/sessions/s1/terminate', { force: true });
+    assert.deepEqual(kills.sort(), [5151, 5152]);
   } finally { await h.hub.close(); }
 });
 

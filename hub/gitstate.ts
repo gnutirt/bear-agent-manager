@@ -2,6 +2,7 @@
 // `git -C <cwd> status --porcelain=v1 -b` through execFile (no shell), 5 s timeout, 10 s cache per cwd. Names only, never contents.
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
 export type WorktreeState = { cwd: string; repo: boolean; branch: string; dirty: number; files: string[]; checkedAt: number };
 type Run = (cwd: string) => Promise<string>;   // stdout of the git command, rejects when git fails (not a repo, timeout...)
@@ -51,3 +52,40 @@ export async function worktreeState(cwd: string, o: { run?: Run; now?: () => num
 }
 
 export const clearWorktreeCache = () => cache.clear();
+
+// Attribution (#20): several agents share one working tree, so a file dirty because of agent B must not block
+// ending/compacting agent A. "Mine" = a file this session's own transcript actually wrote, via Edit/Write/MultiEdit/NotebookEdit.
+const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+
+/**
+ * Files one session's own transcript wrote (tool_use blocks only, never file contents), relative to `cwd` with forward
+ * slashes (matches git status paths). Returns null when the transcript is missing or unreadable: the caller should then
+ * fall back to treating every dirty file as this agent's, the safe default when ownership cannot be told apart.
+ */
+export function editedFiles(transcriptPath: string | undefined, cwd: string): Set<string> | null {
+  if (!transcriptPath) return null;
+  let text: string;
+  try { text = fs.readFileSync(transcriptPath, 'utf8'); } catch { return null; }
+  const out = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || !line.includes('"tool_use"')) continue;
+    let o: any;
+    try { o = JSON.parse(line); } catch { continue; }
+    const blocks = o?.message?.content;
+    if (!Array.isArray(blocks)) continue;
+    for (const b of blocks) {
+      if (b?.type !== 'tool_use' || !WRITE_TOOLS.has(String(b.name))) continue;
+      const fp = typeof b.input?.file_path === 'string' ? b.input.file_path : typeof b.input?.notebook_path === 'string' ? b.input.notebook_path : '';
+      if (!fp) continue;
+      const rel = path.isAbsolute(fp) ? path.relative(cwd, fp) : fp;
+      if (rel && !rel.startsWith('..')) out.add(rel.split(path.sep).join('/'));
+    }
+  }
+  return out;
+}
+
+/** The subset of `files` (dirty, repo-relative) this session's own transcript actually wrote; see `editedFiles`. */
+export function ownDirtyFiles(files: string[], transcriptPath: string | undefined, cwd: string): string[] {
+  const mine = editedFiles(transcriptPath, cwd);
+  return mine ? files.filter((f) => mine.has(f)) : files;
+}
