@@ -1,5 +1,5 @@
 export type SysType = 'relay' | 'usage' | 'wake' | 'compact' | 'task' | 'update' | 'error' | 'backup' | 'tab' | 'lead' | 'info';
-export type SysMeta = { type: SysType; level: 'info' | 'warn' | 'error' | 'done'; agent?: string; ref?: number };
+export type SysMeta = { type: SysType; level: 'info' | 'warn' | 'error' | 'done'; agent?: string; ref?: number; action?: { kind: 'switch'; session: string; to: string } };
 
 export type Message = {
   id: number;

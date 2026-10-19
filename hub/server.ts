@@ -12,6 +12,7 @@ import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider
 import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare } from './accounts.ts';
+import { pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { probeProvider, workerBrief } from './brief.ts';
@@ -293,6 +294,41 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   // ---- alive but deaf: a tab whose turn died on a usage limit never reaches the Stop hook, so no @ reaches it ----
+  /** The Claude config dirs of this machine: the default one, those of known sessions, and ~/.claude-* folders that look like one. */
+  const machineAccountDirs = () => {
+    let siblings: string[] = [];
+    try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)).filter(looksLikeClaudeDir); } catch { /* none */ }
+    return [...new Set([...usageDirs(), ...siblings])];
+  };
+  // ---- D2: move an agent whose account ran out to another account (chats must be shared) ----
+  const offerTold = new Map<string, string>();   // session -> account already offered (one offer per target)
+  const pctOf = (a?: AccountUsage) => Math.round(Math.max(a?.fiveHour?.pct ?? 0, a?.sevenDay?.pct ?? 0));
+  /** Resume the session on the account in `to`: stop what is left of it, then a background run with that config dir. */
+  async function switchSession(s: Session, to: string, note: string) {
+    const live = !s.ended && s.status !== 'offline';
+    if (live) { try { await terminateSession(s); } catch { if (!s.pid || !pidAlive(s.pid)) emitSession(store.markEnded(s.id)); else throw new StoreError(409, `${s.name}: its claude (pid ${s.pid}) could not be stopped`); } }
+    stopRevive(s.id);
+    const cur = store.session(s.id);
+    cur.configDir = to; cur.ended = true; store.save();
+    for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
+    emitSession(cur);
+    revive(cur.id);
+  }
+  /** Still limited: auto mode switches now (true), ask mode posts one offer with a Switch action (false: the wake is still booked). */
+  async function trySwitch(s: Session, cfg: ReturnType<typeof loadSettings>): Promise<boolean> {
+    if (!usage || cfg.accountSwitch.mode === 'off') return false;
+    const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+    const pick = pickAccount(await usage.read(dirs), s.configDir || primary, cfg.accountSwitch, listConfigAccounts(dirs, primary).shared);
+    if (!pick.target) return false;
+    const to = pick.target.configDirs[0], note = tr('sys.switch.note', { from: pick.from?.label ?? path.basename(s.configDir || primary), pct: pctOf(pick.from), left: 100 - pctOf(pick.target) });
+    if (cfg.accountSwitch.mode === 'auto') { await switchSession(s, to, note); return true; }
+    if (offerTold.get(s.id) !== to) {
+      offerTold.set(s.id, to);
+      for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.offer', { name: s.name, to: pick.target.label, note }), undefined, { type: 'wake', level: 'warn', agent: s.name, action: { kind: 'switch', session: s.id, to } })); emitRoom(r); } catch { /* room gone */ } }
+    }
+    return false;
+  }
+
   const unsticking = new Set<string>();
   const waitTold = new Map<string, number>();   // session -> reset time already announced (one notice per limit)
   /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
@@ -304,6 +340,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const cfg = loadSettings(opts.dir, envCap);
       const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
       if (until > Date.now()) {
+        if (await trySwitch(s, cfg).catch(() => false)) return;
         const key = `s:${s.id}`, have = (store.state.wakeAt ??= {});
         if (!have[key]) { have[key] = { at: until + cfg.lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
         if (waitTold.get(s.id) !== until) { waitTold.set(s.id, until); say(tr('sys.limit.waiting', { name: s.name, at: clock(have[key].at) })); }
@@ -1065,11 +1102,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, { ok: true, path: dir });
     }
     // ---- accounts (D1): the Claude config dirs of this machine and whether they share their chats ----
-    const accountDirs = () => {
-      let siblings: string[] = [];
-      try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)).filter(looksLikeClaudeDir); } catch { /* none */ }
-      return [...usageDirs(), ...siblings];
-    };
+    const accountDirs = machineAccountDirs;
     if (m === 'GET' && p === '/api/accounts') return json(res, 200, listConfigAccounts(accountDirs(), path.join(usageHome, '.claude')));
     if (m === 'POST' && p === '/api/accounts/share') {
       // Without confirm: only the plan. With it: refused while any claude runs (it may be writing in projects/).
@@ -1260,7 +1293,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|git|open-tab))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1300,6 +1333,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       // G1: uncommitted files in the agent's folder (Session.cwd, never a path from the client)
       if (m === 'GET' && action === 'git') return json(res, 200, await worktreeState(store.session(id).cwd));
+      if (m === 'POST' && action === 'switch') {
+        // D2 "Switch now": resume this agent on another Claude account of the machine (chats must be shared).
+        const b = await readBody(req), s = store.session(id);
+        const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+        const to = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.to ?? '')).toLowerCase());
+        if (!to) throw new StoreError(400, 'to must be a Claude config dir of this machine');
+        if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
+        if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
+        await switchSession(s, to, tr('sys.switch.byUser'));
+        return json(res, 200, { ok: true, configDir: to });
+      }
       if (m === 'POST' && action === 'terminate') {
         const b = await readBody(req);
         const dirty = await dirtyUnlessForced(store.session(id), b.force === true);
