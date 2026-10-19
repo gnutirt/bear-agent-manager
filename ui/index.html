@@ -2553,7 +2553,7 @@ function setupBlock(st) {
   // 4. worker key (never shown back)
   const provs = H.providers || [];
   const l4 = provs.some((p) => p.enabled && p.hasKey) ? 'ok' : 'warn';
-  const body4 = provs.map((p) => `<span><span class="hdot ${p.hasKey ? 'ok' : 'warn'}" style="display:inline-block;margin-right:6px"></span><b>${esc(p.label)}</b>: ${p.hasKey ? t('sm.s4.has') + ' ' + esc(p.keyHint || '') : t('sm.s4.no')}</span>`).join('') + `<form class="smkey" id="smKeyForm"><select name="id" aria-label="${t('sm.s4')}">${provs.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('')}</select><input name="key" type="password" autocomplete="off" placeholder="${t('sm.s4.paste')}" aria-label="${t('sm.s4.paste')}" required><button class="btn primary">${t('sm.s4.save')}</button></form>`;
+  const body4 = provs.map((p) => `<span><span class="hdot ${p.hasKey ? 'ok' : 'warn'}" style="display:inline-block;margin-right:6px"></span><b>${esc(p.label)}</b>: ${p.hasKey ? t('sm.s4.has') + ' ' + esc(p.keyHint || '') : t('sm.s4.no')}</span>`).join('') + `<form class="smkey" id="smKeyForm"><select name="prov" aria-label="${t('sm.s4')}">${provs.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('')}</select><input name="key" type="password" autocomplete="off" placeholder="${t('sm.s4.paste')}" aria-label="${t('sm.s4.paste')}" required><button class="btn primary">${t('sm.s4.save')}</button></form>`;
   // 5. shared chats + autostart
   const shared = H.accounts?.shared, au = H.autostart;
   const l5 = shared && au?.on ? 'ok' : shared || au?.on ? 'info' : 'warn';
@@ -2681,7 +2681,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('submit', (e) => {
     if (e.target.id === 'smKeyForm') {
       e.preventDefault();
-      const f = e.target, id = f.id.value, key = f.key.value.trim();
+      const f = e.target, id = f.prov.value, key = f.key.value.trim();
       if (!key) return;
       api(`/api/providers/${enc(id)}`, { key }, 'PUT').then(() => { f.key.value = ''; toast(t('sm.s4.saved', { id })); loadHealth(); }, (err) => toast(err.message));
       return;
