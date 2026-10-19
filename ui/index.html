@@ -1621,7 +1621,7 @@ function renderPresence() {
   for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
     const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = t('presence.call', { name: s.name });
     c.dataset.sid = s.id; c.classList.add('st-' + s.status);
-    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>${s.bg && !s.tab && s.status !== 'offline' ? '<span class="bgdot" title="' + t('sessions.bg.tip') + '">⏻</span>' : ''}`;
+    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>${acctLabel(s) ? `<span class="acct">${esc(acctLabel(s))}</span>` : ''}${s.bg && !s.tab && s.status !== 'offline' ? '<span class="bgdot" title="' + t('sessions.bg.tip') + '">⏻</span>' : ''}`;
     c.onclick = () => insertMention(s.name);
     el.append(c);
   }
@@ -2098,6 +2098,7 @@ function loadClaudeUsage(refresh = false) {
 }
 const sameDir = (a, b) => String(a || '').replace(/[\\/]+$/, '').toLowerCase() === String(b || '').replace(/[\\/]+$/, '').toLowerCase();
 /** Which Claude account a chat runs on; only shown once two accounts are logged in. */
+const acctLabel = (s) => { const a = (S.cu?.accounts || []).find((x) => s.configDir ? x.configDirs.some((d) => sameDir(d, s.configDir)) : x.label === 'claude'); return (S.cu?.accounts || []).length > 1 && a ? a.label : ''; };
 function acctChip(s) {
   const accts = S.cu?.accounts || [];
   if (accts.length < 2) return '';
