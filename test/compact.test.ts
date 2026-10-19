@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { compactContext, compactDecision, modelWindow, wantsWakeCompact } from '../hub/compact.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const hold = (pct: number) => ({ mode: 'hold' as const, pct });
 
@@ -125,7 +125,8 @@ async function offlineAgent(compactCode: number | null, ctx: number, wake: boole
     if (wake) await h.call('/api/settings', { agentCompact: { fw: { wakeCompact: true } } }, { method: 'PUT' });
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1' }) });
     await h.call('/api/rooms/proj/messages', { text: '@fw wake up' });
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => order.includes('revive'), 15_000, 'the wake');
+    await new Promise((r) => setTimeout(r, 50));   // the room line about the compaction is posted right after the revive call returns
     const msgs = (await h.call<any[]>('/api/rooms/proj/messages?limit=10')).map((m: any) => m.text);
     return { order, msgs };
   } finally { await h.hub.close(); }
@@ -162,7 +163,7 @@ test('a wake that fails leaves the messages unread and says so in the room', asy
     await h.call('/api/rooms/proj/join', { sessionId: 'f1' });
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'f1' }) });
     await h.call('/api/rooms/proj/messages', { text: '@alice hello' });
-    await new Promise((r) => setTimeout(r, 200));
+    await until(async () => (await h.call<any[]>('/api/rooms/proj/messages?limit=10')).some((m: any) => /không dậy được/.test(m.text)), 15_000, 'the failure notice');
     const msgs = (await h.call<any[]>('/api/rooms/proj/messages?limit=10')).map((m: any) => m.text);
     assert.ok(msgs.some((t) => /alice không dậy được \(claude thoát với mã 1/.test(t)), msgs.join('|'));
     assert.ok(h.hub.store.pending('f1').messages.some((m) => m.text === '@alice hello'), 'still unread');

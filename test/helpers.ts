@@ -3,6 +3,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { startHub, type Hub, type ReviveJob } from '../hub/server.ts';
 
+/** Polls until f() is truthy (or throws on timeout): waits for the thing itself instead of sleeping a fixed time, so a loaded machine is slower but not wrong. */
+export async function until<T>(f: () => T | Promise<T>, ms = 15_000, what = 'the condition'): Promise<NonNullable<T>> {
+  const t0 = Date.now();
+  for (;;) {
+    const v = await f();
+    if (v) return v as NonNullable<T>;
+    if (Date.now() - t0 > ms) throw new Error(`timeout waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 // Tests never spawn a real claude: revive defaults to a no-op stub.
 // Tests default to no batching delay and automatic revive (both are opt-in/out in production).
 export async function makeHub(sweepMs?: number, revive: (job: ReviveJob) => unknown = () => {}, extra: Record<string, unknown> = {}) {

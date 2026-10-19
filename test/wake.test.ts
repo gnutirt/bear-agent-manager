@@ -6,7 +6,7 @@ import path from 'node:path';
 import { planWakes, quotaResetFromTranscript } from '../hub/wake.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const acc = (pct: number, resetsAt: string | null, email = 'a@x.com'): any => ({ configDirs: ['C:/cfg'], label: 'main', email, plan: 'pro', fiveHour: { pct, resetsAt }, sevenDay: null, usageError: '', fetchedAt: 0 });
 const cfg = { enabled: true, atPct: 90, afterResetMin: 2 };
@@ -46,7 +46,7 @@ test('usage wake: books at the poll, then at the reset posts as the user to this
   } finally { await h.hub.close(); }
   const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {} });
   try {
-    await new Promise((r) => setTimeout(r, 1200));
+    await until(() => again.store.history('proj').some((m) => !m.kind && m.fromId === null && /đã reset/.test(m.text)), 20_000, 'the wake-up after the reset');
     const msgs = again.store.history('proj');
     assert.ok(msgs.some((m) => m.kind === 'system' && /hẹn đánh thức/.test(m.text)), 'booking announced');
     const wake = msgs.find((m) => !m.kind && m.fromId === null && /đã reset/.test(m.text));

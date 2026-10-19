@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { adoptBackground, isBackground } from '../hub/revive.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const fakeClaude = () => { const c: any = { killed: 0, kill() { c.killed++; } }; return c; };
 
@@ -29,11 +29,11 @@ test('a background waiter steps aside when a tab already waits; a tab waiter sup
     await call('/api/sessions/register', { id: 'tb2', cwd: 'C:/tabbg2' });
     const wait = (headless: boolean, timeout = 1) => call<any>(`/api/sessions/tb2/wait?timeout=${timeout}${headless ? '&headless=1' : ''}`, undefined, { method: 'GET' });
     const tab = wait(false, 3);
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => hub.waiting('tb2'), 15_000, 'the tab to wait');
     assert.deepEqual(await wait(true), { superseded: true });   // refused at once, the tab keeps waiting
     assert.deepEqual(await tab, { messages: [] });              // the tab's wait ran its full course, untouched
     const bg = wait(true, 3);
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => hub.waiting('tb2'), 15_000, 'the background waiter to wait');
     const tab2 = wait(false, 1);
     assert.deepEqual(await bg, { superseded: true });           // the tab took over from the background waiter
     await tab2;

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 import { isSecretFile, localSummary } from '../hub/localai.ts';
 import { claudeArgs } from '../hub/revive.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ar-sec-'));
@@ -67,12 +67,13 @@ test('local summarize: secret files never go to a host that is not this machine;
   try { await assert.rejects(localSummary(cfg, 'summary', 'x'), /cannot reach/); } finally { redirector.close(); target.close(); }
 
   // at most two requests at once
-  const hang = http.createServer(() => {});
+  let reached = 0;
+  const hang = http.createServer(() => { reached++; });   // never answers; counts the requests that got through
   await new Promise<void>((r) => hang.listen(0, '127.0.0.1', r));
   const hcfg = { ...cfg, host: `http://127.0.0.1:${(hang.address() as AddressInfo).port}`, timeoutSec: 2 };
   try {
     const a = localSummary(hcfg, 'summary', 'x').catch((e) => e), b = localSummary(hcfg, 'summary', 'x').catch((e) => e);
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => reached >= 2, 10_000, 'both requests to reach the server');
     await assert.rejects(localSummary(hcfg, 'summary', 'x'), /busy/);
     await Promise.all([a, b]);
     await assert.rejects(localSummary(hcfg, 'summary', 'x'), /did not answer/);   // the slots were given back

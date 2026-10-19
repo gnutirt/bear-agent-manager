@@ -59,7 +59,7 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
 export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; bg: boolean; tab: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
-export type Hub = { url: string; port: number; token: string; store: Store; close(): Promise<void> };
+export type Hub = { url: string; port: number; token: string; store: Store; waiting(id: string): boolean; close(): Promise<void> };   // waiting: a long-poll waiter is registered for the session (tests wait for it instead of sleeping)
 type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean };   // headless: the waiter of a background wake, not of a tab
 
 /** Which kinds of claude are alive for a chat: a background one (hub wake, headless) and/or one with a tab or terminal. */
@@ -975,7 +975,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // ---- machine export (T17): settings, skills, memory, plugin list for a new machine; never logins ----
     const machineDir = () => path.join(archiveDir() || opts.dir, 'machine');
     if (m === 'GET' && p === '/api/machine') {
-      if (!lastExport) lastExport = await exportFromManifest(machineDir());
+      if (!lastExport && !exporting) {   // read the manifest of an earlier run once; never over a result that arrived while the read was waiting
+        const fromDisk = await exportFromManifest(machineDir());
+        if (!lastExport && !exporting) lastExport = fromDisk;
+      }
       return json(res, 200, { dir: machineDir(), running: exporting, last: lastExport });
     }
     if (m === 'POST' && p === '/api/machine/export') {
@@ -1626,6 +1629,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     port,
     token,
     store,
+    waiting: (id: string) => waiters.has(store.resolve(id)),
     close: async () => {
       clearInterval(sweeper);
       clearInterval(workerPoller);

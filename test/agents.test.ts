@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 import { agentArgs } from '../hub/agents.ts';
 
 test('agentArgs: a new chat with --session-id and the same permission flags as a woken agent', () => {
@@ -33,7 +33,7 @@ test('POST /api/agents: a new agent joins the room under its name and runs in th
     // a known folder needs no confirm the second time; a taken name is refused
     await assert.rejects(h.call('/api/agents', { name: 'alice', cwd: repo, room: 'web' }), (e: any) => e.status === 409 && !/folder/.test(e.message));
     finish(0);
-    await new Promise((x) => setTimeout(x, 50));
+    await until(async () => (await h.call<any>(`/api/sessions/${r.id}`)).session.status === 'offline', 5000, 'the agent to end');
     assert.equal((await h.call<any>(`/api/sessions/${r.id}`)).session.status, 'offline', 'ended when the process ends');
   } finally { await h.hub.close(); }
 });

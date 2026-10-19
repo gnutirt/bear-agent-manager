@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 
 // Review of D3 (POST /api/agents): where the folder comes from, and how many background claudes may run at once.
@@ -42,8 +42,7 @@ test('POST /api/agents: at most settings.agents.maxBackground background claudes
     await make('a1'); await make('a2');
     await assert.rejects(make('a3'), (e: any) => e.status === 429 && /maxBackground/.test(e.message));
     done[0](0);
-    await new Promise((r) => setTimeout(r, 50));
-    await make('a3');   // a place was freed
+    await until(() => make('a3').then(() => true, () => false), 5000, 'a place to be freed');   // a place was freed
     assert.equal(done.length, 3);
   } finally { await h.hub.close(); }
 });

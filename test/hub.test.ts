@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const EXISTING_TRANSCRIPT = fileURLToPath(import.meta.url); // any file that exists
 
@@ -43,7 +43,7 @@ test('wait resolves when a waking message is posted and consumes it', async () =
   const { hub, call } = await twoInRoom();
   try {
     const waiting = call<{ messages: any[] }>('/api/sessions/s2/wait?timeout=10');
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => hub.waiting('s2'));
     await call('/api/rooms/proj/messages', { sessionId: 's1', text: '@web contract changed' });
     const got = await waiting;
     assert.equal(got.messages.length, 1);
@@ -66,7 +66,7 @@ test('a second wait supersedes the first', async () => {
   const { hub, call } = await twoInRoom();
   try {
     const first = call<any>('/api/sessions/s1/wait?timeout=10');
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => hub.waiting('s1'));
     const second = call<any>('/api/sessions/s1/wait?timeout=10');
     assert.deepEqual(await first, { superseded: true });
     await call('/api/rooms/proj/messages', { text: '@fw go' });
@@ -79,10 +79,10 @@ test('aborted wait does not consume messages (dead waiter)', async () => {
   try {
     const ac = new AbortController();
     const p = call('/api/sessions/s1/wait?timeout=10', undefined, { signal: ac.signal }).catch(() => 'aborted');
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => hub.waiting('s1'));
     ac.abort();
     assert.equal(await p, 'aborted');
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => !hub.waiting('s1'), 5000, 'the aborted waiter to be dropped');
     await call('/api/rooms/proj/messages', { text: '@fw are you there' });
     const pend = await call<{ wake: boolean; messages: any[] }>('/api/sessions/s1/pending?consume=1');
     assert.equal(pend.wake, true);
@@ -170,7 +170,7 @@ test('sessions expose a delivery cursor that advances when a waiter receives a m
   try {
     const before = (await call<any>('/api/sessions/s2')).session.cursor;
     const waiting = call<any>('/api/sessions/s2/wait?timeout=10');
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => hub.waiting('s2'));
     const { message } = await call<any>('/api/rooms/proj/messages', { text: '@web ping' });
     await waiting;
     const after = (await call<any>('/api/sessions/s2')).session.cursor;
@@ -227,7 +227,7 @@ test('revive: a mentioned session that ended is resumed in the background, once'
     let s = (await h.call<any>('/api/sessions/s1')).session;
     assert.deepEqual([s.status, s.activity], ['busy', 'đang hồi sinh']);
     finish();
-    await new Promise((r) => setTimeout(r, 50));
+    await until(async () => (await h.call<any>('/api/sessions/s1')).session.status === 'offline', 5000, 'the session to go offline');
     s = (await h.call<any>('/api/sessions/s1')).session;
     assert.equal(s.status, 'offline');
   } finally { await h.hub.close(); }
@@ -310,13 +310,13 @@ test('register stores the context size (ctx) and exposes it', async () => {
 });
 
 test('batching: messages arriving close together wake a session once, together', async () => {
-  const { hub, call } = await makeHub(undefined, undefined, { batchMs: 300 });
+  const { hub, call } = await makeHub(undefined, undefined, { batchMs: 1500 });   // wide enough that a loaded machine still sends the second message inside the window
   try {
     await call('/api/sessions/register', { id: 'b1', cwd: 'C:/fw' });
     await call('/api/sessions/b1/rename', { name: 'fw' });
     await call('/api/rooms/proj/join', { sessionId: 'b1' });
     const waiting = call<any>('/api/sessions/b1/wait?timeout=10');
-    await new Promise((r) => setTimeout(r, 50));
+    await until(() => hub.waiting('b1'));
     await call('/api/rooms/proj/messages', { text: '@fw first' });
     await new Promise((r) => setTimeout(r, 100));
     await call('/api/rooms/proj/messages', { text: '@fw second' });
@@ -469,8 +469,8 @@ test('archive rounds never overlap and never make a hook wait', async () => {
     await new Promise((r) => setTimeout(r, 50));
     assert.ok(Date.now() - t0 < 1000, 'the end hook answers while a round is still running');
     assert.equal(calls, 1, 'a round asked for during a running round is skipped');
-    release(); await new Promise((r) => setTimeout(r, 20));
-    await end('ov1'); await new Promise((r) => setTimeout(r, 50));
+    release();
+    await until(async () => { await end('ov1'); return calls === 2; }, 5000, 'the next archive round');
     assert.equal(calls, 2, 'the next round starts once the previous one is done');
     release();
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
@@ -494,7 +494,7 @@ test('POST /api/restart checks the new code loads, answers, then asks the proces
   const { hub, call } = await makeHub(undefined, undefined, { exit: () => { exited++; } });
   try {
     assert.deepEqual(await call('/api/restart', {}), { ok: true });
-    await new Promise((r) => setTimeout(r, 500));
+    await until(() => exited === 1, 5000, 'the restart to ask the process to exit');
     assert.equal(exited, 1);
   } finally { await hub.close(); }
 });
@@ -531,7 +531,7 @@ test('compact: refuses an open tab unless closeTab, then terminates it, runs com
     assert.deepEqual(order, []);
     const r2 = await fetch(hub.url + '/api/sessions/c1/compact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify({ revive: true, closeTab: true }) });
     assert.equal(r2.status, 202);
-    await new Promise((res) => setTimeout(res, 150));
+    await until(() => order.length >= 3, 5000, 'kill, compact, revive');
     assert.deepEqual(order, ['kill', 'compact', 'revive']);
   } finally { await hub.close(); }
 });

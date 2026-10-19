@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 import { activityFor, formatDelivery, ideFromCommand, isOneShotCommand, parseInput, readContextTokens, readTitle } from '../hooks/lib.ts';
 import fs from 'node:fs';
 
@@ -138,7 +138,7 @@ test('waiter exits 2 with the message on stderr when mentioned', async () => {
     await call('/api/sessions/s1/rename', { name: 'fw' });
     await call('/api/rooms/proj/join', { sessionId: 's1' });
     const w = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
-    await new Promise((r) => setTimeout(r, 1500));
+    await until(() => hub.waiting('s1'), 15_000, 'the waiter to wait');
     assert.equal((await call<any>('/api/sessions/s1')).session.status, 'idle');
     await call('/api/rooms/proj/messages', { text: '@fw flash the board' });
     const r = await w.done;
@@ -153,7 +153,7 @@ test('an older waiter exits 0 when superseded', async () => {
   try {
     await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
     const a = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
-    await new Promise((r) => setTimeout(r, 1500));
+    await until(() => hub.waiting('s1'), 15_000, 'the first waiter to wait');
     const b = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
     assert.equal((await a.done).code, 0);
     b.child.kill();
@@ -169,7 +169,7 @@ test('waiter registers a new session only once its transcript exists, named afte
     await new Promise((r) => setTimeout(r, 2500));
     await assert.rejects(call('/api/sessions/new1'), (err: any) => err.status === 404);
     fs.writeFileSync(transcript, JSON.stringify({ type: 'ai-title', aiTitle: 'Sửa lỗi WiFi reconnect' }) + '\n');
-    await new Promise((r) => setTimeout(r, 3500));
+    await until(() => call('/api/sessions/new1').then(() => true, () => false), 20_000, 'the waiter to register the chat');
     const s = (await call<any>('/api/sessions/new1')).session;
     assert.deepEqual([s.name, s.title], ['sua-loi-wifi', 'Sửa lỗi WiFi reconnect']);
     w.child.kill();
@@ -289,7 +289,7 @@ test('A background wake: HEADLESS + IDLE_MIN make the waiter give up after the i
     assert.equal(idle.code, 0);
     assert.ok(Date.now() - t0 < 15_000, `waited ${Date.now() - t0} ms`);
     const w = runHook('waiter.ts', { session_id: 'bg1', cwd: 'C:\bgwork', hook_event_name: 'Stop' }, { ...e, BEAR_AGENT_HEADLESS: '1', BEAR_AGENT_IDLE_MIN: '30' });
-    await new Promise((r) => setTimeout(r, 1500));
+    await until(() => hub.waiting('bg1'), 15_000, 'the background waiter to wait');
     await call('/api/rooms/proj/messages', { text: '@bgwork again' });
     const r = await w.done;
     assert.equal(r.code, 2);

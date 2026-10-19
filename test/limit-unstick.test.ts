@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 import { endedOnLimit } from '../hub/wake.ts';
 
 // The synthetic line Claude Code writes when a subscription limit stops a turn.
@@ -24,7 +24,9 @@ async function stuckTab(resetsAtMs: number, settings: object = {}) {
   await h.call('/api/rooms/web/join', { sessionId: 'a1' });
   if (Object.keys(settings).length) await h.call('/api/settings', settings, { method: 'PUT' });
   await h.call('/api/rooms/web/messages', { text: '@alice go on' });
-  await new Promise((r) => setTimeout(r, 150));
+  // every outcome of the @ posts a notice about alice; the kill and the revive follow within a few ticks
+  await until(async () => (await h.call<any[]>('/api/rooms/web/messages?limit=20')).some((m) => m.kind === 'system' && m.text.includes('alice')), 15_000, 'the notice about alice');
+  await new Promise((r) => setTimeout(r, 50));
   const notices = (await h.call<any[]>('/api/rooms/web/messages?limit=20')).filter((m) => m.kind === 'system').map((m) => m.text);
   return { h, order, notices };
 }
@@ -82,10 +84,10 @@ test('a waiter left from an earlier turn does not swallow the wake of a chat tha
     fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
     // the stale long-poll of an earlier Stop hook
     const waiting = fetch(`${h.hub.url}/api/sessions/a1/wait?timeout=30`, { headers: { 'x-room-token': h.hub.token } }).then((r) => r.json());
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => h.hub.waiting('a1'), 15_000, 'the stale waiter to wait');
     await h.call('/api/rooms/web/messages', { text: '@alice the limit reset, go on' });
     assert.deepEqual(await waiting, { superseded: true }, 'the stale waiter is let go, not handed the message');
-    await new Promise((r) => setTimeout(r, 150));
+    await until(() => order.length >= 2, 10_000, 'kill and revive');
     assert.deepEqual(order, ['kill', 'revive']);
   } finally { await h.hub.close(); }
 });
