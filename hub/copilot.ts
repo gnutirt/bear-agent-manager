@@ -196,8 +196,8 @@ export class CopilotAgent {
       const auth = await createdClient.getAuthStatus();
       if (!auth.isAuthenticated) throw new Error('Copilot CLI is not signed in. Run `copilot login` in a terminal as this Windows user, then start Copilot again.');
       const session = identity.providerId
-        ? await createdClient.resumeSession(identity.providerId, await this.sessionConfig())
-        : await createdClient.createSession({ ...await this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
+        ? await createdClient.resumeSession(identity.providerId, this.sessionConfig())
+        : await createdClient.createSession({ ...this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
       this.session = session;
       if (session.sessionId !== identity.providerId) {
         identity.providerId = session.sessionId;
@@ -226,12 +226,10 @@ export class CopilotAgent {
     }
   }
 
-  private async sessionConfig() {
-    const { BuiltInTools, ToolSet } = await import('@github/copilot-sdk');
+  private sessionConfig() {
     const rule = permFor(this.opts.settings(), NAME);
     return {
       workingDirectory: this.opts.cwd,
-      availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).toArray(),
       enableOnDemandInstructionDiscovery: false,
       enableFileHooks: false,
       enableHostGitOperations: false,

@@ -26,11 +26,12 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
       createSession: async (config: { sessionId?: string; availableTools?: readonly string[] }) => {
         calls.created++;
         calls.providerId = config.sessionId ?? uuid;
-        calls.availableTools = [...(config.availableTools ?? [])];
+        calls.availableTools = config.availableTools ? [...config.availableTools] : undefined;
         return session(calls.providerId);
       },
-      resumeSession: async (id: string) => {
+      resumeSession: async (id: string, config?: { availableTools?: readonly string[] }) => {
         calls.resumed.push(id);
+        calls.availableTools = config?.availableTools ? [...config.availableTools] : undefined;
         return session(id);
       },
       stop: async () => { calls.stopped++; return []; },
@@ -83,8 +84,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(started.autoStart, true);
     assert.equal(started.login, 'test-user');
     assert.equal(calls.created, 1);
-    assert.ok(calls.availableTools?.length);
-    assert.ok(calls.availableTools?.every((tool) => tool.startsWith('builtin:')));
+    assert.equal(calls.availableTools, undefined, 'Copilot CLI mode should keep its native file and shell tools');
     assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Copilot', 'reviewer']);
@@ -102,6 +102,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(restarted.state, 'idle');
     assert.equal(calls.created, 1);
     assert.deepEqual(calls.resumed, [calls.providerId]);
+    assert.equal(calls.availableTools, undefined, 'resumed sessions should keep native file and shell tools');
     assert.ok(!('copilot' in h.hub.store.state.sessions[member.id].rooms), 'legacy private-room membership is removed');
   } finally {
     await h.hub.close();
