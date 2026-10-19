@@ -781,4 +781,5 @@ export const en: Record<string, string> = {
   'hc.local.off': 'Off (default).',
   'hc.local.on': 'On, using {host}.',
   'hc.unknown': 'Could not read: {what}.',
+  'log.older': 'Show older messages ({n} hidden)',
 };

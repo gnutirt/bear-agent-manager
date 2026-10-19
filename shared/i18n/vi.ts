@@ -781,4 +781,5 @@ export const vi: Record<string, string> = {
   'hc.local.off': 'Đang tắt (mặc định).',
   'hc.local.on': 'Đang bật, dùng {host}.',
   'hc.unknown': 'Chưa đọc được: {what}.',
+  'log.older': 'Hiện thêm tin cũ hơn ({n} tin đang ẩn)',
 };

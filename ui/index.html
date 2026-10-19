@@ -399,6 +399,7 @@ header .spacer{flex:1}
 .hdot{flex:none;width:11px;height:11px;border-radius:50%;background:var(--mute)}.hdot.ok{background:#22C55E}.hdot.warn{background:#F59E0B}.hdot.bad{background:#EF4444}.hdot.info{background:#64748B}
 .hlist{display:flex;flex-direction:column;gap:8px}.hrow{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.hrow .hdot{margin-top:6px}
 .hrow .hb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.hrow .hb span{color:var(--mute);font-size:13.5px}.hrow .hb small{color:color-mix(in srgb,#F59E0B 55%,var(--text));font-size:12.5px}.hrow.bad .hb small{color:color-mix(in srgb,#EF4444 60%,var(--text))}
+.olderbtn{display:block;margin:6px auto 12px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);font-weight:600;font-size:13px}.olderbtn:hover{border-color:var(--accent)}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -960,7 +961,14 @@ function inline(s) {
     .replace(/(^|[\s(,;])@([A-Za-z0-9_-]+)/g, (m, p, n) => `${p}<span class="mention${n.toLowerCase() === 'you' ? ' me' : ''}">@${n}</span>`);
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[+i]}</code>`);
 }
+const mdCache = new Map();
 function md(src) {
+  const k = uiLang() + '\u0000' + src;
+  let v = mdCache.get(k);
+  if (v === undefined) { v = mdRaw(src); if (mdCache.size > 1500) mdCache.clear(); mdCache.set(k, v); }
+  return v;
+}
+function mdRaw(src) {
   const lines = String(src).replace(/\r/g, '').split('\n');
   let out = '', stack = [], para = [];
   const flushPara = () => { if (para.length) { out += `<p>${para.map(inline).join('<br>')}</p>`; para = []; } };
@@ -1454,6 +1462,21 @@ $('log').addEventListener('click', (e) => {
   S.stick = false; renderLog();
 });
 
+const LOG_WINDOW = 150;
+S.logWin = {};   // room -> how many of the latest messages are drawn
+let lastLogSig = '';
+/** What the drawn log depends on besides the messages: who the senders are and their status (receipts, names, avatars). Activity text and context size are not in it. */
+const logSigOf = () => `${S.current}|${(S.messages[S.current] || []).length}|${S.sysMode}|` + Object.values(S.sessions).map((x) => `${x.id}${x.name}${x.status}${x.ide}${x.title}${x.bg ? 1 : 0}${x.tab ? 1 : 0}`).join(',');
+/** A session event fires on every tool call of every agent; the log only needs a redraw when something it shows changed. */
+function renderLogIfChanged() { if (logSigOf() !== lastLogSig) renderLog(); }
+let logFrame = 0;
+/** Several messages in one burst draw once per frame. */
+function queueLog() { if (logFrame) return; logFrame = requestAnimationFrame(() => { logFrame = 0; renderLog(); renderTopics(); }); }
+function showOlder(count) {
+  const el = $('log'), h = el.scrollHeight, top = el.scrollTop;
+  S.logWin[S.current] = (S.logWin[S.current] || LOG_WINDOW) + count; S.stick = false; renderLog();
+  el.scrollTop = top + (el.scrollHeight - h);   // keep what the reader was looking at in place
+}
 function renderLog() {
   const el = $('log');
   if (!S.rooms.length) {
@@ -1461,14 +1484,16 @@ function renderLog() {
     $('emptyNew').onclick = () => showNewRoom(); return;
   }
   const allMs = S.messages[S.current] || [], tf = S.tfilter[S.current] || '';
-  const ms = tf ? allMs.filter((m) => topicOf(m) === tf) : allMs;
+  const msAll = tf ? allMs.filter((m) => topicOf(m) === tf) : allMs;
+  const winN = S.logWin[S.current] || LOG_WINDOW, hiddenOld = Math.max(0, msAll.length - winN);
+  const ms = hiddenOld ? msAll.slice(-winN) : msAll;   // a long room draws its latest messages first: fewer nodes to build, lay out and repaint
   if (allMs.length && !ms.length) { logBody.innerHTML = `<div class="empty"><h2>#${esc(tf)}</h2>${t('topic.empty', { name: esc(tf) })}</div>`; return; }
   if (!ms.length) {
     const n = members(S.current).length;
     logBody.innerHTML = `<div class="empty"><h2>${t('empty.room.title', { name: esc(S.current) })}</h2>${n ? t('empty.room.withMembers') : t('empty.room.noMembers')}<br><button class="btn primary" id="emptyInvite">${I.copy} ${t('invite.copy')}</button></div>`;
     $('emptyInvite').onclick = () => copy(inviteText(S.current), t('invite.copied')); return;
   }
-  let html = '', prev = null, prevDay = '';
+  let html = hiddenOld ? `<button type="button" class="olderbtn" id="olderBtn">${t('log.older', { n: hiddenOld })}</button>` : '', prev = null, prevDay = '';
   const last = lastWakes(ms);
   // system layer (mockup approved): quiet rail items, one usage card per account, relay cards under the agent's name
   const mode = S.sysMode, relayOf = (m) => m.sys?.type === 'relay';
@@ -1513,8 +1538,9 @@ function renderLog() {
   }
   closeRail();
   logBody.innerHTML = html;
-  logBody.querySelectorAll('.msg:not(.noclamp)').forEach((m) => {
-    if (m.scrollHeight <= 260) return;
+  const msgEls = [...logBody.querySelectorAll('.msg:not(.noclamp)')], tall = msgEls.map((m) => m.scrollHeight > 260);
+  msgEls.forEach((m, i) => {
+    if (!tall[i]) return;
     const id = m.dataset.mid, open = S.expanded.has(id);   // re-renders keep "Xem thêm" open
     if (!open) m.classList.add('clamp');
     const b = document.createElement('button'); b.className = 'more-btn'; b.textContent = open ? t('msg.less') : t('msg.more');
@@ -1529,6 +1555,7 @@ function renderLog() {
   el.querySelectorAll('[data-rename]').forEach((b) => b.onclick = () => renameSessionForm(b, b.dataset.rename));
   if (el.dataset.room !== S.current) S.stick = true;   // switching rooms always lands at the bottom
   el.dataset.room = S.current;
+  lastLogSig = logSigOf();
   pinBottom();
   newBtn();
 }
@@ -1613,14 +1640,14 @@ function connect() {
     if (m.room === S.current && S.around !== m.room) {
       const tf = S.tfilter[m.room];
       if (tf && topicOf(m) !== tf) { const u = (S.tunread[m.room] ??= {}); u[topicOf(m)] = (u[topicOf(m)] || 0) + 1; }
-      renderLog(); renderTopics();
+      queueLog();
     } else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
   es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); });
   es.addEventListener('session', (e) => {
     const s = JSON.parse(e.data); S.sessions[s.id] = s;
     if (S.renaming !== s.id) renderSessions();
-    renderHeader(); renderPresence(); renderLog();
+    renderHeader(); renderPresence(); renderLogIfChanged();
     if (S.tab === 'workers') renderWorkersView();
   });
   es.addEventListener('room', (e) => {
@@ -2667,8 +2694,13 @@ $('log').addEventListener('scroll', () => { rplBtn.style.display = 'none'; });
 rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log')) rplBtn.style.display = 'none'; };
 rplBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = 'none'; if (m) setReply(m); };
 $('log').addEventListener('click', (e) => {
+  if (e.target.closest('#olderBtn')) return showOlder(150);
   const q = e.target.closest('.quote'); if (!q) return;
-  const tg = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`);
+  let tg = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`);
+  if (!tg) {   // maybe folded away by the window: draw back to it
+    const list = S.messages[S.current] || [], idx = list.findIndex((x) => String(x.id) === q.dataset.goto);
+    if (idx >= 0) { showOlder(Math.max(0, list.length - idx - (S.logWin[S.current] || LOG_WINDOW)) + 20); tg = logBody.querySelector(`.msg[data-mid="${q.dataset.goto}"]`); }
+  }
   if (!tg) return toast(t('reply.gone'));
   S.stick = false; tg.scrollIntoView({ block: 'center', behavior: 'smooth' });
   tg.classList.remove('flash'); void tg.offsetWidth; tg.classList.add('flash');
