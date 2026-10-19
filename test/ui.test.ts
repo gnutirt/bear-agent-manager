@@ -162,6 +162,24 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   } finally { await hub.close(); }
 });
 
+test('Copilot profile settings: list, add, enable/disable, remove, and separate runtime from auth status', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      "const profiles = st.agents?.profiles || []",
+      'id="copilotProfileNew"',
+      'data-profile-enabled="${esc(p.id)}"',
+      'data-profile-remove="${esc(p.id)}"',
+      "saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd",
+      "api('/api/settings', { agents: { profiles } }, 'PUT')",
+      "t('ac.profile.runtime')",
+      "t('ac.profile.login')",
+      'data-profile-retry="${esc(p.id)}"',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('a view whose data fails to load says why instead of loading forever', async () => {
   const { hub } = await makeHub();
   try {
