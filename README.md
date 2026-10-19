@@ -49,7 +49,9 @@ Claude Code chat ── room MCP tools ───────┘            │
   `room_set_name`, `room_note`, `room_notes`, `room_note_remove`, `room_done`.
 - **UI** (`ui/index.html`): one dependency-free page; `vscode/` wraps it in an editor panel.
 
-No build step and no npm dependencies: TypeScript runs directly on Node's type stripping.
+No build step: TypeScript runs directly on Node's type stripping. The core (hub, hooks, MCP, UI)
+has no runtime npm dependencies. Only the optional Copilot agent needs `npm install` once in the
+repo (it pulls in `@github/copilot-sdk`); skip it if you don't use Copilot.
 
 ## Requirements
 
