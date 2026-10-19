@@ -402,6 +402,8 @@ header .spacer{flex:1}
 .olderbtn{display:block;margin:6px auto 12px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--accent);font-weight:600;font-size:13px}.olderbtn:hover{border-color:var(--accent)}
 .agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}.acard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}.acard .ah{display:flex;align-items:center;gap:8px}.okt{color:color-mix(in srgb,#22C55E 55%,var(--text));font-weight:600;font-size:13px}.acard .mono{font:12px var(--mono);word-break:break-all}
 .aplan{margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb,#F59E0B 55%,var(--line));border-radius:12px;background:rgba(245,158,11,.08)}.aplan ul{margin:6px 0 6px 18px;padding:0;font-size:13px}.aplan li{margin:3px 0;word-break:break-all}
+.smcmd{display:flex;align-items:center;gap:8px;margin-top:4px}.smcmd code{flex:1;min-width:0;font:12.5px var(--mono);background:var(--code);border-radius:8px;padding:5px 10px;word-break:break-all}
+.smkey{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}.smkey input,.smkey select{padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);flex:1 1 180px}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -2330,7 +2332,7 @@ function routesBlock() {
   return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account', health: 'sub.health' });
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account', health: 'sub.health', setup: 'sub.setup' });
 /** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
 function loadData() {
   api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
@@ -2411,12 +2413,12 @@ function localBlock(st) {
 }
 /** Health: one read-only checklist from the APIs the other tabs already use. Each row has a level (ok / warn / bad / info), what it means, how to fix it and where to go. */
 function loadHealth() {
-  S.health = { loading: true }; if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
+  S.health = { loading: true }; if (S.tab === 'settings' && (S.setSub === 'health' || S.setSub === 'setup')) renderSettingsView();
   const get = (p) => api(p).catch(() => null);
   Promise.all([get('/api/version'), get('/api/claude-usage'), get('/api/archive'), get('/api/machine'), get('/api/providers'), get('/api/data'), get('/api/settings'), get('/api/local/status'), get('/api/accounts'), get('/api/autostart')]).then(([version, usage, archive, machine, providers, data, settings, local, accounts, autostart]) => {
     S.health = { version, usage, archive, machine, providers, data, settings, local, accounts, autostart, at: Date.now() };
     if (settings) S.settings = settings;
-    if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
+    if (S.tab === 'settings' && (S.setSub === 'health' || S.setSub === 'setup')) renderSettingsView();
   });
 }
 function healthRows() {
@@ -2528,6 +2530,36 @@ function accountBlock(st) {
     <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
     <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
 }
+/** Tab Máy mới: five steps with the real state from APIs the other tabs use (version, accounts, archive, machine, providers, autostart). It reads the same data as Health. */
+function setupBlock(st) {
+  const H = S.health;
+  if (!H || H.loading) { if (!H) loadHealth(); return `<h2>${t('sm.title')}</h2><p class="small muted">${t('hc.loading')}</p>`; }
+  const v = H.version, plugins = v?.plugins || [], acc = (H.accounts?.accounts || []).filter((a) => a.exists);
+  const step = (level, title, note, body) => `<div class="hrow ${level}"><span class="hdot ${level}"></span><div class="hb"><b>${title}</b><span>${note}</span>${body}</div><button type="button" class="btn sm" data-hcheck>${t('sm.check')}</button></div>`;
+  const cmd = (text) => `<div class="smcmd"><code>${esc(text)}</code><button type="button" class="btn sm" data-copytext="${esc(text)}">${t('sm.copy')}</button></div>`;
+  // 1. plugin per account
+  const rows1 = acc.map((a) => { const pl = plugins.filter((p) => sameDir(p.configDir, a.dir)).sort((x, y) => cmpVer(y.version, x.version))[0]; const lv = !pl ? 'bad' : pl.version === v?.current ? 'ok' : 'warn'; return { a, pl, lv }; });
+  const l1 = rows1.some((r) => r.lv === 'bad') ? 'bad' : rows1.some((r) => r.lv === 'warn') ? 'warn' : 'ok';
+  const body1 = rows1.map((r) => `<span><span class="hdot ${r.lv}" style="display:inline-block;margin-right:6px"></span><b>${esc(r.a.label)}</b>: ${r.pl ? esc(t(r.lv === 'ok' ? 'sm.s1.ok' : 'sm.s1.behind', { pv: r.pl.version, v: v?.current })) : t('sm.s1.none')}</span>`).join('') + cmd('/plugin marketplace update bear-agent-manager-local') + cmd('/plugin update bear-agent-manager');
+  // 2. backup folder
+  const ar = st.archive || {}, arOn = ar.enabled ?? !!ar.dir, last = H.archive?.last;
+  const l2 = !arOn || !ar.dir ? 'warn' : last?.ok === false ? 'bad' : 'ok';
+  const t2 = !arOn || !ar.dir ? t('sm.s2.off') : last?.ok === false ? t('sm.s2.fail', { reason: esc(last.reason || '?') }) : t('sm.s2.ok', { dir: esc(ar.dir), at: last ? fmtWhen(last.at) : '-' });
+  const body2 = `<span>${t2}</span>${sw('archive.enabled', arOn, t('set.archive'))}<label class="setrow"><span><b>${t('set.archive.dir')}</b></span><input class="txtin" data-set="archive.dir" value="${esc(ar.dir || '')}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>`;
+  // 3. restore from the export bundle
+  const ml = H.machine?.last, mdir = H.machine?.dir || '';
+  const l3 = ml && ml.ok !== false ? 'ok' : 'info';
+  const body3 = `<span>${ml && ml.ok !== false ? t('sm.s3.ok', { at: fmtWhen(ml.at), n: ml.items, dir: esc(mdir) }) : t('sm.s3.none', { dir: esc(mdir) })}</span>${cmd('/bear-setup')}${cmd('node scripts/machine.mjs import --dir ' + mdir)}`;
+  // 4. worker key (never shown back)
+  const provs = H.providers || [];
+  const l4 = provs.some((p) => p.enabled && p.hasKey) ? 'ok' : 'warn';
+  const body4 = provs.map((p) => `<span><span class="hdot ${p.hasKey ? 'ok' : 'warn'}" style="display:inline-block;margin-right:6px"></span><b>${esc(p.label)}</b>: ${p.hasKey ? t('sm.s4.has') + ' ' + esc(p.keyHint || '') : t('sm.s4.no')}</span>`).join('') + `<form class="smkey" id="smKeyForm"><select name="id" aria-label="${t('sm.s4')}">${provs.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('')}</select><input name="key" type="password" autocomplete="off" placeholder="${t('sm.s4.paste')}" aria-label="${t('sm.s4.paste')}" required><button class="btn primary">${t('sm.s4.save')}</button></form>`;
+  // 5. shared chats + autostart
+  const shared = H.accounts?.shared, au = H.autostart;
+  const l5 = shared && au?.on ? 'ok' : shared || au?.on ? 'info' : 'warn';
+  const body5 = `<span>${t('sm.s5.share', { s: shared ? t('ac.share.on') : t('ac.share.off') })}</span><span>${t('sm.s5.auto', { s: !au?.supported ? t('ac.auto.unsupported') : au.on ? t('ac.auto.on') : t('ac.auto.off') })}</span><div><button type="button" class="btn sm" data-hgo="settings:account">${t('sm.s5.open')}</button></div>`;
+  return `<h2>${t('sm.title')}</h2><p class="small muted">${t('sm.note')}</p><div class="hlist">${step(l1, t('sm.s1'), t('sm.s1.note'), body1)}${step(l2, t('sm.s2'), t('sm.s2.note'), body2)}${step(l3, t('sm.s3'), t('sm.s3.note'), body3)}${step(l4, t('sm.s4'), t('sm.s4.note'), body4)}${step(l5, t('sm.s5'), t('sm.s5.note'), body5)}</div>`;
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -2594,6 +2626,7 @@ function renderSettingsView() {
     <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
     perms: permsBlock(st),
     health: healthBlock(),
+    setup: setupBlock(st),
     compact: `    <h2>${t('compact.title')}</h2>
     ${compactBlock()}`,
     providers: `    <h2>${t('prov.workerTitle')}</h2>
@@ -2646,6 +2679,13 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast(t('prov.added')); loadSettingsView(); }, (err) => toast(err.message));
   });
   sv.addEventListener('submit', (e) => {
+    if (e.target.id === 'smKeyForm') {
+      e.preventDefault();
+      const f = e.target, id = f.id.value, key = f.key.value.trim();
+      if (!key) return;
+      api(`/api/providers/${enc(id)}`, { key }, 'PUT').then(() => { f.key.value = ''; toast(t('sm.s4.saved', { id })); loadHealth(); }, (err) => toast(err.message));
+      return;
+    }
     if (e.target.id !== 'agentNew') return;
     e.preventDefault();
     const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
@@ -2653,8 +2693,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
-    if (e.target.closest('#healthRefresh')) { loadHealth(); return; }
+    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
+    if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
+    const ct = e.target.closest('[data-copytext]'); if (ct) return copy(ct.dataset.copytext, t('sm.copied'));
     const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');
