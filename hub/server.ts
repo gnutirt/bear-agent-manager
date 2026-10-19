@@ -445,6 +445,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!loadSettings(opts.dir, envCap).openTabOnWake || waiters.has(s.id) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
     openTab(s);
   }
+  /** T18c: role for the compact.thresholds fallback — lead of any room it's in, else member (has an IDE), else background (hub-created, no IDE). */
+  function wakeRole(s: Session): 'lead' | 'member' | 'background' {
+    if (Object.keys(s.rooms).some((r) => store.state.rooms[r]?.lead === s.id)) return 'lead';
+    return s.ide ? 'member' : 'background';
+  }
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
@@ -456,12 +461,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
-    // T18b: a long chat is compacted first (setting wakeCompact), so the wake does not re-read all of it.
-    const rule = loadSettings(opts.dir, envCap).agentCompact[normAgent(s.name)];
+    // T18b/T18c: a long chat is compacted first (setting wakeCompact, else the role-based compact.thresholds), so the wake does not re-read all of it.
+    const cfg = loadSettings(opts.dir, envCap);
+    const rule = cfg.agentCompact[normAgent(s.name)];
     const before = readContextTokens(s.transcript);
-    const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript));
+    const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript), wakeRole(s), cfg.compact.thresholds);
     let compacted = false;
-    const cfg = loadSettings(opts.dir, envCap), perm = permFor(cfg, s.name), model = cfg.agentModel[normAgent(s.name)];
+    const perm = permFor(cfg, s.name), model = cfg.agentModel[normAgent(s.name)];
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
@@ -837,7 +843,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check, sourceOk, readPackage(ROOT).version);
   }
   /** Loads the hub code in a throwaway process: '' when it loads, else the error. A syntax error must not leave the machine without a hub. */
-  const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', new URL('./server.ts', import.meta.url).href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
+  const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', fileURLToPath(new URL('./server.ts', import.meta.url))], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
   // The plugin copy of every account follows the hub's version by itself (owner's decision): a copy older than the hub is updated through the
   // claude CLI of that account (marketplace update + plugin update); one short notice per account says to reopen the chats.
   const pluginUpdater = new PluginUpdater(pkg.version, opts.runClaudeCli);

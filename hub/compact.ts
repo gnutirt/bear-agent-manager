@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { t, type Lang } from '../shared/i18n.ts';
-import type { AgentCompact } from './settings.ts';
+import type { AgentCompact, CompactThresholds } from './settings.ts';
 
 // Per-agent auto compaction (T18). Claude Code has one threshold for every session; the PreCompact hook asks
 // the hub, which may block an automatic compaction for an agent whose rule says "hold until pct".
@@ -34,10 +34,17 @@ export function compactDecision(i: CompactInput): { decision: 'allow' | 'block';
 }
 
 export const WAKE_COMPACT_DEFAULT = 150_000;
-/** T18b: compact an offline agent before waking it when this is on and ctx reached pct% (150k without pct). */
-export function wantsWakeCompact(rule: AgentCompact | undefined, ctx: number, model: string): boolean {
-  if (!rule?.wakeCompact || !ctx) return false;
-  return ctx >= (rule.pct != null ? (modelWindow(model, ctx) * rule.pct) / 100 : WAKE_COMPACT_DEFAULT);
+export type WakeRole = 'lead' | 'member' | 'background';
+/**
+ * T18b: compact an offline agent before waking it when this is on and ctx reached pct% (150k without pct).
+ * T18c: an agent with no agentCompact rule of its own falls back to `compact.thresholds`, by its room role
+ * (lead of a room > member > background, for a hub-created agent with no IDE).
+ */
+export function wantsWakeCompact(rule: AgentCompact | undefined, ctx: number, model: string, role?: WakeRole, thresholds?: CompactThresholds): boolean {
+  if (!ctx) return false;
+  if (rule?.wakeCompact) return ctx >= (rule.pct != null ? (modelWindow(model, ctx) * rule.pct) / 100 : WAKE_COMPACT_DEFAULT);
+  if (rule || !thresholds?.enabled || !role) return false;
+  return ctx >= thresholds[role];
 }
 
 /** "343k" style token count for room lines. */

@@ -11,6 +11,14 @@ test('defaults: workers on, everything automatic off, no skill rules', () => {
   assert.deepEqual([d.skills.worker.enabled, d.skills.osin.enabled, d.allowPaidFallback, d.workerCap, d.roomChat.autoSweep], [true, true, false, 4, false]);
   assert.deepEqual([d.autoJobs.handoff.enabled, d.autoJobs.digest.enabled, d.autoJobs.notes.enabled, d.autoJobs.maxRunsPerDay], [false, false, false, 10]);
   assert.deepEqual(d.agentSkills, {});
+  assert.deepEqual(d.compact.thresholds, { enabled: true, lead: 200_000, member: 250_000, background: 150_000 });
+});
+
+test('compact.thresholds: patch validates and clamps, partial patch keeps the rest', () => {
+  let s = patchSettings(defaultSettings(4), { compact: { thresholds: { lead: 180_000, background: 5 } } });
+  assert.deepEqual(s.compact.thresholds, { enabled: true, lead: 180_000, member: 250_000, background: 10_000 });
+  s = patchSettings(s, { compact: { thresholds: { enabled: false } } });
+  assert.deepEqual(s.compact.thresholds, { enabled: false, lead: 180_000, member: 250_000, background: 10_000 });
 });
 
 test('patch validates and merges deeply', () => {

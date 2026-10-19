@@ -8,6 +8,8 @@ export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
  * T18b: wakeCompact = run /compact before an offline agent is woken, once ctx >= pct% (150k without pct).
  */
 export type AgentCompact = { mode: 'auto' | 'hold' | 'handoff'; pct?: number; wakeCompact?: boolean };
+/** T18c: role-based wakeCompact fallback for an agent with no agentCompact rule of its own. */
+export type CompactThresholds = { enabled: boolean; lead: number; member: number; background: number };
 export type AutoJobs = {
   handoff: { enabled: boolean; thresholdK: number }; digest: { enabled: boolean; minChars: number };
   notes: { enabled: boolean; minNotes: number }; maxRunsPerDay: number;
@@ -19,6 +21,7 @@ export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
   agentSkills: Record<string, Record<string, SkillRule>>;
   agentCompact: Record<string, AgentCompact>;   // empty = Claude Code's own behavior for everyone
+  compact: { thresholds: CompactThresholds };   // T18c: wakeCompact fallback by room role, for an agent with no agentCompact rule
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
@@ -62,7 +65,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, autoUpdatePlugin: true, agents: { maxBackground: 4 }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 250_000, background: 150_000 } }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, autoUpdatePlugin: true, agents: { maxBackground: 4 }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -108,6 +111,13 @@ export function patchSettings(s: Settings, p: any): Settings {
       compact[k] = { mode, ...(pct != null ? { pct } : {}), ...(wake ? { wakeCompact: true } : {}) };
     }
   }
+  const ct = p?.compact?.thresholds ?? {};
+  const compactThresholds: CompactThresholds = {
+    enabled: bool(ct.enabled, s.compact.thresholds.enabled),
+    lead: int(ct.lead, s.compact.thresholds.lead, 10_000, 1_000_000),
+    member: int(ct.member, s.compact.thresholds.member, 10_000, 1_000_000),
+    background: int(ct.background, s.compact.thresholds.background, 10_000, 1_000_000),
+  };
   const rt = { ...s.reviveTools };
   if (p?.reviveTools && typeof p.reviveTools === 'object') {
     for (const [name, v] of Object.entries<any>(p.reviveTools)) {
@@ -165,6 +175,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     },
     agentSkills: agents,
     agentCompact: compact,
+    compact: { thresholds: compactThresholds },
     permissions: perm,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),
     agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16) },

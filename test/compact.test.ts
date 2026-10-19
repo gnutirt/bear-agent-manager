@@ -104,6 +104,20 @@ test('wantsWakeCompact: only with wakeCompact on, from pct% of the window or 150
   assert.equal(wantsWakeCompact({ mode: 'hold', pct: 50, wakeCompact: true }, 99_000, m), false);
 });
 
+test('wantsWakeCompact: with no agentCompact rule, falls back to compact.thresholds by role', () => {
+  const m = 'claude-opus-5-5';
+  const th = { enabled: true, lead: 200_000, member: 250_000, background: 150_000 };
+  assert.equal(wantsWakeCompact(undefined, 199_000, m, 'lead', th), false);
+  assert.equal(wantsWakeCompact(undefined, 200_000, m, 'lead', th), true);
+  assert.equal(wantsWakeCompact(undefined, 249_000, m, 'member', th), false);
+  assert.equal(wantsWakeCompact(undefined, 250_000, m, 'member', th), true);
+  assert.equal(wantsWakeCompact(undefined, 150_000, m, 'background', th), true);
+  assert.equal(wantsWakeCompact(undefined, 150_000, m, undefined, th), false);   // no role, no fallback
+  assert.equal(wantsWakeCompact(undefined, 300_000, m, 'lead', { ...th, enabled: false }), false);   // thresholds off
+  // an agent with its own rule (even wakeCompact: false) never falls back to the role thresholds
+  assert.equal(wantsWakeCompact({ mode: 'auto' }, 300_000, m, 'lead', th), false);
+});
+
 async function offlineAgent(compactCode: number | null, ctx: number, wake: boolean, postTokens: number | null = 12_000) {
   const order: string[] = [];
   let tr = '';
@@ -133,8 +147,12 @@ async function offlineAgent(compactCode: number | null, ctx: number, wake: boole
 }
 
 test('wake compact: off or under the threshold -> plain revive', async () => {
-  assert.deepEqual((await offlineAgent(0, 343_000, false)).order, ['revive']);
+  assert.deepEqual((await offlineAgent(0, 100_000, false)).order, ['revive']);   // no rule, under the role's compact.thresholds fallback (background: 150k)
   assert.deepEqual((await offlineAgent(0, 100_000, true)).order, ['revive']);
+});
+
+test('wake compact: no agentCompact rule, over the role threshold -> /compact, then the wake (compact.thresholds fallback)', async () => {
+  assert.deepEqual((await offlineAgent(0, 343_000, false)).order, ['compact', 'revive']);
 });
 
 test('wake compact: on and over the threshold -> /compact, then the wake, one room line with before -> after', async () => {
