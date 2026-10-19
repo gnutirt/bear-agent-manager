@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest } from '@github/copilot-sdk';
 import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
-import { permFor, type PermRule, type Settings } from './settings.ts';
+import { permFor, resolveWorkspace, type PermRule, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
 
 const ROOM = 'bear-agent-manager';
@@ -151,7 +151,7 @@ function safeError(error: unknown): string {
 export class CopilotAgent {
   private readonly opts: CopilotAgentOptions;
   private readonly file: string;
-  private readonly cwd: string;
+  private cwd: string;
   private readonly name: string;
   private status: CopilotStatus;
   private identity?: Identity;
@@ -199,6 +199,7 @@ export class CopilotAgent {
     this.setStatus({ state: 'starting', error: undefined });
     let createdClient: Client | undefined;
     try {
+      this.cwd = resolveWorkspace(this.cwd);   // an unattended agent never starts in a missing folder, a drive root, the home folder or behind a link to a share
       const identity = this.identity ?? (this.identity = readIdentity(this.file));
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
       if (!fs.existsSync(this.file)) saveIdentity(this.file, identity);
@@ -235,6 +236,7 @@ export class CopilotAgent {
       this.setStatus({ state: 'error', ...(error instanceof CopilotAuthError ? { auth: 'no' as const } : {}), error: message });
       if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) this.opts.store.markEnded(this.identity.hubId);
       this.opts.onChange(this.snapshot());
+      this.opts.store.createRoom(ROOM);   // a failure before ensureRoom (bad folder) still has somewhere to be reported
       this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not start: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
       throw error instanceof CopilotAuthError ? new CopilotAuthError(message) : new Error(message);
     }

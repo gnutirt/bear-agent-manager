@@ -17,7 +17,7 @@ import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotStatus } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, normAgent, type AgentProfile, patchSettings, permFor, saveSettings } from './settings.ts';
+import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -1296,14 +1296,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       const name = String(b.name ?? '').trim(), room = String(b.room ?? ''), asked = String(b.cwd ?? '');
       store.room(room);
-      // An absolute local folder (not relative to wherever the hub runs, not a network share), taken as its REAL path so a link cannot stand in for a known folder
-      if (!path.isAbsolute(asked) || /^[\\/]{2}/.test(asked)) throw new StoreError(400, 'cwd must be an absolute local folder');
+      // The real path of an absolute local folder, so a link cannot stand in for a known folder (root/home are allowed only with confirm, never as "known")
       let cwd: string;
-      try { cwd = fs.realpathSync(asked); if (!fs.statSync(cwd).isDirectory()) throw new Error('not a folder'); } catch { throw new StoreError(400, `not a folder: ${asked.slice(0, 200)}`); }
+      try { cwd = resolveWorkspace(asked, true); } catch (e) { throw new StoreError(400, (e as Error).message); }
       const cfgA = loadSettings(opts.dir, envCap);
       if (Math.max(countBackground(), reviving.size) >= cfgA.agents.maxBackground) throw new StoreError(429, `${cfgA.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
-      const wide = path.relative(path.parse(cwd).root, cwd) === '' || path.resolve(cwd).toLowerCase() === os.homedir().toLowerCase();   // a drive root or the home folder is never "known" enough
-      const known = !wide && Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } });
+      const known = !isWideWorkspace(cwd) && Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } });
       if (!known && b.confirm !== true) return json(res, 409, { error: tr('sys.agent.newFolder', { cwd }), needConfirm: true });
       const configDir = b.account ? accountDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase()) : undefined;
       if (b.account && !configDir) throw new StoreError(400, 'account must be a Claude config dir of this machine');

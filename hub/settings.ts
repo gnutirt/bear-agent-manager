@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -69,11 +70,21 @@ export type AgentProfile = { id: string; provider: 'copilot'; name: string; cwd:
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
-/** The real path of a workspace folder, same rule as POST /api/agents: absolute, local, an existing directory (a link resolves to its target). Throws with the reason. */
-export function resolveWorkspace(asked: unknown): string {
+/** A drive root or the home folder: too broad to run an unattended agent in. */
+export const isWideWorkspace = (real: string): boolean => path.relative(path.parse(real).root, real) === '' || path.resolve(real).toLowerCase() === os.homedir().toLowerCase();
+
+/**
+ * The real path of a workspace folder: absolute, local (also after a link is followed, so a junction cannot lead to a network share), an existing directory.
+ * A link is taken as its TARGET, so a link can never stand in for a known folder. Root and home are refused unless allowWide (a person confirmed it). Throws with the reason.
+ */
+export function resolveWorkspace(asked: unknown, allowWide = false): string {
   if (!localAbs(asked)) throw new Error('cwd must be an absolute local folder');
-  try { const real = fs.realpathSync(asked); if (!fs.statSync(real).isDirectory()) throw new Error('not a folder'); return real; }
+  let real: string;
+  try { real = fs.realpathSync(asked); if (!fs.statSync(real).isDirectory()) throw new Error('not a folder'); }
   catch { throw new Error(`not a folder: ${String(asked).slice(0, 200)}`); }
+  if (!localAbs(real)) throw new Error('cwd must be an absolute local folder (a link leads to a network share)');
+  if (!allowWide && isWideWorkspace(real)) throw new Error('cwd must not be a drive root or the home folder');
+  return real;
 }
 
 /** Keeps the valid profiles of a patch (unique id and name, absolute local cwd); the folder is only checked for existence when the agent starts, so a drive that is briefly missing does not erase the profile. */

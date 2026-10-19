@@ -449,3 +449,19 @@ test('Copilot profiles: one agent per profile, status has auth/enabled, toggle, 
     await h.hub.close();
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
+
+test('Copilot profile whose folder is the home folder is refused at start (no unattended agent in a too-wide workspace)', async () => {
+  const { factory, calls } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await fetch(h.hub.url + '/api/settings', {
+      method: 'PUT', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
+      body: JSON.stringify({ agents: { profiles: [{ id: 'wide', provider: 'copilot', name: 'CopilotWide', cwd: os.homedir(), enabled: false }] } }),
+    });
+    await assert.rejects(h.call('/api/copilot/profiles/wide', { on: true, confirm: true }), (e: any) => e.status === 503 && /home folder/.test(e.message));
+    assert.equal(calls.started, 0);
+    assert.equal((await h.call<any[]>('/api/copilot/profiles'))[0].state, 'error');
+  } finally {
+    await h.hub.close();
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });

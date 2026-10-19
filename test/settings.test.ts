@@ -158,6 +158,9 @@ test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones drop
   assert.deepEqual(patchSettings(s, { agents: { profiles: [] } }).agents.profiles, []);
   assert.equal(resolveWorkspace(here), fs.realpathSync(here));
   assert.throws(() => resolveWorkspace('rel'), /absolute local/);
+  assert.throws(() => resolveWorkspace(path.parse(here).root), /drive root or the home/);
+  assert.throws(() => resolveWorkspace(os.homedir()), /drive root or the home/);
+  assert.equal(resolveWorkspace(os.homedir(), true), fs.realpathSync(os.homedir()));   // a person confirmed it
   assert.throws(() => resolveWorkspace(path.join(here, 'no-such-folder-xyz')), /not a folder/);
   assert.throws(() => resolveWorkspace(path.join(here, 'package.json')), /not a folder/);
 });
