@@ -1414,9 +1414,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
         emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
-        Promise.resolve(runCompact({ id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) })).catch(() => 1).then((code) => {
-          say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
-        }).finally(() => {
+        // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
+        // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
+        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
+        Promise.resolve()
+          .then(async () => {
+            const blocked = await blockedAccount(s, cjob);
+            if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
+            const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
+            if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
+            say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
+          })
+          .finally(() => {
           reviving.delete(s.id);
           if (b.revive === true && revive(s.id)) return;
           emitSession(store.markEnded(s.id));

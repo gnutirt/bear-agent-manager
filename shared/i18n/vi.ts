@@ -526,6 +526,8 @@ export const vi: Record<string, string> = {
   'sys.switch.why.notShared': '(Không chuyển được sang tài khoản khác: hai tài khoản chưa dùng chung chat.)',
   'sys.switch.why.unusable': '(Tài khoản còn lại chưa đăng nhập hoặc token đã hết hạn: mở Claude ở IDE của nó một lần.)',
   'sys.switch.why.full': '(Tài khoản còn lại cũng gần hết hạn mức.)',
+  'sys.compact.blocked': '{name}: chưa compact được. {why}',
+  'sys.compact.limit': '{name}: compact không chạy vì tài khoản hết hạn mức giữa chừng; chat chưa được thu gọn.',
   'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',
   'sys.stop.unknown': 'không rõ',
   'sys.stop.limit': '@you {name} hết hạn mức gói. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',

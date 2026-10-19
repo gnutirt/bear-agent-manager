@@ -526,6 +526,8 @@ export const en: Record<string, string> = {
   'sys.switch.why.notShared': '(Could not move to the other account: the two accounts do not share chats.)',
   'sys.switch.why.unusable': '(The other account is not logged in or its token expired: open Claude in its editor once.)',
   'sys.switch.why.full': '(The other account is nearly out of usage too.)',
+  'sys.compact.blocked': '{name}: could not compact. {why}',
+  'sys.compact.limit': '{name}: the compaction did not run, the account ran out of usage; the chat was not shrunk.',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',
