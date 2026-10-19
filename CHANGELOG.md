@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.1 - 2026-10-19
+
 - Review fixes (cross-review of the usage-limit unstick, pid sweep and relay): (1) a tab whose limit has lifted and that is working again was still taken for "stuck" until its first assistant line (a prompt typed after the error leaves the newest ASSISTANT line the old error) and would have been ended: `endedOnLimit` now says no as soon as a user/tool-result line follows the error; (2) the pid sweep looks at every pid the chat registered (tab + background wake), not only the last one, so a living tab is no longer marked offline + ended because the background pid died; (3) a relayed answer is now written under the agent's name and id (it was fixed up in memory after being written, so after a restart it read as the hub's own line).
 ## 0.5.0 - 2026-10-19
 
