@@ -231,7 +231,10 @@ export class Store {
     }
     s.status = 'idle';
     s.ended = false;
-    if (input.configDir) s.configDir = input.configDir;
+    if (input.configDir !== undefined) {
+      if (s.configDir !== input.configDir) s.limited = undefined;   // switched account: the old one's limit does not apply here
+      s.configDir = input.configDir;
+    }
     if (input.transcript) s.transcript = input.transcript;
     if (input.ctx && input.ctx > 0) s.ctx = input.ctx;
     if (Number.isInteger(input.pid) && input.pid! > 0) s.pid = input.pid;

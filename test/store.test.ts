@@ -328,6 +328,15 @@ test('ended flag: set when the session ends, cleared when it shows up again; con
   assert.equal(st.session(s.id).configDir, 'C:/Users/me/.claude-antigravity');
 });
 
+test('configDir: "" (default account) is a real value, not "unset" — it updates and clears a stale limited mark', () => {
+  const st = new Store(tmp());
+  const s = st.register({ id: 'e2', cwd: 'D:/fw', configDir: 'C:/Users/me/.claude-antigravity' });
+  st.session(s.id).limited = { until: Date.now() + 1000, type: 'rate_limit' };
+  st.register({ id: 'e2', cwd: 'D:/fw', configDir: '' });
+  assert.equal(st.session(s.id).configDir, '');
+  assert.equal(st.session(s.id).limited, undefined);
+});
+
 test('done: each member reports once; when all live members are done the hub posts one system line', () => {
   const { st, fw, web } = setup();
   st.post('proj', null, 'split the work');
