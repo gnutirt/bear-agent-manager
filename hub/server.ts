@@ -442,7 +442,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
       .then(async () => {
-        const blocked = await blockedAccount(s);
+        const blocked = await blockedAccount(s, job);
         if (blocked) { failure = blocked; return; }
         if (compactFirst) {
           // A failed compaction still wakes the agent with a plain resume.
@@ -474,16 +474,33 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     try { return fs.readFileSync(path.join(opts.dir, 'revive.log'), 'utf8').trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? ''; } catch { return ''; }
   };
   /** Account out of usage (a window at 100%): waking an agent on it only burns the turn. Books a wake-up for the reset and says why. */
-  async function blockedAccount(s: Session): Promise<string> {
+  async function blockedAccount(s: Session, job?: { configDir?: string }): Promise<string> {
     if (!usage) return '';
     const dirs = usageDirs();
     const accs = await usage.read(dirs).catch(() => []);
     const acc = accs.find((a) => onAccount(a)(s.configDir ?? ''));
     const until = acc ? blockedUntil(acc) : 0;
     if (!acc || until <= Date.now()) return '';
+    // D2 on wake (2026-10-19: the user moved to the VS Code account, @-ed agents of the Antigravity account, and each one got
+    // "cannot wake until 17:09"): with shared chats, another logged-in account with room left takes this turn, no question.
+    let why = '';
+    const sw = loadSettings(opts.dir, envCap).accountSwitch;
+    if (sw.autoOnWake !== false) {
+      const all = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+      const pick = pickAccount(await usage.read(all).catch(() => accs), s.configDir || primary, { ...sw, mode: 'auto' }, listConfigAccounts(all, primary).shared);
+      if (pick.target) {
+        const to = pick.target.configDirs[0], cur = store.session(s.id);
+        cur.configDir = to; store.save();
+        if (job) job.configDir = to;
+        emitSession(cur);
+        for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.onWake', { name: cur.name, from: acc.label, to: pick.target.label }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
+        return '';
+      }
+      why = pick.reason === 'not-shared' ? tr('sys.switch.why.notShared') : pick.reason === 'other-unusable' ? tr('sys.switch.why.unusable') : pick.reason === 'other-full' ? tr('sys.switch.why.full') : '';
+    }
     const key = accountKey(acc), have = (store.state.wakeAt ??= {});
     if (!have[key]) { have[key] = { at: until + loadSettings(opts.dir, envCap).lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
-    return tr('sys.wake.blocked', { account: acc.label, until: clock(until, { day: 'numeric', month: 'numeric' }) });
+    return tr('sys.wake.blocked', { account: acc.label, until: clock(until, { day: 'numeric', month: 'numeric' }) }) + (why ? ` ${why}` : '');
   }
 
   /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
