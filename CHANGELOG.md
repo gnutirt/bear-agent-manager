@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-10-19
+
 - `GET /api/settings` carries `firstRun: boolean`: true only on a brand new hub (no settings.json and no state.json when it started) until a room or a settings file exists, so the "new machine" page can show itself once. Needs hub restart.
 ## 0.6.2 - 2026-10-19
 
