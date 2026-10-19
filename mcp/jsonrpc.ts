@@ -12,6 +12,8 @@ type Handler = (method: string, params: any) => Promise<unknown>;
 
 /** Newline-delimited JSON-RPC 2.0 over stdio (the MCP stdio transport). */
 export function serve(handle: Handler, input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout) {
+  input.setEncoding('utf8');
+  output.setDefaultEncoding('utf8');
   const write = (msg: object) => output.write(JSON.stringify(msg) + '\n');
   const rl = readline.createInterface({ input });
   rl.on('line', async (line) => {

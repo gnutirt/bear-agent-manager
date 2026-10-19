@@ -146,7 +146,11 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     });
     const roomMcp = calls.mcpServers['bear-agent-manager'];
     assert.match(await callRoomMcp(roomMcp, 'room_tasks', { action: 'list', room: 'bear-agent-manager' }), /#bear-agent-manager has no tasks yet\./);
-    assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
+    const vietnamese = 'Tiếng Việt có dấu ữ ặ';
+    await callRoomMcp(roomMcp, 'room_send', { room: 'bear-agent-manager', text: vietnamese });
+    const unicodeMessage = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.fromId === copilot.id && m.text === vietnamese);
+    assert.ok(unicodeMessage, 'the real MCP stdio round-trip must preserve UTF-8 Vietnamese text');
+    assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from).sort(), ['Copilot', 'bear-agent-manager']);
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Coder_No_2', 'Copilot']);
     await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot check this change' });
@@ -154,7 +158,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.match(calls.prompts[0], /check this change/);
     assert.match(calls.prompts[0], /Bear Agent Manager room #bear-agent-manager/);
     assert.match(calls.prompts[0], /write @ followed by their exact room name/);
-    const mention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.from === 'Copilot');
+    const mention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.from === 'Copilot' && m.text === '@Coder_No_2 please review this change');
     assert.deepEqual(mention.mentions, ['coder_no_2']);
     assert.deepEqual(mention.wake, [peer.id], 'a final Copilot response mentioning an underscore name wakes that agent');
     assert.match(await callRoomMcp(roomMcp, 'room_send', { room: 'bear-agent-manager', text: '**@Coder_No_2** MCP mention test' }), /Woke 1/);
