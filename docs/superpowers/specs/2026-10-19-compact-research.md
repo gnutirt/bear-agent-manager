@@ -70,6 +70,12 @@ Claude Code có sẵn cần chỉnh (đọc từ mã extension 2.1.301, chưa đ
 - Đặt `autoCompactWindow: 200000` trên một chat thử: auto-compact chạy ở đúng mức nào (ngưỡng tuyệt đối hay phần trăm của nó), có chạy giữa lượt không, PreCompact hook có nhận `trigger: auto` không.
 - `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` tính theo cửa sổ nào khi đã đặt `autoCompactWindow`.
 
+## 7. Đã thử (2026-10-19, chat thử haiku, không đụng cài đặt tài khoản)
+
+- Lượt 1 đưa ctx lên ~198k (cửa sổ haiku 200k). Lượt 2 resume với `--settings` có `modelSettings.<model>.autoCompactWindow: 100000`: KHÔNG compact. Lượt 3 với `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=40`: KHÔNG compact.
+- Ở 99% cửa sổ mà vẫn không compact cho thấy chế độ `claude -p` (mọi tiến trình nền của hub) có lẽ không tự compact. Vậy với agent nền, hub phải tự chạy `/compact` (đã có `spawnCompact`) theo ngưỡng; cần chỉnh tự compact chỉ có ích cho tab tương tác.
+- Còn phải thử trên chat tương tác: thư mục thử có `.claude/settings.json` cấp project (`autoCompactWindow: 100000`), mở bằng VS Code, dán nội dung `big.txt` rồi gửi thêm một tin, xem có dòng compact tự động không.
+
 ## Nguồn
 
 - Transcript thật (bảng 1, 2), quét bằng script đọc `message.usage` và dòng `compact_boundary.compactMetadata`.
