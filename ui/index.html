@@ -1191,7 +1191,7 @@ function renderRooms() {
 }
 
 /** A chat the hub runs in the background (no tab open, claude -p): marked so it is not mistaken for a real tab. Needs `bg` from the hub session (headless pid alive, no tab). */
-const bgTag = (s) => s.bg && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
+const bgTag = (s) => s.bg && !s.tab && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
 function sessionRow(s) {
   const inRoom = S.current && room(S.current)?.members.includes(s.id);
   const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id;
@@ -1541,7 +1541,7 @@ function renderPresence() {
   for (const s of ms.sort((a, b) => Number(isLead(b.id)) - Number(isLead(a.id)) || order[a.status] - order[b.status])) {
     const c = document.createElement('button'); c.className = 'chip' + (isLead(s.id) ? ' lead' : ''); c.title = t('presence.call', { name: s.name });
     c.dataset.sid = s.id; c.classList.add('st-' + s.status);
-    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>${s.bg && s.status !== 'offline' ? '<span class="bgdot" title="' + t('sessions.bg.tip') + '">⏻</span>' : ''}`;
+    c.innerHTML = `<span class="led ${s.status}"></span>${isLead(s.id) ? STAR : ''}<b>${esc(s.name)}</b>${s.bg && !s.tab && s.status !== 'offline' ? '<span class="bgdot" title="' + t('sessions.bg.tip') + '">⏻</span>' : ''}`;
     c.onclick = () => insertMention(s.name);
     el.append(c);
   }
@@ -2429,7 +2429,7 @@ function healthRows() {
   // 5. agents
   const all = Object.values(S.sessions), on = all.filter((s) => s.status !== 'offline');
   if (!on.length) row('warn', t('hc.agents'), t('hc.agents.none'), t('hc.agents.noneFix'), 'rooms');
-  else row('ok', t('hc.agents'), t('hc.agents.ok', { on: on.length, bg: on.filter((s) => s.bg).length, off: all.length - on.length }), '', 'rooms');
+  else row('ok', t('hc.agents'), t('hc.agents.ok', { on: on.length, bg: on.filter((s) => s.bg && !s.tab).length, off: all.length - on.length }), '', 'rooms');
   // 6. switches
   if (st.lead) row(st.lead.wake?.enabled ? 'ok' : 'warn', t('hc.wake'), st.lead.wake?.enabled ? t('hc.wake.on') : t('hc.wake.off'), st.lead.wake?.enabled ? '' : t('hc.wake.fix'), 'settings:lead');
   if (typeof st.relayChat === 'boolean') row(st.relayChat ? 'ok' : 'warn', t('hc.relay'), st.relayChat ? t('hc.relay.on') : t('hc.relay.off'), '', 'settings:lead');
