@@ -1537,7 +1537,7 @@ function renderLog() {
   const last = lastWakes(ms);
   // system layer (mockup approved): quiet rail items, one usage card per account, relay cards under the agent's name
   const mode = S.sysMode, relayOf = (m) => m.sys?.type === 'relay';
-  const shownSys = (m) => m.kind === 'system' && (mode !== 'off' || relayOf(m) || m.sys?.level === 'error');
+  const shownSys = (m) => (m.kind === 'system' || (m.sys && !m.fromId && m.from !== 'you')) && (mode !== 'off' || relayOf(m) || m.sys?.level === 'error');
   const sysRuns = new Map();   // first id of a run of identical notices -> the run; later ids -> 0
   const usageLast = new Map(), usageSeen = new Map(), usageHist = new Map();
   for (let i = 0; i < ms.length; i++) {
@@ -1555,7 +1555,7 @@ function renderLog() {
   for (const m of ms) {
     const day = dayOf(m.ts);
     if (day !== prevDay) { closeRail(); html += `<div class="day">${esc(day)}</div>`; prevDay = day; prev = null; }
-    if (m.kind === 'system') {
+    if (m.kind === 'system' || (m.sys && !m.fromId && m.from !== 'you')) {   // hub-sent messages that still wake an agent (kind stays normal) are drawn as system rows
       if (!shownSys(m)) continue;
       const run = sysRuns.get(m.id);
       if (run === 0) continue;
