@@ -7,16 +7,15 @@ import type { Store } from './store.ts';
 import { permFor, type PermRule, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
 
-const NAME = 'Copilot';
 const ROOM = 'bear-agent-manager';
 const LEGACY_ROOM = 'copilot';
-const IDENTITY_FILE = 'copilot-agent.json';
 const MCP_SERVER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../mcp/server.ts');
 const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 type Identity = { hubId: string; providerId?: string };
 type State = 'off' | 'starting' | 'idle' | 'busy' | 'error';
-export type CopilotStatus = { state: State; room: string; cwd: string; login?: string; error?: string };
+export type CopilotProfile = { id: string; name: string; cwd: string; home?: string };
+export type CopilotStatus = { id: string; name: string; state: State; auth: 'unknown' | 'ok' | 'no'; room: string; cwd: string; login?: string; error?: string };
 
 export class CopilotAuthError extends Error {}
 
@@ -152,6 +151,8 @@ function safeError(error: unknown): string {
 export class CopilotAgent {
   private readonly opts: CopilotAgentOptions;
   private readonly file: string;
+  private readonly cwd: string;
+  private readonly name: string;
   private status: CopilotStatus;
   private identity?: Identity;
   private client?: Client;
@@ -162,8 +163,12 @@ export class CopilotAgent {
 
   constructor(opts: CopilotAgentOptions) {
     this.opts = opts;
-    this.file = path.join(opts.dir, IDENTITY_FILE);
-    this.status = { state: 'off', room: ROOM, cwd: opts.cwd };
+    const { id, name, cwd, home } = opts.profile;
+    this.cwd = cwd;
+    this.name = name;
+    // the default profile keeps the pre-profile identity file, so an existing install resumes the same Copilot session
+    this.file = path.join(home ?? opts.dir, id === 'copilot' ? 'copilot-agent.json' : `copilot-agent-${id}.json`);
+    this.status = { id, name, state: 'off', auth: 'unknown', room: ROOM, cwd };
   }
 
   snapshot(): CopilotStatus {
@@ -195,9 +200,10 @@ export class CopilotAgent {
     let createdClient: Client | undefined;
     try {
       const identity = this.identity ?? (this.identity = readIdentity(this.file));
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
       if (!fs.existsSync(this.file)) saveIdentity(this.file, identity);
       this.ensureRoom(identity);
-      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd);
+      const made = (this.opts.createClient ?? defaultClient)(this.cwd);
       createdClient = made instanceof Promise ? await made : made;
       this.client = createdClient;
       await createdClient.start();
@@ -211,8 +217,8 @@ export class CopilotAgent {
         identity.providerId = session.sessionId;
         saveIdentity(this.file, identity);
       }
-      this.setStatus({ state: 'idle', login: auth.login, error: undefined });
-      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, 'Copilot is online and ready in the shared room.'));
+      this.setStatus({ state: 'idle', auth: 'ok', login: auth.login, error: undefined });
+      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} is online and ready in the shared room.`));
       void this.wake(identity.hubId).catch((error) => this.reportError(error));
     } catch (error) {
       const failedSession = this.session;
@@ -226,17 +232,17 @@ export class CopilotAgent {
         } catch (stopError) { console.error('[copilot] runtime cleanup failed:', safeError(stopError)); }
       }
       const message = safeError(error);
-      this.setStatus({ state: 'error', error: message });
+      this.setStatus({ state: 'error', ...(error instanceof CopilotAuthError ? { auth: 'no' as const } : {}), error: message });
       if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) this.opts.store.markEnded(this.identity.hubId);
       this.opts.onChange(this.snapshot());
-      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `Copilot could not start: ${message}`, undefined, { type: 'error', level: 'error', agent: NAME }));
+      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not start: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
       throw error instanceof CopilotAuthError ? new CopilotAuthError(message) : new Error(message);
     }
   }
 
   private sessionConfig(hubId: string) {
     return {
-      workingDirectory: this.opts.cwd,
+      workingDirectory: this.cwd,
       enableOnDemandInstructionDiscovery: false,
       enableFileHooks: false,
       enableHostGitOperations: false,
@@ -249,7 +255,7 @@ export class CopilotAgent {
           type: 'stdio' as const,
           command: process.execPath,
           args: ['--no-warnings', MCP_SERVER],
-          workingDirectory: this.opts.cwd,
+          workingDirectory: this.cwd,
           env: {
             CLAUDE_CODE_SESSION_ID: hubId,
             BEAR_AGENT_HOME: this.opts.dir,
@@ -257,29 +263,29 @@ export class CopilotAgent {
           },
         },
       },
-      onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), NAME), this.opts.cwd),
+      onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), this.name), this.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
+        content: `You are ${this.name}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
       },
     };
   }
 
   private ensureRoom(identity: Identity): void {
     this.opts.store.createRoom(ROOM);
-    const existing = Object.values(this.opts.store.state.sessions).find((s) => s.name.toLowerCase() === NAME.toLowerCase() && s.id !== identity.hubId);
+    const existing = Object.values(this.opts.store.state.sessions).find((s) => s.name.toLowerCase() === this.name.toLowerCase() && s.id !== identity.hubId);
     if (existing && existing.status !== 'offline' && !existing.ended) {
-      throw new Error(`A different hub session is already named ${NAME}; rename it before starting Copilot.`);
+      throw new Error(`A different hub session is already named ${this.name}; rename it before starting Copilot.`);
     }
     if (existing) {
-      let oldName = `${NAME}-old-${existing.id.slice(0, 8)}`;
+      let oldName = `${this.name}-old-${existing.id.slice(0, 8)}`;
       for (let suffix = 2; Object.values(this.opts.store.state.sessions).some((s) => s.id !== existing.id && s.name.toLowerCase() === oldName.toLowerCase()); suffix++) {
-        oldName = `${NAME}-old-${existing.id.slice(0, 8)}-${suffix}`;
+        oldName = `${this.name}-old-${existing.id.slice(0, 8)}-${suffix}`;
       }
       this.opts.store.rename(existing.id, oldName);
     }
-    const session = this.opts.store.register({ id: identity.hubId, name: NAME, cwd: this.opts.cwd, source: 'copilot' });
-    if (session.name !== NAME) throw new Error(`Could not reserve the hub identity ${NAME}.`);
+    const session = this.opts.store.register({ id: identity.hubId, name: this.name, cwd: this.cwd, source: 'copilot' });
+    if (session.name !== this.name) throw new Error(`Could not reserve the hub identity ${this.name}.`);
     this.opts.store.join(identity.hubId, ROOM);
     if (LEGACY_ROOM in session.rooms) this.opts.store.leave(identity.hubId, LEGACY_ROOM);
     this.opts.store.setStatus(identity.hubId, 'idle', 'Starting Copilot SDK');
@@ -319,7 +325,7 @@ export class CopilotAgent {
       }
       for (const [room, messages] of byRoom) {
         if (messages.every((message) => message.kind === 'system')) continue;
-        const prompt = formatMessages(room, messages, this.opts.cwd);
+        const prompt = formatMessages(room, messages, this.cwd);
         this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
         this.setStatus({ state: 'busy', error: undefined });
         this.opts.onChange(this.snapshot());
@@ -385,12 +391,12 @@ export class CopilotAgent {
       this.opts.store.setStatus(this.identity.hubId, 'idle', 'Copilot needs attention');
       this.opts.onChange(this.snapshot());
     }
-    this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `Copilot could not complete the message: ${message}`, undefined, { type: 'error', level: 'error', agent: NAME }));
+    this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not complete the message: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
     console.error('[copilot] agent turn failed:', message);
   }
 
   private setStatus(next: Partial<CopilotStatus> & Pick<CopilotStatus, 'state'>): void {
-    this.status = { ...this.status, ...next, room: ROOM, cwd: this.opts.cwd };
+    this.status = { ...this.status, ...next, room: ROOM, cwd: this.cwd };
     this.opts.onChange(this.snapshot());
   }
 }

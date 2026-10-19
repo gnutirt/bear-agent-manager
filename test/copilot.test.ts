@@ -421,3 +421,31 @@ test('Copilot-specific permission overrides are honored over hub defaults', () =
   settings.permissions.perAgent.copilot = { mode: 'plan' };
   assert.equal(settings.permissions.perAgent.copilot.mode, 'plan');
 });
+
+test('Copilot profiles: one agent per profile, status has auth/enabled, toggle, retry and 404 per id', async () => {
+  const { factory, calls } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-work-'));
+    const put = await fetch(h.hub.url + '/api/settings', {
+      method: 'PUT', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
+      body: JSON.stringify({ agents: { profiles: [{ id: 'work', provider: 'copilot', name: 'CopilotWork', cwd: work, enabled: false }] } }),
+    });
+    assert.equal(put.status, 200);
+    const list = await h.call<any[]>('/api/copilot/profiles');
+    assert.deepEqual(list.map((s) => [s.id, s.name, s.state, s.auth, s.enabled]), [['work', 'CopilotWork', 'off', 'unknown', false]]);
+    assert.equal((await fetch(h.hub.url + '/api/copilot/profiles/nope', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token }, body: '{}' })).status, 404);
+    assert.equal((await h.call<any>('/api/copilot/profiles/work', { on: true })).done, false);
+    const on = await h.call<any>('/api/copilot/profiles/work', { on: true, confirm: true });
+    assert.deepEqual([on.state, on.auth, on.enabled, on.login], ['idle', 'ok', true, 'test-user']);
+    assert.ok(h.hub.store.members('bear-agent-manager').some((s) => s.name === 'CopilotWork' && s.cwd === work));
+    assert.ok(fs.existsSync(path.join(h.dir, 'copilot-agent-work.json')));
+    assert.equal(calls.created, 1);
+    const off = await h.call<any>('/api/copilot/profiles/work', { on: false, confirm: true });
+    assert.deepEqual([off.state, off.enabled], ['off', false]);
+    const retry = await h.call<any>('/api/copilot/profiles/work/retry', {});
+    assert.equal(retry.state, 'idle');
+  } finally {
+    await h.hub.close();
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });

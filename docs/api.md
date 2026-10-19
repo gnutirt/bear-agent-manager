@@ -46,6 +46,7 @@
 | POST | `/api/autostart` | `confirm`, `on` | có |
 | GET | `/api/copilot` |  | có |
 | POST | `/api/copilot` | `confirm`, `on` | có |
+| GET | `/api/copilot/profiles` |  | có |
 | POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `prompt` | có |
 | GET | `/api/version` |  | có |
 | POST | `/api/version/check` |  | có |

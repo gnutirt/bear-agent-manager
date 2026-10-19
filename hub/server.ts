@@ -15,9 +15,9 @@ import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, pla
 import { pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
-import { CopilotAgent, CopilotAuthError, type CopilotClientFactory } from './copilot.ts';
+import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotStatus } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
+import { loadSettings, normAgent, type AgentProfile, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -231,26 +231,88 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const workerPoller = setInterval(() => { if (sse.size) refreshWorkers().catch(() => {}); }, WORKER_POLL_MS);
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
-  const copilot = new CopilotAgent({
-    dir: opts.dir, cwd: ROOT, port: () => port, store,
-    settings: () => loadSettings(opts.dir, envCap),
-    onChange: (status) => {
-      broadcast('copilot', status);
-      const s = Object.values(store.state.sessions).find((x) => x.name === 'Copilot');
-      if (s) broadcast('session', publicSession(s));
-    },
-    onRoom: emitRoom,
-    onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
-    onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
-    createClient: opts.copilotClientFactory,
-  });
-  function disableCopilotAutoStart(): void {
+  // M3a: one CopilotAgent per settings.agents.profiles entry (provider copilot); an install with no profile gets the legacy 'copilot' one (shortcut: deleting every profile brings it back, until copilot.autoStart goes).
+  const copilots = new Map<string, { agent: CopilotAgent; key: string }>();
+  function copilotProfiles(): AgentProfile[] {
+    const s = loadSettings(opts.dir, envCap);
+    const list = s.agents.profiles.filter((p) => p.provider === 'copilot');
+    return list.length ? list : [{ id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
+  }
+  function copilotFor(p: AgentProfile): CopilotAgent {
+    const key = JSON.stringify([p.name, p.cwd, p.home]);
+    const cur = copilots.get(p.id);
+    if (cur?.key === key) return cur.agent;
+    const agent = new CopilotAgent({
+      dir: opts.dir, profile: p, port: () => port, store,
+      settings: () => loadSettings(opts.dir, envCap),
+      onChange: (status) => {
+        broadcast('copilot', copilotStatus(p.id, status));
+        const s = Object.values(store.state.sessions).find((x) => x.name === p.name);
+        if (s) broadcast('session', publicSession(s));
+      },
+      onRoom: emitRoom,
+      onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
+      onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
+      createClient: opts.copilotClientFactory,
+    });
+    copilots.set(p.id, { agent, key });
+    return agent;
+  }
+  /** The status the API and SSE carry: the agent's own state plus the profile's enabled flag (autoStart = the legacy name of it). */
+  function copilotStatus(id: string, status?: CopilotStatus) {
+    const p = copilotProfiles().find((x) => x.id === id);
+    const enabled = p?.enabled ?? false;
+    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), enabled, autoStart: enabled };
+  }
+  const copilotAgents = () => [...copilots.values()].map((c) => c.agent);
+  const copilotHolding = (sid: string) => copilotAgents().find((c) => c.hasSession(sid));
+  /** Writes profile.enabled (and the legacy copilot.autoStart for the default profile) so a restart and old clients agree. */
+  function setCopilotEnabled(id: string, on: boolean): void {
     const current = loadSettings(opts.dir, envCap);
-    if (!current.copilot.autoStart) return;
-    const next = patchSettings(current, { copilot: { autoStart: false } });
+    const profiles = copilotProfiles().map((p) => (p.id === id ? { ...p, enabled: on } : p));
+    const next = patchSettings(current, { agents: { profiles }, ...(id === 'copilot' ? { copilot: { autoStart: on } } : {}) });
     saveSettings(opts.dir, next);
     broadcast('settings', next);
-    broadcast('copilot', { ...copilot.snapshot(), autoStart: false });
+    broadcast('copilot', copilotStatus(id));
+  }
+  /** Starts the enabled profiles (at most agents.maxBackground run at once), stops disabled, removed or changed ones. */
+  async function syncCopilots(): Promise<void> {
+    const profiles = copilotProfiles(), cap = loadSettings(opts.dir, envCap).agents.maxBackground;
+    for (const [id, c] of [...copilots]) {
+      const p = profiles.find((x) => x.id === id);
+      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home])) continue;
+      if (c.agent.snapshot().state !== 'off') await c.agent.stop().catch((error) => console.error('[copilot] stop failed:', error));
+      if (!p || c.key !== JSON.stringify([p.name, p.cwd, p.home])) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
+    }
+    for (const p of profiles) {
+      if (!p.enabled) continue;
+      const agent = copilotFor(p);
+      if (agent.snapshot().state !== 'off') continue;
+      if (copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) { console.error(`[copilot] ${p.id} not started: agents.maxBackground ${cap} reached`); continue; }
+      void agent.start().catch((error) => {
+        if (error instanceof CopilotAuthError) setCopilotEnabled(p.id, false);
+        console.error(`[copilot] ${p.id} start failed:`, error);
+      });
+    }
+  }
+
+  /** on = true/false: save enabled and start/stop; undefined = retry (start again, which re-checks the login). */
+  async function copilotToggle(res: http.ServerResponse, id: string, on: boolean | undefined) {
+    const prof = copilotProfiles().find((x) => x.id === id)!;
+    const agent = copilotFor(prof);
+    const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
+    if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
+      return json(res, 429, { error: `${cap} headless agents already run (settings agents.maxBackground)`, status: copilotStatus(id) });
+    }
+    if (on !== undefined) setCopilotEnabled(id, on);
+    try {
+      if (on === false) await agent.stop();
+      else await agent.start();
+    } catch (error) {
+      if (error instanceof CopilotAuthError) setCopilotEnabled(id, false);
+      return json(res, 503, { error: error instanceof Error ? error.message : String(error), status: copilotStatus(id) });
+    }
+    return json(res, 200, { ...copilotStatus(id), done: true });
   }
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
@@ -397,8 +459,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const batching = new Set<string>();
   function deliver(sid: string) {
     const st = store.session(sid);
-    if (copilot.hasSession(st.id)) {
-      void copilot.wake(st.id).catch((error) => copilot.reportError(error));
+    const cop = copilotHolding(st.id);
+    if (cop) {
+      void cop.wake(st.id).catch((error) => cop.reportError(error));
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
@@ -1211,23 +1274,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       catch (e) { return json(res, 400, { error: (e as Error).message }); }
     }
     if (m === 'GET' && p === '/api/copilot') {
-      return json(res, 200, { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart });
+      return json(res, 200, copilotStatus('copilot'));
     }
     if (m === 'POST' && p === '/api/copilot') {
       const b = await readBody(req);
-      if (b.confirm !== true) return json(res, 200, { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart, done: false });
-      const next = patchSettings(loadSettings(opts.dir, envCap), { copilot: { autoStart: b.on === true } });
-      saveSettings(opts.dir, next);
-      broadcast('settings', next);
-      try {
-        if (next.copilot.autoStart) await copilot.start();
-        else await copilot.stop();
-      } catch (error) {
-        if (error instanceof CopilotAuthError) disableCopilotAutoStart();
-        const status = { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart };
-        return json(res, 503, { error: error instanceof Error ? error.message : String(error), status });
-      }
-      return json(res, 200, { ...copilot.snapshot(), autoStart: next.copilot.autoStart, done: true });
+      if (b.confirm !== true) return json(res, 200, { ...copilotStatus('copilot'), done: false });
+      return copilotToggle(res, 'copilot', b.on === true);
+    }
+    if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
+    const cp = m === 'POST' ? p.match(/^\/api\/copilot\/profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
+    if (cp) {
+      const prof = copilotProfiles().find((x) => x.id === cp[1]);
+      if (!prof) return json(res, 404, { error: `unknown profile ${cp[1]}` });
+      const b = await readBody(req);
+      if (cp[2]) return copilotToggle(res, prof.id, undefined);
+      if (b.confirm !== true) return json(res, 200, { ...copilotStatus(prof.id), done: false });
+      return copilotToggle(res, prof.id, b.on === true);
     }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
@@ -1310,6 +1372,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'PUT' && p === '/api/settings') {
       const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
       saveSettings(opts.dir, next);
+      void syncCopilots();
       autoCfg.at = 0;
       broadcast('settings', next);
       return json(res, 200, next);
@@ -1792,18 +1855,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   port = (server.address() as AddressInfo).port;
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id) || copilot.isRunning(id))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)))) emitSession(s);
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);
   heartbeat.unref();
 
-  if (loadSettings(opts.dir, envCap).copilot.autoStart) {
-    void copilot.start().catch((error) => {
-      if (error instanceof CopilotAuthError) disableCopilotAutoStart();
-      console.error('[copilot] autostart failed:', error);
-    });
-  }
+  void syncCopilots();
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -1824,7 +1882,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const t of wakeTimers.values()) clearTimeout(t);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
-      try { await copilot.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); }
+      for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));
     },
