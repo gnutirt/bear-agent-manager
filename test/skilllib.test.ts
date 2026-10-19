@@ -86,7 +86,7 @@ function libraryOnDisk() {
   fs.writeFileSync(path.join(dir, 'general', 'notes', 'SKILL.md'), 'x');   // no LICENSE anywhere
   const idx = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
   idx.skills[1].licenseFile = 'slides/y/LICENSE';
-  idx.skills[0].descVi = 'Mô tả'; idx.skills[0].jurisdiction = 'US';
+  idx.skills[0].descVi = 'Mô tả'; idx.skills[0].jurisdiction = 'US'; idx.skills[0].legalAsOf = '2026-10-19'; idx.skills[0].legalDocs = ['NĐ 58/2025', 7, '  ']; idx.skills[1].legalAsOf = 42;
   fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(idx));
   return dir;
 }
@@ -151,5 +151,7 @@ test('loadLibrary keeps descVi and jurisdiction for the UI', async () => {
   const lib = loadLibrary(libraryOnDisk());
   const first = lib.skills.find((s) => s.descVi);
   assert.equal(first?.descVi, 'Mô tả'); assert.equal(first?.jurisdiction, 'US');
+  assert.equal(first?.legalAsOf, '2026-10-19'); assert.deepEqual(first?.legalDocs, ['NĐ 58/2025']);   // non-text and blank entries are dropped
+  assert.ok(!lib.skills.some((s) => s !== first && s.legalAsOf), 'a non-text legalAsOf is ignored');
   assert.ok(lib.skills.some((s) => !s.jurisdiction));
 });

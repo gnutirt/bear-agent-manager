@@ -9,6 +9,8 @@ export type LibSkill = {
   name: string; category: string; roles: string[]; path: string; description: string;
   source: string; license: string; licenseFile?: string;
   descVi?: string;        // one-line Vietnamese description for the UI
+  legalAsOf?: string;     // date the law it cites was last checked (the UI shows "last reviewed" and flags old ones)
+  legalDocs?: string[];   // legal documents it relies on (number, date), shown so the owner can check them
   jurisdiction?: string;  // law the skill is written for (e.g. "US"); the UI warns when it is not the user's
   bundle?: string;   // folder of a multi-skill repo whose shared files (references/, config/...) the skill reads by relative path
 };
@@ -32,6 +34,8 @@ function parseSkills(j: any): LibSkill[] {
       name, category, roles, path: str(s.path), description: str(s.description), source: str(s.source), license: str(s.license),
       ...(s.licenseFile ? { licenseFile: str(s.licenseFile) } : {}), ...(s.bundle ? { bundle: str(s.bundle) } : {}),
       ...(s.descVi ? { descVi: str(s.descVi) } : {}), ...(s.jurisdiction ? { jurisdiction: str(s.jurisdiction) } : {}),
+      ...(str(s.legalAsOf).trim() ? { legalAsOf: str(s.legalAsOf).trim().slice(0, 40) } : {}),
+      ...(Array.isArray(s.legalDocs) && s.legalDocs.length ? { legalDocs: s.legalDocs.map(str).map((x: string) => x.trim().slice(0, 200)).filter(Boolean).slice(0, 20) } : {}),
     });
   }
   return out;
