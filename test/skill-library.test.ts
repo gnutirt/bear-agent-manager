@@ -84,6 +84,16 @@ test('CATALOG.md is up to date with index.json', () => {
   assert.equal(fs.readFileSync(path.join(lib, 'CATALOG.md'), 'utf8'), catalog(skills), 'run: node skill-library/build-index.mjs');
 });
 
+test('eval/prompts.json: library skills, known packs, 3 Vietnamese prompts each', () => {
+  const { skills: cases } = read('eval/prompts.json');
+  const packIds = new Set(read('packs.json').map((p: any) => p.id));
+  for (const [name, c] of Object.entries(cases) as [string, any][]) {
+    assert.ok(names.has(name), `eval: unknown skill ${name}`);
+    assert.ok(packIds.has(c.pack), `eval: ${name} names unknown pack ${c.pack}`);
+    assert.equal(c.prompts.length, 3, `eval: ${name} needs 3 prompts`);
+  }
+});
+
 test('roles.json only names library skills and known roles', () => {
   for (const [name, roles] of Object.entries(read('roles.json')) as [string, string[]][]) {
     assert.ok(names.has(name), `roles.json: unknown skill ${name}`);

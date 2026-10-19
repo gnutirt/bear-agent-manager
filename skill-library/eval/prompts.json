@@ -1,0 +1,97 @@
+{
+  "_note": "Câu hỏi tiếng Việt mẫu để kiểm tra skill có được Claude gọi không. Mỗi skill 3 câu. pack = gói có skill đó; mọi skill của gói được cài cùng lúc khi chạy để chúng cạnh tranh như thật.",
+  "skills": {
+    "vn-phan-loai-no": { "pack": "banking-vn", "prompts": [
+      "Khoản vay doanh nghiệp quá hạn 120 ngày thì xếp nhóm nợ nào? Có phải trích lập thêm không?",
+      "Khách hàng đã cơ cấu lại thời hạn trả nợ lần thứ hai, ngân hàng phải chuyển nhóm nợ ra sao?",
+      "CIC báo khách hàng nhóm 3 ở ngân hàng khác, bên mình đang để nhóm 1 thì xử lý thế nào?"] },
+    "vn-phong-chong-rua-tien": { "pack": "banking-vn", "prompts": [
+      "Khách chuyển khoản điện tử 600 triệu ra nước ngoài, có phải báo cáo Cục Phòng chống rửa tiền không?",
+      "Soạn giúp quy định nội bộ PCRT phần phân loại khách hàng theo mức rủi ro.",
+      "Dấu hiệu nào để nghi ngờ một giao dịch là giao dịch đáng ngờ phải báo cáo?"] },
+    "assessing-credit-risk": { "pack": "banking-vn", "prompts": [
+      "Thẩm định giúp khả năng trả nợ của công ty này dựa trên báo cáo tài chính 3 năm.",
+      "Đánh giá rủi ro tín dụng cho khách hàng ngành bất động sản xin vay 50 tỷ.",
+      "Xếp hạng tín dụng nội bộ cho doanh nghiệp vừa, cần nhìn những chỉ tiêu nào?"] },
+    "drafting-credit-memos": { "pack": "banking-vn", "prompts": [
+      "Viết tờ trình tín dụng cho khoản vay vốn lưu động 20 tỷ của công ty may mặc.",
+      "Soạn tờ trình cấp hạn mức tín dụng, có phần phân tích rủi ro và đề xuất.",
+      "Làm giúp tờ trình cho vay mua máy móc trung hạn 5 năm."] },
+    "managing-liquidity-risk": { "pack": "banking-vn", "prompts": [
+      "Lập kế hoạch dự phòng thanh khoản khi rút tiền gửi tăng đột biến.",
+      "Dự báo dòng tiền thanh khoản 30 ngày và kiểm tra sức chịu đựng cho chi nhánh.",
+      "Đánh giá rủi ro thanh khoản của ngân hàng khi lãi suất liên ngân hàng tăng mạnh."] },
+    "review-contract": { "pack": "legal-core", "prompts": [
+      "Rà soát hợp đồng cung cấp phần mềm này, chỉ ra điều khoản bất lợi cho bên mình.",
+      "Review hợp đồng dịch vụ, đề xuất sửa phần phạt vi phạm và bồi thường.",
+      "Đối chiếu hợp đồng nhà cung cấp gửi với bộ quy tắc đàm phán của công ty."] },
+    "triage-nda": { "pack": "legal-core", "prompts": [
+      "Đối tác gửi thoả thuận bảo mật NDA, xem nhanh có ký được không.",
+      "NDA này có điều khoản nào cần luật sư xem kỹ không?",
+      "Phân loại giúp NDA này: duyệt luôn, cần xem, hay phải rà kỹ?"] },
+    "legal-risk-assessment": { "pack": "legal-core", "prompts": [
+      "Đánh giá rủi ro pháp lý khi công ty ra mắt ví điện tử mới.",
+      "Xếp hạng các rủi ro pháp lý của dự án này theo mức nghiêm trọng và khả năng xảy ra.",
+      "Khi nào vụ việc khiếu nại khách hàng này cần chuyển luật sư?"] },
+    "contract-analysis": { "pack": "legal-core", "prompts": [
+      "Phân tích hợp đồng thuê kho này: nghĩa vụ hai bên và rủi ro.",
+      "Liệt kê điều khoản chính và điểm có thể đàm phán trong hợp đồng phân phối.",
+      "Hợp đồng hợp tác kinh doanh này có rủi ro gì cho bên mình?"] },
+    "due-diligence-checklist": { "pack": "legal-core", "prompts": [
+      "Lập danh mục thẩm định pháp lý khi mua lại 51% cổ phần một công ty.",
+      "Chuẩn bị checklist due diligence cho thương vụ M&A ngành năng lượng.",
+      "Cần kiểm tra những giấy tờ pháp lý gì trước khi góp vốn vào công ty khởi nghiệp?"] },
+    "pv-system-design": { "pack": "solar-core", "prompts": [
+      "Tấm 550W Voc 49.5V, inverter 1000V, nhiệt độ thấp nhất 10 độ: đấu tối đa bao nhiêu tấm một chuỗi?",
+      "Tính sụt áp cáp DC 4mm2 dài 60m cho chuỗi 18 tấm.",
+      "Mái bằng ở Hà Nội, tấm nghiêng 15 độ: khoảng cách hàng tối thiểu để không bị bóng che?"] },
+    "modeling-renewable-resource-yields": { "pack": "solar-core", "prompts": [
+      "Ước tính sản lượng điện mặt trời P50 P90 cho dự án 2 MWp ở Ninh Thuận.",
+      "Hệ số công suất của nhà máy điện mặt trời này là bao nhiêu, tính thế nào?",
+      "Dựng mô hình sản lượng năm cho hệ 500 kWp từ số liệu bức xạ."] },
+    "power-purchase-agreement": { "pack": "solar-core", "prompts": [
+      "Soạn khung hợp đồng mua bán điện PPA giữa nhà máy điện mặt trời và khách hàng công nghiệp.",
+      "Các điều khoản chính cần có trong hợp đồng DPPA là gì?",
+      "Rà điều khoản giá và sản lượng cam kết trong hợp đồng bán điện này."] },
+    "epc-contract": { "pack": "solar-core", "prompts": [
+      "Soạn hợp đồng EPC trọn gói cho dự án điện mặt trời mái nhà 1 MWp.",
+      "Hợp đồng tổng thầu EPC cần điều khoản bảo hành hiệu suất thế nào?",
+      "Rà điều khoản phạt chậm tiến độ trong hợp đồng EPC này."] },
+    "analyzing-renewable-energy-project-finance": { "pack": "solar-core", "prompts": [
+      "Đánh giá hiệu quả tài chính dự án điện mặt trời 10 MWp, IRR bao nhiêu thì đáng làm?",
+      "Phân tích rủi ro giá điện khi hết hợp đồng mua bán điện của dự án.",
+      "Tính dòng tiền dự án năng lượng tái tạo có vay 70%."] },
+    "frontend-slides": { "pack": "slides-core", "prompts": [
+      "Làm slide thuyết trình HTML 10 trang giới thiệu sản phẩm mới.",
+      "Chuyển file PowerPoint này thành bài trình bày trên web có hiệu ứng.",
+      "Tạo bài thuyết trình đẹp về kết quả kinh doanh quý 3."] },
+    "pptx-author": { "pack": "slides-core", "prompts": [
+      "Tạo file PowerPoint 8 slide báo cáo tiến độ dự án.",
+      "Làm giúp file pptx trình bày phương án vay vốn cho hội đồng.",
+      "Xuất bài thuyết trình này thành file .pptx."] },
+    "deck-refresh": { "pack": "slides-core", "prompts": [
+      "Cập nhật số liệu quý 3 vào bộ slide quý 2 này.",
+      "Sửa lại các con số trong bài trình bày theo báo cáo mới.",
+      "Làm lại slide kết quả kinh doanh với số liệu tháng 9."] },
+    "theme-factory": { "pack": "slides-core", "prompts": [
+      "Đổi chủ đề màu cho bộ slide này cho chuyên nghiệp hơn.",
+      "Chọn phông chữ và bảng màu cho tài liệu báo cáo nội bộ.",
+      "Làm đẹp giao diện bài trình bày này."] },
+    "ppt-template-creator": { "pack": "slides-core", "prompts": [
+      "Tạo skill từ file mẫu PowerPoint của công ty để sau này làm slide theo đúng mẫu.",
+      "Biến template slide công ty thành mẫu dùng lại được.",
+      "Làm mẫu PowerPoint chuẩn cho phòng ban từ file pptx này."] },
+    "course-training-skills": { "pack": "training-core", "prompts": [
+      "Thiết kế khoá đào tạo 2 ngày về thẩm định tín dụng cho nhân viên mới.",
+      "Soạn giáo án chương trình training nội bộ về phòng chống rửa tiền.",
+      "Lên chương trình đào tạo kỹ thuật lắp đặt điện mặt trời cho thợ."] },
+    "quiz-maker": { "pack": "training-core", "prompts": [
+      "Tạo 20 câu hỏi trắc nghiệm về KYC kèm đáp án và giải thích.",
+      "Làm đề kiểm tra cuối khoá đào tạo, có câu đúng sai và điền khuyết.",
+      "Soạn bộ câu hỏi ôn tập cho buổi học về an toàn điện."] },
+    "internal-comms": { "pack": "training-core", "prompts": [
+      "Viết thông báo nội bộ về lịch đào tạo bắt buộc tháng sau.",
+      "Soạn bản tin tuần gửi toàn chi nhánh.",
+      "Viết email gửi nhân viên giới thiệu quy trình mới."] }
+  }
+}
