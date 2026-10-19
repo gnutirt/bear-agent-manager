@@ -1,4 +1,4 @@
-// Builds a .vsix from ./vscode (no vsce / npm needed) and installs it into VS Code and Antigravity.
+// Builds a .vsix from ./vscode (no vsce / npm needed) and installs it into VS Code and Antigravity (--build-only: just build it).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -42,6 +42,7 @@ execFileSync('powershell.exe', ['-NoProfile', '-Command',
   `Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory('${stage}', '${vsix}')`]);
 fs.rmSync(stage, { recursive: true, force: true });
 console.log(`built ${vsix}`);
+if (process.argv.includes('--build-only')) process.exit(0);   // npm run vsix
 
 const programs = path.join(process.env.LOCALAPPDATA ?? '', 'Programs');
 const editors = [

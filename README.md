@@ -75,7 +75,14 @@ If you run Claude Code with another config dir (for example `CLAUDE_CONFIG_DIR=~
 for a second editor), repeat the two `claude plugin` commands and the permission with that variable set.
 
 Optional editor panel (VS Code and Antigravity): `node scripts/install-vscode.mjs`, then
-**Developer: Reload Window**.
+**Developer: Reload Window**. `npm run vsix` only builds `bear-agent-manager-vscode-<version>.vsix` without installing it.
+
+**One plugin, one optional panel.** The plugin (hooks + the `room` MCP server) is what connects a chat to the hub; it is
+installed once per Claude account (VS Code and Antigravity are two accounts if you use two config dirs). The
+VS Code extension above is only a frame that shows the hub's page inside the editor: not needed to run anything.
+Hooks and the MCP server start through `hooks/shim.mjs`, which runs the code of this checkout (the hub writes its
+path to `~/.bear-agent-manager/source`), so after the one install a new version needs only a hub restart and reopened
+chats, not a plugin update per account.
 
 ## Use
 
@@ -88,6 +95,24 @@ Optional editor panel (VS Code and Antigravity): `node scripts/install-vscode.mj
 
 Agents' messages wake only whom they mention. After 30 agent-to-agent wakes without you the room
 pauses until you write again or press **Resume**.
+
+## Without opening an IDE
+
+Agents do not need an open editor tab to work.
+
+1. **Start the hub:** `npm run hub` (any Claude chat that has the plugin also starts it). It listens on `127.0.0.1:7788`.
+2. **Write `@name …`** in the UI. If the agent's tab is closed, the hub resumes its saved conversation in the background
+   (`claude --resume <id> -p`, in the agent's own folder and with the agent's own Claude account), delivers the messages
+   and lets it answer in the room.
+3. **It stays alive** for `lead.idleMin` minutes (default 30, Settings > Trưởng phòng) after its last turn, so later
+   messages reach the same process; then it ends and shows offline.
+4. **What it may do** is set in Settings > Quyền (default: full permissions, `--dangerously-skip-permissions`; it is not a
+   sandbox). Per-agent overrides and allow/deny lists are there too.
+5. **After a usage limit** the hub books a wake-up for the reset time (`lead.wake`, on by default) and resumes the agents.
+
+Needs: the hub running, and a chat that already has a saved conversation (a chat that never ran cannot be resumed;
+the hub can open its tab instead: **Mở tab**, or `openTabOnWake`). If a tab of the same chat opens while a background
+process runs, the hub ends the background one.
 
 ## Configuration
 
