@@ -119,7 +119,7 @@ test('lead.idleMin: 30 by default, kept between 1 and 240', () => {
 test('permissions: bypass by default, per agent override, bad modes and shell characters refused, old reviveTools kept', async () => {
   const { permFor } = await import('../hub/settings.ts');
   const d = defaultSettings(4);
-  assert.deepEqual(d.permissions, { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} });
+  assert.deepEqual(d.permissions, { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } });
   assert.deepEqual(permFor(d, 'Coder'), { mode: 'bypass', allow: [], deny: [] });
   let s = patchSettings(d, { permissions: { default: { mode: 'acceptEdits', deny: ['Bash(git push:*)', 'Bash(x & y)', 'a"b', 'Bash(rm -rf:*)'] } } });
   assert.equal(s.permissions.default.mode, 'acceptEdits');
@@ -129,7 +129,7 @@ test('permissions: bypass by default, per agent override, bad modes and shell ch
   assert.deepEqual(permFor(s, 'boss'), { mode: 'plan', allow: ['Edit'], deny: ['Bash(git push:*)', 'Bash(rm -rf:*)'] });
   assert.equal(permFor(s, 'other').mode, 'acceptEdits');
   s = patchSettings(s, { permissions: { perAgent: { boss: null } } });
-  assert.deepEqual(s.permissions.perAgent, {});
+  assert.deepEqual(s.permissions.perAgent, { copilot: { mode: 'acceptEdits' } });
   // an agent that only has the old reviveTools list keeps that choice
   const old = patchSettings(d, { reviveTools: { dev: ['Edit', 'Write'] } });
   assert.deepEqual(permFor(old, 'dev'), { mode: 'default', allow: ['Edit', 'Write'], deny: [] });
@@ -144,4 +144,39 @@ test('claudeArgs: bypass skips permissions, default keeps the read-only tools pl
   assert.ok(def.includes('--allowedTools') && def.includes('Edit') && def.includes('Read') && !def.includes('--dangerously-skip-permissions'));
   assert.ok(claudeArgs('s1', { mode: 'acceptEdits', allow: [], deny: [] }).join(' ').includes('--permission-mode acceptEdits'));
   assert.ok(claudeArgs('s1', undefined).includes('Grep'), 'no perm: the old read-only default');
+});
+
+test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones dropped, Copilot gets an explicit default permission', async () => {
+  const { permFor, resolveWorkspace } = await import('../hub/settings.ts');
+  const d = defaultSettings(4), here = process.cwd();
+  assert.deepEqual(d.agents.profiles, []);
+  assert.equal(permFor(d, 'Copilot').mode, 'acceptEdits');
+  const ok = { id: 'Copilot-Work', provider: 'copilot', name: 'Copilot_Work', cwd: here, enabled: true };
+  const s = patchSettings(d, { agents: { profiles: [ok, { ...ok, id: 'other' }, { ...ok, id: 'x', name: 'rel', cwd: 'rel/dir' }, { ...ok, id: 'y', name: 'unc', cwd: '\\\\srv\\share' }, { ...ok, id: 'z', name: 'bad name!' }, { ...ok, id: 'p', name: 'p', provider: 'other' }, { ...ok, id: 'w', name: 'w', enabled: 'yes' }] } });
+  assert.deepEqual(s.agents.profiles.map((p) => [p.id, p.name, p.enabled]), [['copilot-work', 'Copilot_Work', true], ['w', 'w', false]]);   // the duplicate name 'Copilot_Work' is dropped
+  assert.equal(patchSettings(s, { agents: { maxBackground: 2 } }).agents.profiles.length, 2, 'a patch without profiles keeps them');
+  assert.deepEqual(patchSettings(s, { agents: { profiles: [] } }).agents.profiles, []);
+  assert.equal(resolveWorkspace(here), fs.realpathSync(here));
+  assert.throws(() => resolveWorkspace('rel'), /absolute local/);
+  assert.throws(() => resolveWorkspace(path.join(here, 'no-such-folder-xyz')), /not a folder/);
+  assert.throws(() => resolveWorkspace(path.join(here, 'package.json')), /not a folder/);
+});
+
+test('agents.profiles: copilot.autoStart migrates into the profile "copilot" once, an explicit profiles list wins', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'profiles-mig-'));
+  try {
+    const write = (o: object) => fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(o));
+    assert.deepEqual(loadSettings(dir).agents.profiles, [], 'no copilot key = no profile');
+    write({ copilot: { autoStart: true } });
+    const [p, ...rest] = loadSettings(dir).agents.profiles;
+    assert.deepEqual(rest, []);
+    assert.deepEqual({ ...p, cwd: undefined }, { id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: undefined, enabled: true });
+    assert.equal(p.cwd, path.resolve(import.meta.dirname, '..'));
+    write({ copilot: { autoStart: false } });
+    assert.equal(loadSettings(dir).agents.profiles[0].enabled, false);
+    write({ copilot: { autoStart: true }, agents: { profiles: [] } });
+    assert.deepEqual(loadSettings(dir).agents.profiles, [], 'already migrated: not synthesized again');
+    saveSettings(dir, loadSettings(dir));
+    assert.deepEqual(loadSettings(dir).agents.profiles, []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

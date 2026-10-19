@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
@@ -26,8 +27,8 @@ export type Settings = {
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   autoUpdatePlugin: boolean;   // the hub keeps this plugin's copy in every Claude account at the hub's version (no button)
-  agents: { maxBackground: number };   // background claudes at once, for agents created without an IDE (POST /api/agents)
-  copilot: { autoStart: boolean };   // one standalone Copilot SDK member in the shared room, started with the hub
+  agents: { maxBackground: number; profiles: AgentProfile[] };   // maxBackground: background claudes at once, for agents created without an IDE (POST /api/agents); profiles: headless provider agents (M3b)
+  copilot: { autoStart: boolean };   // legacy single Copilot toggle, kept until hub/server.ts reads agents.profiles (M3a); migrated into profile 'copilot'
   localSummarize: LocalSummarize;   // summaries by an AI on this machine (Ollama); off by default
   permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
@@ -63,9 +64,41 @@ export function permFor(s: Settings, agent: string): PermRule {
   return { mode: o?.mode ?? d.mode, allow: o?.allow ?? d.allow, deny: o?.deny ?? d.deny };
 }
 
+/** M3b: one headless provider agent (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
+export type AgentProfile = { id: string; provider: 'copilot'; name: string; cwd: string; home?: string; enabled: boolean };
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
+
+/** The real path of a workspace folder, same rule as POST /api/agents: absolute, local, an existing directory (a link resolves to its target). Throws with the reason. */
+export function resolveWorkspace(asked: unknown): string {
+  if (!localAbs(asked)) throw new Error('cwd must be an absolute local folder');
+  try { const real = fs.realpathSync(asked); if (!fs.statSync(real).isDirectory()) throw new Error('not a folder'); return real; }
+  catch { throw new Error(`not a folder: ${String(asked).slice(0, 200)}`); }
+}
+
+/** Keeps the valid profiles of a patch (unique id and name, absolute local cwd); the folder is only checked for existence when the agent starts, so a drive that is briefly missing does not erase the profile. */
+function profilesOf(raw: unknown, cur: AgentProfile[]): AgentProfile[] {
+  if (!Array.isArray(raw)) return cur;
+  const out: AgentProfile[] = [], ids = new Set<string>(), names = new Set<string>();
+  for (const r of raw.slice(0, 16)) {
+    const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || r?.provider !== 'copilot' || !localAbs(r?.cwd)) continue;
+    if (ids.has(id) || names.has(normAgent(name))) continue;
+    ids.add(id); names.add(normAgent(name));
+    out.push({ id, provider: 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true });
+  }
+  return out;
+}
+
+/** An install from before profiles: copilot.autoStart becomes the one profile 'copilot' (cwd = the hub's repo), so nothing needs doing by hand. */
+function migrateProfiles(raw: any): any {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw?.agents?.profiles) || typeof raw?.copilot?.autoStart !== 'boolean') return raw;
+  return { ...raw, agents: { ...(raw.agents ?? {}), profiles: [{ id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: raw.copilot.autoStart }] } };
+}
+
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 250_000, background: 150_000 } }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, autoUpdatePlugin: true, agents: { maxBackground: 4 }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 250_000, background: 150_000 } }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [] }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -178,7 +211,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     compact: { thresholds: compactThresholds },
     permissions: perm,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),
-    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16) },
+    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []) },
     copilot: { autoStart: bool(p?.copilot?.autoStart, s.copilot?.autoStart ?? false) },
     localSummarize: {
       enabled: bool(p?.localSummarize?.enabled, s.localSummarize.enabled),
@@ -221,7 +254,7 @@ export function patchSettings(s: Settings, p: any): Settings {
 }
 
 export function loadSettings(home: string, envCap = 4): Settings {
-  try { return patchSettings(defaultSettings(envCap), JSON.parse(fs.readFileSync(path.join(home, FILE), 'utf8'))); }
+  try { return patchSettings(defaultSettings(envCap), migrateProfiles(JSON.parse(fs.readFileSync(path.join(home, FILE), 'utf8')))); }
   catch { return defaultSettings(envCap); }
 }
 
