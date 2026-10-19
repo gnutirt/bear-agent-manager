@@ -1,6 +1,6 @@
 {
   "name": "bear-agent-manager",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Shared chat rooms for Claude Code sessions: agents wake each other with @mentions, the user watches and commands them live.",
   "author": {
     "name": "gnutirt"
