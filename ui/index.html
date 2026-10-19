@@ -394,6 +394,7 @@ header .spacer{flex:1}
 .pagent{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}.pah{display:flex;align-items:center;gap:8px}#permAdd{margin-top:6px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
 @media (max-width:700px){.plists{grid-template-columns:1fr}}
 .bgtag{flex:none;padding:0 6px;border:1px solid var(--side-line,var(--line));border-radius:6px;font-size:10.5px;font-weight:700;line-height:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--side-mute,var(--mute))}.bgdot{font-size:11px;opacity:.7}
+.legalas{font-size:11.5px;color:var(--mute);margin:2px 0 4px}.legalas small{display:block;opacity:.85}.legalas.stale{color:color-mix(in srgb,#F59E0B 55%,var(--text));font-weight:600}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -2240,6 +2241,12 @@ function forceWarning() {
   const n = Object.values(S.settings?.agentSkills?.[S.skAgent] || {}).filter((r) => r.mode === 'force').length;
   return n > 15 ? `<div class="verr small" role="alert">${t('lib.tooMany', { n })}</div>` : '';
 }
+/** Vietnamese legal skills carry legalAsOf (last review date) and legalDocs: show the date, warn when it is older than 180 days. */
+function legalAsOfHtml(s) {
+  if (!s.legalAsOf) return '';
+  const ts = Date.parse(s.legalAsOf), stale = Number.isFinite(ts) && Date.now() - ts > 180 * 86400e3;
+  return `<div class="legalas${stale ? ' stale' : ''}" title="${esc((s.legalDocs || []).join(', '))}">${esc(t(stale ? 'lib.legal.stale' : 'lib.legal.asof', { d: s.legalAsOf }))}${s.legalDocs?.length ? `<small>${esc(t('lib.legal.docs', { docs: s.legalDocs.slice(0, 4).join(', ') + (s.legalDocs.length > 4 ? '…' : '') }))}</small>` : ''}</div>`;
+}
 function skillLibBlock() {
   const L = S.lib;
   if (!L.skills) return `<h2>${t('lib.title')}</h2><div class="vempty">${L.err || t('common.loading')}</div>`;
@@ -2251,7 +2258,7 @@ function skillLibBlock() {
   const shown = L.skills.filter((s) => (L.role === 'all' || (s.roles || [s.category]).includes(L.role)) && (!L.license || s.license === L.license) && (!q || `${s.name} ${s.description}`.toLowerCase().includes(q)));
   const chips = roles.map((r) => `<button type="button" class="chipf" data-librole="${r}" aria-pressed="${r === L.role}">${r === 'all' ? t('filter.all') : t(LIB_ROLES[r])} <small>${r === 'all' ? L.skills.length : (L.rolesInfo.find((x) => x.id === r)?.count ?? '')}</small></button>`).join('');
   const isIn = (s) => (s.installed || []).some((d) => sameDir(d, acct));
-  const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span>${s.jurisdiction && s.jurisdiction !== 'VN' ? `<span class="lic jur" title="${esc(t('lib.jur.tip', { j: s.jurisdiction }))}">${t('lib.jur.badge', { j: esc(s.jurisdiction) })}</span>` : ''}</div><p>${esc(plain((uiLang() === 'vi' && s.descVi) || s.description || '', 140))}</p><div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
+  const cards = shown.slice(0, 60).map((s) => `<div class="scard"><div class="st"><b>${esc(s.name)}</b><span class="lic" title="${esc(s.source || '')}">${esc(s.license || '?')}</span>${s.jurisdiction && s.jurisdiction !== 'VN' ? `<span class="lic jur" title="${esc(t('lib.jur.tip', { j: s.jurisdiction }))}">${t('lib.jur.badge', { j: esc(s.jurisdiction) })}</span>` : ''}</div><p>${esc(plain((uiLang() === 'vi' && s.descVi) || s.description || '', 140))}</p>${legalAsOfHtml(s)}<div class="sf"><small class="muted">${esc(s.source || '')}</small>${isIn(s) ? `<button type="button" class="btn sm" data-libremove="${esc(s.name)}">${t('lib.remove')}</button>` : `<button type="button" class="btn sm primary" data-libinstall="${esc(s.name)}">${t('lib.install')}</button>`}</div></div>`).join('');
   const agents = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => a.indexOf(v) === i);
   const packs = (L.packs || []).map((p) => `<div class="pack"><b>${esc(p[uiLang()] || p.vi || p.id)}</b><small class="muted">${t('lib.packN', { n: (p.skills || []).length })}</small><button type="button" class="btn sm" data-libpack="${esc(p.id)}">${t('lib.apply')}</button></div>`).join('');
   return `<h2>${t('lib.title')} <span class="aside">${t('lib.count', { n: shown.length, total: L.skills.length })}</span></h2>
@@ -2348,6 +2355,21 @@ function savePerm(who, patch) {
   const body = { permissions: who === 'default' ? { default: patch } : { perAgent: { [who]: patch } } };
   api('/api/settings', body, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (e) => toast(e.message));
 }
+/** Summaries by an AI on this machine (settings.localSummarize, GET /api/local/status): off by default, warns when the address is not this machine. */
+function loadLocal() { api('/api/local/status').then((d) => { S.local = d; }, () => { S.local = { reachable: false, hasModel: false }; }).then(() => { if (S.tab === 'settings' || S.tab === 'skills') renderSettingsView(); }); }
+function localBlock(st) {
+  const L = st.localSummarize || {};
+  if (S.local === undefined) { S.local = null; loadLocal(); }
+  const remote = !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(L.host || '') || !!S.local?.remote;
+  const stt = !S.local ? t('local.status.checking') : !S.local.reachable ? t('local.status.down', { host: esc(L.host || '') }) : !S.local.hasModel ? t('local.status.nomodel', { model: esc(L.model || '') }) : t('local.status.ok', { model: esc(L.model || '') });
+  const txt = (path, v, label) => `<label class="setrow"><span><b>${label}</b></span><input class="txtin" data-set="${path}" value="${esc(v ?? '')}" spellcheck="false"></label>`;
+  return `<h2>${t('local.title')}</h2><div class="setbox"><p class="small muted note">${t('local.note')}</p>
+    ${sw('localSummarize.enabled', !!L.enabled, t('local.on'), t('local.on.hint'))}
+    ${txt('localSummarize.host', L.host, t('local.host'))}${txt('localSummarize.model', L.model, t('local.model'))}
+    ${num('localSummarize.numCtx', L.numCtx ?? 8192, t('local.numCtx'), '', 1024, 131072)}${num('localSummarize.timeoutSec', L.timeoutSec ?? 120, t('local.timeout'), '', 5, 900)}${num('localSummarize.maxChars', L.maxChars ?? 24000, t('local.maxChars'), '', 1000, 200000)}
+    ${remote ? `<div class="verr" role="alert">${t('local.remote')}</div>` : ''}
+    <div class="pf"><button type="button" class="btn" id="localCheck">${t('local.check')}</button><span class="small ${S.local?.reachable && S.local?.hasModel ? 'muted' : 'bad'}">${stt}</span></div></div>`;
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -2376,7 +2398,7 @@ function renderSettingsView() {
       ${sw('allowPaidFallback', st.allowPaidFallback, t('set.paid'))}
       ${num('workerCap', st.workerCap, t('set.cap'), t('set.cap.hint'), 1, 16)}
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, t('set.sweep'), t('set.sweep.hint'))}
-    </div>` + routesBlock(),
+    </div>` + routesBlock() + localBlock(st),
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
       ${sw('openTabOnWake', !!st.openTabOnWake, t('set.openTabOnWake'), t('set.openTabOnWake.hint'))}
@@ -2474,6 +2496,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
     const pmb = e.target.closest('[data-pmode]'); if (pmb) return savePerm(pmb.dataset.pmode, { mode: pmb.dataset.pv || null });
     const prm = e.target.closest('[data-prem]'); if (prm) return api('/api/settings', { permissions: { perAgent: { [prm.dataset.prem]: null } } }, 'PUT').then((s) => { S.settings = s; renderSettingsView(); }, (err) => toast(err.message));
+    if (e.target.closest('#localCheck')) { S.local = null; renderSettingsView(); return loadLocal(); }
     if (e.target.closest('#hubRestart')) {
       return api('/api/restart', {}).then(() => { toast(t('hub.restarting')); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message));
     }
