@@ -18,7 +18,7 @@ export type CopilotStatus = { state: State; room: string; cwd: string; login?: s
 
 type Session = Pick<CopilotSession, 'sessionId' | 'sendAndWait' | 'disconnect'>;
 type Client = Pick<CopilotClient, 'start' | 'stop' | 'getAuthStatus' | 'createSession' | 'resumeSession'>;
-export type CopilotClientFactory = (cwd: string, baseDirectory: string) => Client | Promise<Client>;
+export type CopilotClientFactory = (cwd: string) => Client | Promise<Client>;
 
 export type CopilotAgentOptions = {
   dir: string;
@@ -32,12 +32,27 @@ export type CopilotAgentOptions = {
   createClient?: CopilotClientFactory;
 };
 
+const COPILOT_HOST_ENV = [
+  'COPILOT_CLI',
+  'COPILOT_CLI_RUN_AS_NODE',
+  'COPILOT_AGENT_SESSION_ID',
+  'COPILOT_MCP_APPS',
+  'COPILOT_ENABLE_BUILTIN_GITHUB_MCP',
+  'COPILOT_DISABLE_KEYTAR',
+];
+
+export function copilotRuntimeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const runtimeEnv = { ...env };
+  for (const key of COPILOT_HOST_ENV) delete runtimeEnv[key];
+  return runtimeEnv;
+}
+
 // Loaded on first start: the SDK calls createRequire(process.argv[1]) at import, which throws under `node -e` (the hub's restart load check).
-const defaultClient: CopilotClientFactory = async (cwd, baseDirectory) => new (await import('@github/copilot-sdk')).CopilotClient({
-  mode: 'empty',
+const defaultClient: CopilotClientFactory = async (cwd) => new (await import('@github/copilot-sdk')).CopilotClient({
+  mode: 'copilot-cli',
   workingDirectory: cwd,
-  baseDirectory: path.join(baseDirectory, 'copilot-sdk'),
   logLevel: 'error',
+  env: copilotRuntimeEnv(),
 });
 
 function mappedToolName(request: PermissionRequest): string {
@@ -174,15 +189,15 @@ export class CopilotAgent {
       const identity = this.identity ?? (this.identity = readIdentity(this.file));
       if (!fs.existsSync(this.file)) saveIdentity(this.file, identity);
       this.ensureRoom(identity);
-      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd, this.opts.dir);
+      const made = (this.opts.createClient ?? defaultClient)(this.opts.cwd);
       createdClient = made instanceof Promise ? await made : made;
       this.client = createdClient;
       await createdClient.start();
       const auth = await createdClient.getAuthStatus();
-      if (!auth.isAuthenticated) throw new Error('Copilot CLI is not signed in. Run `copilot` in a terminal as this Windows user and complete GitHub sign-in, then start Copilot again.');
+      if (!auth.isAuthenticated) throw new Error('Copilot CLI is not signed in. Run `copilot login` in a terminal as this Windows user, then start Copilot again.');
       const session = identity.providerId
-        ? await createdClient.resumeSession(identity.providerId, this.sessionConfig())
-        : await createdClient.createSession({ ...this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
+        ? await createdClient.resumeSession(identity.providerId, await this.sessionConfig())
+        : await createdClient.createSession({ ...await this.sessionConfig(), sessionId: crypto.randomUUID(), name: 'Bear Agent Manager Copilot' });
       this.session = session;
       if (session.sessionId !== identity.providerId) {
         identity.providerId = session.sessionId;
@@ -211,10 +226,19 @@ export class CopilotAgent {
     }
   }
 
-  private sessionConfig() {
+  private async sessionConfig() {
+    const { BuiltInTools, ToolSet } = await import('@github/copilot-sdk');
     const rule = permFor(this.opts.settings(), NAME);
     return {
       workingDirectory: this.opts.cwd,
+      availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).toArray(),
+      enableOnDemandInstructionDiscovery: false,
+      enableFileHooks: false,
+      enableHostGitOperations: false,
+      enableSessionStore: false,
+      enableSkills: false,
+      memory: { enabled: false },
+      customAgentsLocalOnly: true,
       onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,

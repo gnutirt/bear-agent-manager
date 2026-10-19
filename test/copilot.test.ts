@@ -4,14 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { copilotPermissionHandler } from '../hub/copilot.ts';
+import { copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
 import { defaultSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
 
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
 
 function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string; start?: () => Promise<void> } = {}) {
-  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; clientOptions?: { cwd: string; baseDirectory: string } } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[] } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
   function session(sessionId: string) {
     return {
       sessionId,
@@ -19,14 +19,14 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
       disconnect: async () => {},
     };
   }
-  const factory = (cwd: string, baseDirectory: string) => {
-    calls.clientOptions = { cwd, baseDirectory };
+  const factory = (_cwd: string) => {
     return {
       start: async () => { calls.started++; await start(); },
       getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
-      createSession: async (config: { sessionId?: string }) => {
+      createSession: async (config: { sessionId?: string; availableTools?: readonly string[] }) => {
         calls.created++;
         calls.providerId = config.sessionId ?? uuid;
+        calls.availableTools = [...(config.availableTools ?? [])];
         return session(calls.providerId);
       },
       resumeSession: async (id: string) => {
@@ -50,6 +50,24 @@ test('Copilot permission policy follows the hub permission mode and refuses mana
   assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, process.cwd())({ kind: 'shell', fullCommandText: 'git push origin' }, { sessionId: uuid }).kind, 'reject');
 });
 
+test('Copilot runtime does not inherit host CLI/IDE flags or keychain-disable setting', () => {
+  const env = copilotRuntimeEnv({
+    COPILOT_CLI: '1',
+    COPILOT_CLI_RUN_AS_NODE: '1',
+    COPILOT_AGENT_SESSION_ID: uuid,
+    COPILOT_MCP_APPS: '1',
+    COPILOT_ENABLE_BUILTIN_GITHUB_MCP: '1',
+    COPILOT_DISABLE_KEYTAR: '1',
+    COPILOT_HOME: 'C:\\Users\\test\\.copilot',
+    PATH: 'C:\\Windows',
+  });
+  assert.equal(env.COPILOT_HOME, 'C:\\Users\\test\\.copilot');
+  assert.equal(env.PATH, 'C:\\Windows');
+  for (const key of ['COPILOT_CLI', 'COPILOT_CLI_RUN_AS_NODE', 'COPILOT_AGENT_SESSION_ID', 'COPILOT_MCP_APPS', 'COPILOT_ENABLE_BUILTIN_GITHUB_MCP', 'COPILOT_DISABLE_KEYTAR']) {
+    assert.equal(env[key], undefined);
+  }
+});
+
 test('Copilot API joins the shared room with existing members and resumes the same SDK session', async () => {
   const { factory, calls } = fakeFactory();
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
@@ -65,7 +83,8 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(started.autoStart, true);
     assert.equal(started.login, 'test-user');
     assert.equal(calls.created, 1);
-    assert.deepEqual(calls.clientOptions, { cwd: process.cwd(), baseDirectory: h.dir });
+    assert.ok(calls.availableTools?.length);
+    assert.ok(calls.availableTools?.every((tool) => tool.startsWith('builtin:')));
     assert.deepEqual((await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
 
     assert.deepEqual(h.hub.store.members('bear-agent-manager').map((s) => s.name).sort(), ['Copilot', 'reviewer']);
@@ -137,7 +156,7 @@ test('Copilot startup reports missing CLI login and does not create an SDK sessi
     });
     assert.equal(response.status, 503);
     const body = await response.json() as any;
-    assert.match(body.error, /Run `copilot`/);
+    assert.match(body.error, /Run `copilot login`/);
     assert.equal(body.status.state, 'error');
     assert.equal(calls.created, 0);
     assert.equal(calls.stopped, 1, 'a failed unauthenticated runtime is stopped');
@@ -173,8 +192,7 @@ test('Copilot keeps its hub identity when auth fails before the first SDK sessio
   const signedIn = fakeFactory();
   hub = await startHub({ ...common, copilotClientFactory: signedIn.factory });
   try {
-    await until(() => hub.store.members('bear-agent-manager').some((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'Copilot retry after sign-in');
-    assert.equal(signedIn.calls.created, 1);
+    await until(() => signedIn.calls.created === 1, 5000, 'Copilot retry after sign-in');
     assert.equal(Object.values(hub.store.state.sessions).filter((s) => s.name === 'Copilot').length, 1);
   } finally {
     await hub.close();
@@ -221,13 +239,11 @@ test('hub startup restores the opted-in Copilot agent without an IDE', async () 
   };
   let hub = await startHub({ ...common, copilotClientFactory: first.factory });
   try {
-    await until(() => hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'startup Copilot session');
-    assert.equal(first.calls.created, 1);
+    await until(() => first.calls.created === 1, 5000, 'startup Copilot session');
   } finally { await hub.close(); }
   hub = await startHub({ ...common, copilotClientFactory: second.factory });
   try {
-    await until(() => hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'resumed Copilot session');
-    assert.equal(second.calls.created, 0);
+    await until(() => second.calls.resumed.length === 1, 5000, 'resumed Copilot session');
     assert.deepEqual(second.calls.resumed, [first.calls.providerId]);
   } finally {
     await hub.close();
