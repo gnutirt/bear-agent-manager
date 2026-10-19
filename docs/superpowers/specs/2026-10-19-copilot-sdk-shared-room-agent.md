@@ -28,7 +28,7 @@ The standalone path is now implemented behind Settings > Accounts:
 - Startup/auth/turn failures appear in the room and settings/API status. The first run requires the user to run `copilot` and complete GitHub sign-in as the same Windows user; no token or CLI login was performed as part of this change.
 - Claude's `Stop` hook runs a long-poll waiter while the session remains active. BAM messages can wake that waiter and be returned to Claude after the current model turn; they cannot interrupt an in-progress model request. If the waiter has expired or the IDE process ended, the hub waits for a later hook or uses the existing headless revive path where eligible.
 
-## Private chat in Bear Agent Manager, with no IDE
+## Direct chat in Bear Agent Manager, with no IDE
 
 The implemented direct-chat path is:
 
@@ -65,7 +65,7 @@ Therefore:
 
 ## Implementation boundaries and future work
 
-The current adapter has one fixed agent and room, serial message handling, persisted provider-session resume, explicit account-quota confirmation, and permission decisions based on the hub's permission mode. It uses the user's normal Copilot CLI profile; it does not create custom SDK tools, provide per-agent workspace selection, or expose the hub token to the model. The SDK client manages a CLI runtime child, but the hub does not yet provide a separate per-agent concurrency pool, cost reporting, or automatic recovery after an unexpected runtime exit. These are follow-up features, not prerequisites for using the opt-in single agent.
+The current adapter has one fixed agent in the shared `#bear-agent-manager` room, serial message handling, persisted provider-session resume, explicit account-quota confirmation, and permission decisions based on the hub's permission mode. It uses the user's normal Copilot CLI profile; it does not create custom SDK tools, provide per-agent workspace selection, or expose the hub token to the model. The SDK client manages a CLI runtime child, but the hub does not yet provide a separate per-agent concurrency pool, cost reporting, or automatic recovery after an unexpected runtime exit. These are follow-up features, not prerequisites for using the opt-in single agent.
 
 ## Suggested system lifecycle
 
@@ -79,7 +79,7 @@ The current adapter has one fixed agent and room, serial message handling, persi
 
 The user selected the existing Copilot account and one auto-started Copilot agent. Before it can run against the live model, the same Windows user must sign in interactively with `copilot`; then enable Copilot under Settings > Accounts. To launch the hub at Windows sign-in too, separately enable the existing hub autostart switch. No runtime startup, model request, or quota use was performed while implementing this feature.
 
-The current implementation tests the lifecycle with a fake SDK client: opt-in and confirmation, private-room delivery, persistence/resume of the same session ID, missing-login reporting, permission-mode mapping, and hub startup with the IDE closed. A live Copilot test should be one explicit synthetic prompt after sign-in; it consumes the user's account allowance.
+The current implementation tests the lifecycle with a fake SDK client: opt-in and confirmation, shared-room delivery alongside another member, persistence/resume of the same session ID, migration out of the old `#copilot` membership, missing-login reporting, permission-mode mapping, and hub startup with the IDE closed. A live Copilot test should be one explicit synthetic prompt after sign-in; it consumes the user's account allowance.
 
 Claude account handover remains separate: stop account A's process, confirm exit, then resume on account B using shared project storage. Never run two Claude processes writing the same resumed transcript concurrently or print credentials.
 
@@ -95,3 +95,12 @@ Claude account handover remains separate: stop account A's process, confirm exit
 - [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference) — non-interactive execution, resume, auth status, and agent-view commands.
 - [Claude Code agent view](https://code.claude.com/docs/en/agent-view) — local background-session supervisor, persistence, attach/detach, concurrency, and quota.
 - [Claude Code Remote Control](https://code.claude.com/docs/en/remote-control) — optional remote access to a local session; the host machine and Claude process still need to run.
+
+## Trạng thái hiện tại (hand-off)
+
+- **Đã code và test bằng fake SDK:** `CopilotAgent` tham gia room chung `#bear-agent-manager`, kể cả khi room đã có thành viên; danh tính hub và SDK session được lưu trong `copilot-agent.json` để resume; membership cũ ở `#copilot` được bỏ khi start lại, lịch sử room cũ không bị xóa. Permission mapping áp dụng `bypass`, `acceptEdits`, `default`, `plan` và deny rules; sender không tự wake, cursor ngăn đọc lại tin đã consume, `wakeTask` tuần tự hóa lượt Copilot, và loop guard room tạm pause khi agent-generated wakes vượt 30 cho tới khi người dùng gửi tin.
+- **Giới hạn Claude sync:** Stop hook của Claude duy trì long-poll waiter khi session còn hoạt động. Tin BAM đánh thức waiter sau khi lượt model hiện tại xong; không thể interrupt request đang chạy. Khi waiter không còn, hub chờ hook tiếp theo hoặc thử headless revive nếu đủ điều kiện.
+- **Chưa chạy thật:** cần đăng nhập `copilot` CLI dưới đúng Windows user, bật Copilot ở Settings > Accounts và restart hub để nạp code. Chưa gửi prompt thật, chưa xác nhận kết nối/auth SDK ngoài fake client, và chưa dùng quota. Cần test một prompt tổng hợp thật sau khi chủ repo cho phép.
+- **Các level còn chưa là room participant:** Intern/OpenRouter và Local Ollama hiện là worker được gọi theo route, Muse là MCP tool điều khiển Chrome remote; chúng chưa tự nhận `@mention`/tin room hay trả lời như thành viên độc lập. Cần thiết kế adapter/supervisor chung để bridge các worker này, có giới hạn concurrency/VRAM, attribution và chống loop.
+- **Tình trạng file trước hand-off commit:** file duy nhất còn sửa chưa commit theo `git status` là `docs/superpowers/specs/2026-10-19-copilot-sdk-shared-room-agent.md`. Code shared-room, test, comment settings đã nằm trong commit hiện tại `9d3f2fb`.
+- **Kiểm thử gần nhất:** 52/52 test mục tiêu qua (`copilot`, `i18n`, `routing`, `store`). Toàn bộ `npm test`: 389 pass, 2 fail, 1 skipped; lỗi là test timing `archive rounds never overlap...` và test `/api/restart` nạp `[eval]` (không thuộc diff Copilot). Chưa chạy `npm run release`, chưa push; Copilot thật chưa bật.
