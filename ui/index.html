@@ -1197,7 +1197,7 @@ const memberBody = (s) => `
       <section class="mblk danger"><h4>${t('members.blk.danger')}</h4><div class="mrow"><button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button>${isLead(s.id) ? `<button class="btn sm danger" data-clearlead="${esc(s.id)}" title="${t('members.clearLead.tip')}">${t('members.clearLead')}</button>` : ''}</div></section>
 `;
 function wireMember(m, list) {
-    const done = () => { closeMenu(); closeZoom(); };
+    const done = () => { zoomBack = null; closeMenu(); closeZoom(); };
     fillFollows(m);
     m.querySelectorAll('[data-lead]').forEach((b) => b.onclick = () => { done(); setLead(b.dataset.lead); });
     m.querySelectorAll('[data-goskill]').forEach((b) => b.onclick = () => { S.skAgent = b.dataset.goskill; done(); showTab('skills'); loadSkillUse(S.skAgent); });
@@ -1229,7 +1229,7 @@ function wireMember(m, list) {
 }
 function memberPopup(id) {
   const s = S.sessions[id]; if (!s) return;
-  closeMenu();
+  zoomBack = menuAnchor; closeMenu();
   zoom.innerHTML = `<div class="zbox mpop" role="dialog" aria-modal="true" aria-label="${esc(s.name)}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="mhd2">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span></small></span></div>${memberBody(s)}</div>`;
   zoom.hidden = false;
   const box = zoom.firstElementChild;
@@ -2897,7 +2897,8 @@ if (![...fontSel.options].some((o) => o.value === fontSel.value)) setFont('');
 
 // right-click a message group -> enlarged popup (copy of the rendered group, Esc / click outside closes)
 const zoom = document.createElement('div'); zoom.id = 'zoom'; zoom.hidden = true; document.body.appendChild(zoom);
-const closeZoom = () => { zoom.hidden = true; zoom.innerHTML = ''; };
+let zoomBack = null;   // the members menu a member popup was opened from: closing the popup brings that list back
+const closeZoom = () => { zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
 zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZoom(); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
 $('log').addEventListener('contextmenu', (e) => {
