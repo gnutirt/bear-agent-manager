@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest } from '@github/copilot-sdk';
 import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
-import { permFor, type Settings } from './settings.ts';
+import { permFor, type PermRule, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
 
 const NAME = 'Copilot';
@@ -82,8 +82,9 @@ function inside(dir: string, file: string): boolean {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-export function copilotPermissionHandler(rule: PermRule, cwd: string): PermissionHandler {
+export function copilotPermissionHandler(getRule: PermRule | (() => PermRule), cwd: string): PermissionHandler {
   return (request) => {
+    const rule = typeof getRule === 'function' ? getRule() : getRule;
     if (request.managedApprovalRequired) return { kind: 'user-not-available' };
     if (rule.deny.some((spec) => ruleMatches(spec, request))) return { kind: 'reject', feedback: 'This operation is denied by Bear Agent Manager settings.' };
     if (request.kind === 'mcp' && request.serverName === 'bear-agent-manager') return { kind: 'approve-once' };
@@ -234,7 +235,6 @@ export class CopilotAgent {
   }
 
   private sessionConfig(hubId: string) {
-    const rule = permFor(this.opts.settings(), NAME);
     return {
       workingDirectory: this.opts.cwd,
       enableOnDemandInstructionDiscovery: false,
@@ -257,7 +257,7 @@ export class CopilotAgent {
           },
         },
       },
-      onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
+      onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), NAME), this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,
         content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,

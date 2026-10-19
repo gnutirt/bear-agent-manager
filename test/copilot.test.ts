@@ -99,6 +99,19 @@ test('Copilot permission policy follows the hub permission mode and refuses mana
   assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, process.cwd())({ kind: 'shell', fullCommandText: 'git push origin' }, { sessionId: uuid }).kind, 'reject');
 });
 
+test('Copilot permission handler reads the current settings rule for every request', () => {
+  let rule = { mode: 'acceptEdits' as const, allow: [] as string[], deny: [] as string[] };
+  const handler = copilotPermissionHandler(() => rule, process.cwd());
+  const request = { kind: 'shell' as const, fullCommandText: 'npm test' };
+  assert.equal(handler(request, { sessionId: uuid }).kind, 'reject');
+
+  rule = { mode: 'bypass', allow: [], deny: [] };
+  assert.deepEqual(handler(request, { sessionId: uuid }), { kind: 'approve-once' });
+
+  rule = { mode: 'bypass', allow: [], deny: ['Bash(npm test:*)'] };
+  assert.equal(handler(request, { sessionId: uuid }).kind, 'reject');
+});
+
 test('Copilot runtime does not inherit host CLI/IDE flags or keychain-disable setting', () => {
   const env = copilotRuntimeEnv({
     COPILOT_CLI: '1',

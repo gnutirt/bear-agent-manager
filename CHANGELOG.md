@@ -9,6 +9,7 @@
 - Add: Copilot SDK sessions receive the room MCP tools with their own hub identity.
 - Fix: Copilot handles pending messages serially by room and posts its reply to the originating room, including private chats.
 - Fix: explicitly use UTF-8 for MCP stdio so room_send preserves Unicode text on Windows.
+- Fix: Copilot permission checks read the current per-agent Settings rule for each request, so permission changes apply without restarting the session.
 - Fix: the Compact button picks the account like a wake (the other account when this one is out of usage and chats are shared, else it says why), and a compaction that ran into the usage limit is reported as not done instead of "compacted (748k → not measured)". Needs hub restart.
 - Fix: a wake blocked by an account limit now runs on the other account. 2026-10-19 the user moved to the VS Code account and @-ed agents of the Antigravity account: each got "cannot wake until 17:09" although the VS Code account had room and chats were shared (D2 only ran on the unstick path). Now any background wake whose account is out of usage runs on another logged-in account with room left when chats are shared, with one notice "X runs this turn on Y because Z is out of usage" (`accountSwitch.autoOnWake`, on by default). Otherwise it stays blocked and says why (chats not shared, other account logged out or expired, other account full). Needs hub restart.
 ## 0.8.0 - 2026-10-19
