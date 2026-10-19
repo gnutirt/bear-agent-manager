@@ -1661,7 +1661,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       return json(res, 405, { error: 'method not allowed' });
     }
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|clear-lead|done|open-lead|topics|days)$/);
+    const dm = p.match(/^\/api\/rooms\/dm\/([^/]+)$/);
+    if (m === 'POST' && dm) {
+      const r = store.dmRoom(decodeURIComponent(dm[1]));
+      emitSession(store.session(r.dm!));
+      broadcast('rooms', Object.keys(store.state.rooms).sort().map((x) => store.roomInfo(x)));
+      return json(res, 200, store.roomInfo(r.name));
+    }
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|clear-lead|done|open-lead|topics|days|hide)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1714,6 +1721,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r)));
         for (const s of affected) emitSession(s);
         return json(res, 200, { ok: true, name: action === 'rename' ? b.name : null });
+      }
+      if (m === 'POST' && action === 'hide') {
+        store.hideDm(room);
+        emitRoom(room);
+        return json(res, 200, store.roomInfo(room));
       }
       if (m === 'POST' && action === 'lead') {
         const b = await readBody(req);

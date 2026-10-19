@@ -567,3 +567,25 @@ test('GET /api/settings says firstRun on a brand new hub until a room or a setti
   const again = await startHub({ ...opts, dir, port: 0 });   // the same folder: it has state now
   try { assert.equal((await (await fetch(`${again.url}/api/settings`, { headers: { 'x-room-token': again.token } })).json() as any).firstRun, false); } finally { await again.close(); }
 });
+
+test('private chat routes: POST /api/rooms/dm/:id opens it, POST /api/rooms/:room/hide hides it', async () => {
+  const h = await makeHub();
+  try {
+    await h.call('/api/sessions/register', { id: 'dm1', cwd: h.dir, name: 'alice' });
+    const r = await h.call<any>('/api/rooms/dm/dm1', {});
+    assert.equal(r.name, 'dm-dm1');
+    assert.equal(r.dm, 'dm1');
+    assert.equal(r.dmHidden, false);
+    assert.deepEqual(r.members, ['dm1']);
+    assert.equal((await h.call<any>('/api/rooms/dm/dm1', {})).name, 'dm-dm1', 'idempotent');
+    assert.equal((await h.call<any>('/api/rooms/dm-dm1/hide', {})).dmHidden, true);
+    assert.equal((await h.call<any[]>('/api/rooms')).find((x) => x.name === 'dm-dm1').dmHidden, true);
+    assert.equal((await h.call<any>('/api/rooms/dm/dm1', {})).dmHidden, false);
+    await assert.rejects(h.call('/api/rooms/dm/nobody', {}), (e: any) => e.status === 404);
+    await h.call('/api/rooms', { name: 'plain' });
+    await assert.rejects(h.call('/api/rooms/plain/hide', {}), (e: any) => e.status === 400);
+  } finally {
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});

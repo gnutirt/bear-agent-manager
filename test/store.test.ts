@@ -444,3 +444,28 @@ test('sweep judges a session with a pid by its process: alive stays busy past 3 
   t += 7 * 3600_000;
   assert.deepEqual(st.sweep(() => false, t, () => true).map((s) => s.id), ['d1']);
 });
+
+test('private chat: dmRoom is idempotent, keyed by session id, hide keeps history and dmRoom reopens it', () => {
+  const dir = tmp();
+  const st = new Store(dir);
+  const s = st.register({ id: 'dm-agent-1', cwd: path.join('D:', 'fw') });
+  const r = st.dmRoom(s.id);
+  assert.equal(r.name, 'dm-dm-agent-1');
+  assert.equal(r.dm, s.id);
+  assert.deepEqual(st.members(r.name).map((m) => m.id), [s.id]);
+  assert.equal(st.dmRoom(s.id), r, 'same room the second time');
+  st.post(r.name, null, 'hello agent');
+  assert.equal(st.roomInfo(r.name).dmHidden, false);
+  st.hideDm(r.name);
+  assert.equal(st.roomInfo(r.name).dmHidden, true);
+  assert.equal(st.history(r.name).length, 1, 'hiding keeps the history');
+  assert.equal(new Store(dir).roomInfo(r.name).dmHidden, true, 'survives reload');
+  st.dmRoom(s.id);
+  assert.equal(st.roomInfo(r.name).dmHidden, false, 'reopening unhides');
+  st.rename(s.id, 'Renamed');
+  assert.equal(st.dmRoom(s.id).name, r.name, 'a rename does not move the chat');
+  assert.throws(() => st.dmRoom('nobody'), (e: StoreError) => e.status === 404);
+  st.createRoom('plain');
+  assert.throws(() => st.hideDm('plain'), (e: StoreError) => e.status === 400);
+  assert.equal('dm' in st.roomInfo('plain'), false);
+});

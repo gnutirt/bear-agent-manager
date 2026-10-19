@@ -34,10 +34,10 @@ export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
 const IDES = new Set<string>(['vscode', 'antigravity', 'cursor', 'cli']);
 const IDE_SUFFIX: Record<Ide, string> = { '': '', vscode: '', antigravity: '-ag', cursor: '-cursor', cli: '-cli' };
 export type Note = { id: number; text: string; by: string; byId: string | null; ts: number };
-export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[] };
+export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[]; dm?: string; dmHidden?: boolean };
 const MAX_NOTE = 1000;
 const MAX_NOTES = 60;
-export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null };
+export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null; dm?: string; dmHidden?: boolean };
 type State = {
   sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
   autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
@@ -303,6 +303,27 @@ export class Store {
     return s;
   }
 
+  /** The private 1:1 chat between the user and one agent: room `dm-<session id>` (by id, so a rename keeps it). Idempotent; reopening unhides it. */
+  dmRoom(sessionId: string): Room {
+    const s = this.session(sessionId);   // 404 for an unknown session
+    const name = `dm-${s.id}`;
+    this.join(s.id, name);
+    const r = this.state.rooms[name];
+    r.dm = s.id;
+    delete r.dmHidden;
+    this.save();
+    return r;
+  }
+
+  /** Closing a private chat hides it; the history stays and dmRoom() brings it back. */
+  hideDm(room: string): Room {
+    const r = this.room(room);
+    if (!r.dm) throw new StoreError(400, `#${room} is not a private chat`);
+    r.dmHidden = true;
+    this.save();
+    return r;
+  }
+
   leave(id: string, room: string): Session {
     const s = this.session(id);
     delete s.rooms[room];
@@ -332,7 +353,7 @@ export class Store {
   roomInfo(room: string): RoomInfo {
     const r = this.state.rooms[room];
     if (!r) throw new StoreError(404, `unknown room ${room}`);
-    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null };
+    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null, ...(r.dm ? { dm: r.dm, dmHidden: r.dmHidden === true } : {}) };
   }
 
   /** A member finished its part: posts "✅ Xong: …"; when every live member (lead excepted) is done, adds one system line. */
