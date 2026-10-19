@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.1 - 2026-10-19
+
 - Fix: `GET /api/machine` could overwrite the finished export result with the older one read from manifest.json (its disk read was still waiting when the export ended), so a poll saw no `copied`/`skipped`; the manifest is now read only when no export runs and never over a newer result. This was the flaky `machine export` test. `Hub.waiting(id)` tells tests (and nothing else) whether a long-poll waiter is registered; tests wait for events (`until()` in test/helpers.ts) instead of fixed sleeps, and the timing-based batching test uses a wide window. The whole suite plus `npm run smoke` ran 10 times in a row under 8 CPU-burning processes: 10/10 green.
 ## 0.7.0 - 2026-10-19
 
