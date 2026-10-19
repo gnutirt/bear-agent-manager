@@ -514,6 +514,11 @@ export const en: Record<string, string> = {
   'sys.act.starting': 'starting',
   'sys.agent.newFolder': 'No chat has run in {cwd} yet: confirm to start an agent working in that folder.',
   'sys.agent.started': 'Started agent {name} in the background in {cwd} (no editor needed). It can be opened in an editor any time.',
+  'sys.switch.offer': '{name} is out of usage ({note}). It can go on right away on the {to} account: press "Switch now", or wait for the reset.',
+  'sys.switch.done': '{name} moved to the {to} account and goes on in the background ({note}).',
+  'sys.switch.note': '{from} used {pct}%, the other account has {left}% left',
+  'sys.switch.byUser': 'switched by the repo owner',
+  'sys.switch.notShared': 'The two accounts do not share chats yet: turn on "Shared chats" in Settings > Accounts first.',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
   'sys.stop.unknown': 'unknown',
   'sys.stop.limit': '@you {name} hit its plan limit. The tab is still open but no longer receives @; open the tab and type again after that time.',
@@ -876,4 +881,6 @@ export const en: Record<string, string> = {
   'sm.s5.share': 'Chats: {s}',
   'sm.s5.auto': 'Hub autostart: {s}',
   'sm.s5.open': 'Open the Accounts tab',
+  'task.doneWhenLabel': 'Done when:',
+  'task.more': 'More',
 };

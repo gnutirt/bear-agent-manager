@@ -514,6 +514,11 @@ export const vi: Record<string, string> = {
   'sys.act.starting': 'đang khởi động',
   'sys.agent.newFolder': 'Chưa có chat nào chạy trong {cwd}: xác nhận để tạo agent làm việc ở thư mục này.',
   'sys.agent.started': 'Đã tạo agent {name} chạy nền trong {cwd} (không cần IDE). Mở lại trong IDE lúc nào cũng được.',
+  'sys.switch.offer': '{name} hết hạn mức ({note}). Có thể chuyển sang tài khoản {to} để làm tiếp ngay: bấm "Chuyển ngay", hoặc chờ tự dậy khi reset.',
+  'sys.switch.done': '{name} chuyển sang tài khoản {to} và làm tiếp ở chế độ nền ({note}).',
+  'sys.switch.note': '{from} đã dùng {pct}%, tài khoản kia còn {left}%',
+  'sys.switch.byUser': 'chủ repo bấm chuyển',
+  'sys.switch.notShared': 'Hai tài khoản chưa dùng chung chat: bật "Dùng chung chat" ở Cài đặt > Tài khoản trước.',
   'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',
   'sys.stop.unknown': 'không rõ',
   'sys.stop.limit': '@you {name} hết hạn mức gói. Tab vẫn mở nhưng không nhận @ nữa; mở tab và gõ tiếp sau giờ đó.',
@@ -876,4 +881,6 @@ export const vi: Record<string, string> = {
   'sm.s5.share': 'Chat: {s}',
   'sm.s5.auto': 'Hub tự khởi động: {s}',
   'sm.s5.open': 'Mở tab Tài khoản',
+  'task.doneWhenLabel': 'Xong khi:',
+  'task.more': 'Thêm',
 };

@@ -359,7 +359,7 @@ header .spacer{flex:1}
 .vw.wide{max-width:1500px}.thead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}.thead h2{margin:0}.tbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tform{display:grid;gap:8px;grid-template-columns:2fr 2fr 1fr;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:14px}.tform textarea,.tform .row{grid-column:1/-1}.tform .row{display:flex;gap:8px;justify-content:flex-end}
 .tform input,.tform textarea,.tform select,.tbar select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
-.tboard{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:8px}
+.tboardOLD{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:8px}
 .tcol{background:color-mix(in srgb,var(--text) 3%,transparent);border:1px solid var(--line);border-radius:14px;padding:10px;min-height:120px}
 .tboard .tcol h3{margin:0 0 8px;padding:0;font-size:13.5px;display:flex;align-items:center;gap:7px}.tcol h3 small{color:var(--mute);font-weight:600}
 .tdot{width:9px;height:9px;border-radius:50%;background:var(--mute)}.tdot.st-doing{background:#F59E0B}.tdot.st-blocked{background:#EF4444}.tdot.st-done{background:#22C55E}.tdot.st-todo{background:#64748B}
@@ -423,6 +423,15 @@ header .spacer{flex:1}
 .seg.sysseg button:not([aria-pressed=true]){color:color-mix(in srgb,var(--text) 92%,var(--mute))}
 :root:is([data-theme=light],[data-theme=gray],[data-theme=solarized],[data-theme=rose],[data-theme=ocean],[data-theme=glasslight],[data-theme=excel]) .group.you .head>b{color:color-mix(in srgb,var(--accent) 72%,#000)!important}
 @media (prefers-color-scheme:light){:root[data-theme=auto] .group.you .head>b{color:color-mix(in srgb,var(--accent) 72%,#000)!important}}
+.tsec{margin:0 0 18px}.tsec h3{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:8px}.tsec h3 small{color:var(--mute);font-weight:600}
+.tlist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.trow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 10px;padding:10px 14px;border-bottom:1px solid var(--line)}.trow:last-child{border-bottom:0}.trow:hover{background:var(--hover)}
+.tdotb{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin-top:-2px}.tdotb:hover{background:var(--hover)}
+.tmain{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:3px}.ttitle{font-weight:600;font-size:14.5px;line-height:1.4}.trow.st-done .ttitle{color:var(--mute);font-weight:500;text-decoration:line-through}
+.tinfo{display:flex;gap:10px;align-items:center;font-size:12px}
+.tdetail{flex:0 0 100%;padding:4px 0 2px 36px;font-size:13.5px}.tdetail p{margin:4px 0}.tmeta2{display:flex;gap:10px;align-items:center;margin-top:6px}.tdetail .tacts{margin-top:10px}
+.tfilter{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.tmore{position:relative}.tmore summary{list-style:none;cursor:pointer}.tmore summary::-webkit-details-marker{display:none}.tmenu2{position:absolute;right:0;top:110%;z-index:5;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:210px}
+.tform{grid-template-columns:2fr 1fr 2fr}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -1883,7 +1892,7 @@ $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-t
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 // Filled in by the Worker / Token / Cài đặt views below.
 /* ---------- Việc tab (K3): the room's tasklist as four columns (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
-S.tasks = {}; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
+S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
 const TCOLS = ['todo', 'doing', 'blocked', 'done'];
 const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
 const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
@@ -1895,32 +1904,41 @@ function renderTasks() {
   const r = S.current, list = S.tasks[r] || [], n = openTasks(r).length;
   $('tabTaskCount').textContent = n ? n : '';
   if (S.tab !== 'tasks') return;
-  const members_ = members(r), owners = [...new Set([...members_.map((m) => m.name), ...list.map((x) => x.owner).filter(Boolean)])].sort();
+  const owners = [...new Set(list.map((x) => x.owner).filter(Boolean))].sort();
+  const allNames = [...new Set([...members(r).map((m) => m.name), ...owners])].sort();
   const shown = list.filter((x) => !S.tfOwner || (x.owner || '') === S.tfOwner);
-  const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + owners.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
-  const card = (x) => {
-    const editing = S.taskEdit === x.id;
-    return `<article class="tcard st-${x.status}" data-tid="${x.id}"><div class="tt"><span class="tid">#${x.id}</span> ${editing ? `<input class="tedit" data-tedit-in value="${esc(x.title)}" maxlength="200" aria-label="${t('task.edit')}">` : `<b>${esc(x.title)}</b>`}</div>
-      ${x.doneWhen ? `<div class="tdw">${esc(t('task.doneWhen', { t: x.doneWhen }))}</div>` : ''}
-      ${x.detail ? `<details class="tdet"><summary>${t('task.details')}</summary><div class="msg">${md(x.detail)}</div></details>` : ''}
-      ${x.note ? `<div class="tnote">${esc(x.note)}</div>` : ''}
-      <div class="tmeta">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : `<span class="muted">${t('task.unassigned')}</span>`}${x.fromMsg ? `<button type="button" class="tlink" data-tjump="${x.fromMsg}">${t('task.fromMsg', { id: x.fromMsg })}</button>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}<span class="muted tago">${agoText(x.doneAt || x.updatedAt)}</span></div>
-      <div class="tacts"><select data-tstatus="${x.id}" aria-label="${t('task.status')}">${TCOLS.map((s) => `<option value="${s}"${s === x.status ? ' selected' : ''}>${TCOL_KEY[s]}</option>`).join('')}</select><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><span style="flex:1"></span><button type="button" class="iconbtn" data-tedit="${x.id}" title="${t('task.edit')}" aria-label="${t('task.edit')}">${I.edit}</button><button type="button" class="iconbtn" data-tdel="${x.id}" title="${t('task.delete')}" aria-label="${t('task.delete')}">${I.trash}</button></div></article>`;
+  const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + allNames.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  const row = (x) => {
+    const open = S.taskOpen === x.id, editing = S.taskEdit === x.id;
+    return `<li class="trow st-${x.status}${open ? ' open' : ''}" data-tid="${x.id}">
+      <button type="button" class="tdotb" data-tnext="${x.id}" title="${TCOL_KEY[x.status]} → ${TCOL_KEY[TCOLS[(TCOLS.indexOf(x.status) + 1) % 4]]}" aria-label="${t('task.status')}: ${TCOL_KEY[x.status]}"><span class="tdot st-${x.status}"></span></button>
+      <div class="tmain" data-ttoggle="${x.id}">${editing ? `<input class="tedit" data-tedit-in value="${esc(x.title)}" maxlength="200" aria-label="${t('task.edit')}">` : `<span class="ttitle">${esc(x.title)}</span>`}
+        <span class="tinfo">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : ''}<span class="muted">${agoText(x.doneAt || x.updatedAt)}</span></span></div>
+      ${open ? `<div class="tdetail">${x.doneWhen ? `<p><b>${t('task.doneWhenLabel')}</b> ${esc(x.doneWhen)}</p>` : ''}${x.detail ? `<div class="msg">${md(x.detail)}</div>` : ''}${x.note ? `<p class="tnote">${esc(x.note)}</p>` : ''}
+        <div class="tmeta2">${x.fromMsg ? `<button type="button" class="tlink" data-tjump="${x.fromMsg}">${t('task.fromMsg', { id: x.fromMsg })}</button>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}</div>
+        <div class="tacts"><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><button type="button" class="btn sm" data-tedit="${x.id}">${t('task.edit')}</button><button type="button" class="btn sm danger" data-tdel="${x.id}">${t('task.delete')}</button></div></div>` : ''}
+    </li>`;
   };
-  const col = (s) => {
+  const sec = (s) => {
     let items = shown.filter((x) => x.status === s).sort((a, b) => s === 'done' ? (b.doneAt || b.updatedAt) - (a.doneAt || a.updatedAt) : a.id - b.id);
     const total = items.length;
-    if (s === 'done' && !S.taskDoneAll) items = items.slice(0, 10);
-    return `<section class="tcol" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.map(card).join('') || `<div class="tempty">${t('task.colEmpty')}</div>`}${s === 'done' && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
+    if (!total && s !== 'todo') return '';
+    const collapsed = s === 'done' && !S.taskDoneAll;
+    if (collapsed) items = items.slice(0, 5);
+    return `<section class="tsec" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
   };
-  const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><textarea name="detail" rows="2" placeholder="${t('task.form.detail')}" aria-label="${t('task.form.detail')}"></textarea><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
-  $('view-tasks').innerHTML = `<div class="vw wide"><div class="thead"><h2>${t('task.title')} <span class="aside">#${esc(r || '')}</span></h2><div class="tbar"><select id="taskOwner" aria-label="${t('task.owner')}">${ownerOpts(S.tfOwner, t('task.filterAll'))}</select><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button></div></div>
-    ${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
-    <div class="tboard">${TCOLS.map(col).join('')}</div></div>`;
+  const chips = [`<button type="button" class="tchip" data-townerf="" aria-selected="${!S.tfOwner}">${t('task.filterAll')}</button>`, ...owners.map((o) => `<button type="button" class="tchip" data-townerf="${esc(o)}" aria-selected="${S.tfOwner === o}">${esc(o)}</button>`)].join('');
+  const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
+  $('view-tasks').innerHTML = `<div class="vw"><div class="thead"><h2>${t('task.title')} <span class="aside">#${esc(r || '')}</span></h2><div class="tbar"><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button><details class="tmore"><summary class="btn" aria-label="${t('task.more')}">⋯</summary><div class="tmenu2"><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button></div></details></div></div>
+    ${owners.length > 1 ? `<div class="tfilter">${chips}</div>` : ''}${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
+    ${['doing', 'todo', 'blocked', 'done'].map(sec).join('')}</div>`;
   const ed = $('view-tasks').querySelector('[data-tedit-in]'); if (ed) { ed.focus(); ed.select(); }
 }
 $('view-tasks').addEventListener('click', (e) => {
   const r = S.current, q = (sel) => e.target.closest(sel);
+  const tn = q('[data-tnext]'); if (tn) { const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext); if (x) { const ns = TCOLS[(TCOLS.indexOf(x.status) + 1) % 4]; return api(`/api/rooms/${enc(r)}/tasks/${x.id}`, { status: ns }).then(() => loadTasks(r), (err) => toast(err.message)); } }
+  const tf = q('[data-townerf]'); if (tf) { S.tfOwner = tf.dataset.townerf; return renderTasks(); }
+  const tt = q('[data-ttoggle]'); if (tt && !q('.tedit') && !q('a,button')) { const id = +tt.dataset.ttoggle; S.taskOpen = S.taskOpen === id ? null : id; return renderTasks(); }
   if (q('#taskAdd')) { S.taskForm = !S.taskForm; return renderTasks(); }
   if (q('#taskCancel')) { S.taskForm = false; return renderTasks(); }
   if (q('#taskDoneAll')) { S.taskDoneAll = true; return renderTasks(); }
