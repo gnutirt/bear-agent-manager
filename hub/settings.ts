@@ -22,6 +22,7 @@ export type Settings = {
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
+  localSummarize: LocalSummarize;   // summaries by an AI on this machine (Ollama); off by default
   permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
@@ -38,6 +39,8 @@ const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, lo: number, hi: number) => (v == null || !Number.isFinite(Number(v)) ? d : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
 export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase();
 
+export type LocalSummarize = { enabled: boolean; host: string; model: string; numCtx: number; timeoutSec: number; maxChars: number };
+const httpUrl = (v: unknown, cur: string) => { try { const u = new URL(String(v)); return u.protocol === 'http:' || u.protocol === 'https:' ? `${u.protocol}//${u.host}` : cur; } catch { return cur; } };
 export const PERM_MODES = ['bypass', 'acceptEdits', 'default', 'plan'] as const;
 export type PermMode = (typeof PERM_MODES)[number];
 export type PermRule = { mode: PermMode; allow: string[]; deny: string[] };
@@ -55,7 +58,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -159,6 +162,14 @@ export function patchSettings(s: Settings, p: any): Settings {
     agentSkills: agents,
     agentCompact: compact,
     permissions: perm,
+    localSummarize: {
+      enabled: bool(p?.localSummarize?.enabled, s.localSummarize.enabled),
+      host: httpUrl(p?.localSummarize?.host, s.localSummarize.host),
+      model: typeof p?.localSummarize?.model === 'string' && /^[\w.:\/-]{1,80}$/.test(p.localSummarize.model.trim()) ? p.localSummarize.model.trim() : s.localSummarize.model,
+      numCtx: int(p?.localSummarize?.numCtx, s.localSummarize.numCtx, 1024, 131072),
+      timeoutSec: int(p?.localSummarize?.timeoutSec, s.localSummarize.timeoutSec, 5, 900),
+      maxChars: int(p?.localSummarize?.maxChars, s.localSummarize.maxChars, 1000, 200000),
+    },
     reviveTools: rt,
     agentModel: am,
     lead,

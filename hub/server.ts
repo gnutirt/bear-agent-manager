@@ -20,6 +20,7 @@ import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '..
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
+import { localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
 import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
@@ -128,7 +129,8 @@ export type HubOptions = {
   usageHome?: string;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
-  openFolder?: (dir: string) => void;   // tests stub it so no file manager opens
+  openFolder?: (dir: string) => void;
+  localFetch?: typeof fetch;   // tests: a fake Ollama   // tests stub it so no file manager opens
 };
 
 const WORKER_POLL_MS = 5000;
@@ -1029,6 +1031,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const q = { role: url.searchParams.get('role') ?? '', q: url.searchParams.get('q') ?? '', license: url.searchParams.get('license') ?? '' };
       const skills = filterSkills(lib.skills, q).map((s) => ({ ...s, installed: installedIn(s.name, dirs) }));
       return json(res, 200, { skills, total: lib.skills.length, roles: lib.roles, licenses: lib.licenses, configDirs: dirs });
+    }
+    // localSummarize: a small AI on this machine summarizes a file of the agent's folder (or text); off by default
+    if (m === 'GET' && p === '/api/local/status') return json(res, 200, await localStatus(loadSettings(opts.dir, envCap).localSummarize, opts.localFetch));
+    if (m === 'POST' && p === '/api/local/summarize') {
+      const b = await readBody(req), cfg = loadSettings(opts.dir, envCap).localSummarize;
+      if (!cfg.enabled) throw new StoreError(409, 'local summarize is off (Settings: localSummarize)');
+      let text = typeof b.text === 'string' ? b.text : '';
+      if (b.file) text = readSessionFile(store.session(String(b.sessionId ?? '')).cwd, String(b.file));
+      return json(res, 200, await localSummary(cfg, String(b.task ?? 'summary'), text, opts.localFetch));
     }
     // A3: where the data lives and how big it is; the folder to open is a name from a fixed list, never a client path
     if (m === 'GET' && p === '/api/data') return json(res, 200, dataInfo(opts.dir));
