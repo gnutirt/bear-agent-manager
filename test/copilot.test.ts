@@ -46,13 +46,17 @@ function callRoomMcp(config: { command?: string; args?: string[]; env?: Record<s
   });
 }
 
-function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string; start?: () => Promise<void> } = {}) {
+function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string | ((prompt: string) => string); start?: () => Promise<void> } = {}) {
   type McpConfig = { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string };
   const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig> } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
   function session(sessionId: string) {
     return {
       sessionId,
-      sendAndWait: async (prompt: string | { prompt: string }) => { calls.prompts.push(typeof prompt === 'string' ? prompt : prompt.prompt); return { data: { content: response } }; },
+      sendAndWait: async (prompt: string | { prompt: string }) => {
+        const text = typeof prompt === 'string' ? prompt : prompt.prompt;
+        calls.prompts.push(text);
+        return { data: { content: typeof response === 'function' ? response(text) : response } };
+      },
       disconnect: async () => {},
     };
   }
@@ -148,7 +152,7 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot check this change' });
     await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === '@Coder_No_2 please review this change'), 5000, 'Copilot reply with mention');
     assert.match(calls.prompts[0], /check this change/);
-    assert.match(calls.prompts[0], /shared Bear Agent Manager room #bear-agent-manager/);
+    assert.match(calls.prompts[0], /Bear Agent Manager room #bear-agent-manager/);
     assert.match(calls.prompts[0], /write @ followed by their exact room name/);
     const mention = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).find((m) => m.from === 'Copilot');
     assert.deepEqual(mention.mentions, ['coder_no_2']);
@@ -170,6 +174,43 @@ test('Copilot API joins the shared room with existing members and resumes the sa
     assert.equal(calls.availableTools, undefined, 'resumed sessions should keep native file and shell tools');
     assert.equal(calls.mcpServers?.['bear-agent-manager']?.env?.CLAUDE_CODE_SESSION_ID, member.id);
     assert.ok(!('copilot' in h.hub.store.state.sessions[member.id].rooms), 'legacy private-room membership is removed');
+  } finally {
+    await h.hub.close();
+    fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot processes pending messages per room and replies in each originating room', async () => {
+  const { factory, calls } = fakeFactory({
+    response: (prompt) => `Reply in #${prompt.match(/room #([^:]+):/)?.[1]}`,
+  });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await h.call('/api/copilot', { on: true, confirm: true });
+    const copilot = h.hub.store.members('bear-agent-manager').find((s) => s.name === 'Copilot');
+    assert.ok(copilot);
+
+    const privateRoom = `dm-${copilot.id}`;
+    h.hub.store.createRoom(privateRoom);
+    h.hub.store.join(copilot.id, privateRoom);
+    const human = h.hub.store.register({ id: uuid, name: 'you', cwd: process.cwd() });
+    h.hub.store.join(human.id, 'bear-agent-manager');
+    h.hub.store.join(human.id, privateRoom);
+    h.hub.store.post('bear-agent-manager', null, '@Copilot public request');
+    h.hub.store.post(privateRoom, null, 'private request');
+
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@Copilot process the queued rooms' });
+    await until(async () => {
+      const publicMessages = await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0');
+      const privateMessages = await h.call<any[]>(`/api/rooms/${privateRoom}/messages?after=0`);
+      return publicMessages.some((m) => m.from === 'Copilot' && m.text === 'Reply in #bear-agent-manager')
+        && privateMessages.some((m) => m.from === 'Copilot' && m.text === `Reply in #${privateRoom}`);
+    }, 5000, 'Copilot replies in the public and private rooms');
+
+    assert.equal(calls.prompts.length, 2);
+    assert.ok(calls.prompts.some((prompt) => prompt.includes('room #bear-agent-manager:') && prompt.includes('public request') && !prompt.includes('private request')));
+    assert.ok(calls.prompts.some((prompt) => prompt.includes(`room #${privateRoom}:`) && prompt.includes('private request') && !prompt.includes('public request')));
   } finally {
     await h.hub.close();
     fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });

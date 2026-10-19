@@ -119,12 +119,12 @@ function saveIdentity(file: string, identity: Identity): void {
   fs.renameSync(temp, file);
 }
 
-function formatMessages(messages: ReturnType<Store['pending']>['messages'], cwd: string): string {
+function formatMessages(room: string, messages: ReturnType<Store['pending']>['messages'], cwd: string): string {
   const items = messages
     .filter((m) => m.kind !== 'system')
     .map((m) => `[${m.from}] ${m.text}`)
     .filter(Boolean);
-  return `New messages in the shared Bear Agent Manager room #${ROOM}:\n${items.join('\n\n')}\n\nWork in ${cwd}. When you need another agent to respond, write @ followed by their exact room name (for example @Coder_No_2); the hub parses that as a mention and wakes them. You can reply to the room only with your final response; the hub posts it for you.`;
+  return `New messages in the Bear Agent Manager room #${room}:\n${items.join('\n\n')}\n\nWork in ${cwd}. When you need another agent to respond, write @ followed by their exact room name (for example @Coder_No_2); the hub parses that as a mention and wakes them. Reply to this room only; the hub posts your final response here.`;
 }
 
 function splitMessage(text: string, limit = 7800): string[] {
@@ -260,7 +260,7 @@ export class CopilotAgent {
       onPermissionRequest: copilotPermissionHandler(rule, this.opts.cwd),
       systemMessage: {
         mode: 'append' as const,
-        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} with the user and other agents. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
+        content: `You are ${NAME}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you posted the result with room_send, make your final response a one-line confirmation to avoid repeating the room message. Reply with a concise status and result when finished.`,
       },
     };
   }
@@ -311,18 +311,27 @@ export class CopilotAgent {
       }
       const batch = pending.messages;
       const upTo = batch[batch.length - 1].id;
-      const prompt = formatMessages(batch, this.opts.cwd);
-      this.opts.store.setStatus(id, 'busy', 'Working on your message');
-      this.setStatus({ state: 'busy', error: undefined });
-      this.opts.onChange(this.snapshot());
-      const response = await session.sendAndWait({ prompt }, TURN_TIMEOUT_MS);
-      const content = response?.data.content?.trim();
-      if (!content) throw new Error('Copilot finished without a final response.');
-      this.opts.store.consume(id, upTo);
-      for (const part of splitMessage(content)) {
-        const posted = this.opts.store.post(ROOM, id, part);
-        this.opts.onMessage(ROOM, posted.message);
+      const byRoom = new Map<string, typeof batch>();
+      for (const message of batch) {
+        const messages = byRoom.get(message.room) ?? [];
+        messages.push(message);
+        byRoom.set(message.room, messages);
       }
+      for (const [room, messages] of byRoom) {
+        if (messages.every((message) => message.kind === 'system')) continue;
+        const prompt = formatMessages(room, messages, this.opts.cwd);
+        this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
+        this.setStatus({ state: 'busy', error: undefined });
+        this.opts.onChange(this.snapshot());
+        const response = await session.sendAndWait({ prompt }, TURN_TIMEOUT_MS);
+        const content = response?.data.content?.trim();
+        if (!content) throw new Error(`Copilot finished without a final response for #${room}.`);
+        for (const part of splitMessage(content)) {
+          const posted = this.opts.store.post(room, id, part);
+          this.opts.onMessage(room, posted.message);
+        }
+      }
+      this.opts.store.consume(id, upTo);
       this.opts.store.setStatus(id, 'idle');
       this.setStatus({ state: 'idle', error: undefined });
       this.opts.onChange(this.snapshot());
