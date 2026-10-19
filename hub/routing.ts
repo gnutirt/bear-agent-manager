@@ -20,7 +20,8 @@ export type Message = {
 
 export const LOOP_LIMIT = 30;
 
-const MENTION = /(?:^|[\s(,;])@([A-Za-z0-9_-]+)/g;
+// Any non-word, non-path char before @ counts, so markdown like **@name** or `@name` still mentions; a@b.com and x/@y do not.
+const MENTION = /(?:^|[^A-Za-z0-9_.\-/@])@([A-Za-z0-9_-]+)/g;
 
 export function parseMentions(text: string): string[] {
   const out: string[] = [];

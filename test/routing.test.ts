@@ -12,6 +12,7 @@ test('parseMentions finds @names, lower-cases, dedupes, ignores emails', () => {
   assert.deepEqual(parseMentions('@fw and @Web, also @fw; mail a@b.com (@all)'), ['fw', 'web', 'all']);
   assert.deepEqual(parseMentions('no mentions here'), []);
   assert.deepEqual(parseMentions('@fw-2\n@x_y'), ['fw-2', 'x_y']);
+  assert.deepEqual(parseMentions('**@Coder_No_2**, `@fw` *@web* [@x] a.@no b/@no'), ['coder_no_2', 'fw', 'web', 'x']);
 });
 
 test('user message without mention wakes every member', () => {
