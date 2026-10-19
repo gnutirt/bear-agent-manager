@@ -14,6 +14,12 @@ const SYSTEM: Record<Task, string> = {
 };
 const MAX_OUT = 4000, MAX_FILE = 2 * 1024 * 1024;
 
+const MAX_INFLIGHT = 2;
+let inflight = 0;
+/** Files that hold secrets: never sent to a host that is not this machine. */
+const SECRET_FILE = /(^|[\\/])(\.env(\..*)?|\.npmrc|\.pypirc|\.netrc|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|pfx|p12|kdbx)|credentials(\.json)?|\.credentials\.json|secrets?\.(json|ya?ml|toml)|.*token.*|providers\.json)$/i;
+export const isSecretFile = (rel: string) => SECRET_FILE.test(rel);
+
 export const isLoopback = (host: string) => { try { return ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(new URL(host).hostname); } catch { return false; } };
 const base = (host: string) => host.replace(/\/+$/, '');
 
@@ -28,7 +34,7 @@ export async function localStatus(cfg: LocalCfg, f: typeof fetch = fetch) {
   const out = { enabled: cfg.enabled, host: cfg.host, model: cfg.model, remote: !isLoopback(cfg.host), reachable: false, hasModel: false };
   if (!cfg.enabled) return out;
   try {
-    const r = await f(`${base(cfg.host)}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    const r = await f(`${base(cfg.host)}/api/tags`, { redirect: 'error', signal: AbortSignal.timeout(3000) });
     if (!r.ok) return out;
     const j: any = await r.json();
     out.reachable = true;
@@ -42,15 +48,17 @@ export async function localSummary(cfg: LocalCfg, task: string, text: string, f:
   if (!(TASKS as readonly string[]).includes(task)) throw new StoreError(400, `task must be one of ${TASKS.join(', ')}`);
   if (!text.trim()) throw new StoreError(400, 'nothing to summarize');
   const input = clip(text, cfg.maxChars), t0 = Date.now();
+  if (inflight >= MAX_INFLIGHT) throw new StoreError(429, 'the local model is busy with other requests, try again in a moment');
+  inflight++;
   let r: Response;
   try {
     r = await f(`${base(cfg.host)}/api/chat`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(cfg.timeoutSec * 1000),
+      method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(cfg.timeoutSec * 1000),
       body: JSON.stringify({ model: cfg.model, stream: false, options: { num_ctx: cfg.numCtx, temperature: 0.2 }, messages: [{ role: 'system', content: SYSTEM[task as Task] }, { role: 'user', content: input }] }),
     });
   } catch (e: any) {
     throw new StoreError(502, e?.name === 'TimeoutError' ? `the local model did not answer within ${cfg.timeoutSec} s` : `cannot reach ${cfg.host}: is Ollama running?`);
-  }
+  } finally { inflight--; }
   if (r.status === 404) throw new StoreError(502, `model ${cfg.model} is not installed (ollama pull ${cfg.model})`);
   if (!r.ok) throw new StoreError(502, `the local model answered HTTP ${r.status}`);
   const j: any = await r.json().catch(() => null);

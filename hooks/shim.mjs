@@ -25,7 +25,7 @@ const sameName = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8
 function sourceRoot() {
   try {
     const raw = fs.readFileSync(path.join(home, 'source'), 'utf8').trim();
-    if (!raw || !path.isAbsolute(raw)) return '';
+    if (!raw || !path.isAbsolute(raw) || /^[\\/]{2}/.test(raw)) return '';   // not relative, never a network share (\\server\share)
     const real = fs.realpathSync(raw);
     if (path.normalize(real).toLowerCase() !== path.normalize(raw).toLowerCase()) return '';   // a link to somewhere else
     if (!sameName(path.join(real, 'package.json')) || !sameName(path.join(real, '.claude-plugin', 'plugin.json'))) return '';

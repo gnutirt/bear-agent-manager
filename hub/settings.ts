@@ -46,7 +46,7 @@ export type PermMode = (typeof PERM_MODES)[number];
 export type PermRule = { mode: PermMode; allow: string[]; deny: string[] };
 export type Permissions = { default: PermRule; perAgent: Record<string, Partial<PermRule>> };
 /** One tool spec for --allowedTools / --disallowedTools ("Edit", "Bash(git push:*)", "mcp__x__y"). No quotes or shell characters: it ends up on a command line. */
-const TOOL_SPEC = /^[A-Za-z][\w .:*()\/\\@,-]{0,119}$/;
+const TOOL_SPEC = /^[A-Za-z][\w .:*()\/@,-]{0,119}$/;   // no backslash: a trailing one would escape the closing quote on a Windows command line
 const toolList = (v: unknown, cur: string[]) => (Array.isArray(v) ? [...new Set(v.map((t) => String(t).trim()).filter((t) => TOOL_SPEC.test(t)))].slice(0, 60) : cur);
 
 /** The rule for one agent: its own entry over the default; an agent that only has the old reviveTools list keeps that choice (default mode + those tools). */

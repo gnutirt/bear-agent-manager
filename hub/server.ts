@@ -20,7 +20,7 @@ import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '..
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
-import { localStatus, localSummary, readSessionFile } from './localai.ts';
+import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
 import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
@@ -1038,7 +1038,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req), cfg = loadSettings(opts.dir, envCap).localSummarize;
       if (!cfg.enabled) throw new StoreError(409, 'local summarize is off (Settings: localSummarize)');
       let text = typeof b.text === 'string' ? b.text : '';
-      if (b.file) text = readSessionFile(store.session(String(b.sessionId ?? '')).cwd, String(b.file));
+      if (b.file) {
+        if (!isLoopback(cfg.host) && isSecretFile(String(b.file))) throw new StoreError(403, `${b.file} looks like a secrets file and the local model host is not this machine`);
+        text = readSessionFile(store.session(String(b.sessionId ?? '')).cwd, String(b.file));
+      }
       return json(res, 200, await localSummary(cfg, String(b.task ?? 'summary'), text, opts.localFetch));
     }
     // A3: where the data lives and how big it is; the folder to open is a name from a fixed list, never a client path
