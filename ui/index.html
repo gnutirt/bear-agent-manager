@@ -1489,8 +1489,9 @@ function sysRow(m, run) {
   const when = run ? `${time(run[0].ts)}–${time(run[run.length - 1].ts)}` : time(m.ts);
   const ag = m.sys?.agent && Object.values(S.sessions).find((x) => x.name === m.sys.agent);
   const btn = ag && ag.status === 'offline' && ['usage', 'wake'].includes(m.sys.type) && m.sys.level !== 'info' ? `<button type="button" class="act" data-sysopen="${esc(ag.id)}">${t('members.openTab')}</button>` : '';
+  const act = m.sys?.action?.kind === 'switch' ? `<button type="button" class="act" data-swnow="${esc(m.sys.action.session)}" data-swto="${esc(m.sys.action.to)}">${t('sw.now', { to: esc(repo(m.sys.action.to)) })}</button>` : '';
   const body = open && long ? `<div class="evbody msg noclamp">${md(lines.slice(1).join('\n') || text)}</div>` : '';
-  return `<div class="ev ${m.sys?.level || 'info'}${long ? ' long' : ''}${open ? ' open' : ''}" data-sysid="${m.id}">${sysNode(m)}<span class="t">${inline(lines[0])}${run ? `<span class="x">×${run.length}</span>` : ''}</span>${btn}<time>${when}</time>${body}</div>`;
+  return `<div class="ev ${m.sys?.level || 'info'}${long ? ' long' : ''}${open ? ' open' : ''}" data-sysid="${m.id}">${sysNode(m)}<span class="t">${inline(lines[0])}${run ? `<span class="x">×${run.length}</span>` : ''}</span>${btn}${act}<time>${when}</time>${body}</div>`;
 }
 function relayCard(m) {
   const text = String(m.text), name = m.sys?.agent || m.from, open = S.sysMode === 'full' || S.expanded.has('s' + m.id), long = text.length > 220 || text.split('\n').length > 3;
@@ -1499,6 +1500,7 @@ function relayCard(m) {
 function renderSysSeg() { document.querySelectorAll('#sysSeg [data-sys]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sys === S.sysMode))); }
 $('sysSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-sys]'); if (!b) return; S.sysMode = b.dataset.sys; try { localStorage.setItem('bear-agent-manager:sysmode', S.sysMode); } catch {} renderSysSeg(); S.stick = false; renderLog(); });
 $('log').addEventListener('click', (e) => {
+  const swn = e.target.closest('[data-swnow]'); if (swn) return api(`/api/sessions/${enc(swn.dataset.swnow)}/switch`, { to: swn.dataset.swto }).then(() => toast(t('sw.done')), (err) => toast(/share|409/i.test(err.message) ? t('sw.needShare') + ' ' + err.message : err.message));
   const open = e.target.closest('[data-sysopen]'); if (open) return openTab(open.dataset.sysopen);
   const more = e.target.closest('[data-sysmore]');
   const row = more ? null : e.target.closest('.ev.long');
@@ -2558,6 +2560,14 @@ S.acct = undefined; S.auto = undefined; S.sharePlan = null; S.agentAsk = null; S
 function loadAccounts() {
   Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null)]).then(([a, au]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
 }
+const SWM = lazy({ off: 'sw.mode.off', ask: 'sw.mode.ask', auto: 'sw.mode.auto' });
+const SWH = lazy({ off: 'sw.mode.hint.off', ask: 'sw.mode.hint.ask', auto: 'sw.mode.hint.auto' });
+function switchBlock(st) {
+  const sw_ = st.accountSwitch || { mode: 'ask', atPct: 90, minOtherLeftPct: 20 };
+  const modes = ['off', 'ask', 'auto'];
+  return `<div class="pmodes" role="radiogroup" aria-label="${t('sw.mode')}">${modes.map((m) => `<button type="button" class="pmode" role="radio" aria-checked="${sw_.mode === m}" data-swmode="${m}">${SWM[m]}</button>`).join('')}</div><p class="small muted">${SWH[sw_.mode]}</p>
+    ${num('accountSwitch.atPct', sw_.atPct, t('sw.atPct'), '', 50, 100)}${num('accountSwitch.minOtherLeftPct', sw_.minOtherLeftPct, t('sw.minLeft'), '', 1, 100)}`;
+}
 function accountBlock(st) {
   if (S.acct === undefined) { S.acct = null; loadAccounts(); }
   const A = S.acct;
@@ -2581,6 +2591,7 @@ function accountBlock(st) {
   const au = S.auto, aa = S.autoAsk;
   const autoHtml = !au ? '' : !au.supported ? `<p class="small muted">${t('ac.auto.unsupported')}</p>` : `<div class="pf"><b class="${au.on ? 'okt' : ''}">${au.on ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="autoToggle">${au.on ? t('ac.auto.turnOff') : t('ac.auto.turnOn')}</button></div>${aa ? `<div class="aplan"><p class="small">${esc(t(au.on ? 'ac.auto.removeFile' : 'ac.auto.file', { file: au.file || '' }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="autoCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="autoConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
   return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
+    <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
     <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
     <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
@@ -2755,6 +2766,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
+    const swm = e.target.closest('[data-swmode]'); if (swm) return api('/api/settings', { accountSwitch: { mode: swm.dataset.swmode } }, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#shareToggle')) { const on = !S.acct.shared; return api('/api/accounts/share', { on }).then((d) => { S.sharePlan = { on, plan: d.plan || [] }; renderSettingsView(); }, (err) => toast(err.message)); }
     if (e.target.closest('#shareCancel')) { S.sharePlan = null; return renderSettingsView(); }
     if (e.target.closest('#shareConfirm')) { const sp = S.sharePlan; return api('/api/accounts/share', { on: sp.on, confirm: true }).then((d) => { S.acct = { accounts: d.accounts, primary: d.primary, shared: d.shared }; S.sharePlan = null; toast(t('ac.share.done')); renderSettingsView(); }, (err) => { sp.error = err.message; renderSettingsView(); }); }
