@@ -395,6 +395,10 @@ header .spacer{flex:1}
 @media (max-width:700px){.plists{grid-template-columns:1fr}}
 .bgtag{flex:none;padding:0 6px;border:1px solid var(--side-line,var(--line));border-radius:6px;font-size:10.5px;font-weight:700;line-height:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--side-mute,var(--mute))}.bgdot{font-size:11px;opacity:.7}
 .legalas{font-size:11.5px;color:var(--mute);margin:2px 0 4px}.legalas small{display:block;opacity:.85}.legalas.stale{color:color-mix(in srgb,#F59E0B 55%,var(--text));font-weight:600}
+.hsum{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;margin:8px 0 12px;background:var(--panel)}.hsum.bad{border-color:#EF4444}.hsum.warn{border-color:#F59E0B}
+.hdot{flex:none;width:11px;height:11px;border-radius:50%;background:var(--mute)}.hdot.ok{background:#22C55E}.hdot.warn{background:#F59E0B}.hdot.bad{background:#EF4444}.hdot.info{background:#64748B}
+.hlist{display:flex;flex-direction:column;gap:8px}.hrow{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.hrow .hdot{margin-top:6px}
+.hrow .hb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.hrow .hb span{color:var(--mute);font-size:13.5px}.hrow .hb small{color:color-mix(in srgb,#F59E0B 55%,var(--text));font-size:12.5px}.hrow.bad .hb small{color:color-mix(in srgb,#EF4444 60%,var(--text))}
 .use{font-size:11.5px;color:var(--mute)}.use.never{color:var(--mute);font-style:italic}.warnchip{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;font-style:normal;font-weight:700;font-size:11px;color:#B45309;background:rgba(245,158,11,.2)}
 :root:is([data-theme=dark],[data-theme=glass],[data-theme=nord],[data-theme=dracula],[data-theme=midnight],[data-theme=forest],[data-theme=sunset],[data-theme=ocean]) .warnchip{color:#FCD34D;background:rgba(245,158,11,.28)}
 .usechip small{color:var(--mute);font-weight:600}.hideblk{margin:18px 0}.hideblk summary{cursor:pointer;margin-bottom:6px}
@@ -2297,7 +2301,7 @@ function routesBlock() {
   return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account' });
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account', health: 'sub.health' });
 /** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
 function loadData() {
   api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
@@ -2370,6 +2374,86 @@ function localBlock(st) {
     ${remote ? `<div class="verr" role="alert">${t('local.remote')}</div>` : ''}
     <div class="pf"><button type="button" class="btn" id="localCheck">${t('local.check')}</button><span class="small ${S.local?.reachable && S.local?.hasModel ? 'muted' : 'bad'}">${stt}</span></div></div>`;
 }
+/** Health: one read-only checklist from the APIs the other tabs already use. Each row has a level (ok / warn / bad / info), what it means, how to fix it and where to go. */
+function loadHealth() {
+  S.health = { loading: true }; if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
+  const get = (p) => api(p).catch(() => null);
+  Promise.all([get('/api/version'), get('/api/claude-usage'), get('/api/archive'), get('/api/machine'), get('/api/providers'), get('/api/data'), get('/api/settings'), get('/api/local/status')]).then(([version, usage, archive, machine, providers, data, settings, local]) => {
+    S.health = { version, usage, archive, machine, providers, data, settings, local, at: Date.now() };
+    if (settings) S.settings = settings;
+    if (S.tab === 'settings' && S.setSub === 'health') renderSettingsView();
+  });
+}
+function healthRows() {
+  const H = S.health, rows = [], st = H.settings || S.settings || {};
+  const row = (level, title, text, fix, go) => rows.push({ level, title, text, fix, go });
+  const unknown = (title, what) => row('info', title, t('hc.unknown', { what }));
+  // 1. hub and plugin
+  const v = H.version;
+  if (!v) unknown(t('hc.hub'), '/api/version');
+  else {
+    const best = {};
+    for (const p of v.plugins || []) { const k = p.configDir; if (!best[k] || cmpVer(p.version, best[k].version) > 0) best[k] = p; }
+    const off = Object.values(best).filter((p) => p.version !== v.current);
+    if (off.length) row('warn', t('hc.hub'), t('hc.hub.mismatch', { where: off.map((p) => repo(p.configDir)).join(', '), pv: off[0].version, v: v.current }), t('hc.hub.fix'));
+    else row('ok', t('hc.hub'), t('hc.hub.ok', { v: v.current, n: Object.keys(best).length }));
+    if (v.newer) row('warn', t('hc.hub'), t('hc.hub.newer', { v: v.latest, c: v.current }), t('hc.hub.newerFix'));
+  }
+  // 2. accounts
+  const plugins = H.version?.plugins || [];
+  if (!H.usage) unknown(t('hc.acct', { name: '' }).trim(), '/api/claude-usage');
+  for (const a of H.usage?.accounts || []) {
+    const name = a.label || repo(a.configDirs?.[0] || ''), title = t('hc.acct', { name }), pl = plugins.filter((p) => (a.configDirs || []).some((d) => sameDir(d, p.configDir))).sort((x, y) => cmpVer(y.version, x.version))[0];
+    if (a.usageError && !a.fiveHour) row('bad', title, t('hc.acct.token'), t('hc.acct.tokenFix'));
+    else if ((a.fiveHour?.pct ?? 0) >= 90 || (a.sevenDay?.pct ?? 0) >= 90) row('warn', title, t('hc.acct.high', { a: a.fiveHour?.pct ?? '?', b: a.sevenDay?.pct ?? '?' }), t('hc.acct.highFix'));
+    else row('ok', title, t('hc.acct.ok', { plan: a.plan || '?', a: a.fiveHour?.pct ?? '?', b: a.sevenDay?.pct ?? '?', pv: pl ? 'v' + pl.version : '-' }));
+    if (!pl && H.version) row('warn', title, t('hc.acct.noPlugin'), t('hc.acct.noPluginFix'));
+  }
+  // 3. backups
+  const ar = H.archive, arOn = st.archive?.enabled ?? !!st.archive?.dir;
+  if (!arOn) row('warn', t('hc.archive'), t('hc.archive.off'), t('hc.archive.offFix'), 'settings:data');
+  else if (ar?.last?.ok === false) row('bad', t('hc.archive'), t('hc.archive.fail', { reason: ar.last.reason || '?' }), t('hc.archive.failFix'), 'settings:data');
+  else if (ar?.last) row('ok', t('hc.archive'), t('hc.archive.ok', { at: fmtWhen(ar.last.at), n: ar.last.copiedFiles ?? 0 }), '', 'settings:data');
+  else row('info', t('hc.archive'), t('hc.archive.never'), '', 'settings:data');
+  const ml = H.machine?.last;
+  if (!H.machine) unknown(t('hc.machine'), '/api/machine');
+  else if (ml?.ok === false) row('bad', t('hc.machine'), t('hc.machine.fail', { err: ml.error || '?' }), '', 'settings:general');
+  else if (ml) row('ok', t('hc.machine'), t('hc.machine.ok', { at: fmtWhen(ml.at), n: ml.items }), '', 'settings:general');
+  else row('warn', t('hc.machine'), t('hc.machine.never'), t('hc.machine.neverFix'), 'settings:general');
+  // 4. workers
+  const pv = (H.providers || []).filter((p) => p.enabled);
+  if (!H.providers) unknown(t('hc.workers'), '/api/providers');
+  else if (!pv.length) row('bad', t('hc.workers'), t('hc.workers.none'), t('hc.workers.noneFix'), 'settings:providers');
+  else if (pv.some((p) => p.health && p.health !== 'ok')) row('warn', t('hc.workers'), t('hc.workers.bad', { list: pv.filter((p) => p.health && p.health !== 'ok').map((p) => p.id).join(', ') }), t('hc.workers.badFix'), 'settings:providers');
+  else row('ok', t('hc.workers'), t('hc.workers.ok', { list: pv.map((p) => p.id).join(', ') }), '', 'settings:providers');
+  // 5. agents
+  const all = Object.values(S.sessions), on = all.filter((s) => s.status !== 'offline');
+  if (!on.length) row('warn', t('hc.agents'), t('hc.agents.none'), t('hc.agents.noneFix'), 'rooms');
+  else row('ok', t('hc.agents'), t('hc.agents.ok', { on: on.length, bg: on.filter((s) => s.bg).length, off: all.length - on.length }), '', 'rooms');
+  // 6. switches
+  if (st.lead) row(st.lead.wake?.enabled ? 'ok' : 'warn', t('hc.wake'), st.lead.wake?.enabled ? t('hc.wake.on') : t('hc.wake.off'), st.lead.wake?.enabled ? '' : t('hc.wake.fix'), 'settings:lead');
+  if (typeof st.relayChat === 'boolean') row(st.relayChat ? 'ok' : 'warn', t('hc.relay'), st.relayChat ? t('hc.relay.on') : t('hc.relay.off'), '', 'settings:lead');
+  if (st.permissions) { const d = st.permissions.default; row('info', t('hc.perm'), d.mode === 'bypass' ? t('hc.perm.bypass', { n: (d.deny || []).length }) : t('hc.perm.other', { mode: PMODE[d.mode] || d.mode, n: (d.deny || []).length }), '', 'settings:perms'); }
+  if (st.localSummarize) row('info', t('hc.local'), st.localSummarize.enabled ? t('hc.local.on', { host: st.localSummarize.host }) : t('hc.local.off'), '', 'settings:worker');
+  // 7. data size
+  const d = H.data;
+  if (!d) unknown(t('hc.data'), '/api/data');
+  else row(d.total.bytes > 1024 ** 3 ? 'warn' : 'ok', t('hc.data'), t(d.total.bytes > 1024 ** 3 ? 'hc.data.big' : 'hc.data.ok', { size: fmtSize(d.total.bytes), files: d.total.files }), d.total.bytes > 1024 ** 3 ? t('hc.data.bigFix') : '', 'settings:data');
+  return rows;
+}
+const cmpVer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+function healthBlock() {
+  const H = S.health;
+  if (!H) { loadHealth(); return `<h2>${t('hc.title')}</h2><p class="small muted">${t('hc.loading')}</p>`; }
+  if (H.loading) return `<h2>${t('hc.title')}</h2><p class="small muted">${t('hc.loading')}</p>`;
+  const rows = healthRows(), n = (l) => rows.filter((r) => r.level === l).length;
+  const worst = n('bad') ? 'bad' : n('warn') ? 'warn' : 'ok';
+  const sum = [n('bad') ? t('hc.sum.bad', { n: n('bad') }) : '', n('warn') ? t('hc.sum.warn', { n: n('warn') }) : '', t('hc.sum.ok', { n: n('ok') })].filter(Boolean).join(' · ');
+  const order = { bad: 0, warn: 1, info: 2, ok: 3 };
+  return `<h2>${t('hc.title')}</h2><p class="small muted">${t('hc.note')}</p>
+    <div class="hsum ${worst}"><span class="hdot ${worst}"></span><b>${sum}</b><span style="flex:1"></span><span class="small muted">${fmtWhen(H.at)}</span><button type="button" class="btn sm" id="healthRefresh">${t('hc.refresh')}</button></div>
+    <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -2435,6 +2519,7 @@ function renderSettingsView() {
     <h2>${t('info.title')}</h2>
     <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
     perms: permsBlock(st),
+    health: healthBlock(),
     compact: `    <h2>${t('compact.title')}</h2>
     ${compactBlock()}`,
     providers: `    <h2>${t('prov.workerTitle')}</h2>
@@ -2490,7 +2575,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; return renderSettingsView(); }
+    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health') loadHealth(); return renderSettingsView(); }
+    if (e.target.closest('#healthRefresh')) { loadHealth(); return; }
+    const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
