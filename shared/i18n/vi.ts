@@ -85,7 +85,7 @@ export const vi: Record<string, string> = {
   'delete.done': 'Đã xóa #{name}',
   'members.title': 'Thành viên',
   'members.unlead': 'Bỏ trưởng phòng',
-  'members.lead': 'Phong trưởng phòng',
+  'members.lead': 'Đặt làm trưởng phòng',
   'members.out': 'Cho rời phòng',
   'members.outAria': 'Cho {name} rời phòng',
   'members.none': 'Chưa có ai. Bấm + cạnh một Claude ở cột trái.',
