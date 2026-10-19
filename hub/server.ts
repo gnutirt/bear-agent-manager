@@ -37,6 +37,7 @@ import type { Message, SysMeta } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
+import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { countBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
@@ -136,6 +137,8 @@ export type HubOptions = {
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
   openFolder?: (dir: string) => void;
+  runClaudeCli?: Run;   // tests: no real `claude plugin update`
+  pluginUpdateEveryMs?: number | null;   // tests: null = never check by itself
   localFetch?: typeof fetch;   // tests: a fake Ollama   // tests stub it so no file manager opens
 };
 
@@ -185,6 +188,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     ['sys.wake.compactFailed', { type: 'compact', level: 'error' }], ['sys.wake.compacted', { type: 'compact', level: 'done' }],
     ['sys.wake.', { type: 'wake', level: 'info' }],
     ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }],
+    ['sys.plugin.failed', { type: 'update', level: 'error' }], ['sys.plugin.', { type: 'update', level: 'info' }],
     ['sys.tab.', { type: 'tab', level: 'info' }], ['sys.lead.', { type: 'lead', level: 'info' }],
     ['sys.task.done', { type: 'task', level: 'done' }], ['sys.task.', { type: 'task', level: 'info' }],
     ['sys.stop.', { type: 'error', level: 'error' }], ['sys.archive', { type: 'backup', level: 'warn' }],
@@ -786,6 +790,27 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
   /** Loads the hub code in a throwaway process: '' when it loads, else the error. A syntax error must not leave the machine without a hub. */
   const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', new URL('./server.ts', import.meta.url).href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
+  // The plugin copy of every account follows the hub's version by itself (owner's decision): a copy older than the hub is updated through the
+  // claude CLI of that account (marketplace update + plugin update); one short notice per account says to reopen the chats.
+  const pluginUpdater = new PluginUpdater(pkg.version, opts.runClaudeCli);
+  async function updatePlugins() {
+    if (!loadSettings(opts.dir, envCap).autoUpdatePlugin) return;
+    for (const r of await pluginUpdater.check(usageDirs().filter((d) => fs.existsSync(d)))) {
+      const label = path.basename(r.configDir).replace(/^[.]/, '') || r.configDir;
+      console.log(`hub: plugin ${label} ${r.from} -> ${r.ok ? r.to : 'FAILED: ' + r.error}`);
+      const rooms = new Set<string>();
+      for (const s of Object.values(store.state.sessions)) if (path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase() === path.resolve(r.configDir).toLowerCase()) for (const room of Object.keys(s.rooms)) rooms.add(room);
+      for (const room of rooms) {
+        try { broadcast('msg', postSys(room, r.ok ? tr('sys.plugin.updated', { account: label, from: r.from, to: r.to }) : tr('sys.plugin.failed', { account: label, from: r.from, why: r.error ?? '' }))); emitRoom(room); } catch { /* room gone */ }
+      }
+    }
+  }
+  let pluginPoller: NodeJS.Timeout | undefined;
+  if (opts.pluginUpdateEveryMs !== null) {
+    setTimeout(() => updatePlugins().catch(() => {}), opts.pluginUpdateEveryMs === undefined ? 5000 : 20).unref();
+    pluginPoller = setInterval(() => updatePlugins().catch(() => {}), opts.pluginUpdateEveryMs ?? 30 * 60_000);
+    pluginPoller.unref();
+  }
   let versionPoller: NodeJS.Timeout | undefined;
   if (updates) { checkUpdates().catch(() => {}); versionPoller = setInterval(() => checkUpdates().catch(() => {}), CHECK_EVERY_MS); versionPoller.unref(); }
   let usagePoller: NodeJS.Timeout | undefined;
@@ -1683,6 +1708,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       clearInterval(prober);
       clearInterval(usagePoller);
       clearInterval(versionPoller);
+      if (pluginPoller) clearInterval(pluginPoller);
       for (const t of wakeTimers.values()) clearTimeout(t);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();

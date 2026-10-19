@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The plugin updates itself (`settings.autoUpdatePlugin`, on by default, owner's decision, no button): at hub start and every 30 minutes the hub finds each Claude account whose copy of this plugin is older than the hub and runs, with that account's `CLAUDE_CONFIG_DIR`, `claude plugin marketplace update bear-agent-manager-local` then `claude plugin update bear-agent-manager@bear-agent-manager-local` (no `-y`: a command declared by a marketplace is never auto-accepted; nothing but this plugin is touched, no login file). An old project-scope install next to a newer one does not decide. At most one try per account per hour; then one notice in the rooms of that account ("updated itself 0.3.0 → X, reopen the chats") or the reason with the two commands to type. The update applies after the chats are reopened. Needs hub restart (a hub started before this version cannot do it).
 - Account switch (D2): when an agent is out of usage and chats are shared between accounts, the hub can resume it on another Claude account of the machine that is logged in and has room left (`settings.accountSwitch {mode: off|ask|auto, atPct, minOtherLeftPct}`, default ask). Ask posts one offer per target with a `sys.action {kind: switch, session, to}` for a "Switch now" button; auto switches at once. `POST /api/sessions/:id/switch {to}` does the switch: stops what is left of the session, sets its config dir, resumes it in the background. Logins are never read or copied. Needs hub restart.
 ## 0.7.1 - 2026-10-19
 
