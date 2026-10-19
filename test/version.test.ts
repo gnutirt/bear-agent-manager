@@ -77,6 +77,17 @@ test('versionInfo: canApply only for a clean checkout of the same repo with a ne
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('versionInfo: needsRestart when package.json on disk moved past the version this hub process loaded, even with no GitHub release to compare against', () => {
+  const ok = { git: true, remoteOk: true, clean: true };
+  // No release checked yet (rel = null) used to say "up to date" either way; disk ahead of current must still flag a restart.
+  const stale = versionInfo('0.6.0', null, null, [], ok, true, false, '0.7.1');
+  assert.deepEqual([stale.needsRestart, stale.disk, stale.reason], [true, '0.7.1', 'unchecked']);
+  const fresh = versionInfo('0.7.1', null, null, [], ok, true, false, '0.7.1');
+  assert.equal(fresh.needsRestart, false);
+  // disk omitted: defaults to current, same as before this field existed.
+  assert.equal(versionInfo('0.2.0', 'alice/tool', null, [], ok, true).needsRestart, false);
+});
+
 test('settings.updates.check is on by default and can be turned off', () => {
   assert.equal(defaultSettings(4).updates.check, true);
   assert.equal(patchSettings(defaultSettings(4), { updates: { check: false } }).updates.check, false);

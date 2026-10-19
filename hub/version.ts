@@ -14,6 +14,7 @@ export type VersionInfo = {
   checkedAt: number | null; error?: string; newer: boolean; check: boolean;
   plugins: PluginCopy[]; mismatch: boolean;   // a plugin copy older/newer than the hub: hooks and MCP run old code until the plugin is updated
   canApply: boolean; reason: 'ok' | 'up-to-date' | 'not-git' | 'other-remote' | 'dirty' | 'unchecked';
+  disk: string; needsRestart: boolean;   // package.json on disk moved ahead of the version this hub process loaded at startup (no GitHub release needed to "fix" this, just a restart)
 };
 
 export const CHECK_EVERY_MS = 6 * 60 * 60_000;
@@ -149,7 +150,7 @@ export async function applyUpdate(root: string, tag: string, tryLoad: () => Prom
   }
 }
 
-export function versionInfo(current: string, repo: string | null, rel: Release | null, plugins: PluginCopy[], g: GitState, check: boolean, sourceOk = false): VersionInfo {
+export function versionInfo(current: string, repo: string | null, rel: Release | null, plugins: PluginCopy[], g: GitState, check: boolean, sourceOk = false, disk = current): VersionInfo {
   const latest = rel?.latest || null;
   const newer = !!latest && cmpSemver(latest, current) > 0;
   const reason: VersionInfo['reason'] = !latest ? 'unchecked' : !newer ? 'up-to-date' : !g.git ? 'not-git' : !g.remoteOk ? 'other-remote' : !g.clean ? 'dirty' : 'ok';
@@ -157,5 +158,6 @@ export function versionInfo(current: string, repo: string | null, rel: Release |
     current, repo, latest, url: rel?.url || null, notes: rel?.notes ?? '', checkedAt: rel?.checkedAt ?? null, ...(rel?.error ? { error: rel.error } : {}),
     newer, check, plugins, mismatch: plugins.some((p) => !p.stale && p.version !== current && !(p.shim && sourceOk)),   // a shim copy runs the hub's own code while the hub names its source
     canApply: reason === 'ok', reason,
+    disk, needsRestart: isSemver(disk) && isSemver(current) && cmpSemver(disk, current) > 0,   // package.json moved ahead of the running process: "up to date" (vs. GitHub) would be misleading
   };
 }

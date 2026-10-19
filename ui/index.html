@@ -2958,8 +2958,8 @@ function renderVersion() {
   const b = $('verBtn'), v = S.ver;
   if (!v || !v.current) { b.hidden = true; return; }
   b.hidden = false;
-  b.className = 'verbtn' + (v.newer || v.mismatch ? ' new' : '');
-  b.textContent = `v${v.current}` + (v.newer ? ` · ${t('ver.new', { v: v.latest })}` : v.mismatch ? ` · ${t('ver.mismatch.short')}` : '');
+  b.className = 'verbtn' + (v.newer || v.mismatch || v.needsRestart ? ' new' : '');
+  b.textContent = `v${v.current}` + (v.needsRestart ? ` · ${t('ver.needsRestart.short')}` : v.newer ? ` · ${t('ver.new', { v: v.latest })}` : v.mismatch ? ` · ${t('ver.mismatch.short')}` : '');
 }
 const loadVersion = () => api('/api/version').then((v) => { S.ver = v; renderVersion(); }, () => {});
 $('verBtn').onclick = (e) => {
@@ -2969,14 +2969,15 @@ $('verBtn').onclick = (e) => {
   const plugins = (v.plugins || []).map((p) => `<div class="small muted">${esc(p.version || '?')} · ${esc(p.path)}</div>`).join('');
   openMenu(e.currentTarget, `<div class="mhead"><b>${t('ver.title')}</b><span>v${esc(v.current)}</span></div>
     <div class="vbody">
-      <div>${v.newer ? t('ver.available', { v: esc(v.latest) }) : v.error ? esc(t('ver.error', { err: v.error })) : t('ver.upToDate')}</div>
+      <div>${v.needsRestart ? t('ver.needsRestart', { disk: esc(v.disk), current: esc(v.current) }) : v.newer ? t('ver.available', { v: esc(v.latest) }) : v.error ? esc(t('ver.error', { err: v.error })) : t('ver.upToDate')}</div>
       ${notes}
       ${v.mismatch ? `<div class="verr small">${t('ver.mismatch')}</div>${plugins}` : ''}
-      ${v.newer ? `<div class="small muted">${reason ? t(reason) : ''} ${t('ver.howTo')}</div>` : ''}
+      ${v.newer && !v.needsRestart ? `<div class="small muted">${reason ? t(reason) : ''} ${t('ver.howTo')}</div>` : ''}
     </div>
-    <div class="mfoot">${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}${v.newer && v.canApply ? `<button class="btn sm primary" data-vupdate>${t('ver.update')}</button>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
+    <div class="mfoot">${v.needsRestart ? `<button class="btn sm primary" data-vrestart>${t('ver.restart')}</button>` : ''}${v.url && v.newer ? `<a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">${t('ver.release')}</a>` : ''}${v.newer && v.canApply ? `<button class="btn sm primary" data-vupdate>${t('ver.update')}</button>` : ''}<button class="btn sm" data-vcheck${v.check === false ? ' disabled' : ''}>${t('ver.check')}</button></div>`, (m) => {
     const up = m.querySelector('[data-vupdate]');
     if (up) up.onclick = () => armed(up, t('ver.updateConfirm', { v: v.latest }), () => api('/api/update', {}).then(async (r) => { closeMenu(); toast(t('ver.updated', { to: r.to || v.latest })); if (r.restart) await api('/api/restart', {}).catch(() => {}); setTimeout(() => location.reload(), 8000); }, (e) => toast(e.message)));
+    m.querySelector('[data-vrestart]')?.addEventListener('click', () => api('/api/restart', {}).then(() => { closeMenu(); toast(t('hub.restarting')); setTimeout(() => location.reload(), 4000); }, (err) => toast(err.message)));
     m.querySelector('[data-vcheck]')?.addEventListener('click', () => api('/api/version/check', {}).then((r) => { S.ver = r; renderVersion(); closeMenu(); toast(r.newer ? t('ver.available', { v: r.latest }) : t('ver.upToDate')); }, (err) => toast(err.message)));
   });
 };

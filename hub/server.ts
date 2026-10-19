@@ -803,7 +803,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const checkUpdates = (force = false) => (updates && loadSettings(opts.dir, envCap).updates.check ? updates.check(force) : Promise.resolve(updates?.cached() ?? null));
   async function versionNow() {
     const check = loadSettings(opts.dir, envCap).updates.check;
-    return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check, sourceOk);
+    // package.json is re-read from disk every time: pkg.version is frozen at hub startup, so this is what tells the user
+    // "the files moved on (release/pull), this process has not reloaded them" when the two differ.
+    return versionInfo(pkg.version, pkg.repo, updates?.cached() ?? null, pluginCopies(usageDirs()), await gitState(ROOT, pkg.repo), check, sourceOk, readPackage(ROOT).version);
   }
   /** Loads the hub code in a throwaway process: '' when it loads, else the error. A syntax error must not leave the machine without a hub. */
   const tryLoadHub = () => new Promise<string>((resolve) => execFile(process.execPath, ['--no-warnings', '-e', 'import(process.argv[1]).then(() => process.exit(0), (e) => { console.error(e.message); process.exit(1); })', new URL('./server.ts', import.meta.url).href], { timeout: 30_000 }, (e, _o, stderr) => resolve(e ? String(stderr || e.message).trim().slice(0, 500) : '')));
