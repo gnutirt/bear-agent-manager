@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-10-19
+
 - Review fixes for D1/D3: `POST /api/agents` now takes only an absolute local folder (no relative path, no network share), resolves it to its real path before the "known folder" check, never treats a drive root or the home folder as known (always needs `confirm`), and obeys the new `settings.agents.maxBackground` (default 4, 1-16; counts background wakes too, 429 when full; a finished agent frees its place); chat sharing (`/api/accounts`, `/api/accounts/share`) only considers folders that really are Claude config dirs (a login, `projects/` or installed plugins), so a look-alike such as `~/.claude-mem` never gets a junction. Needs hub restart.
 ## 0.5.1 - 2026-10-19
 
