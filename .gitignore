@@ -6,3 +6,6 @@ todoplan*
 todobug*
 TODOPLAN*
 TODOBUG*
+# screenshots / browser snapshots from UI checks
+.playwright-mcp/
+/s[0-9]*.png
