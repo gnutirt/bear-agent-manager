@@ -1,0 +1,197 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { makeHub, until } from './helpers.ts';
+import { copilotPermissionHandler } from '../hub/copilot.ts';
+import { defaultSettings } from '../hub/settings.ts';
+import { startHub } from '../hub/server.ts';
+
+const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
+
+function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string; start?: () => Promise<void> } = {}) {
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
+  const factory = () => ({
+    start: async () => { calls.started++; await start(); },
+    getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
+    createSession: async (config: { sessionId?: string }) => {
+      calls.created++;
+      calls.providerId = config.sessionId ?? uuid;
+      return session(calls.providerId);
+    },
+    resumeSession: async (id: string) => {
+      calls.resumed.push(id);
+      return session(id);
+    },
+    stop: async () => { calls.stopped++; return []; },
+  });
+  function session(sessionId: string) {
+    return {
+      sessionId,
+      sendAndWait: async (prompt: string | { prompt: string }) => { calls.prompts.push(typeof prompt === 'string' ? prompt : prompt.prompt); return { data: { content: response } }; },
+      disconnect: async () => {},
+    };
+  }
+  return { factory, calls };
+}
+
+test('Copilot permission policy follows the hub permission mode and refuses managed approval without a person', () => {
+  const request = { kind: 'read' };
+  assert.deepEqual(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: [] }, process.cwd())(request, { sessionId: uuid }), { kind: 'approve-once' });
+  assert.deepEqual(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'write', fileName: 'test.txt' }, { sessionId: uuid }), { kind: 'approve-once' });
+  assert.equal(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'write', fileName: 'D:\\outside.txt' }, { sessionId: uuid }).kind, 'reject');
+  assert.equal(copilotPermissionHandler({ mode: 'acceptEdits', allow: [], deny: [] }, process.cwd())({ kind: 'shell' }, { sessionId: uuid }).kind, 'reject');
+  assert.equal(copilotPermissionHandler({ mode: 'default', allow: [], deny: [] }, process.cwd())(request, { sessionId: uuid }).kind, 'user-not-available');
+  assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: [] }, process.cwd())({ kind: 'shell', managedApprovalRequired: true }, { sessionId: uuid }).kind, 'user-not-available');
+  assert.equal(copilotPermissionHandler({ mode: 'bypass', allow: [], deny: ['Bash(git push:*)'] }, process.cwd())({ kind: 'shell', fullCommandText: 'git push origin' }, { sessionId: uuid }).kind, 'reject');
+});
+
+test('Copilot API is opt-in, starts one private room member, routes messages, and resumes the same SDK session', async () => {
+  const { factory, calls } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    assert.equal((await h.call<any>('/api/copilot')).autoStart, false);
+    assert.equal((await h.call<any>('/api/copilot', { on: true })).done, false);
+    assert.equal(calls.created, 0, 'confirmation is required');
+
+    const started = await h.call<any>('/api/copilot', { on: true, confirm: true });
+    assert.equal(started.state, 'idle');
+    assert.equal(started.autoStart, true);
+    assert.equal(started.login, 'test-user');
+    assert.equal(calls.created, 1);
+    assert.deepEqual((await h.call<any>('/api/rooms/copilot/messages?after=0')).map((m: any) => m.from), ['bear-agent-manager']);
+
+    await h.call('/api/rooms/copilot/messages', { text: 'check this change' });
+    await until(async () => (await h.call<any[]>('/api/rooms/copilot/messages?after=0')).some((m) => m.from === 'Copilot' && m.text === 'Copilot reply'), 5000, 'Copilot reply');
+    assert.match(calls.prompts[0], /check this change/);
+    const member = h.hub.store.members('copilot').find((s) => s.name === 'Copilot');
+    assert.ok(member);
+    assert.equal(member.status, 'idle');
+
+    await h.call('/api/copilot', { on: false, confirm: true });
+    const restarted = await h.call<any>('/api/copilot', { on: true, confirm: true });
+    assert.equal(restarted.state, 'idle');
+    assert.equal(calls.created, 1);
+    assert.deepEqual(calls.resumed, [calls.providerId]);
+  } finally {
+    await h.hub.close();
+    fs.rmSync(path.join(h.dir, 'copilot-agent.json'), { force: true });
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot startup reports missing CLI login and does not create an SDK session', async () => {
+  const { factory, calls } = fakeFactory({ authenticated: false });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const response = await fetch(h.hub.url + '/api/copilot', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
+      body: JSON.stringify({ on: true, confirm: true }),
+    });
+    assert.equal(response.status, 503);
+    const body = await response.json() as any;
+    assert.match(body.error, /Run `copilot`/);
+    assert.equal(body.status.state, 'error');
+    assert.equal(calls.created, 0);
+    assert.equal(calls.stopped, 1, 'a failed unauthenticated runtime is stopped');
+    assert.equal((await h.call<any>('/api/copilot')).autoStart, true, 'the requested startup setting remains enabled');
+    assert.ok((await h.call<any[]>('/api/rooms/copilot/messages?after=0')).some((m) => /could not start/.test(m.text)));
+  } finally {
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot keeps its hub identity when auth fails before the first SDK session', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-retry-'));
+  const common = {
+    dir, port: 0, usageFetch: null, versionFetch: null, probe: null,
+    listProcs: async () => [], legacyKeyFile: path.join(dir, 'no-legacy.key'), usageHome: dir, pluginUpdateEveryMs: null,
+  };
+  const missingLogin = fakeFactory({ authenticated: false });
+  let hub = await startHub({ ...common, copilotClientFactory: missingLogin.factory });
+  try {
+    const response = await fetch(hub.url + '/api/copilot', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ on: true, confirm: true }),
+    });
+    assert.equal(response.status, 503);
+    const identity = JSON.parse(fs.readFileSync(path.join(dir, 'copilot-agent.json'), 'utf8'));
+    assert.match(identity.hubId, /^[0-9a-f-]{36}$/i);
+  } finally {
+    await hub.close();
+  }
+
+  const signedIn = fakeFactory();
+  hub = await startHub({ ...common, copilotClientFactory: signedIn.factory });
+  try {
+    await until(() => hub.store.members('copilot').some((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'Copilot retry after sign-in');
+    assert.equal(signedIn.calls.created, 1);
+    assert.equal(Object.values(hub.store.state.sessions).filter((s) => s.name === 'Copilot').length, 1);
+  } finally {
+    await hub.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('concurrent Copilot start and stop requests do not leave overlapping runtimes', async () => {
+  let releaseStart!: () => void;
+  const startupGate = new Promise<void>((resolve) => { releaseStart = resolve; });
+  let startCount = 0;
+  const { factory, calls } = fakeFactory({
+    start: async () => {
+      startCount++;
+      if (startCount === 1) await startupGate;
+    },
+  });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const enabling = h.call('/api/copilot', { on: true, confirm: true });
+    await until(() => calls.started === 1, 5000, 'Copilot CLI startup');
+    const disabling = h.call('/api/copilot', { on: false, confirm: true });
+    const reenabling = h.call('/api/copilot', { on: true, confirm: true });
+    releaseStart();
+    await Promise.all([enabling, disabling, reenabling]);
+    assert.equal(calls.created, 1);
+    assert.deepEqual(calls.resumed, [calls.providerId]);
+    assert.equal(calls.stopped, 1);
+    assert.equal((await h.call<any>('/api/copilot')).state, 'idle');
+  } finally {
+    releaseStart();
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test('hub startup restores the opted-in Copilot agent without an IDE', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-startup-'));
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ copilot: { autoStart: true } }));
+  const first = fakeFactory(), second = fakeFactory();
+  const common = {
+    dir, port: 0, usageFetch: null, versionFetch: null, probe: null,
+    listProcs: async () => [], legacyKeyFile: path.join(dir, 'no-legacy.key'), usageHome: dir, pluginUpdateEveryMs: null,
+  };
+  let hub = await startHub({ ...common, copilotClientFactory: first.factory });
+  try {
+    await until(() => hub.store.members('copilot').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'startup Copilot session');
+    assert.equal(first.calls.created, 1);
+  } finally { await hub.close(); }
+  hub = await startHub({ ...common, copilotClientFactory: second.factory });
+  try {
+    await until(() => hub.store.members('copilot').find((s) => s.name === 'Copilot' && s.status === 'idle'), 5000, 'resumed Copilot session');
+    assert.equal(second.calls.created, 0);
+    assert.deepEqual(second.calls.resumed, [first.calls.providerId]);
+  } finally {
+    await hub.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Copilot-specific permission overrides are honored over hub defaults', () => {
+  const settings = defaultSettings();
+  settings.permissions.perAgent.copilot = { mode: 'plan' };
+  assert.equal(settings.permissions.perAgent.copilot.mode, 'plan');
+});

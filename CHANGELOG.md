@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add: optional headless Copilot SDK agent managed by the hub, joining the shared `#bear-agent-manager` room with a resumable provider session, permission-mode handling, and explicit controls under Settings > Accounts. It uses the current Windows user's Copilot CLI sign-in and quota without copying credentials; CLI sign-in and a hub restart are required. Agent-generated wake chains use the room's 30-message loop guard; Claude IDE tabs receive room messages only at their next hook/turn checkpoint.
 - Fix: the Compact button picks the account like a wake (the other account when this one is out of usage and chats are shared, else it says why), and a compaction that ran into the usage limit is reported as not done instead of "compacted (748k → not measured)". Needs hub restart.
 - Fix: a wake blocked by an account limit now runs on the other account. 2026-10-19 the user moved to the VS Code account and @-ed agents of the Antigravity account: each got "cannot wake until 17:09" although the VS Code account had room and chats were shared (D2 only ran on the unstick path). Now any background wake whose account is out of usage runs on another logged-in account with room left when chats are shared, with one notice "X runs this turn on Y because Z is out of usage" (`accountSwitch.autoOnWake`, on by default). Otherwise it stays blocked and says why (chats not shared, other account logged out or expired, other account full). Needs hub restart.
 ## 0.8.0 - 2026-10-19

@@ -6,87 +6,89 @@
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| POST | `/hooks/:param` |  | khong |
-| GET | `/` |  | khong |
-| GET | `/api/health` |  | khong |
-| GET | `/api/events` |  | co |
-| GET | `/api/sessions` |  | co |
-| GET | `/api/workers` |  | co |
-| GET | `/api/workers/slot` |  | co |
-| GET | `/api/room-chat` |  | co |
-| GET | `/api/archive` |  | co |
+| POST | `/hooks/:event` |  | không |
+| GET | `/` |  | không |
+| GET | `/api/health` |  | không |
+| GET | `/api/events` |  | có |
+| GET | `/api/sessions` |  | có |
+| GET | `/api/workers` |  | có |
+| GET | `/api/workers/slot` |  | có |
+| GET | `/api/room-chat` |  | có |
+| GET | `/api/archive` |  | có |
 
 ## machine export (T17): settings, skills, memory, plugin list for a new machine; never logins
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| GET | `/api/machine` |  | co |
-| POST | `/api/machine/export` | `withKeys` | co |
-| GET | `/api/settings` | `configDir`, `names` | co |
+| GET | `/api/machine` |  | có |
+| POST | `/api/machine/export` | `withKeys` | có |
+| GET | `/api/settings` |  | có |
 
 ## skill library (S1): filter by role / words / license, installed per Claude account
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| POST | `/api/skill-library/install` | `configDir`, `names` | co |
-| POST | `/api/skill-packs/apply` | `pack`, `agent` | co |
-| GET | `/api/skill-library` |  | co |
-| GET | `/api/local/status` | `text`, `file`, `sessionId` | co |
-| POST | `/api/local/summarize` | `text`, `file`, `sessionId` | co |
-| GET | `/api/data` | `sub` | co |
-| POST | `/api/data/open` | `sub` | co |
+| POST | `/api/skill-library/install` | `configDir`, `names` | có |
+| POST | `/api/skill-packs/apply` | `pack`, `agent` | có |
+| GET | `/api/skill-library` |  | có |
+| GET | `/api/local/status` |  | có |
+| POST | `/api/local/summarize` | `text`, `file`, `sessionId`, `task` | có |
+| GET | `/api/data` |  | có |
+| POST | `/api/data/open` | `sub` | có |
 
 ## accounts (D1): the Claude config dirs of this machine and whether they share their chats
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| GET | `/api/accounts` | `on`, `confirm` | co |
-| POST | `/api/accounts/share` | `on`, `confirm` | co |
-| GET | `/api/autostart` | `confirm`, `on` | co |
-| POST | `/api/autostart` | `confirm`, `on` | co |
-| POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `prompt` | co |
-| GET | `/api/version` |  | co |
-| POST | `/api/version/check` |  | co |
-| GET | `/api/i18n` |  | co |
-| GET | `/api/claude-usage` |  | co |
-| GET | `/api/brief` |  | co |
-| POST | `/api/skills/override` | `configDir`, `name`, `level` | co |
-| GET | `/api/skill-usage` |  | co |
-| GET | `/api/skills` |  | co |
-| PUT | `/api/settings` |  | co |
-| GET | `/api/tokens` |  | co |
-| POST | `/api/room-chat/sweep` | `apply` | co |
+| GET | `/api/accounts` |  | có |
+| POST | `/api/accounts/share` | `on`, `confirm` | có |
+| GET | `/api/autostart` |  | có |
+| POST | `/api/autostart` | `confirm`, `on` | có |
+| GET | `/api/copilot` |  | có |
+| POST | `/api/copilot` | `confirm`, `on` | có |
+| POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `prompt` | có |
+| GET | `/api/version` |  | có |
+| POST | `/api/version/check` |  | có |
+| GET | `/api/i18n` |  | có |
+| GET | `/api/claude-usage` |  | có |
+| GET | `/api/brief` |  | có |
+| POST | `/api/skills/override` | `configDir`, `name`, `level` | có |
+| GET | `/api/skill-usage` |  | có |
+| GET | `/api/skills` |  | có |
+| PUT | `/api/settings` |  | có |
+| GET | `/api/tokens` |  | có |
+| POST | `/api/room-chat/sweep` | `apply` | có |
 
 ## providers: worker endpoints + keys (keys never leave the hub)
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| GET | `/api/providers` |  | co |
-| PUT | `/api/providers/:param` |  | co |
-| POST | `/api/providers` | `id` | co |
-| DELETE | `/api/providers/:param` |  | co |
-| POST | `/api/workers/:param/kill` |  | co |
-| POST | `/api/update` |  | co |
-| POST | `/api/restart` |  | co |
-| POST | `/api/sessions/register` | `headless`, `id`, `cwd`, `name`, `source`, `configDir`, `transcript`, `ctx`, `pid` | co |
-| GET | `/api/rooms` | `name` | co |
-| POST | `/api/rooms` | `name` | co |
+| GET | `/api/providers` |  | có |
+| PUT | `/api/providers/:param` |  | có |
+| POST | `/api/providers` | `id` | có |
+| DELETE | `/api/providers/:param` |  | có |
+| POST | `/api/workers/:param/kill` |  | có |
+| POST | `/api/update` |  | có |
+| POST | `/api/restart` |  | có |
+| POST | `/api/sessions/register` | `headless`, `id`, `cwd`, `name`, `source`, `configDir`, `transcript`, `ctx`, `pid`, `ide`, `title` | có |
+| GET | `/api/rooms` |  | có |
+| POST | `/api/rooms` | `name` | có |
 
 ## attachments (A1): raw upload (name and mime in headers), download by id; files live in rooms/<room>/files
 
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
-| POST | `/api/rooms/:room/join` | `sessionId` | co |
-| POST | `/api/rooms/:room/leave` | `sessionId` | co |
-| POST | `/api/rooms/:room/clear-lead` | `force` | co |
-| POST | `/api/rooms/:room/open-lead` |  | co |
-| POST | `/api/rooms/:room/rename` | `name` | co |
-| POST | `/api/rooms/:room/delete` | `name` | co |
-| POST | `/api/rooms/:room/lead` | `sessionId` | co |
-| POST | `/api/rooms/:room/resume` |  | co |
-| GET | `/api/rooms/:room/topics` | `sessionId`, `topic`, `follow` | co |
-| POST | `/api/rooms/:room/topics` | `sessionId`, `topic`, `follow` | co |
-| GET | `/api/rooms/:room/days` |  | co |
-| GET | `/api/rooms/:room/messages` |  | co |
-| POST | `/api/rooms/:room/messages` | `sessionId`, `text`, `replyTo`, `topic` | co |
-| POST | `/api/rooms/:room/done` | `sessionId`, `summary` | co |
+| POST | `/api/rooms/:room/join` | `sessionId` | có |
+| POST | `/api/rooms/:room/leave` | `sessionId` | có |
+| POST | `/api/rooms/:room/clear-lead` | `force` | có |
+| POST | `/api/rooms/:room/open-lead` |  | có |
+| POST | `/api/rooms/:room/rename` | `name` | có |
+| POST | `/api/rooms/:room/delete` | `name` | có |
+| POST | `/api/rooms/:room/lead` | `sessionId` | có |
+| POST | `/api/rooms/:room/resume` |  | có |
+| GET | `/api/rooms/:room/topics` |  | có |
+| POST | `/api/rooms/:room/topics` | `sessionId`, `topic`, `follow` | có |
+| GET | `/api/rooms/:room/days` |  | có |
+| GET | `/api/rooms/:room/messages` |  | có |
+| POST | `/api/rooms/:room/messages` | `sessionId`, `text`, `replyTo`, `topic` | có |
+| POST | `/api/rooms/:room/done` | `sessionId`, `summary` | có |

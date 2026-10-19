@@ -7,6 +7,9 @@
   "engines": {
     "node": ">=22.18"
   },
+  "dependencies": {
+    "@github/copilot-sdk": "^1.0.22"
+  },
   "scripts": {
     "test": "node --no-warnings --test \"test/**/*.test.ts\"",
     "hub": "node --no-warnings hub/main.ts",

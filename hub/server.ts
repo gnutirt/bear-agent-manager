@@ -15,6 +15,7 @@ import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, pla
 import { pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
+import { CopilotAgent, type CopilotClientFactory } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, normAgent, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -101,6 +102,8 @@ export type HubOptions = {
   compactRevive?: (job: CompactJob) => Promise<number> | number;
   /** D3 new agent without an editor (stubbed in tests). */
   spawnAgent?: (job: AgentJob) => Promise<number> | number;
+  /** Standalone Copilot SDK client factory (stubbed in tests). */
+  copilotClientFactory?: CopilotClientFactory;
   /** Startup folder for the sign-in script (tests use a temp one). */
   startupDir?: string;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
@@ -228,6 +231,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const workerPoller = setInterval(() => { if (sse.size) refreshWorkers().catch(() => {}); }, WORKER_POLL_MS);
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
+  const copilot = new CopilotAgent({
+    dir: opts.dir, cwd: ROOT, store,
+    settings: () => loadSettings(opts.dir, envCap),
+    onChange: (status) => {
+      broadcast('copilot', status);
+      const s = Object.values(store.state.sessions).find((x) => x.name === 'Copilot');
+      if (s) broadcast('session', publicSession(s));
+    },
+    onRoom: emitRoom,
+    onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
+    onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
+    createClient: opts.copilotClientFactory,
+  });
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
@@ -373,6 +389,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const batching = new Set<string>();
   function deliver(sid: string) {
     const st = store.session(sid);
+    if (copilot.hasSession(st.id)) {
+      void copilot.wake(st.id).catch((error) => copilot.reportError(error));
+      return;
+    }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
     // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
     // tab at 02:12). Drop that waiter and unstick the chat instead.
@@ -1176,6 +1196,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       try { return json(res, 200, { ...setAutostart(b.on === true, process.execPath, ROOT, opts.startupDir), done: true }); }
       catch (e) { return json(res, 400, { error: (e as Error).message }); }
     }
+    if (m === 'GET' && p === '/api/copilot') {
+      return json(res, 200, { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart });
+    }
+    if (m === 'POST' && p === '/api/copilot') {
+      const b = await readBody(req);
+      if (b.confirm !== true) return json(res, 200, { ...copilot.snapshot(), autoStart: loadSettings(opts.dir, envCap).copilot.autoStart, done: false });
+      const next = patchSettings(loadSettings(opts.dir, envCap), { copilot: { autoStart: b.on === true } });
+      saveSettings(opts.dir, next);
+      broadcast('settings', next);
+      try {
+        if (next.copilot.autoStart) await copilot.start();
+        else await copilot.stop();
+      } catch (error) {
+        const status = { ...copilot.snapshot(), autoStart: next.copilot.autoStart };
+        return json(res, 503, { error: error instanceof Error ? error.message : String(error), status });
+      }
+      return json(res, 200, { ...copilot.snapshot(), autoStart: next.copilot.autoStart, done: true });
+    }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
       const b = await readBody(req);
@@ -1727,11 +1765,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   port = (server.address() as AddressInfo).port;
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || copilot.isRunning(id))) emitSession(s);
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);
   heartbeat.unref();
+
+  if (loadSettings(opts.dir, envCap).copilot.autoStart) {
+    void copilot.start().catch((error) => console.error('[copilot] autostart failed:', error));
+  }
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -1752,6 +1794,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const t of wakeTimers.values()) clearTimeout(t);
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
+      try { await copilot.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); }
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));
     },
