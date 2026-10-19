@@ -14,6 +14,9 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+
+// Call the claude binary directly: going through a shell on Windows splits the Vietnamese prompts at spaces.
+const claudeBin = process.platform === 'win32' ? ((spawnSync('where', ['claude.exe'], { encoding: 'utf8' }).stdout ?? '').split(/\r?\n/)[0].trim() || join(process.env.ProgramFiles ?? 'C:/Program Files', 'nodejs/node_modules/@anthropic-ai/claude-code/bin/claude.exe')) : 'claude';
 import { fileURLToPath } from 'node:url';
 
 const libDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,11 +47,19 @@ function providerEnv() {
   const home = process.env.BEAR_AGENT_HOME || join(homedir(), '.bear-agent-manager');
   const prov = JSON.parse(readFileSync(join(home, 'providers.json'), 'utf8')).find((p) => p.id === id && p.enabled && p.key);
   if (!prov) throw new Error(`provider ${id} not found, disabled or without key in providers.json`);
+  // Not --bare (as skills/worker uses): bare mode has no Skill tool and ignores project skills.
+  // Outside bare mode an env API key counts as "not logged in", so the key goes through apiKeyHelper (a temp script),
+  // and the third-party model id through ANTHROPIC_MODEL, which is accepted where --model is not.
+  const model = opt('--model') ?? prov.models?.read?.[0];
+  const keyDir = mkdtempSync(join(tmpdir(), 'skill-eval-key-'));
+  const helper = join(keyDir, process.platform === 'win32' ? 'key.cmd' : 'key.sh');
+  writeFileSync(helper, process.platform === 'win32' ? `@echo ${prov.key}\r\n` : `#!/bin/sh\necho '${prov.key}'\n`, { mode: 0o700 });
+  process.on('exit', () => rmSync(keyDir, { recursive: true, force: true }));
   const env = { ...process.env, CLAUDE_CONFIG_DIR: join(home, 'worker-config'), ANTHROPIC_BASE_URL: prov.baseUrl };
   delete env.ANTHROPIC_API_KEY; delete env.ANTHROPIC_AUTH_TOKEN;
-  if (prov.auth === 'auth-token') env.ANTHROPIC_AUTH_TOKEN = prov.key; else env.ANTHROPIC_API_KEY = prov.key;
+  if (model) Object.assign(env, { ANTHROPIC_MODEL: model, ANTHROPIC_SMALL_FAST_MODEL: model, ANTHROPIC_DEFAULT_HAIKU_MODEL: model });
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true });
-  return { env, label: `provider ${id}`, model: opt('--model') ?? prov.models?.read?.[0] };
+  return { env, label: `provider ${id}`, model, settings: JSON.stringify({ apiKeyHelper: helper }) };
 }
 
 // The Skill tool calls in a stream-json transcript, in order.
@@ -69,10 +80,11 @@ if (!run) {
   process.exit(0);
 }
 
-const { env, label, model } = providerEnv();
+const { env, label, model, settings } = providerEnv();
 console.log(`\nRunning with ${label}${model ? `, model ${model}` : ''}`);
 const results = [];
-for (const packId of packIds) {
+let rateLimited = 0;
+outer: for (const packId of packIds) {
   const proj = mkdtempSync(join(tmpdir(), `skill-eval-${packId}-`));
   for (const name of packSkills(packId)) {
     const s = byName.get(name);
@@ -83,12 +95,15 @@ for (const packId of packIds) {
   for (const [name, c] of selected.filter(([, c]) => c.pack === packId)) {
     for (const prompt of c.prompts) {
       const cli = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--tools', 'Skill', '--allowedTools', 'Skill', '--max-turns', '2', '--strict-mcp-config'];
-      if (model) cli.push('--model', model);
-      const r = spawnSync('claude', cli, { cwd: proj, env, encoding: 'utf8', timeout: 180000, shell: process.platform === 'win32' });
+      if (settings) cli.push('--settings', settings); else if (model) cli.push('--model', model);
+      const r = spawnSync(claudeBin, cli, { cwd: proj, env, encoding: 'utf8', timeout: 180000 });
       const called = calledSkills(r.stdout ?? '');
       const row = { skill: name, pack: packId, prompt, called, hit: called.some((x) => x === name || x.endsWith(':' + name)), exit: r.status, error: r.status ? (r.stderr ?? '').slice(0, 300) : undefined };
       results.push(row);
       console.log(`${row.hit ? 'HIT ' : 'MISS'} ${name.padEnd(42)} -> ${called.join(', ') || '(none)'}${row.error ? `  [exit ${r.status}]` : ''}`);
+      // Stop after 3 rate-limit failures in a row instead of burning the provider's quota.
+      rateLimited = /429|rate.?limit|quota/i.test((r.stderr ?? '') + (r.stdout ?? '')) && r.status ? rateLimited + 1 : 0;
+      if (rateLimited >= 3) { console.log('Stopped: 3 rate-limit errors in a row.'); rmSync(proj, { recursive: true, force: true }); break outer; }
     }
   }
   rmSync(proj, { recursive: true, force: true });
