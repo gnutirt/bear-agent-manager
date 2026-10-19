@@ -11,7 +11,7 @@ import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
 import { probeDir, runWorker } from './slowdir.ts';
-import { applyShare, listAccounts as listConfigAccounts, planShare } from './accounts.ts';
+import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare } from './accounts.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { probeProvider, workerBrief } from './brief.ts';
@@ -36,7 +36,7 @@ import type { Message, SysMeta } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
-import { spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { countBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -1062,7 +1062,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // ---- accounts (D1): the Claude config dirs of this machine and whether they share their chats ----
     const accountDirs = () => {
       let siblings: string[] = [];
-      try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)); } catch { /* none */ }
+      try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)).filter(looksLikeClaudeDir); } catch { /* none */ }
       return [...usageDirs(), ...siblings];
     };
     if (m === 'GET' && p === '/api/accounts') return json(res, 200, listConfigAccounts(accountDirs(), path.join(usageHome, '.claude')));
@@ -1088,10 +1088,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
       const b = await readBody(req);
-      const name = String(b.name ?? '').trim(), room = String(b.room ?? ''), cwd = path.resolve(String(b.cwd ?? ''));
+      const name = String(b.name ?? '').trim(), room = String(b.room ?? ''), asked = String(b.cwd ?? '');
       store.room(room);
-      if (!fs.statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new StoreError(400, `not a folder: ${cwd}`);
-      const known = Object.values(store.state.sessions).some((s) => s.cwd && path.resolve(s.cwd).toLowerCase() === cwd.toLowerCase());
+      // An absolute local folder (not relative to wherever the hub runs, not a network share), taken as its REAL path so a link cannot stand in for a known folder
+      if (!path.isAbsolute(asked) || /^[\\/]{2}/.test(asked)) throw new StoreError(400, 'cwd must be an absolute local folder');
+      let cwd: string;
+      try { cwd = fs.realpathSync(asked); if (!fs.statSync(cwd).isDirectory()) throw new Error('not a folder'); } catch { throw new StoreError(400, `not a folder: ${asked.slice(0, 200)}`); }
+      const cfgA = loadSettings(opts.dir, envCap);
+      if (Math.max(countBackground(), reviving.size) >= cfgA.agents.maxBackground) throw new StoreError(429, `${cfgA.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+      const wide = path.relative(path.parse(cwd).root, cwd) === '' || path.resolve(cwd).toLowerCase() === os.homedir().toLowerCase();   // a drive root or the home folder is never "known" enough
+      const known = !wide && Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } });
       if (!known && b.confirm !== true) return json(res, 409, { error: tr('sys.agent.newFolder', { cwd }), needConfirm: true });
       const configDir = b.account ? accountDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase()) : undefined;
       if (b.account && !configDir) throw new StoreError(400, 'account must be a Claude config dir of this machine');

@@ -16,6 +16,17 @@ const real = (p: string) => { try { return fs.realpathSync.native(p); } catch { 
 const same = (a: string, b: string) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 const isLink = (p: string) => { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return false; } };
 
+/**
+ * A folder that is really a Claude Code config dir: it holds a login, chats or installed plugins. A look-alike name is not enough
+ * (~/.claude-mem and other tools' folders start with ".claude" too): sharing chats would otherwise put a junction inside them.
+ */
+export function looksLikeClaudeDir(dir: string): boolean {
+  try {
+    if (!fs.statSync(dir).isDirectory()) return false;
+    return ['.credentials.json', 'projects', path.join('plugins', 'installed_plugins.json')].some((f) => fs.existsSync(path.join(dir, f)));
+  } catch { return false; }
+}
+
 export function describeAccount(dir: string): Account {
   const proj = path.join(dir, 'projects');
   const link = isLink(proj);

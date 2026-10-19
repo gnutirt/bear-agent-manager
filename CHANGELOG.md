@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Review fixes for D1/D3: `POST /api/agents` now takes only an absolute local folder (no relative path, no network share), resolves it to its real path before the "known folder" check, never treats a drive root or the home folder as known (always needs `confirm`), and obeys the new `settings.agents.maxBackground` (default 4, 1-16; counts background wakes too, 429 when full; a finished agent frees its place); chat sharing (`/api/accounts`, `/api/accounts/share`) only considers folders that really are Claude config dirs (a login, `projects/` or installed plugins), so a look-alike such as `~/.claude-mem` never gets a junction. Needs hub restart.
 ## 0.5.1 - 2026-10-19
 
 - Review fixes (cross-review of the usage-limit unstick, pid sweep and relay): (1) a tab whose limit has lifted and that is working again was still taken for "stuck" until its first assistant line (a prompt typed after the error leaves the newest ASSISTANT line the old error) and would have been ended: `endedOnLimit` now says no as soon as a user/tool-result line follows the error; (2) the pid sweep looks at every pid the chat registered (tab + background wake), not only the last one, so a living tab is no longer marked offline + ended because the background pid died; (3) a relayed answer is now written under the agent's name and id (it was fixed up in memory after being written, so after a restart it read as the hub's own line).

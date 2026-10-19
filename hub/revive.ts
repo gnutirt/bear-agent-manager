@@ -24,6 +24,9 @@ export function killTree(c: ChildProcess): void {
 export const adoptBackground = (id: string, child: ChildProcess): void => { live.set(id, child); };
 
 /** True while a background claude (a wake that stays alive) runs for this session. */
+/** How many background claudes run now (wakes that stay alive and agents created without an IDE). */
+export const countBackground = (): number => live.size;
+
 export const isBackground = (id: string): boolean => live.has(id);
 
 /** Stops the background claude of a session (its tab is being opened, or the user ended it). */
