@@ -54,6 +54,20 @@ Ngày 2026-10-19, thu-vien-skill. Chưa code hub. Nguồn ở cuối trang.
   - Đường rẻ đã chốt vẫn là `localSummarize` (Ollama, chạy trên máy) và worker Intern AI.
   - Nếu @you có gói Copilot Pro (300 premium/tháng theo nguồn thứ cấp) và muốn dùng, làm thử một lệnh "Tóm tắt bằng Copilot" do người dùng bấm (đúng khuyến nghị user-initiated), không tự động.
 
+### Đo thật Ollama LAN (192.168.0.127:11435, RTX 3060, core-improve 2026-10-19)
+
+5 việc mẫu lấy từ repo (không gửi gì bí mật), gọi `/v1/chat/completions`, `max_tokens` 500, chấm tay 1-5. `gemma4:26b` chưa đo (bộ chấm dừng vì quá giờ chạy nền).
+
+| Việc | qwen-coder-3b | thời gian | qwen3.8 | thời gian |
+|---|---|---|---|---|
+| Tóm tắt log agent | 3 (đọc sai "resets Oct 19" thành "đã reset") | 7 s | 5 (đúng, nêu được nguyên nhân) | 148 s |
+| Commit message cho một diff | 4 | 0,2 s | 5 | 78 s |
+| Viết test node:test cho `cmpSemver` | 2 (không import hàm, đoán sai giá trị trả về; test sẽ đỏ) | 5,5 s | không ra chữ (hết 500 token khi đang "nghĩ") | 128 s |
+| Đổi tên biến trong một đoạn | 5 | 1,1 s | 5 | 50 s |
+| Giải thích một hàm | 4 | 1,0 s | chưa đo | |
+
+Kết luận đo: **qwen-coder-3b** nhanh (≤7 s) và đủ cho đổi tên, commit message, giải thích ngắn; KHÔNG dùng để viết test hay sửa logic (sai mà trông đúng, cần người review). **qwen3.8** chất lượng tốt hơn rõ nhưng 50-150 s mỗi việc và cần `max_tokens` lớn (hoặc tắt chế độ nghĩ) cho việc sinh code. Gợi ý cho `workerRoutes`: 3B cho việc "read"/tóm tắt/commit message; việc "edit" vẫn qua Intern AI hoặc coder; qwen3.8 chỉ cho tóm tắt không gấp. Endpoint `/v1/messages` (Anthropic) không trả lời trong 5 s lúc thăm dò; @Coder_No_2 đang đo phần đó (#16).
+
 ## Đề xuất việc tiếp (chờ duyệt)
 
 1. @you đo Qwen 2.5 7B ở máy có Ollama (lệnh ở trên) và gửi hai con số tốc độ.
