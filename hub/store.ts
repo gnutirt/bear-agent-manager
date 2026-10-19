@@ -350,16 +350,14 @@ export class Store {
 
   /** An answer an agent left in its own chat, posted by the hub under the agent's name: a notice (wakes nobody). */
   postRelay(roomName: string, fromId: string, text: string, topic?: string): Message {
-    const m = this.postSystem(roomName, text, topic, { type: 'relay', level: 'info', agent: this.session(fromId).name });
-    m.from = this.session(fromId).name;
-    m.fromId = this.session(fromId).id;
-    return m;
+    const who = this.session(fromId);
+    return this.postSystem(roomName, text, topic, { type: 'relay', level: 'info', agent: who.name }, { name: who.name, id: who.id });   // written under the agent's name, so a restart reads the same
   }
 
   /** Hub notice in the room: wakes nobody and leaves the loop guard alone. */
-  postSystem(roomName: string, text: string, topic?: string, sys: SysMeta = { type: 'info', level: 'info' }): Message {
+  postSystem(roomName: string, text: string, topic?: string, sys: SysMeta = { type: 'info', level: 'info' }, as?: { name: string; id: string }): Message {
     this.room(roomName);
-    const message: Message = { id: this.lastId() + 1, room: roomName, from: 'bear-agent-manager', fromId: null, mentions: [], text, ts: this.now(), wake: [], kind: 'system', sys, ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
+    const message: Message = { id: this.lastId() + 1, room: roomName, from: as?.name ?? 'bear-agent-manager', fromId: as?.id ?? null, mentions: [], text, ts: this.now(), wake: [], kind: 'system', sys, ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${roomName}.jsonl`), JSON.stringify(message) + '\n');
     this.save();
@@ -608,8 +606,9 @@ export class Store {
     const changed: Session[] = [];
     for (const s of Object.values(this.state.sessions)) {
       if (isConnected(s.id)) continue;
-      if (s.status !== 'offline' && s.pid && now - s.lastSeen < MAX_PID_QUIET_MS) {
-        if (isAlive(s.pid)) continue;
+      const pids = [...new Set([...(s.pids ?? []).map((x) => x.pid), ...(s.pid ? [s.pid] : [])])];   // a tab and a background wake can both exist: one living pid is enough
+      if (s.status !== 'offline' && pids.length && now - s.lastSeen < MAX_PID_QUIET_MS) {
+        if (pids.some((p) => isAlive(p))) continue;
         s.status = 'offline'; s.activity = ''; s.ended = true; changed.push(s);
         continue;
       }

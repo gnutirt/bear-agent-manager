@@ -61,9 +61,12 @@ export function endedOnLimit(file: string | undefined): boolean {
       const size = fs.fstatSync(fd).size, len = Math.min(size, 256 * 1024), buf = Buffer.alloc(len);
       fs.readSync(fd, buf, 0, len, size - len);
       for (const line of buf.toString('utf8').split('\n').reverse()) {
-        if (!line.includes('"assistant"')) continue;
+        if (!line.includes('"assistant"') && !line.includes('"user"')) continue;
         try {
           const j = JSON.parse(line);
+          // A prompt (or tool result) typed AFTER the error means the chat is working again: its new turn has no assistant line yet,
+          // and ending that tab would kill live work. Only the error being the last conversation line counts.
+          if (j.type === 'user') return false;
           if (j.type !== 'assistant') continue;
           return !!j.isApiErrorMessage && (j.error === 'rate_limit' || Number(j.apiErrorStatus) === 429 || !!j.quotaLimits);
         } catch { /* torn line */ }
