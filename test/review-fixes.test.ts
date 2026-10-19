@@ -53,3 +53,27 @@ test('a relayed answer keeps its agent name and id after the hub restarts (what 
   const again = new Store(dir).history('r', 0, 10).find((x) => x.id === m.id)!;
   assert.deepEqual([again.from, again.fromId, again.sys?.agent], ['agentdir', 'ag1', 'agentdir']);
 });
+
+test('full scenario: limit hit, reset passes, the user types again in the tab, then a message arrives: the working tab is NOT ended and no background wake starts', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  const calls: string[] = [];
+  const h = await makeHub(undefined, () => { calls.push('revive'); }, {
+    listProcs: async () => [{ pid: 801, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { calls.push('kill'); },
+  });
+  try {
+    const tr = path.join(h.dir, 'bob.jsonl');
+    const gone = Math.floor((Date.now() - 60_000) / 1000);
+    fs.writeFileSync(tr, line({ type: 'user', message: { content: 'work' } }) + line({ ...limit, quotaLimits: { status: 'rejected', resetsAt: gone, rateLimitType: 'five_hour' } }));
+    await h.call('/api/sessions/register', { id: 'b1', cwd: h.dir, name: 'bob', transcript: tr, pid: 801 });
+    await h.call('/api/rooms/web/join', { sessionId: 'b1' });
+    // the reset has passed and the user typed in the tab: a prompt line follows the error, the new turn has no assistant line yet
+    fs.appendFileSync(tr, line({ type: 'user', message: { content: 'continue please' } }));
+    await h.call('/api/rooms/web/messages', { text: '@bob status?' });
+    await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(calls, [], 'neither terminate (kill) nor a background revive');
+    const notices = (await h.call<any[]>('/api/rooms/web/messages?limit=20')).filter((m) => m.kind === 'system').map((m) => m.text);
+    assert.ok(!notices.some((t) => /bob/.test(t) && /(đóng|closed|ended)/i.test(t)), notices.join(' | '));
+    assert.equal((await h.call<any>('/api/sessions/b1')).session.status !== 'offline', true);
+  } finally { await h.hub.close(); }
+});
