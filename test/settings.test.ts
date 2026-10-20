@@ -183,3 +183,25 @@ test('agents.profiles: copilot.autoStart migrates into the profile "copilot" onc
     assert.deepEqual(loadSettings(dir).agents.profiles, []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('resolveWorkspace edge cases: network shares, non-strings, junctions are taken as their target', async () => {
+  const { resolveWorkspace } = await import('../hub/settings.ts');
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ar-ws-')));
+  const real = path.join(root, 'proj'), file = path.join(root, 'f.txt');
+  fs.mkdirSync(real); fs.writeFileSync(file, 'x');
+  try {
+    for (const unc of ['\\\\srv\\share\\proj', '//srv/share/proj', '\\\\?\\C:\\proj', '\\\\.\\C:\\proj']) assert.throws(() => resolveWorkspace(unc), /absolute local/, unc);
+    for (const bad of [undefined, null, 42, '', {}, ['C:\\'], '.', '..', 'proj']) assert.throws(() => resolveWorkspace(bad), /absolute local/, String(bad));
+    assert.equal(resolveWorkspace(real + path.sep), real, 'trailing separator');
+    assert.equal(resolveWorkspace(path.join(real, '..', 'proj')), real, 'dot-dot segments are resolved');
+    const link = path.join(root, 'link');
+    fs.symlinkSync(real, link, 'junction');
+    assert.equal(resolveWorkspace(link), real, 'a junction stands for its target, never for itself');
+    const toHome = path.join(root, 'tohome');
+    fs.symlinkSync(os.homedir(), toHome, 'junction');
+    assert.throws(() => resolveWorkspace(toHome), /home folder/, 'a link to the home folder is still too wide');
+    assert.equal(resolveWorkspace(toHome, true), fs.realpathSync(os.homedir()));
+    assert.throws(() => resolveWorkspace(path.join(link, 'f.txt')), /not a folder/);
+    assert.throws(() => resolveWorkspace(file), /not a folder/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

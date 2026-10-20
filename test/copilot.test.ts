@@ -614,3 +614,37 @@ test('Copilot rate limits keep pending messages queued when no enabled fallback 
     fs.rmSync(h.dir, { recursive: true, force: true });
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });
+
+test('Copilot profile routes: 429 past agents.maxBackground, retry/hide 404 for unknown ids, no confirm changes nothing', async () => {
+  const { factory } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  const post = (p: string, body: object = {}) => fetch(h.hub.url + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token }, body: JSON.stringify(body) });
+  try {
+    const a = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-a-')), b = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-b-'));
+    const put = await fetch(h.hub.url + '/api/settings', {
+      method: 'PUT', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
+      body: JSON.stringify({ agents: { maxBackground: 1, profiles: [
+        { id: 'one', provider: 'copilot', name: 'CopilotOne', cwd: a, enabled: false },
+        { id: 'two', provider: 'copilot', name: 'CopilotTwo', cwd: b, enabled: false },
+      ] } }),
+    });
+    assert.equal(put.status, 200);
+    assert.equal((await post('/api/copilot/profiles/one/retry')).status, 200);
+    const over = await post('/api/copilot/profiles/two', { on: true, confirm: true });
+    assert.equal(over.status, 429);
+    const body = await over.json() as any;
+    assert.match(body.error, /maxBackground/);
+    assert.equal(body.status.state, 'off');
+    assert.equal((await h.call<any[]>('/api/copilot/profiles')).find((s) => s.id === 'two').enabled, false, 'a refused start is not saved as enabled');
+    // without confirm: a status with done:false, the running agent is not stopped
+    const noConfirm = await (await post('/api/copilot/profiles/one', { on: false })).json() as any;
+    assert.equal(noConfirm.done, false);
+    assert.equal(noConfirm.state, 'idle');
+    assert.equal((await post('/api/copilot/profiles/nope/retry')).status, 404);
+    assert.equal((await post('/api/copilot/profiles/nope', { on: true, confirm: true })).status, 404);
+    assert.equal((await post('/api/rooms/no-such-room/hide')).status, 404);
+    await post('/api/copilot/profiles/one', { on: false, confirm: true });
+  } finally {
+    await h.hub.close();
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });

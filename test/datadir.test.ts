@@ -43,3 +43,18 @@ test('POST /api/browse-folder: M4b agent-form folder picker, passes the start pa
     assert.deepEqual(starts, [undefined, 'C:\\Projects']);
   } finally { await hub.close(); }
 });
+
+test('POST /api/browse-folder: a non-string start is dropped, a picker failure is an error, not a hang', async () => {
+  const starts: unknown[] = [];
+  let fail = false;
+  const { hub, call } = await makeHub(undefined, () => {}, {
+    browseFolder: (start?: string) => { starts.push(start); return fail ? Promise.reject(new Error('no dialog')) : Promise.resolve(null); },
+  });
+  try {
+    await call('/api/browse-folder', { start: 42 });
+    await call('/api/browse-folder', { start: ['C:/x'] });
+    assert.deepEqual(starts, [undefined, undefined]);
+    fail = true;
+    await assert.rejects(call('/api/browse-folder', {}), (e: any) => e.status >= 500);
+  } finally { await hub.close(); }
+});

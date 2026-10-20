@@ -515,3 +515,16 @@ test('deaf: live tab, no waiter, an @ waiting >10 min is listed; a waiter, a fre
   st.session('a1').ended = true;
   assert.deepEqual(st.deaf(none, MIN, t), []);                                             // ended tabs are revived, not "deaf"
 });
+
+test('private chat: a message in it wakes its agent, also while hidden; hiding twice and hiding an unknown room are handled', () => {
+  const st = new Store(tmp());
+  const s = st.register({ id: 'dmw1', cwd: path.join('D:', 'fw') });
+  const room = st.dmRoom(s.id).name;
+  st.post(room, null, 'are you there');
+  assert.equal(st.pending(s.id).wake, true, 'a user line in a private chat reaches the agent without an @');
+  st.hideDm(room); st.hideDm(room);
+  assert.equal(st.roomInfo(room).dmHidden, true);
+  st.post(room, null, 'still hidden');
+  assert.equal(st.pending(s.id).messages.length, 2, 'a hidden chat still delivers');
+  assert.throws(() => st.hideDm('no-such-room'), (e: StoreError) => e.status === 404);
+});
