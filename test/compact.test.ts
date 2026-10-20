@@ -147,8 +147,8 @@ async function offlineAgent(compactCode: number | null, ctx: number, wake: boole
 }
 
 test('wake compact: off or under the threshold -> plain revive', async () => {
-  assert.deepEqual((await offlineAgent(0, 100_000, false)).order, ['revive']);   // no rule, under the role's compact.thresholds fallback (background: 150k)
-  assert.deepEqual((await offlineAgent(0, 100_000, true)).order, ['revive']);
+  assert.deepEqual((await offlineAgent(0, 99_000, false)).order, ['revive']);   // no rule, under the role's compact.thresholds fallback (background: 100k)
+  assert.deepEqual((await offlineAgent(0, 99_000, true)).order, ['revive']);
 });
 
 test('wake compact: no agentCompact rule, over the role threshold -> /compact, then the wake (compact.thresholds fallback)', async () => {
