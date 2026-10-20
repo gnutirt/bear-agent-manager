@@ -1,2 +1,0 @@
-dong 1: xin chao
-dong 2: gia tri = 3 (trong cwd)
