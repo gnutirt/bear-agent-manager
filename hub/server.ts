@@ -1899,6 +1899,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const action = mm[2];
       if (m === 'GET' && !action) return json(res, 200, { session: publicSession(store.session(id)) });
       // S5: read-only file tree / file view / git diff of the agent's folder (hub/files.ts keeps it inside the folder and away from secrets)
+      if (m === 'GET' && action === 'console') return json(res, 200, { entries: toolConsole.list(store.session(mm[1]).id) });
       if (m === 'GET' && (action === 'files' || action === 'file' || action === 'diff')) {
         const cwd = store.session(id).cwd, rel = url.searchParams.get('path') ?? '';
         return json(res, 200, action === 'files' ? listDir(cwd, rel) : action === 'file' ? readFileView(cwd, rel) : await gitView(cwd, rel));
@@ -1907,7 +1908,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const cwd = store.session(id).cwd, b = await readBody(req);
         try {
           return json(res, 200, action === 'file' ? writeFileSafe(cwd, String(b.path ?? ''), b.content, b.mtime) : await commitPaths(cwd, b.paths, b.message));
-      if (m === 'GET' && action === 'console') return json(res, 200, { entries: toolConsole.list(store.session(mm[1]).id) });
         } catch (e: any) {
           if (e instanceof Conflict) return json(res, e.status, { error: e.message, ...e.extra });   // a write conflict carries the disk mtime
           throw e;
