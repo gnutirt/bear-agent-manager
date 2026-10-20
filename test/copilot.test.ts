@@ -490,6 +490,23 @@ test('Copilot profiles: one agent per profile, status has auth/enabled, toggle, 
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
 
+test('changing a Copilot profile model restarts it with the new SDK model', async () => {
+  const { factory, calls } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-model-'));
+    await h.call('/api/settings', { agents: { profiles: [{ id: 'model', provider: 'copilot', name: 'CopilotModel', cwd: work, enabled: false, model: 'gpt-6-luna' }] } }, { method: 'PUT' } as RequestInit);
+    await h.call('/api/copilot/profiles/model', { on: true, confirm: true });
+    assert.equal((calls.sessionConfigs.at(-1) as { model?: string }).model, 'gpt-6-luna');
+
+    await h.call('/api/settings', { agents: { profiles: [{ id: 'model', provider: 'copilot', name: 'CopilotModel', cwd: work, enabled: true, model: 'gpt-6.1' }] } }, { method: 'PUT' } as RequestInit);
+    await until(() => (calls.sessionConfigs.at(-1) as { model?: string } | undefined)?.model === 'gpt-6.1', COPILOT_ASYNC_TIMEOUT_MS, 'Copilot restarts with the updated profile model');
+    assert.ok(calls.stopped >= 1);
+  } finally {
+    await h.hub.close();
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
+
 test('Copilot profile whose folder is the home folder is refused at start (no unattended agent in a too-wide workspace)', async () => {
   const { factory, calls } = fakeFactory();
   const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });

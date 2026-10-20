@@ -372,7 +372,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = copilotProfiles(), cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     for (const [id, c] of [...copilots]) {
       const p = profiles.find((x) => x.id === id);
-      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home])) continue;
+      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home, p.model])) continue;
       if (c.agent.snapshot().state !== 'off') await c.agent.stop().catch((error) => console.error('[copilot] stop failed:', error));
       if (!p || c.key !== JSON.stringify([p.name, p.cwd, p.home])) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
     }
@@ -1835,7 +1835,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);
       if (b.headless !== true && b.id) { try { tabCameUp(store.session(String(b.id)).id); } catch { /* unknown session yet */ } }
-      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
+      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir !== undefined ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
       if (Number.isInteger(b.pid) && b.pid > 0) {
         s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
         store.save();
