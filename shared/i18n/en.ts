@@ -1008,7 +1008,7 @@ export const en: Record<string, string> = {
   'live.stop': 'Stop',
   'live.collapse': 'Collapse',
   'live.expand': 'Expand',
-  'live.hint': 'Start it to watch the agent answer as it types and see its tool calls. What you write in this private chat goes straight into that session.',
+  'live.hint': 'Watch the agent answer as it types, with its tool calls. Only available while the agent has no editor tab open.',
   'live.started': 'Session started{model}',
   'live.stopped': 'Session stopped (code {code})',
   'live.error': 'Error: {text}',

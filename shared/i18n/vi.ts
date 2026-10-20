@@ -1008,7 +1008,7 @@ export const vi: Record<string, string> = {
   'live.stop': 'Dừng',
   'live.collapse': 'Thu gọn',
   'live.expand': 'Mở rộng',
-  'live.hint': 'Bật để thấy agent trả lời chạy dần và các lệnh nó gọi. Tin bạn nhắn trong chat riêng này đi thẳng vào phiên đó.',
+  'live.hint': 'Xem agent trả lời chạy dần và các lệnh nó gọi. Chỉ dùng được khi agent không mở tab editor.',
   'live.started': 'Bắt đầu phiên{model}',
   'live.stopped': 'Phiên đã dừng (mã {code})',
   'live.error': 'Lỗi: {text}',

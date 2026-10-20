@@ -835,6 +835,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="stack" id="stack"></div>
     <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng" data-i18n-title="notes.tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg><span data-i18n="notes.title">Biên bản</span> <span id="notesCount">0</span></button>
     <button class="btn" id="searchBtn" hidden type="button" title="Tìm trong phòng (Ctrl+F)" data-i18n-ta="search.title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+    <button class="btn" id="liveBtn" hidden type="button" data-i18n="live.title">Chat trực tiếp</button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
   </header>
@@ -1622,7 +1623,24 @@ const LOG_WINDOW = 150;
 S.logWin = {};   // room -> how many of the latest messages are drawn
 let lastLogSig = '';
 /** What the drawn log depends on besides the messages: who the senders are and their status (receipts, names, avatars). Activity text and context size are not in it. */
-const logSigOf = () => `${S.current}|${(S.messages[S.current] || []).length}|${S.sysMode}|` + Object.values(S.sessions).map((x) => `${x.id}${x.name}${x.status}${x.ide}${x.title}${x.bg ? 1 : 0}${x.tab ? 1 : 0}`).join(',');
+/** A private chat also shows the answers its agent left as relay cards in the rooms (a turn answered in its own tab is relayed to the room it was asked in). */
+const isRelayOf = (m, sid) => m.sys?.type === 'relay' && m.fromId === sid;
+const dmAsked = new Set();
+/** An agent that answered in its own tab gets a private chat with you (created once, idempotent on the hub), where that answer is shown. */
+function ensureDm(sid) {
+  if (!sid || room('dm-' + sid) || dmAsked.has(sid) || !S.sessions[sid]) return;
+  dmAsked.add(sid);
+  api(`/api/rooms/dm/${enc(sid)}`, {}).catch(() => dmAsked.delete(sid));
+}
+const dmOf = (sid) => { const d = room('dm-' + sid); return d && !d.dmHidden ? d : null; };
+function logMessages(r = S.current) {
+  const own = S.messages[r] || [], sid = room(r)?.dm;
+  if (!sid) return own.some((m) => m.sys?.type === 'relay' && m.fromId) ? own.filter((m) => !(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) : own;   // a relayed answer goes to its private chat, not the group
+  const extra = [];
+  for (const [k, list] of Object.entries(S.messages)) if (k !== r && !room(k)?.dm) for (const m of list) if (isRelayOf(m, sid)) extra.push(m);
+  return extra.length ? [...own, ...extra].sort((a, b) => a.id - b.id) : own;
+}
+const logSigOf = () => `${S.current}|${logMessages().length}|${S.sysMode}|` + Object.values(S.sessions).map((x) => `${x.id}${x.name}${x.status}${x.ide}${x.title}${x.bg ? 1 : 0}${x.tab ? 1 : 0}`).join(',');
 /** A session event fires on every tool call of every agent; the log only needs a redraw when something it shows changed. */
 /** Screen readers: a short announcement for a message that arrives in the room you are looking at (the log itself is redrawn, so it is not a live region). */
 let srTimer = 0;
@@ -1642,7 +1660,7 @@ function renderLog() {
     logBody.innerHTML = `<div class="empty"><h2>${t('empty.firstRoom.title')}</h2>${t('empty.firstRoom.body')}<br><button class="btn primary" id="emptyNew">${I.plus} ${t('rooms.new')}</button></div>`;
     $('emptyNew').onclick = () => showNewRoom(); return;
   }
-  const allMs = S.messages[S.current] || [], tf = S.tfilter[S.current] || '';
+  const allMs = logMessages(), tf = S.tfilter[S.current] || '';
   const msAll = tf ? allMs.filter((m) => topicOf(m) === tf) : allMs;
   const winN = S.logWin[S.current] || LOG_WINDOW, hiddenOld = Math.max(0, msAll.length - winN);
   const ms = hiddenOld ? msAll.slice(-winN) : msAll;   // a long room draws its latest messages first: fewer nodes to build, lay out and repaint
@@ -1766,8 +1784,10 @@ async function select(name) {
   if (room(name)?.dm) S.lastDm = name;
   setTaskRoom(name);   // the tasks tab remembers the last non-DM room so it still has something to show while you're in a private chat
   if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
+  if (room(name)?.dm) for (const r of S.rooms) if (!r.dm && !S.messages[r.name]) S.messages[r.name] = await api(`/api/rooms/${enc(r.name)}/messages?limit=300`).catch(() => []);   // their relayed answers show in the private chat too
   if (name && !S.notes[name]) await loadNotes(name);
   if (name && !S.topics[name]) loadTopics(name);
+  if (!room(name)?.dm) for (const m of S.messages[name] || []) if (m.sys?.type === 'relay') ensureDm(m.fromId);
   note(); renderAll();
   const dmSid = room(name)?.dm; if (dmSid) loadLive(dmSid); else renderLive();
   if (name) $('text').focus();
@@ -1800,12 +1820,17 @@ function connect() {
     const m = JSON.parse(e.data);
     const list = S.messages[m.room];
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
-    if (m.room === S.current && S.around !== m.room) {
+    if (m.sys?.type === 'relay' && m.fromId) ensureDm(m.fromId);
+    if (m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId)) {
+      const d = 'dm-' + m.fromId;
+      if (S.current === d) queueLog(); else { S.unread[d] = (S.unread[d] || 0) + 1; renderRooms(); }
+    }
+    if (m.room === S.current && S.around !== m.room && !(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) {
       if (m.kind !== 'system' || m.sys?.level === 'error') announce(`${m.fromId ? (S.sessions[m.fromId]?.name || m.from) : isHubMessage(m) ? messageName(m) : (m.kind === 'system' ? '' : t('you'))}: ${plain(m.text, 160)}`.replace(/^: /, ''));
       const tf = S.tfilter[m.room];
       if (tf && topicOf(m) !== tf) { const u = (S.tunread[m.room] ??= {}); u[topicOf(m)] = (u[topicOf(m)] || 0) + 1; }
       queueLog();
-    } else { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
+    } else if (!(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
   es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); });
   es.addEventListener('session', (e) => {
@@ -2007,7 +2032,8 @@ let liveRaf = 0;
 const queueLiveRender = () => { if (!liveRaf) liveRaf = requestAnimationFrame(() => { liveRaf = 0; renderLive(); }); };
 function renderLive() {
   const pane = $('livePane'), sid = liveSid(), st = sid && S.live[sid];
-  pane.hidden = !st || st.off;
+  $('liveBtn').hidden = !st || st.off || st.running;
+  pane.hidden = !st || st.off || (!st.running && !st.items.length);
   if (pane.hidden) return;
   const body = pane.querySelector('.lbody'), atEnd = !body || body.scrollHeight - body.scrollTop - body.clientHeight < 40;
   const item = (i) => {
@@ -2021,12 +2047,14 @@ function renderLive() {
   };
   const rows = st.items.map(item).join('') + (st.stream ? `<div class="lmsg msg streaming">${md(st.stream).replace(/(<\/p>)?\s*$/, '<span class="caret" aria-hidden="true">▍</span>$1')}</div>` : '');
   const head = `<div class="lhead"><span class="led ${st.running ? 'busy' : ''}"></span><b>${t('live.title')}</b><span class="muted">${st.running ? t('live.on') : t('live.off')}</span><span class="sp"></span><button type="button" class="btn sm${st.running ? '' : ' primary'}" data-live="${st.running ? 'stop' : 'start'}">${st.running ? t('live.stop') : t('live.start')}</button><button type="button" class="btn sm" data-live="fold" aria-expanded="${!S.liveFold}">${S.liveFold ? t('live.expand') : t('live.collapse')}</button></div>`;
-  pane.innerHTML = head + (S.liveFold ? '' : rows ? `<div class="lbody" role="log" aria-live="off">${rows}</div>` : `<div class="lhint">${t('live.hint')}</div>`);
+  pane.innerHTML = head + (S.liveFold || !rows ? '' : `<div class="lbody" role="log" aria-live="off">${rows}</div>`);
+  pane.querySelector('.lhead').title = t('live.hint');
   const nb = pane.querySelector('.lbody'); if (nb && atEnd) nb.scrollTop = nb.scrollHeight;
 }
 function liveStart(sid, quiet) {
   return api(`/api/sessions/${enc(sid)}/live`, {}).then(() => { (S.live[sid] ??= newLive()).running = true; renderLive(); }, (e) => { if (!quiet) toast(t('live.startFail', { err: e.message })); throw e; });
 }
+$('liveBtn').onclick = () => { const sid = liveSid(); if (sid) liveStart(sid).catch(() => {}); };
 $('livePane').addEventListener('click', (e) => {
   const b = e.target.closest('[data-live]'), sid = liveSid(); if (!b || !sid) return;
   if (b.dataset.live === 'fold') { S.liveFold = !S.liveFold; try { localStorage.setItem('bear-agent-manager:liveFold', S.liveFold ? '1' : '0'); } catch {} return renderLive(); }
