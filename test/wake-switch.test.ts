@@ -18,6 +18,8 @@ function machine(sharedChats: boolean) {
   fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'alice@x.com' } }));
   fs.writeFileSync(path.join(b, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'bob@x.com' } }));
   if (sharedChats) applyShare(planShare([a, b], a, true), a);
+  fs.mkdirSync(path.join(a, 'file-history', 'a1'), { recursive: true });   // B2: rewind snapshots of the session, not shared (only projects/ is)
+  fs.writeFileSync(path.join(a, 'file-history', 'a1', 'f@v1'), 'snap');
   const reset = new Date(Date.now() + 3 * 3600_000).toISOString();
   const usageFetch = (async (_u: string, init: RequestInit) => {
     const auth = String((init.headers as Record<string, string>)?.authorization ?? (init.headers as Record<string, string>)?.Authorization ?? '');
@@ -53,6 +55,7 @@ test('a wake blocked by the account limit runs on the other logged-in account wh
     await until(() => jobs.length > 0, 10_000, 'the background run');
     assert.equal(jobs.length, 1, notes.join(' | '));
     assert.equal(path.resolve(jobs[0].configDir), path.resolve(m.b), 'the turn runs on account B');
+    assert.ok(fs.existsSync(path.join(m.b, 'file-history', 'a1', 'f@v1')), 'B2: the rewind history came along');
     assert.ok(notes.some((t) => t.includes('alice') && /on the b account|tài khoản b\b/.test(t)), notes.join(' | '));
   } finally { await hub.close(); }
 });

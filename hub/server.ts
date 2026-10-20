@@ -881,6 +881,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const pick = pickAccount(await usage.read(all).catch(() => accs), s.configDir || primary, { ...sw, mode: 'auto' }, listConfigAccounts(all, primary).shared);
       if (pick.target) {
         const to = pick.target.configDirs[0], cur = store.session(s.id);
+        carrySessionDirs(cur.configDir || primary, to, cur.id);   // B2: rewind history and todos come along
         cur.configDir = to; store.save();
         if (job) job.configDir = to;
         emitSession(cur);
