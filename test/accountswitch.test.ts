@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pickAccount } from '../hub/accountswitch.ts';
+import os from 'node:os';
+import { carrySessionDirs, pickAccount } from '../hub/accountswitch.ts';
 import { applyShare, planShare } from '../hub/accounts.ts';
 
 const acc = (dir: string, five: number, extra: object = {}) => ({ configDirs: [dir], label: path.basename(dir), email: '', plan: '', fiveHour: { pct: five, resetsAt: null }, sevenDay: { pct: 10, resetsAt: null }, usageError: '', fetchedAt: 0, ...extra });
@@ -44,4 +45,27 @@ test('POST /api/sessions/:id/switch: refused without shared chats; then the agen
     const notes = (await h.call<any[]>('/api/rooms/web/messages?limit=10')).filter((m) => m.kind === 'system').map((m) => m.text);
     assert.ok(notes.some((t) => t.includes('alice') && t.includes('.claude-b')), notes.join(' | '));
   } finally { await h.hub.close(); }
+});
+
+test('B2 carrySessionDirs: a switch copies the session rewind history, hook env and todos, never overwrites, skips shared folders', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-carry-'));
+  const a = path.join(home, '.claude'), b = path.join(home, '.claude-b'), sid = 'sess-1';
+  const put = (f: string, text: string) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  put(path.join(a, 'file-history', sid, 'abc@v1'), 'old');
+  put(path.join(a, 'file-history', 'other', 'x@v1'), 'not mine');
+  put(path.join(a, 'session-env', sid, 'env.sh'), 'env');
+  put(path.join(a, 'todos', `${sid}-agent-${sid}.json`), '[]');
+  put(path.join(a, '.credentials.json'), 'secret');
+  put(path.join(b, 'file-history', sid, 'abc@v1'), 'newer on b');
+  const got = carrySessionDirs(a, b, sid).sort();
+  assert.deepEqual(got, [path.join('file-history', sid), path.join('session-env', sid), path.join('todos', `${sid}-agent-${sid}.json`)].sort());
+  assert.equal(fs.readFileSync(path.join(b, 'file-history', sid, 'abc@v1'), 'utf8'), 'newer on b', 'never overwrites');
+  assert.ok(fs.existsSync(path.join(b, 'todos', `${sid}-agent-${sid}.json`)));
+  assert.ok(!fs.existsSync(path.join(b, 'file-history', 'other')), 'only this session');
+  assert.ok(!fs.existsSync(path.join(b, '.credentials.json')), 'logins are never copied');
+  // a shared (linked) folder is the same folder: nothing to copy
+  const c = path.join(home, '.claude-c');
+  fs.mkdirSync(c);
+  fs.symlinkSync(path.join(a, 'file-history'), path.join(c, 'file-history'), 'junction');
+  assert.ok(!carrySessionDirs(a, c, sid).some((x) => x.startsWith('file-history')));
 });

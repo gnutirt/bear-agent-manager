@@ -13,7 +13,7 @@ import { summarize } from './tokens.ts';
 import { appAsset, withManifest } from './appshell.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare } from './accounts.ts';
-import { pickAccount } from './accountswitch.ts';
+import { carrySessionDirs, pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
@@ -583,6 +583,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (live) { try { await terminateSession(s); } catch { if (!s.pid || !pidAlive(s.pid)) emitSession(store.markEnded(s.id)); else throw new StoreError(409, `${s.name}: its claude (pid ${s.pid}) could not be stopped`); } }
     stopRevive(s.id);
     const cur = store.session(s.id);
+    carrySessionDirs(cur.configDir || path.join(usageHome, '.claude'), to, cur.id);   // B2: rewind history and todos come along
     cur.configDir = to; cur.ended = true; store.save();
     for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
     emitSession(cur);
