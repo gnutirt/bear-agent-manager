@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultSettings, loadSettings, normAgent, patchSettings, saveSettings } from '../hub/settings.ts';
+import { defaultSettings, loadSettings, normAgent, patchSettings, saveSettings, validateAgentProfiles } from '../hub/settings.ts';
 import { makeHub } from './helpers.ts';
 
 test('defaults: workers on, everything automatic off, no skill rules', () => {
@@ -165,6 +165,13 @@ test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones drop
   assert.equal(resolveWorkspace(os.homedir(), true), fs.realpathSync(os.homedir()));   // a person confirmed it
   assert.throws(() => resolveWorkspace(path.join(here, 'no-such-folder-xyz')), /not a folder/);
   assert.throws(() => resolveWorkspace(path.join(here, 'package.json')), /not a folder/);
+});
+
+test('agents.profiles: validation reports field-level errors and permits empty profile lists', () => {
+  assert.deepEqual(validateAgentProfiles([]), []);
+  const errors = validateAgentProfiles([{ id: 'api-worker', provider: 'claude-api', name: 'API worker', cwd: 'relative', providerId: 'deepseek' }]);
+  assert.ok(errors.some((e) => e.id === 'api-worker' && e.field === 'name'));
+  assert.ok(errors.some((e) => e.id === 'api-worker' && e.field === 'cwd'));
 });
 
 test('agents.profiles: copilot.autoStart migrates into the profile "copilot" once, an explicit profiles list wins', () => {

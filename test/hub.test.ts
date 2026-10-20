@@ -465,6 +465,26 @@ test('automatic jobs stay off by default', async () => {
   } finally { await hub.close(); }
 });
 
+test('PUT /api/settings rejects invalid agent profiles with field details and leaves settings unchanged', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    const before = await call<any>('/api/settings');
+    const response = await fetch(`${hub.url}/api/settings`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ mirrorTabs: false, agents: { profiles: [{ id: 'deepseek', provider: 'claude-api', name: 'DeepSeek', cwd: 'relative', providerId: 'deepseek' }] } }),
+    });
+    const result = await response.json() as any;
+    assert.equal(response.status, 400);
+    assert.match(result.error, /không hợp lệ/i);
+    assert.match(result.error, /cwd/);
+    assert.ok(result.profileErrors.some((e: any) => e.id === 'deepseek' && e.field === 'cwd'));
+    const after = await call<any>('/api/settings');
+    assert.deepEqual(after.agents.profiles, before.agents.profiles);
+    assert.equal(after.mirrorTabs, before.mirrorTabs);
+  } finally { await hub.close(); }
+});
+
 test('archive rounds never overlap and never make a hook wait', async () => {
   let calls = 0, release: () => void = () => {};
   const archiveRunner = () => { calls++; return new Promise<any>((r) => { release = () => r({ ok: true, reason: '', copiedFiles: 0, copiedBytes: 0 }); }); };
