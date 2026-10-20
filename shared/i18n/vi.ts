@@ -670,6 +670,7 @@ export const vi: Record<string, string> = {
   'sys.task.doneWhen': 'Xong khi: {text}',
   'sys.task.src': '(tin gốc #{id})',
   'sys.task.done': '✅ Việc #{id} xong: {title}{by}{commit}',
+  'sys.task.audit': '@{lead} Việc #{id} đã xong ({owner}): {title}{commit}. Mày audit giúp.',
   'compact.tasks': 'Việc đang mở:',
   'tab.tasks': 'Việc',
   'task.title': 'Việc của phòng',

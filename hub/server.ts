@@ -26,7 +26,7 @@ import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
 import { isHubText, scrubSecrets } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
-import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
+import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, unblockReady, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -1963,19 +1963,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           return mem.name;
         };
         // Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated)
-        const assign = (t: Task) => {
-          const extra = `${t.detail ? `\n${t.detail}` : ''}${t.doneWhen ? `\n${tr('sys.task.doneWhen', { text: t.doneWhen })}` : ''}${t.fromMsg ? ` ${tr('sys.task.src', { id: t.fromMsg })}` : ''}`;
-          const r = store.post(room, who?.id ?? null, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
-          broadcast('msg', r.message);
-          emitRoom(room);
-          for (const id of r.message.wake) deliver(store.resolve(id));
-        };
+        const assign = (t: Task) => assignTask(room, t, who?.id ?? null);
         if (!sub) {
           if (!isLead) throw new StoreError(403, 'only the room lead adds tasks');
           const owner = memberName(b.owner);
           const t = addTask(opts.dir, room, { ...b, owner });
           emitTasks();
-          if (t.owner) assign(t);
+          if (t.owner && !isWaiting(t, listTasks(opts.dir, room))) assign(t);
           return json(res, 200, t);
         }
         if (sub === 'import') {
@@ -2007,12 +2001,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const patch = { ...b, ...(b.owner !== undefined ? { owner: memberName(b.owner) } : {}) };
         const { task, before } = updateTask(opts.dir, room, id, patch);
         emitTasks();
-        if (task.owner && task.owner !== before.owner && task.status !== 'done') assign(task);
+        if (task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
         if (task.status === 'done' && before.status !== 'done') {
           try {
             broadcast('msg', postSys(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
             emitRoom(room);
           } catch { /* room gone */ }
+          afterTaskDone(room, task);
         }
         return json(res, 200, task);
       }
@@ -2205,9 +2200,59 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   });
   port = (server.address() as AddressInfo).port;
 
+  // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
+  const assignTask = (room: string, t: Task, fromId: string | null) => {
+    const extra = `${t.detail ? `\n${t.detail}` : ''}${t.doneWhen ? `\n${tr('sys.task.doneWhen', { text: t.doneWhen })}` : ''}${t.fromMsg ? ` ${tr('sys.task.src', { id: t.fromMsg })}` : ''}`;
+    const r = store.post(room, fromId, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
+    broadcast('msg', r.message);
+    emitRoom(room);
+    for (const id of r.message.wake) deliver(store.resolve(id));
+  };
+  const emitTaskList = (room: string) => broadcast('tasks', { room, tasks: listTasks(opts.dir, room) });
+  // a finished task wakes the lead to audit it, and releases the tasks that waited for it
+  const afterTaskDone = (room: string, done: Task) => {
+    try {
+      const lead = store.state.rooms[room]?.lead ? store.state.sessions[store.state.rooms[room].lead!] : undefined;
+      if (lead?.name && lead.name.toLowerCase() !== (done.owner ?? '').toLowerCase()) {
+        const r = store.post(room, null, tr('sys.task.audit', { lead: lead.name, id: done.id, title: done.title, owner: done.owner ?? '-', commit: done.commit ? ` · ${done.commit.slice(0, 9)}` : '' }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
+        broadcast('msg', r.message);
+        for (const id of r.message.wake) deliver(store.resolve(id));
+      }
+      const released = unblockReady(opts.dir, room);
+      if (released.length) emitTaskList(room);
+      for (const t of released) if (t.owner) assignTask(room, t, null);
+      emitRoom(room);
+    } catch { /* room gone */ }
+  };
+  // an owner who is idle with a todo and nothing in progress gets the next task (a nudge at most every 10 min per owner)
+  const AUTO_NEXT_COOLDOWN_MS = 10 * 60_000;
+  const lastAutoNext = new Map<string, number>();
+  const autoNextTasks = (now = Date.now()) => {
+    for (const room of Object.keys(store.state.rooms)) {
+      let all: Task[];
+      try { all = listTasks(opts.dir, room); } catch { continue; }
+      if (!all.some((t) => t.status === 'todo' && t.owner)) continue;
+      for (const mem of store.members(room)) {
+        if (mem.status !== 'idle') continue;
+        const mine = all.filter((t) => (t.owner ?? '').toLowerCase() === mem.name.toLowerCase());
+        const next = mine.find((t) => t.status === 'todo');
+        if (!next || mine.some((t) => t.status === 'doing')) continue;
+        const key = `${room}|${mem.name.toLowerCase()}`;
+        if (now - (lastAutoNext.get(key) ?? 0) < AUTO_NEXT_COOLDOWN_MS) continue;
+        lastAutoNext.set(key, now);
+        try {
+          const { task } = updateTask(opts.dir, room, next.id, { status: 'doing' });
+          emitTaskList(room);
+          assignTask(room, task, null);
+        } catch { /* room or task gone */ }
+      }
+    }
+  };
+
   const sweeper = setInterval(() => {
     for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
     checkDeaf();
+    autoNextTasks();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);

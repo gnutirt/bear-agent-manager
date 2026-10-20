@@ -670,6 +670,7 @@ export const en: Record<string, string> = {
   'sys.task.doneWhen': 'Done when: {text}',
   'sys.task.src': '(source message #{id})',
   'sys.task.done': '✅ Task #{id} done: {title}{by}{commit}',
+  'sys.task.audit': '@{lead} Task #{id} is done ({owner}): {title}{commit}. Please audit it.',
   'compact.tasks': 'Open tasks:',
   'tab.tasks': 'Tasks',
   'task.title': 'Room tasks',

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { addTask, importTodo, listTasks, openTasksText, updateTask } from '../hub/tasks.ts';
 import { compactContext } from '../hub/compact.ts';
 import { callTool, type Api } from '../mcp/tools.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ar-tasks-'));
 
@@ -74,8 +74,11 @@ test('hub routes: lead adds and assigns (one short message wakes the owner), oth
     await call('/api/rooms/r/tasks/1', { sessionId: 'c1', status: 'doing' });
     await call('/api/rooms/r/tasks/1', { sessionId: 'c1', status: 'done', commit: 'abc1234def', note: 'ok' });
     const after = await call<any[]>('/api/rooms/r/messages?limit=3');
-    assert.match(after[after.length - 1].text, /✅ Việc #1 xong: Build K1 \(coder\) · abc1234de/);
-    assert.deepEqual(after[after.length - 1].wake, []);   // the lead gets a line, nobody is woken
+    const doneLine = after[after.length - 2], audit = after[after.length - 1];
+    assert.match(doneLine.text, /✅ Việc #1 xong: Build K1 \(coder\) · abc1234de/);
+    assert.deepEqual(doneLine.wake, []);
+    assert.match(audit.text, /^@boss Việc #1 đã xong \(coder\)/);   // Q2: the lead is woken to audit
+    assert.deepEqual(audit.wake, ['l1']);
 
     // a different owner gets the assignment message, a done task is not re-assigned
     const t2 = await call('/api/rooms/r/tasks', { title: 'From the UI' });   // no session: the owner of the repo
@@ -119,4 +122,53 @@ test('room_tasks MCP tool: list, next takes the todo task assigned to me, update
     assert.match(await callTool(api, 'c1', 'room_tasks', { action: 'update', id: 1, status: 'done', commit: 'abcdef1' }), /Task #1 is now done/);
     await assert.rejects(callTool(api, 'c1', 'room_tasks', { action: 'fly' }), /action must be/);
   } finally { await hub.close(); }
+});
+
+test('Q1 after: a task waits (blocked) until every task it names is done, then the hub makes it todo and wakes the owner', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    for (const [id, name] of [['l1', 'boss'], ['c1', 'coder'], ['d1', 'other']]) {
+      await call('/api/sessions/register', { id, cwd: `C:/${name}` });
+      await call(`/api/sessions/${id}/rename`, { name });
+      await call('/api/rooms/r/join', { sessionId: id });
+    }
+    await call('/api/rooms/r/lead', { sessionId: 'l1' });
+    const a = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'A', owner: 'coder' });
+    const b = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'B', owner: 'coder' });
+    const c = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'C', owner: 'other', after: [a.id, b.id] });
+    assert.equal(c.status, 'blocked');
+    assert.deepEqual(c.after, [a.id, b.id]);
+    const last = async () => (await call<any[]>('/api/rooms/r/messages?limit=1'))[0];
+    assert.doesNotMatch((await last()).text, /Việc #3/, 'a waiting task is not assigned yet');
+    await call(`/api/rooms/r/tasks/${a.id}`, { sessionId: 'c1', status: 'done' });
+    assert.equal((await call<any[]>('/api/rooms/r/tasks?owner=other'))[0].status, 'blocked', 'still waits for B');
+    await call(`/api/rooms/r/tasks/${b.id}`, { sessionId: 'c1', status: 'done' });
+    assert.equal((await call<any[]>('/api/rooms/r/tasks?owner=other'))[0].status, 'todo');
+    const m = await last();
+    assert.match(m.text, /^@other Việc #3: C/);
+    assert.deepEqual(m.wake, ['d1']);
+    // a dependency that is already done does not block, and a deleted one is ignored
+    const d = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'D', after: [a.id] });
+    assert.equal(d.status, 'todo');
+  } finally { await hub.close(); }
+});
+
+test('Q3 sweeper: an idle owner with a todo and nothing in progress is given the next task and woken, at most once per 10 minutes', async () => {
+  const { hub, call } = await makeHub(50);
+  try {
+    for (const [id, name] of [['l1', 'boss'], ['c1', 'coder']]) {
+      await call('/api/sessions/register', { id, cwd: `C:/${name}` });
+      await call(`/api/sessions/${id}/rename`, { name });
+      await call('/api/rooms/r/join', { sessionId: id });
+    }
+    await call('/api/rooms/r/lead', { sessionId: 'l1' });
+    const t1 = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'First', owner: 'coder' });
+    await until(async () => (await call<any[]>('/api/rooms/r/tasks')).find((t) => t.id === t1.id).status === 'doing', 5000, 'next task taken');
+    const sys = (await call<any[]>('/api/rooms/r/messages?limit=10')).filter((x) => /^@coder Việc #1: First/.test(x.text));
+    assert.ok(sys.length >= 1 && sys.every((x) => x.wake.includes('c1')), 'owner told and woken');
+    // cooldown: a second todo is not handed out again within 10 minutes, and nothing is handed out while one is in progress
+    const t2 = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Second', owner: 'coder' });
+    await call(`/api/rooms/r/tasks/${t1.id}`, { sessionId: 'c1', status: 'done' });
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal((await call<any[]>('/api/rooms/r/tasks')).find((t) => t.id === t2.id).status, 'todo');  } finally { await hub.close(); }
 });

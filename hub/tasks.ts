@@ -8,6 +8,8 @@ export const STATUSES = ['todo', 'doing', 'blocked', 'done'] as const;
 export type TaskStatus = (typeof STATUSES)[number];
 export type Task = {
   id: number; title: string; detail?: string; doneWhen?: string; fromMsg?: number; owner?: string;
+  /** ids this task waits for: while one is not done the task is blocked; the hub moves it to todo when all are done */
+  after?: number[];
   status: TaskStatus; createdAt: number; updatedAt: number; doneAt?: number; commit?: string; note?: string;
 };
 type File = { next: number; tasks: Task[] };
@@ -46,7 +48,16 @@ export function listTasks(home: string, room: string, q: { status?: string; owne
   return read(home, room).tasks.filter((t) => (!statuses.length || statuses.includes(t.status)) && (!owner || (t.owner ?? '').toLowerCase() === owner));
 }
 
-export type TaskInput = { title?: unknown; detail?: unknown; doneWhen?: unknown; fromMsg?: unknown; owner?: unknown; status?: unknown; note?: unknown; commit?: unknown };
+export type TaskInput = { title?: unknown; detail?: unknown; doneWhen?: unknown; fromMsg?: unknown; owner?: unknown; status?: unknown; note?: unknown; commit?: unknown; after?: unknown };
+
+/** Ids from an array or a "1, 2" string: positive integers, unique, not the task itself, at most 20. */
+function parseAfter(v: unknown, self: number): number[] {
+  const raw = Array.isArray(v) ? v : String(v ?? '').split(/[\s,]+/);
+  return [...new Set(raw.map((x) => Number(String(x).replace(/^#/, ''))).filter((n) => Number.isInteger(n) && n > 0 && n !== self))].slice(0, 20);
+}
+/** A dependency that no longer exists (deleted) counts as done: it must not block forever. */
+const pending = (t: Task, all: Task[]): boolean => (t.after ?? []).some((id) => { const d = all.find((x) => x.id === id); return !!d && d.status !== 'done'; });
+export const isWaiting = (t: Task, all: Task[]): boolean => t.status === 'blocked' && pending(t, all);
 
 function apply(t: Task, b: TaskInput, fresh: boolean): void {
   if (b.title !== undefined || fresh) {
@@ -58,6 +69,7 @@ function apply(t: Task, b: TaskInput, fresh: boolean): void {
     if (b[k] !== undefined) { const v = clip(b[k], n); if (v) t[k] = v; else delete t[k]; }
   }
   if (b.fromMsg !== undefined) { const m = Number(b.fromMsg); if (Number.isInteger(m) && m > 0) t.fromMsg = m; else delete t.fromMsg; }
+  if (b.after !== undefined) { const a = parseAfter(b.after, t.id); if (a.length) t.after = a; else delete t.after; }
   if (b.owner !== undefined) {
     const o = clip(b.owner, 32);
     if (o && !/^[A-Za-z0-9_-]+$/.test(o)) throw new StoreError(400, 'owner must be an agent name');
@@ -78,9 +90,23 @@ function apply(t: Task, b: TaskInput, fresh: boolean): void {
 export function addTask(home: string, room: string, b: TaskInput, now = Date.now()): Task {
   const f = read(home, room), t = { id: f.next++, title: '', status: 'todo', createdAt: now, updatedAt: now } as Task;
   apply(t, b, true);
+  if (t.status === 'todo' && pending(t, f.tasks)) t.status = 'blocked';
   f.tasks.push(t);
   write(home, room, f);
   return t;
+}
+
+/** Blocked tasks whose `after` tasks are all done become todo (the caller then assigns them). */
+export function unblockReady(home: string, room: string): Task[] {
+  const f = read(home, room), out: Task[] = [], now = Date.now();
+  for (const t of f.tasks) {
+    if (t.status !== 'blocked' || !t.after?.length || pending(t, f.tasks)) continue;
+    t.status = 'todo';
+    t.updatedAt = now;
+    out.push(t);
+  }
+  if (out.length) write(home, room, f);
+  return out;
 }
 
 export function updateTask(home: string, room: string, id: number, b: TaskInput): { task: Task; before: Task } {
@@ -88,6 +114,7 @@ export function updateTask(home: string, room: string, id: number, b: TaskInput)
   if (!t) throw new StoreError(404, `task #${id} not found`);
   const before = { ...t };
   apply(t, b, false);
+  if (b.after !== undefined && t.status === 'todo' && pending(t, f.tasks)) t.status = 'blocked';
   t.updatedAt = Date.now();
   write(home, room, f);
   return { task: t, before };
