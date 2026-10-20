@@ -153,9 +153,21 @@ export async function main(argv = process.argv.slice(2), { out = (s) => console.
     }
 
     // 4. optional extras
-    if (await confirm('Share chats between VS Code and Antigravity (link .claude-antigravity to .claude)?', o.link, true)) {
-      const r = link({ home: o.home });
-      report.push(['link editors', r.refused.length ? 'warn' : 'ok', `${r.linked.length} linked, ${r.already.length} already${r.refused.length ? `, ${r.refused.length} refused (node scripts/machine.mjs link --merge)` : ''}`]);
+    const machine = check({ home: o.home });
+    const accountCount = machine.configDirs.length;
+    const projectsShared = machine.links.find(({ name }) => name === 'projects')?.state === 'linked';
+    const shouldOfferLink = accountCount >= 2 && !projectsShared;
+    if (o.link || shouldOfferLink) {
+      if (o.dry) {
+        report.push(['link editors', 'skip', 'dry run: would link Claude data between VS Code and Antigravity']);
+      } else if (await confirm('Share chats between VS Code and Antigravity (link .claude-antigravity to .claude)?', o.link, true)) {
+        const r = link({ home: o.home });
+        report.push(['link editors', r.refused.length ? 'warn' : 'ok', `${r.linked.length} linked, ${r.already.length} already${r.refused.length ? `, ${r.refused.length} refused (node scripts/machine.mjs link --merge)` : ''}`]);
+      } else {
+        report.push(['link editors', 'todo', 'not changed: approve sharing or run again with --link']);
+      }
+    } else if (projectsShared) {
+      report.push(['link editors', 'ok', 'projects already shared']);
     }
     if (await confirm('Install the VS Code / Antigravity panel (scripts/install-vscode.mjs)?', o.vscode, true)) {
       const r = run('node', [path.join(ROOT, 'scripts', 'install-vscode.mjs')]);

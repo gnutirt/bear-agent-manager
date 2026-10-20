@@ -60,3 +60,59 @@ if (a[1] === 'install') { fs.mkdirSync(path.join(dir, 'plugins'), { recursive: t
     assert.equal(dry.code, 0);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
+
+test('setup offers chat sharing for two Claude accounts, keeps dry-run and --yes safe, and does not ask again once shared', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-setup-share-'));
+  const cfg = path.join(home, '.claude');
+  const ag = path.join(home, '.claude-antigravity');
+  fs.mkdirSync(path.join(cfg, 'plugins'), { recursive: true });
+  fs.mkdirSync(path.join(ag, 'plugins'), { recursive: true });
+  for (const dir of [cfg, ag]) {
+    fs.writeFileSync(path.join(dir, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: {} }));
+  }
+  fs.writeFileSync(path.join(cfg, 'settings.json'), JSON.stringify({ theme: 'dark' }));
+  const log = path.join(home, 'claude-calls.txt');
+  const stub = path.join(home, 'claude-stub.mjs');
+  fs.writeFileSync(stub, `import fs from 'node:fs'; import path from 'node:path';
+const a = process.argv.slice(2), dir = process.env.CLAUDE_CONFIG_DIR;
+fs.appendFileSync(${JSON.stringify(log)}, a.join(' ') + ' @ ' + dir + '\\n');
+if (a[1] === 'install') { fs.mkdirSync(path.join(dir, 'plugins'), { recursive: true }); fs.writeFileSync(path.join(dir, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { [a[2]]: [{}] } })); }
+`);
+  const run = async (extra: string[] = [], ask?: (question: string) => boolean | Promise<boolean>) => {
+    const lines: string[] = [];
+    const r = await main(['--home', home, '--config-dir', cfg, '--claude', `node ${stub}`, '--skip-npm', ...extra], { out: (s: string) => lines.push(s), ask });
+    return { ...r, text: lines.join('\n') };
+  };
+  try {
+    const dry = await run(['--dry-run']);
+    assert.match(dry.text, /--\s+link editors: dry run: would link Claude data/);
+    assert.equal(fs.existsSync(path.join(cfg, 'projects')), false);
+    assert.equal(fs.existsSync(path.join(ag, 'projects')), false);
+
+    const yes = await run(['--yes']);
+    assert.match(yes.text, /TODO\s+link editors: not changed/);
+    assert.equal(fs.existsSync(path.join(cfg, 'projects')), false, '--yes does not silently enable optional sharing');
+
+    const questions: string[] = [];
+    const linked = await run([], async (question) => {
+      questions.push(question);
+      return question.startsWith('Share chats');
+    });
+    assert.ok(questions.some((question) => question.startsWith('Share chats')));
+    const source = path.join(cfg, 'projects');
+    const target = path.join(ag, 'projects');
+    assert.equal(fs.lstatSync(target).isSymbolicLink(), true);
+    assert.equal(fs.realpathSync(target).toLowerCase(), fs.realpathSync(source).toLowerCase());
+
+    const rerunQuestions: string[] = [];
+    const rerun = await run([], async (question) => {
+      rerunQuestions.push(question);
+      return false;
+    });
+    assert.equal(rerunQuestions.some((question) => question.startsWith('Share chats')), false);
+    assert.match(rerun.text, /OK\s+link editors: projects already shared/);
+    assert.equal(fs.realpathSync(target).toLowerCase(), fs.realpathSync(source).toLowerCase(), 'rerun leaves the existing link intact');
+    assert.equal(linked.code, 0);
+    assert.equal(rerun.code, 0);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});

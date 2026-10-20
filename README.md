@@ -69,11 +69,12 @@ cd bear-agent-manager
 npm run setup            # add --yes to accept the permission change, --dry-run to only look
 ```
 
-It installs the plugin and the room permission for every Claude config dir it finds, then offers (flags `--link`,
-`--vscode`, `--autostart`, `--app`) chat sharing between editors, the editor panel, hub autostart and a "Bear Agent Manager"
+It installs the plugin and the room permission for every Claude config dir it finds. If both `.claude` and
+`.claude-antigravity` exist and their projects are not shared, setup asks whether to share chats; `--link` opts in
+directly, while `--yes` does not silently accept this optional change and `--dry-run` only previews it. Setup also
+offers (flags `--vscode`, `--autostart`, `--app`) the editor panel, hub autostart and a "Bear Agent Manager"
 app-window shortcut (Edge/Chrome `--app` mode; the hub also serves `/manifest.webmanifest` so the browser's "Install app" works),
-and prints what is still
-open (sign-in). Manual steps, if you prefer:
+and prints what is still open (sign-in). Manual steps, if you prefer:
 
 ```bash
 claude plugin marketplace add <path-to-bear-agent-manager>
