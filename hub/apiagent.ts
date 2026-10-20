@@ -1,9 +1,37 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { AgentProfile } from './settings.ts';
 import type { Provider } from './providers.ts';
 import type { Perm } from './revive.ts';
 
 // 'claude-api' profiles (docs/superpowers/specs/2026-10-20-four-levels-sync-install.md, a): a headless claude that talks to a
 // providers.json provider instead of the owner's account. Pure helpers; hub/server.ts starts, wakes and stops the process.
+
+/** Claude Code names a project folder after the cwd: every character outside [A-Za-z0-9] becomes "-", the case is kept (so D:\x and d:\x are two folders). */
+export const projectSlug = (cwd: string): string => cwd.replace(/[^A-Za-z0-9]/g, '-');
+
+/**
+ * The saved chat of a session, `<config>/projects/<slug>/<id>.jsonl` (both cases of the drive letter are tried). A copy the room-chat sweeper already
+ * moved out (it files transcripts whose model is not a Claude one under room_chat) is moved back, because `claude --resume` only looks in projects/.
+ */
+export function findTranscript(cwd: string, id: string, configDirs: string[], roomChat: (projectDir: string) => string): string | undefined {
+  const flipped = /^[A-Za-z]:/.test(cwd) ? (cwd[0] === cwd[0].toUpperCase() ? cwd[0].toLowerCase() : cwd[0].toUpperCase()) + cwd.slice(1) : cwd;
+  const dirs = configDirs.flatMap((c) => [...new Set([cwd, flipped])].map((v) => path.join(c, 'projects', projectSlug(v))));
+  for (const d of dirs) { const f = path.join(d, `${id}.jsonl`); if (fs.existsSync(f)) return f; }
+  for (const d of dirs) {
+    const moved = path.join(roomChat(d), `${id}.jsonl`);
+    if (!fs.existsSync(moved)) continue;
+    const back = path.join(d, `${id}.jsonl`);
+    try {
+      fs.mkdirSync(d, { recursive: true });
+      fs.renameSync(moved, back);
+      const side = path.join(roomChat(d), id);
+      if (fs.existsSync(side) && !fs.existsSync(path.join(d, id))) fs.renameSync(side, path.join(d, id));
+      return back;
+    } catch { /* busy: the next wake tries again */ }
+  }
+  return undefined;
+}
 
 /** Quota / rate-limit wording of the providers (same set as skills/worker/worker.ps1). */
 const QUOTA = /429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|额度|墨点/i;

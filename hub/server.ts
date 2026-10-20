@@ -41,13 +41,13 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
-import { apiEnv, apiPerm, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
+import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
-import { workerConfigDir } from '../shared/worker-chat.ts';
+import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 
 export type { ReviveJob };
 
@@ -423,6 +423,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     fs.writeFileSync(mcp, JSON.stringify(leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'))));
     return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp) };
   }
+  /** The provider's claude runs `--bare`: no hook ever tells the hub where its chat is saved, so it is looked up on disk (and moved back from room_chat). */
+  function attachTranscript(s: Session): boolean {
+    if (hasTranscript(s)) return true;
+    const f = findTranscript(s.cwd, s.id, [s.configDir, path.join(usageHome, '.claude')].filter((x): x is string => !!x), roomChatDir);
+    if (!f) return false;
+    s.transcript = f;
+    store.save();
+    return true;
+  }
   const apiLimited = (p: AgentProfile) => { const l = apiState.get(p.id)?.limited ?? 0; return l > Date.now() ? l : 0; };
   /** Records why the agent could not run and tells its rooms once: a quota/rate hit pauses it, anything else is shown as an error. */
   function apiFailed(p: AgentProfile, why: string) {
@@ -661,7 +670,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (!waiters.has(sid)) {
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
-      if (autoRevive && st.ended && !revive(sid) && !reviving.has(sid)) {
+      if ((autoRevive || apiProfileOf(st)) && st.ended && !revive(sid) && !reviving.has(sid)) {   // a provider agent has no tab to fall back on: an @ always wakes it
         autoOpenTab(sid);
         // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
@@ -733,6 +742,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
+    if (apiProfileOf(s)) attachTranscript(s);
     if (reviving.has(s.id) || waiters.has(s.id) || !hasTranscript(s)) return false;
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = apiProfileOf(s);
@@ -1032,7 +1042,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     res.end();
   }
 
-  const configDirs = () => [...new Set([path.join(os.homedir(), '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
+  const configDirs = () => [...new Set([path.join(usageHome, '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   // ---- providers: health-checked at start and every 30 min; SessionStart reads the cached result ----
   const legacyKey = opts.legacyKeyFile ?? path.join(os.homedir(), '.claude', 'congnhan.key');
   const health: Record<string, 'ok' | 'bad' | 'unknown'> = {};
@@ -1351,7 +1361,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   function sweepAll(apply: boolean) {
     if (apply) runArchive();   // starts a round; files it has not reached yet are found again under room_chat with their old key
-    const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
+    // a claude-api agent is resumed by id on every @, so its chat stays in projects/ even though its model is not a Claude one
+    const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline' || apiProfileOf(s)).map((s) => s.id));
     const revive = new Set<string>();
     const out: Swept[] = [];
     for (const cfg of configDirs()) {

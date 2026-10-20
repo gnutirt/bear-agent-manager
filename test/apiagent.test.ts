@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { apiEnv, apiPerm, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig } from '../hub/apiagent.ts';
+import { apiEnv, apiPerm, findTranscript, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, projectSlug } from '../hub/apiagent.ts';
 import type { AgentProfile } from '../hub/settings.ts';
 import type { Provider } from '../hub/providers.ts';
 
@@ -96,6 +96,64 @@ test('claude-api profile switched off while it runs: the stopped claude exit cod
     const st = (await call<any[]>('/api/agent-profiles')).find((x) => x.id === 'loc');
     assert.equal(st.error, undefined);
     assert.ok(!JSON.stringify(hub.store.state.rooms).includes('could not'), 'no failure line in the room');
+  } finally { await hub.close(); }
+});
+
+test('projectSlug / findTranscript: Claude Code folder naming, both drive-letter cases, and a chat the sweeper moved out is moved back', () => {
+  assert.equal(projectSlug('D:\\Antigravity\\bear-agent-manager'), 'D--Antigravity-bear-agent-manager');
+  assert.equal(projectSlug('d:\\Antigravity\\mywork'), 'd--Antigravity-mywork');
+  const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-find-'));
+  const moved = path.join(cfg, 'moved');
+  const roomChat = (d: string) => path.join(moved, path.basename(d));
+  assert.equal(findTranscript('D:\\a\\b', 'id1', [cfg], roomChat), undefined);
+  const lower = path.join(cfg, 'projects', 'd--a-b');
+  fs.mkdirSync(lower, { recursive: true });
+  fs.writeFileSync(path.join(lower, 'id1.jsonl'), '{}\n');
+  assert.equal(findTranscript('D:\\a\\b', 'id1', [cfg], roomChat)?.toLowerCase(), path.join(lower, 'id1.jsonl').toLowerCase(), 'the lower-case drive folder is found for D: (Windows folders ignore case)');
+  fs.mkdirSync(path.join(moved, 'D--a-b'), { recursive: true });
+  fs.writeFileSync(path.join(moved, 'D--a-b', 'id2.jsonl'), '{}\n');
+  const back = findTranscript('D:\\a\\b', 'id2', [cfg], roomChat);
+  assert.equal(back?.toLowerCase(), path.join(cfg, 'projects', 'D--a-b', 'id2.jsonl').toLowerCase());
+  assert.ok(fs.existsSync(back!) && !fs.existsSync(path.join(moved, 'D--a-b', 'id2.jsonl')), 'moved back out of room_chat');
+});
+
+test('claude-api profile: a second @ wakes it with the provider env even with autoRevive off, and the sweeper leaves its chat alone', async () => {
+  const jobs: any[] = [], revived: any[] = [];
+  const cwd = fs.realpathSync(os.tmpdir());
+  const { hub, dir, call } = await makeHub(undefined, (job) => { revived.push(job); }, {
+    autoRevive: false,
+    spawnAgent: async (job: any) => {   // the first run: the (fake) claude saves its chat where Claude Code would
+      jobs.push(job);
+      const d = path.join(dir0.dir, '.claude', 'projects', projectSlug(cwd));
+      fs.mkdirSync(d, { recursive: true });
+      const line = (o: object) => JSON.stringify(o);
+      fs.writeFileSync(path.join(d, `${job.id}.jsonl`), [line({ type: 'user', message: { content: 'hi' } }), line({ type: 'assistant', message: { model: 'minimax/minimax-m3.1-flash:free', content: [{ type: 'text', text: 'ok' }] } })].join('\n') + '\n');
+      return 0;
+    },
+  });
+  const dir0 = { dir };
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', { agents: { profiles: [prof({ cwd })] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'first run');
+    const sid = jobs[0].id;
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.status === 'offline', 5000, 'first run ended');
+    // the sweeper would file this chat away (its model is not a Claude one): it must not
+    const f = path.join(dir, '.claude', 'projects', projectSlug(cwd), `${sid}.jsonl`);
+    const old = new Date(Date.now() - 3_600_000);
+    fs.utimesSync(f, old, old);
+    const other = path.join(path.dirname(f), 'other-chat.jsonl');
+    fs.copyFileSync(f, other);
+    fs.utimesSync(other, old, old);
+    const swept = await call<any[]>('/api/room-chat/sweep', { apply: false });
+    assert.ok(!swept.some((s) => s.file === `${sid}.jsonl`), 'the provider agent chat is not swept');
+    assert.ok(swept.some((s) => s.file === 'other-chat.jsonl'), 'control: an unrelated worker chat would be');
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local second question' });
+    await until(() => revived.length === 1, 5000, 'second wake');
+    assert.equal(revived[0].id, sid);
+    assert.equal(revived[0].env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:11434');
+    assert.equal(revived[0].args[0], '--bare');
   } finally { await hub.close(); }
 });
 
