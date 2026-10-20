@@ -554,13 +554,6 @@ header .spacer{flex:1}
 #menu .btn.iconbtn{padding:4px 7px}
 :is(#menu,.mpop) .dirtytag{font-size:11.5px;font-weight:700;color:color-mix(in srgb,#F59E0B 50%,var(--text));background:color-mix(in srgb,#F5A524 24%,transparent);border-radius:6px;padding:2px 7px;white-space:nowrap;cursor:help}
 #menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
-.agent-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:650;color:var(--accent);white-space:nowrap}
-.agent-spawn{width:min(720px,100%)!important;font-size:14px!important;line-height:1.5!important}
-.agent-spawn .aspawn-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
-.agent-spawn .aspawn-type{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;white-space:normal;min-height:88px}
-.agent-spawn .aspawn-type small{color:var(--mute);font-weight:400}
-.agent-spawn .aspawn-error{color:var(--bad,#E5484D);margin:8px 0}
-@media(max-width:650px){.agent-spawn .aspawn-types{grid-template-columns:1fr}}
 /* glass themes: message cards are real frosted glass (agent-tinted sheen, bright rim, depth) */
 html:root[data-theme=glass] .group{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 26%,rgba(255,255,255,.20)),rgba(255,255,255,.05) 70%);border-color:rgba(255,255,255,.38);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08),0 10px 30px rgba(8,6,40,.38)}
@@ -855,7 +848,6 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <button class="btn" id="filesBtn" hidden type="button" data-i18n="files.title">Tệp</button>
     <button class="btn" id="liveBtn" hidden type="button" data-i18n="live.title">Chat trực tiếp</button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
-    <button class="btn primary" id="agentNewBtn" hidden type="button" data-i18n="agent.spawn.add">+ Agent</button>
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
   </header>
   <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
@@ -1280,26 +1272,17 @@ function wireMember(m, list) {
 function memberPopup(id) {
   const s = S.sessions[id]; if (!s) return;
   zoomBack = menuAnchor; closeMenu();
-  zoom.innerHTML = `<div class="zbox mpop" role="dialog" aria-modal="true" aria-label="${esc(s.name)}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="mhd2">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${agentKindBadge(s)}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span></small></span></div>${memberBody(s)}</div>`;
+  zoom.innerHTML = `<div class="zbox mpop" role="dialog" aria-modal="true" aria-label="${esc(s.name)}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="mhd2">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b>${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span></small></span></div>${memberBody(s)}</div>`;
   zoom.hidden = false;
   const box = zoom.firstElementChild;
   wireMember(box, [s]);
   box.querySelector('.zx').focus();
 }
-function agentKindBadge(s) {
-  const profile = (S.settings?.agents?.profiles || []).find((p) => normAgent(p.name) === normAgent(s.name));
-  if (profile?.provider === 'copilot') return `<span class="agent-badge">${t('agent.badge.copilot')}</span>`;
-  if (profile?.provider === 'claude-api') {
-    const provider = (S.providers || []).find((p) => p.id === profile.providerId);
-    return `<span class="agent-badge">${esc(t(profile.edit ? 'agent.badge.apiEdit' : 'agent.badge.apiRead', { provider: provider?.label || profile.providerId || 'API' }))}</span>`;
-  }
-  return !s.ide ? `<span class="agent-badge">${t('agent.badge.bam')}</span>` : '';
-}
 function membersMenu(anchor) {
   const ms = members(S.current);
   openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
     <div class="item mem mcard ${s.status}">
-      <div class="mhd" data-mpop="${esc(s.id)}" tabindex="0" role="button" aria-haspopup="dialog">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${agentKindBadge(s)}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span></div>
+      <div class="mhd" data-mpop="${esc(s.id)}" tabindex="0" role="button" aria-haspopup="dialog">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span></div>
     </div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
@@ -1530,7 +1513,6 @@ function renderHeader() {
   void ms.slice(0, 8).map((s) => `<button type="button" class="mb ${s.status}" data-name="${esc(s.name)}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</button>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('filesBtn').hidden = !r?.dm;
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = $('searchBtn').hidden = !r;
-  $('agentNewBtn').hidden = !r || !!r.dm;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
   $('text').disabled = !r;
@@ -1872,7 +1854,6 @@ function connect() {
     select(S.current);
     for (const r of S.rooms) loadTasks(r.name);
     loadWorkers();
-    refreshAgentMetadata().catch((err) => toast(err.message));
     renderWorkersView();
     api('/api/permissions').then(permSet, () => {});
   });
@@ -1920,8 +1901,7 @@ function connect() {
   });
   es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); renderUsageChips(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
-  es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) { S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; S.agentProfiles = { ...(S.agentProfiles || {}), [status.id]: status }; } if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
-  es.addEventListener('agentprofile', (e) => { const status = JSON.parse(e.data); if (status.id) S.agentProfiles = { ...(S.agentProfiles || {}), [status.id]: status }; });
+  es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
   es.addEventListener('notes', (e) => { const d = JSON.parse(e.data); S.notes[d.room] = d.notes; if (d.room === S.current) renderNotes(); });
@@ -2298,7 +2278,6 @@ $('newRoom').onsubmit = (e) => {
 $('roomName').onkeydown = (e) => { if (e.key === 'Escape') $('newRoom').classList.remove('open'); };
 $('inviteBtn').onclick = () => copy(inviteText(S.current), t('invite.copied'));
 $('membersBtn').onclick = (e) => membersMenu(e.currentTarget);
-$('agentNewBtn').onclick = () => openAgentDialog();
 $('notesBtn').onclick = () => { $('notesPanel').classList.toggle('open'); renderNotes(); };
 $('npClose').onclick = () => $('notesPanel').classList.remove('open');
 if (new URLSearchParams(location.search).get('notes') === '1') $('notesPanel').classList.add('open');
@@ -2930,18 +2909,9 @@ function permsBlock(st) {
     <h3>${t('perm.default')} ${dm === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}</h3>${radios(dm, 'default', false)}<p class="small ${dm === 'bypass' ? 'pwarn' : 'muted'}">${PHINT[dm]}</p>${lists('default', pm.default)}<p class="small muted">${t('perm.list.hint')}</p></div>
     <h2>${t('perm.perAgent')}</h2><div class="setbox permbox">${rows || `<p class="small muted">${t('perm.noneAgent')}</p>`}${free.length ? `<select id="permAdd" aria-label="${t('perm.addAgent')}"><option value="">${t('perm.addAgent')}</option>${free.map((n) => `<option>${esc(n)}</option>`).join('')}</select>` : ''}</div>`;
 }
-function createAgent(body, inDialog = false) {
-  return api('/api/agents', body).then((d) => {
-    S.agentAsk = null;
-    if (inDialog) { S.agentDialog = null; closeZoom(); renderAll(); }
-    toast(t('ac.agent.created', { name: d.name, cwd: d.cwd, room: d.room }));
-    renderSettingsView();
-  }, (err) => {
-    if (err.data?.needConfirm) {
-      if (inDialog) { S.agentDialog = { kind: 'folder', body, needConfirm: true, error: '' }; return renderAgentDialog(); }
-      S.agentAsk = { body, needConfirm: true }; return renderSettingsView();
-    }
-    if (inDialog) return showAgentDialogError(err.message);
+function createAgent(body) {
+  api('/api/agents', body).then((d) => { S.agentAsk = null; toast(t('ac.agent.created', { name: d.name, cwd: d.cwd, room: d.room })); renderSettingsView(); }, (err) => {
+    if (err.data?.needConfirm) { S.agentAsk = { body, needConfirm: true }; return renderSettingsView(); }
     toast(err.message);
   });
 }
@@ -3052,12 +3022,11 @@ function healthBlock() {
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
-S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
+S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
 function loadCopilotProfiles() {
-  return Promise.all([api('/api/providers'), api('/api/agent-profiles')]).then(([providers, statuses]) => {
-    S.providers = providers;
-    S.agentProfiles = Object.fromEntries(statuses.map((status) => [status.id, status]));
-    S.copilotProfiles = S.agentProfiles;
+  api('/api/providers').then((p) => { S.providers = p; }, () => {});
+  return api('/api/agent-profiles').then((statuses) => {
+    S.copilotProfiles = Object.fromEntries(statuses.map((status) => [status.id, status]));
     S.copilotProfileError = '';
   }, (error) => {
     S.copilotProfileError = error.message;
@@ -3174,151 +3143,6 @@ function accountBlock(st) {
     <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
     <h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}<h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>
     <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
-}
-function refreshAgentMetadata() {
-  return Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles')]).then(([settings, providers, statuses]) => {
-    S.settings = settings; S.providers = providers;
-    S.agentProfiles = Object.fromEntries(statuses.map((status) => [status.id, status])); S.copilotProfiles = S.agentProfiles;
-    renderHeader();
-  });
-}
-function openAgentDialog() {
-  S.agentDialog = { loading: true, kind: '', error: '' };
-  zoomBack = null; closeMenu(); zoom.hidden = false;
-  zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true"><p class="small muted">${t('agent.spawn.loading')}</p></div>`;
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts')]).then(([settings, providers, statuses, accounts]) => {
-    if (!S.agentDialog) return;
-    S.settings = settings; S.providers = providers; S.acct = accounts;
-    S.agentProfiles = Object.fromEntries(statuses.map((status) => [status.id, status])); S.copilotProfiles = S.agentProfiles;
-    S.agentDialog.loading = false; renderAgentDialog();
-  }, (e) => {
-    if (!S.agentDialog) return;
-    S.agentDialog.loading = false; S.agentDialog.error = e.message; renderAgentDialog();
-  });
-}
-function showAgentDialogError(message) {
-  if (!S.agentDialog) return;
-  S.agentDialog.error = message;
-  const box = zoom.querySelector('[data-agent-dialog]');
-  if (!box) return;
-  let error = box.querySelector('.aspawn-error');
-  if (!error) { error = document.createElement('p'); error.className = 'aspawn-error'; error.setAttribute('role', 'alert'); box.querySelector('h2')?.after(error); }
-  error.textContent = message;
-}
-function renderAgentDialog() {
-  const state = S.agentDialog;
-  if (!state) return;
-  const providers = S.providers || [], profiles = S.settings?.agents?.profiles || [];
-  const rooms = (S.rooms || []).filter((r) => !r.dm);
-  const room = rooms.find((r) => r.name === S.current)?.name || rooms[0]?.name || 'bear-agent-manager';
-  const roomOptions = rooms.length ? rooms.map((r) => `<option value="${esc(r.name)}"${r.name === room ? ' selected' : ''}>${esc(r.name)}</option>`).join('') : `<option value="${room}">${room}</option>`;
-  const cwd = Object.values(S.sessions || {}).find((s) => s.cwd)?.cwd || '';
-  const accounts = (S.acct?.accounts || []).filter((a) => a.exists);
-  const accountOptions = `<option value="">${t('ac.agent.auto')}</option>${accounts.map((a) => `<option value="${esc(a.dir)}">${esc(a.label)}</option>`).join('')}`;
-  const error = state.error ? `<p class="aspawn-error" role="alert">${esc(state.error)}</p>` : '';
-  const choices = `<p class="small muted">${t('agent.spawn.choose')}</p><div class="aspawn-types">
-    <button class="btn aspawn-type" type="button" data-agent-kind="folder"><b>${t('agent.spawn.folder')}</b><small>${t('agent.spawn.folderNote')}</small></button>
-    <button class="btn aspawn-type" type="button" data-agent-kind="api"><b>${t('agent.spawn.api')}</b><small>${t('agent.spawn.apiNote')}</small></button>
-    <button class="btn aspawn-type" type="button" data-agent-kind="copilot"><b>${t('agent.spawn.copilot')}</b><small>${t('agent.spawn.copilotNote')}</small></button>
-  </div>`;
-  let content = state.loading ? `<p class="small muted">${t('agent.spawn.loading')}</p>` : choices;
-  if (!state.loading && state.kind === 'folder' && state.needConfirm) {
-    content = `<div class="aplan"><p class="small pwarn">${esc(t('ac.agent.confirmText', { cwd: state.body.cwd }))}</p><div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button type="button" class="btn primary" data-agent-confirm>${t('ac.agent.confirm')}</button></div></div>`;
-  } else if (!state.loading && state.kind === 'folder') {
-    content = `<form class="tform" data-agent-folder>
-      <input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}">
-      <div class="row"><input name="cwd" placeholder="${t('ac.agent.cwd')}" value="${esc(cwd)}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" style="flex:1"><button type="button" class="btn sm" data-agent-browse>${t('ac.agent.browse')}</button></div>
-      <select name="room" aria-label="${t('ac.agent.room')}">${roomOptions}</select>
-      <select name="account" aria-label="${t('ac.agent.account')}">${accountOptions}</select>
-      <textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea>
-      <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
-    </form>`;
-  } else if (!state.loading && (state.kind === 'api' || state.kind === 'copilot')) {
-    if (profiles.length >= 16) content = `<p class="small muted">${t('ac.profile.limit')}</p><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button>`;
-    else if (state.kind === 'api') {
-      const providerOptions = providers.filter((p) => p.enabled).map((p) => `<option value="${esc(p.id)}">${esc(p.label)} (${esc(p.tier)})</option>`).join('');
-      content = `<form class="cprofile-new" data-agent-api>
-        <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
-        <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
-        <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
-        <select name="providerId" required aria-label="${t('ac.api.provider')}"><option value="">${t('ac.api.pickProvider')}</option>${providerOptions}</select>
-        <input name="model" list="agentSpawnModels" maxlength="80" placeholder="${t('ac.api.model')}" aria-label="${t('ac.api.model')}" spellcheck="false"><datalist id="agentSpawnModels"></datalist>
-        <label class="inline"><input name="edit" type="checkbox">${t('ac.api.edit')}</label><p class="small muted">${t('agent.spawn.editNote')}</p>
-        ${providerOptions ? '' : `<p class="small muted">${t('agent.spawn.noProviders')}</p>`}
-        <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary"${providerOptions ? '' : ' disabled'}>${t('agent.spawn.start')}</button></div>
-      </form>`;
-    } else content = `<form class="cprofile-new" data-agent-copilot>
-      <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
-      <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
-      <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
-      <input name="home" placeholder="${t('ac.profile.homeOptional')}" aria-label="${t('ac.profile.homeOptional')}" spellcheck="false">
-      <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" aria-label="${t('ac.profile.modelLabel')}" spellcheck="false">
-      <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
-    </form>`;
-  }
-  zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true" aria-labelledby="agentSpawnTitle"><button class="zx" aria-label="${t('common.close')}">✕</button><h2 id="agentSpawnTitle">${t('agent.spawn.title')}</h2>${error}${content}</div>`;
-  zoom.hidden = false;
-  if (state.loading) return;
-  zoom.querySelectorAll('[data-agent-kind]').forEach((b) => b.addEventListener('click', () => { state.kind = b.dataset.agentKind; state.error = ''; renderAgentDialog(); }));
-  zoom.querySelectorAll('[data-agent-back]').forEach((b) => b.addEventListener('click', () => { if (state.needConfirm) { state.needConfirm = false; state.body = undefined; } else state.kind = ''; state.error = ''; renderAgentDialog(); }));
-  const confirm = zoom.querySelector('[data-agent-confirm]');
-  if (confirm) confirm.addEventListener('click', () => createAgent({ ...state.body, confirm: true }, true));
-  const browse = zoom.querySelector('[data-agent-browse]');
-  if (browse) browse.addEventListener('click', () => {
-    const form = browse.closest('form');
-    api('/api/browse-folder', { start: form.elements.namedItem('cwd').value.trim() }).then((d) => { if (d.path) form.elements.namedItem('cwd').value = d.path; }, (e) => showAgentDialogError(e.message));
-  });
-  const folderForm = zoom.querySelector('[data-agent-folder]');
-  if (folderForm) folderForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-    createAgent({ name: get('name'), cwd: get('cwd'), room: get('room'), ...(get('account') ? { account: get('account') } : {}), ...(get('prompt') ? { prompt: get('prompt') } : {}) }, true);
-  });
-  const apiForm = zoom.querySelector('[data-agent-api]');
-  if (apiForm) {
-    const provider = apiForm.elements.namedItem('providerId'), edit = apiForm.elements.namedItem('edit'), modelList = zoom.querySelector('#agentSpawnModels');
-    const syncApiOptions = () => {
-      const p = providers.find((x) => x.id === provider.value), canEdit = p?.tier === 'local' || p?.tier === 'paid';
-      edit.disabled = !canEdit; if (!canEdit) edit.checked = false;
-      const models = [...new Set([...(p?.models?.read || []), ...(edit.checked ? p?.models?.edit || [] : [])])];
-      modelList.innerHTML = models.map((m) => `<option value="${esc(m)}"></option>`).join('');
-    };
-    provider.addEventListener('change', syncApiOptions); edit.addEventListener('change', syncApiOptions); syncApiOptions();
-    apiForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-      const id = get('id'), name = get('name'), cwd = get('cwd'), providerId = get('providerId'), model = get('model'), p = providers.find((x) => x.id === providerId);
-      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !p || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
-      if (edit.checked && p.tier === 'free') return showAgentDialogError(t('agent.spawn.editNote'));
-      submitAgentProfile({ id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit.checked ? { edit: true } : {}) });
-    });
-  }
-  const copilotForm = zoom.querySelector('[data-agent-copilot]');
-  if (copilotForm) copilotForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-    const id = get('id'), name = get('name'), cwd = get('cwd'), home = get('home'), model = get('model');
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || (home && !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(home)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
-    submitAgentProfile({ id, provider: 'copilot', name, cwd, ...(home ? { home } : {}), ...(model ? { model } : {}) });
-  });
-  zoom.querySelector('.zx')?.focus();
-}
-async function submitAgentProfile(profile) {
-  const current = S.settings?.agents?.profiles || [];
-  if (current.length >= 16) return showAgentDialogError(t('ac.profile.limit'));
-  if (current.some((p) => p.id.toLowerCase() === profile.id.toLowerCase() || p.name.toLowerCase() === profile.name.toLowerCase())) return showAgentDialogError(t('ac.profile.duplicate'));
-  try {
-    S.settings = await api('/api/settings', { agents: { profiles: [...current, { ...profile, enabled: false }] } }, 'PUT');
-    const endpoint = profile.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/';
-    await api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true });
-    await refreshAgentMetadata();
-    S.agentDialog = null; closeZoom(); renderAll();
-    toast(t('agent.spawn.started', { name: profile.name }));
-  } catch (e) {
-    if (!S.agentDialog) { toast(e.message); return; }
-    const refreshError = await refreshAgentMetadata().then(() => '', (err) => err.message);
-    showAgentDialogError(refreshError ? `${e.message} (${refreshError})` : e.message);
-  }
 }
 /** Tab Máy mới: five steps with the real state from APIs the other tabs use (version, accounts, archive, machine, providers, autostart). It reads the same data as Health. */
 function setupBlock(st) {
@@ -3497,7 +3321,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       const f = e.target, v = (n) => f.elements.namedItem(n).value.trim();
       const id = v('id'), name = v('name'), cwd = v('cwd'), providerId = v('providerId'), model = v('model'), edit = f.elements.namedItem('edit').checked;
       if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !providerId || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
-      if (edit && !['local', 'paid'].includes(S.providers.find((p) => p.id === providerId)?.tier)) return toast(t('ac.api.editLocalOnly'));
+      if (edit && S.providers.find((p) => p.id === providerId)?.tier !== 'local') return toast(t('ac.api.editLocalOnly'));
       const profiles = S.settings.agents?.profiles || [];
       if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
       return saveCopilotProfiles([...profiles, { id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit ? { edit: true } : {}), enabled: f.elements.namedItem('enabled').checked }]);
@@ -3600,7 +3424,7 @@ if (![...fontSel.options].some((o) => o.value === fontSel.value)) setFont('');
 // right-click a message group -> enlarged popup (copy of the rendered group, Esc / click outside closes)
 const zoom = document.createElement('div'); zoom.id = 'zoom'; zoom.hidden = true; document.body.appendChild(zoom);
 let zoomBack = null;   // the members menu a member popup was opened from: closing the popup brings that list back
-const closeZoom = () => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } if (zoom.querySelector('[data-agent-dialog]')) S.agentDialog = null; zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
+const closeZoom = () => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
 zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZoom(); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
 $('log').addEventListener('contextmenu', (e) => {

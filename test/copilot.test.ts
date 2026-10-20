@@ -219,6 +219,9 @@ test('Copilot processes pending messages per room and replies in each originatin
     const privateRoom = `dm-${copilot.id}`;
     h.hub.store.createRoom(privateRoom);
     h.hub.store.join(copilot.id, privateRoom);
+    const human = h.hub.store.register({ id: uuid, name: 'you', cwd: process.cwd() });
+    h.hub.store.join(human.id, 'bear-agent-manager');
+    h.hub.store.join(human.id, privateRoom);
     h.hub.store.post('bear-agent-manager', null, '@Copilot public request');
     h.hub.store.post(privateRoom, null, 'private request');
 

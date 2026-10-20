@@ -8,9 +8,9 @@ import { makeHub } from './helpers.ts';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ar-prov-'));
 
-test('defaults: intern free enabled, deepseek and openrouter paid disabled', () => {
+test('defaults: intern free enabled, openrouter paid disabled', () => {
   const d = defaultProviders();
-  assert.deepEqual(d.map((p) => [p.id, p.tier, p.enabled]), [['intern', 'free', true], ['deepseek', 'paid', false], ['openrouter', 'paid', false]]);
+  assert.deepEqual(d.map((p) => [p.id, p.tier, p.enabled]), [['intern', 'free', true], ['openrouter', 'paid', false]]);
   assert.equal(d[0].baseUrl, 'https://discovery-api.intern-ai.org.cn');
   assert.deepEqual(d[0].models.read, ['deepseek-v4-flash-0731', 'glm-5.3', 'kimi-k2.6']);
 });
@@ -68,6 +68,6 @@ test('API: POST adds a second free provider, DELETE removes it but never the bui
     await assert.rejects(call('/api/providers', { id: 'intern-2' }), /exists/);
     await assert.rejects(call('/api/providers/intern', undefined, { method: 'DELETE' }), /cannot be removed/);
     await call('/api/providers/intern-2', undefined, { method: 'DELETE' });
-    assert.deepEqual((await call<any[]>('/api/providers')).map((p) => p.id), ['intern', 'deepseek', 'openrouter']);
+    assert.deepEqual((await call<any[]>('/api/providers')).map((p) => p.id), ['intern', 'openrouter']);
   } finally { await hub.close(); }
 });

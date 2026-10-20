@@ -20,7 +20,7 @@ test('brief warns when the free endpoint failed its health check', () => {
 });
 
 test('keyless local providers are usable, reported in the brief, and probed without API-key headers', async () => {
-  const local = publicProvider({ id: 'ollama-lan', label: 'Ollama LAN', tier: 'local', enabled: true, baseUrl: 'http://192.168.1.50:11435', auth: 'api-key', key: '', models: { read: ['qwen-coder-3b'], edit: ['gemma4:26b'] } });
+  const local = publicProvider({ id: 'ollama-lan', label: 'Ollama LAN', tier: 'local', enabled: true, baseUrl: 'http://192.168.0.127:11435', auth: 'api-key', key: '', models: { read: ['qwen-coder-3b'], edit: ['gemma4:26b'] } });
   const text = workerBrief(defaultSettings(4), [local], { 'ollama-lan': 'ok' });
   assert.match(text, /Ollama LAN/);
   assert.match(text, /máy\/LAN/);

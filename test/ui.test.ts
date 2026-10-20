@@ -246,7 +246,7 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       'data-profile-remove="${esc(p.id)}"',
       "saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd",
       "api('/api/settings', { agents: { profiles } }, 'PUT')",
-      "api('/api/agent-profiles')",
+      "api('/api/agent-profiles').then",
       "status?.auth === 'ok'",
       "status?.auth === 'no'",
       "data-profile-confirm=",
@@ -259,25 +259,6 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       "t('msg.fromTab')",
       'data-profile-retry="${esc(p.id)}"',
       "api(`${profileRoute(profileRetry.dataset.profileRetry)}/retry`, {})",
-    ]) assert.ok(html.includes(s), `missing ${s}`);
-  } finally { await hub.close(); }
-});
-
-test('main screen agent spawn dialog offers folder, API, and Copilot agents with profile validation errors', async () => {
-  const { hub } = await makeHub();
-  try {
-    const html = await (await fetch(hub.url + '/')).text();
-    for (const s of [
-      'id="agentNewBtn"',
-      'function openAgentDialog()',
-      'data-agent-kind="folder"',
-      'data-agent-kind="api"',
-      'data-agent-kind="copilot"',
-      "createAgent({ name: get('name'), cwd: get('cwd'), room: get('room')",
-      "provider: 'claude-api', name, cwd, providerId",
-      "api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true })",
-      'function agentKindBadge(s)',
-      'e.message',
     ]) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });

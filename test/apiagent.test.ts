@@ -4,8 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { apiEnv, apiPerm, findTranscript, GUARD_TOOL, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, pathGuard, projectSlug } from '../hub/apiagent.ts';
-import { claudeArgs } from '../hub/revive.ts';
+import { apiEnv, apiPerm, findTranscript, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, projectSlug } from '../hub/apiagent.ts';
 import type { AgentProfile } from '../hub/settings.ts';
 import type { Provider } from '../hub/providers.ts';
 
@@ -26,49 +25,14 @@ test('apiEnv: endpoint + credential of the provider, a local host needs no real 
   assert.throws(() => apiEnv(prof(), prov({ models: { read: [], edit: [] } })), /no model/);
 });
 
-test('apiPerm: off this machine guarded (no Bash, no pre-allowed path tool); paid edits only with edit: true; local edits when the profile says so', () => {
+test('apiPerm: off this machine read-only without secret files; local may edit only when the profile says so', () => {
   const remote = apiPerm(prof({ edit: true }), prov({ tier: 'free' }), own);
   assert.equal(remote.mode, 'default');
-  assert.equal(remote.guarded, true);
-  assert.deepEqual(remote.allow, [LEAN_TOOL], 'only the room tools are pre-allowed: every path tool asks pathGuard');
   for (const d of ['Edit', 'Write', 'Bash', 'Read(**/.env*)', 'Read(**/providers.json)']) assert.ok(remote.deny.includes(d), d);
-  const paid = apiPerm(prof({ edit: true }), prov({ tier: 'paid' }), own);   // the owner's own paid account (DeepSeek) codes, never Bash, never secrets
-  assert.ok(paid.guarded && !paid.deny.includes('Edit') && paid.deny.includes('Bash') && paid.deny.includes('Read(**/.env*)'));
-  assert.ok(apiPerm(prof(), prov({ tier: 'paid' }), own).deny.includes('Edit'), 'paid without edit: true stays read-only');
   assert.deepEqual(apiPerm(prof({ edit: true }), prov(), own), { ...own, allow: [LEAN_TOOL] });
+  assert.ok(remote.allow.includes(LEAN_TOOL), 'the room tools of the lean claude stay allowed');
   const localRo = apiPerm(prof(), prov(), own);
-  assert.ok(!localRo.guarded && localRo.deny.includes('Edit') && !localRo.deny.some((d) => d.startsWith('Read(')));
-  assert.ok(!claudeArgs('s', remote).slice(claudeArgs('s', remote).indexOf('--allowedTools')).includes('Read'), 'guarded: Read is not pre-allowed');
-  assert.deepEqual(leanArgs('f', true).slice(-2), ['--permission-prompt-tool', GUARD_TOOL]);
-  assert.ok(leanMcpConfig('s', 'H', 1, 'S/mcp.ts', 'node', 'S/perm.ts').mcpServers.bearperm);
-});
-
-test('pathGuard (note [54]): path tools only inside the agent folder by realpath, never secrets, writes only when it may edit', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-guard-')), cwd = path.join(root, 'repo'), out = path.join(root, 'outside');
-  fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
-  fs.mkdirSync(out);
-  fs.writeFileSync(path.join(cwd, 'src', 'a.ts'), 'x');
-  fs.writeFileSync(path.join(out, 'b.txt'), 'y');
-  const ok = (tool: string, input: unknown, edit = true) => pathGuard(cwd, tool, input, edit).allow;
-  assert.equal(ok('Read', { file_path: path.join(cwd, 'src', 'a.ts') }), true);
-  assert.equal(ok('Read', { file_path: 'src/a.ts' }), true, 'relative to the folder');
-  assert.equal(ok('Read', { file_path: path.join(out, 'b.txt') }), false, 'absolute path outside');
-  assert.equal(ok('Read', { file_path: path.join(cwd, '..', 'outside', 'b.txt') }), false, '.. out of the folder');
-  assert.equal(ok('Read', { file_path: path.join(cwd, '.env') }), false, 'secrets file');
-  assert.equal(ok('Write', { file_path: path.join(cwd, 'src', 'new', 'c.ts') }), true, 'a new file inside');
-  assert.equal(ok('Write', { file_path: path.join(cwd, 'src', 'c.ts') }, false), false, 'no edit: no write');
-  assert.equal(ok('Edit', { file_path: path.join(out, 'b.txt') }), false);
-  assert.equal(ok('Grep', { pattern: 'x' }), true, 'no path = the folder');
-  assert.equal(ok('Grep', { pattern: 'x', path: out }), false);
-  assert.equal(ok('Glob', { pattern: '**/*.ts' }), true);
-  assert.equal(ok('Glob', { pattern: out.split(path.sep).join('/') + '/**' }), false, 'absolute glob outside');
-  assert.equal(ok('Glob', { pattern: '../outside/*' }), false);
-  assert.equal(ok('Bash', { command: 'cat .env' }), false);
-  assert.equal(ok('WebFetch', { url: 'https://x' }), false);
-  try {   // a link out of the folder is refused (junction: no admin right needed on Windows)
-    fs.symlinkSync(out, path.join(cwd, 'link'), 'junction');
-    assert.equal(ok('Read', { file_path: path.join(cwd, 'link', 'b.txt') }), false, 'link to outside');
-  } catch (e) { if ((e as any)?.code !== 'EPERM') throw e; }
+  assert.ok(localRo.deny.includes('Edit') && !localRo.deny.some((d) => d.startsWith('Read(')));
 });
 
 test('leanMcpConfig: one stdio server named room that knows the session, the hub home and port', () => {

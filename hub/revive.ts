@@ -4,7 +4,7 @@ import path from 'node:path';
 
 export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[] };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
 /** What a hub-started claude may do (settings.permissions of that agent). */
-export type Perm = { mode: string; allow: string[]; deny: string[]; guarded?: boolean };   // guarded: only perm.allow is pre-allowed, every other tool asks --permission-prompt-tool
+export type Perm = { mode: string; allow: string[]; deny: string[] };
 export type CompactJob = Omit<ReviveJob, 'text'>;
 
 const MAX_RUN_MS = 4 * 3_600_000;   // a woken agent lives over many turns while messages keep coming; this only stops a stuck one
@@ -45,7 +45,7 @@ export function claudeArgs(id: string, perm: Perm | undefined, model?: string): 
   if (mode === 'bypass') a.push('--dangerously-skip-permissions');
   else {
     if (mode === 'acceptEdits' || mode === 'plan') a.push('--permission-mode', mode);
-    a.push('--allowedTools', ...(perm?.guarded ? [] : TOOLS), ...(perm?.allow ?? []));
+    a.push('--allowedTools', ...TOOLS, ...(perm?.allow ?? []));
   }
   if (perm?.deny?.length) a.push('--disallowedTools', ...perm.deny);
   if (model) a.push('--model', model);

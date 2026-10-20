@@ -41,7 +41,7 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
-import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
+import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
 import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
@@ -423,8 +423,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!prov || !prov.enabled) throw new Error(`provider ${p.providerId} is missing or off`);
     const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name));
     const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
-    fs.writeFileSync(mcp, JSON.stringify(leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined)));
-    return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp, perm.guarded) };
+    fs.writeFileSync(mcp, JSON.stringify(leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'))));
+    return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp) };
   }
   /** The provider's claude runs `--bare`: no hook ever tells the hub where its chat is saved, so it is looked up on disk (and moved back from room_chat). */
   function attachTranscript(s: Session): boolean {
@@ -1673,9 +1673,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/permissions/ask') {
       const b = await readBody(req);
       const s = store.session(String(b.session ?? ''));
-      // note [54]: an agent on a provider off this machine asks nobody: the hub checks the path (inside its folder by realpath, no secrets)
-      const api = apiProfileOf(s), prov = api && loadProviders(opts.dir, legacyKey).find((x) => x.id === api.providerId);
-      if (api) return json(res, 200, prov && prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov)) : { allow: false, message: 'not guarded here' });
       if (!liveChat.has(s.id)) throw new StoreError(409, `${s.name} has no live chat`);
       const a = await permissions.ask(s.id, s.name, String(b.tool ?? ''), b.input);
       return json(res, 200, { allow: a.allow, ...(a.message ? { message: a.message } : {}) });

@@ -3,7 +3,6 @@ import path from 'node:path';
 import type { AgentProfile } from './settings.ts';
 import type { Provider } from './providers.ts';
 import type { Perm } from './revive.ts';
-import { isSecretFile } from './localai.ts';
 
 // 'claude-api' profiles (docs/superpowers/specs/2026-10-20-four-levels-sync-install.md, a): a headless claude that talks to a
 // providers.json provider instead of the owner's account. Pure helpers; hub/server.ts starts, wakes and stops the process.
@@ -62,62 +61,13 @@ export function apiEnv(p: AgentProfile, prov: Provider): Record<string, string> 
  * agent has no Stop-hook waiter: every @ resumes it for one turn.
  */
 export const LEAN_TOOL = 'mcp__room';
-export const GUARD_TOOL = 'mcp__bearperm__approve';
-/** The room server, plus (guarded: a provider off this machine) the permission-prompt server whose every path tool call the hub checks with pathGuard. */
-export const leanMcpConfig = (sid: string, home: string, port: number, mcpServer: string, node = process.execPath, guardServer?: string) => {
-  const env = { CLAUDE_CODE_SESSION_ID: sid, BEAR_AGENT_HOME: home, BEAR_AGENT_PORT: String(port) };
-  return { mcpServers: { room: { command: node, args: ['--no-warnings', mcpServer], env }, ...(guardServer ? { bearperm: { command: node, args: ['--no-warnings', guardServer], env } } : {}) } };
-};
-export const leanArgs = (configFile: string, guarded = false): string[] =>
-  ['--bare', '--strict-mcp-config', '--mcp-config', configFile, ...(guarded ? ['--permission-prompt-tool', GUARD_TOOL] : [])];
+export const leanMcpConfig = (sid: string, home: string, port: number, mcpServer: string, node = process.execPath) =>
+  ({ mcpServers: { room: { command: node, args: ['--no-warnings', mcpServer], env: { CLAUDE_CODE_SESSION_ID: sid, BEAR_AGENT_HOME: home, BEAR_AGENT_PORT: String(port) } } } });
+export const leanArgs = (configFile: string): string[] => ['--bare', '--strict-mcp-config', '--mcp-config', configFile];
 
-/** A paid provider is the owner's own account (2026-10-20: DeepSeek as a coder, note [52]): with edit: true it may Edit/Write. A free one only reads. */
-export const remoteCanEdit = (p: AgentProfile, prov: Provider): boolean => prov.tier === 'paid' && p.edit === true;
-
-/**
- * A local provider may edit when the profile says so (edit: true). Off this machine (note [53], [54]): never Bash (`cat .env` would get round every
- * read rule), and no tool is pre-allowed but the room's, so each Read/Grep/Glob/Edit/Write asks pathGuard through the hub (guarded).
- */
+/** Off this machine the agent only reads (and never secret files); a local provider may edit when the profile says so (edit: true, after tool_use is confirmed for that model). */
 export function apiPerm(p: AgentProfile, prov: Provider, own: Perm): Perm {
-  if (prov.tier === 'local') return p.edit === true ? { ...own, allow: [...own.allow, LEAN_TOOL] } : { mode: 'default', allow: [LEAN_TOOL], deny: NO_WRITE };
-  return { mode: 'default', guarded: true, allow: [LEAN_TOOL], deny: ['Bash', ...(remoteCanEdit(p, prov) ? [] : NO_WRITE), ...SECRET_READS] };
-}
-
-const PATH_ARGS: Record<string, string[]> = { Read: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'], Write: ['file_path'], NotebookEdit: ['notebook_path'], Grep: ['path'], Glob: ['path', 'pattern'], LS: ['path'] };
-const WRITES = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
-/** The real path of p, also when it does not exist yet (a file Write creates): its nearest existing folder resolved, the rest appended. */
-function realOf(p: string): string {
-  const rest: string[] = [];
-  for (let cur = p; ; cur = path.dirname(cur)) {
-    try { return path.join(fs.realpathSync(cur), ...rest.reverse()); } catch { /* not there yet */ }
-    if (path.dirname(cur) === cur) return p;
-    rest.push(path.basename(cur));
-  }
-}
-
-/**
- * Note [54]: may an agent on a provider off this machine run this tool call? Only path tools, only inside its folder (by realpath, so a link or
- * `..` out of it is refused), never a secrets file, writes only with canEdit. Anything else (WebFetch, Task, …) is refused.
- */
-export function pathGuard(cwd: string, tool: string, input: any, canEdit: boolean): { allow: boolean; message?: string } {
-  const no = (message: string) => ({ allow: false, message });
-  if (tool === 'TodoWrite') return { allow: true };
-  const keys = PATH_ARGS[tool];
-  if (!keys) return no(`${tool} is not available to this agent`);
-  if (WRITES.has(tool) && !canEdit) return no('this agent only reads');
-  let root: string;
-  try { root = fs.realpathSync(cwd); } catch { return no('the agent folder is missing'); }
-  for (const k of keys) {
-    let v = input?.[k];
-    if (v === undefined || v === '') { if (k.endsWith('_path')) return no(`${k} is missing`); continue; }
-    if (typeof v !== 'string' || v.includes('\0')) return no(`${k} is not a path`);
-    if (k === 'pattern') {   // the fixed part of the glob, before its first wildcard segment
-      const segs = v.split(/[\\/]/), g = segs.findIndex((s: string) => /[*?[{]/.test(s));
-      v = (g < 0 ? segs : segs.slice(0, g)).join('/') || '.';
-    }
-    const rel = path.relative(root, realOf(path.resolve(root, v)));
-    if (rel.startsWith('..') || path.isAbsolute(rel)) return no(`${input[k]} is outside the agent folder ${cwd}`);
-    if (rel && isSecretFile(rel.split(path.sep).join('/'))) return no(`${input[k]} looks like a secrets file`);
-  }
-  return { allow: true };
+  const local = prov.tier === 'local';
+  if (local && p.edit === true) return { ...own, allow: [...own.allow, LEAN_TOOL] };
+  return { mode: 'default', allow: [LEAN_TOOL], deny: [...NO_WRITE, ...(local ? [] : SECRET_READS)] };
 }
