@@ -54,3 +54,12 @@ test('#104/#69 UI: console button + read-only list, and the file view edits, sav
     assert.equal((await fetch(hub.url + '/vendor/monaco/vs/..%2f..%2fpackage.json')).status, 404);
   } finally { await hub.close(); }
 });
+
+test('#111 hidden buttons stay hidden: .btn display must not beat the hidden attribute', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    assert.ok(/\.btn\[hidden\][^{]*\{display:none!important\}/.test(html), 'a rule that keeps .btn[hidden] hidden');
+    assert.ok(html.indexOf('.btn[hidden]') < html.indexOf('.btn{display:inline-flex;'), 'it comes before the .btn rule');
+  } finally { await hub.close(); }
+});

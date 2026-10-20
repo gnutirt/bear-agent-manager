@@ -291,6 +291,7 @@ header .spacer{flex:1}
 .stack{display:flex}
 .stack .av{border:2px solid var(--panel);margin-left:-8px}
 .stack .av:first-child{margin-left:0}
+.btn[hidden],button[hidden]{display:none!important}   /* .btn's display would otherwise beat the hidden attribute */
 .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 12px;font-weight:600;font-size:13px}
 .btn:hover{background:var(--hover)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
