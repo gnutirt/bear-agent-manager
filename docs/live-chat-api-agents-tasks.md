@@ -18,8 +18,9 @@ Một agent Claude Code chạy nền bằng một nhà cung cấp trong `~/.bear
 
 ## 2. Chat trực tiếp và hộp hỏi quyền
 
-Chat riêng với một agent Claude giờ mặc định là **chat trực tiếp**: chữ hiện dần khi agent đang gõ,
-lệnh công cụ hiện thành khối gập/mở được, có nút **Dừng**.
+Trong chat riêng với một agent Claude, nút **Chat trực tiếp** trên đầu khung chat bật một phiên trực
+tiếp: chữ hiện dần khi agent đang gõ, lệnh công cụ hiện thành khối gập/mở được, có nút **Dừng**. Khung
+này chỉ hiện khi phiên đang chạy.
 
 - Hub chạy một tiến trình `claude` stream-json tiếp nối đúng phiên chat của agent đó. Tin @ trong
   phòng chung cho agent này cũng đi vào chính phiên đó.
@@ -37,7 +38,7 @@ lệnh công cụ hiện thành khối gập/mở được, có nút **Dừng**.
 ## 3. Gương tab
 
 Những gì bạn gõ thẳng trong tab của một agent (và câu trả lời của nó) được chép vào chat riêng của
-agent đó, có nhãn **từ tab** và màu khác. Tin gương không đánh thức ai và không gửi lại cho agent.
+agent đó, màu khác, nhãn ghi tên editor (**VS Code**, **Antigravity**). Tin gương không đánh thức ai và không gửi lại cho agent.
 Khoá và token bị che. Tắt bằng setting `mirrorTabs`.
 
 ## 4. Copilot chọn model
@@ -85,8 +86,9 @@ A background Claude Code agent that runs on a provider from `~/.bear-agent-manag
 
 ## 2. Live chat and the permission box
 
-A private chat with a Claude agent is now a **live chat** by default: text appears as the agent
-types, tool calls show as collapsible blocks, and there is a **Stop** button.
+In a private chat with a Claude agent, the **Live chat** button in the chat header starts a live
+session: text appears as the agent types, tool calls show as collapsible blocks, and there is a
+**Stop** button. The panel shows only while the session runs.
 
 - The hub runs one `claude` stream-json process that resumes that agent's chat. Room @mentions for
   the agent go into the same live session.
@@ -104,7 +106,7 @@ types, tool calls show as collapsible blocks, and there is a **Stop** button.
 ## 3. Tab mirror
 
 What you type directly in an agent's tab (and its reply) is copied into that agent's private chat,
-labeled **from tab** in a different color. Mirrored messages wake nobody and are never delivered
+in a different color, labeled with the editor (**VS Code**, **Antigravity**). Mirrored messages wake nobody and are never delivered
 back to the agent. Keys and tokens are redacted. Turn it off with the `mirrorTabs` setting.
 
 ## 4. Copilot model
