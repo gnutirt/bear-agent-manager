@@ -12,7 +12,7 @@ export const isQuotaError = (text: string): boolean => QUOTA.test(text);
 /** Files a provider outside this machine must not read (mirrors localai.ts SECRET_FILE, as claude permission rules). */
 const SECRET_READS = ['**/.env*', '**/*.pem', '**/*.key', '**/*.pfx', '**/*.p12', '**/*.kdbx', '**/id_rsa*', '**/id_ed25519*', '**/.npmrc', '**/.netrc',
   '**/credentials*.json', '**/secrets.*', '**/*token*', '**/providers.json', '**/.bear-agent-manager/**', '**/.claude/**'].map((g) => `Read(${g})`);
-const NO_WRITE = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash'];
+const NO_WRITE = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
 
 /** Environment of the claude process: the provider's endpoint and credential, never the owner's account. The key stays in this object (never logged). */
 export function apiEnv(p: AgentProfile, prov: Provider): Record<string, string> {
