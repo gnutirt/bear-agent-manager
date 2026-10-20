@@ -1047,6 +1047,7 @@ export const en: Record<string, string> = {
   'files.nodiff': 'No changes against HEAD for this file.',
   'files.clean': 'No changed files.',
   'files.more': 'Only the first entries are shown.',
+  'header.more': 'More',
   'console.title': "Console",
   'console.note': "Read-only: see which commands the agent runs and what they print. Nothing can be typed or run here.",
   'console.empty': "No commands since the hub started.",

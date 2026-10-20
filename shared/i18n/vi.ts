@@ -1047,6 +1047,7 @@ export const vi: Record<string, string> = {
   'files.nodiff': 'File này không khác HEAD.',
   'files.clean': 'Không có file thay đổi.',
   'files.more': 'Chỉ hiện những mục đầu tiên.',
+  'header.more': 'Thêm',
   'console.title': "Console",
   'console.note': "Chỉ đọc: xem agent đang chạy lệnh gì và kết quả của nó. Ở đây không gõ hay chạy được gì.",
   'console.empty': "Chưa có lệnh nào từ lúc hub khởi động.",

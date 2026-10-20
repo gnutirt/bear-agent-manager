@@ -63,3 +63,14 @@ test('#111 hidden buttons stay hidden: .btn display must not beat the hidden att
     assert.ok(html.indexOf('.btn[hidden]') < html.indexOf('.btn{display:inline-flex;'), 'it comes before the .btn rule');
   } finally { await hub.close(); }
 });
+
+test('#112 phone header: Files, Console and Live chat move into a ⋯ menu under 600px, desktop keeps them', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['id="moreBtn"', 'function moreMenu', 'const syncMore', "$('moreBtn').onclick"]) assert.ok(html.includes(s), `missing ${s}`);
+    const css = html.slice(html.indexOf('@media (max-width:600px){   /* phone'), html.indexOf('@media (max-width:760px){'));
+    assert.ok(/header #filesBtn,header #consoleBtn,header #liveBtn\{display:none!important\}/.test(css), 'the three buttons hide on a phone');
+    assert.ok(/#moreBtn\{display:none\}/.test(html), 'the ⋯ button is off on desktop');
+  } finally { await hub.close(); }
+});

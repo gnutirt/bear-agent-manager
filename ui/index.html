@@ -783,6 +783,12 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .addprov input{flex:1;min-width:140px}
 
 /* ---------- narrow panels (VS Code sidebar) ---------- */
+#moreBtn{display:none}
+@media (max-width:600px){   /* phone: Files, Console and Live chat move into the ⋯ menu so the header stays one or two rows */
+  header{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  header #filesBtn,header #consoleBtn,header #liveBtn{display:none!important}
+  #moreBtn:not([hidden]){display:inline-flex}
+}
 @media (max-width:760px){
   body{grid-template-columns:minmax(0,1fr)}
   #side{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);z-index:40;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow)}
@@ -856,6 +862,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <button class="btn" id="filesBtn" hidden type="button" data-i18n="files.title">Tệp</button>
     <button class="btn" id="consoleBtn" hidden type="button" data-i18n="console.title">Console</button>
     <button class="btn" id="liveBtn" hidden type="button" data-i18n="live.title">Chat trực tiếp</button>
+    <button class="btn" id="moreBtn" hidden type="button" aria-haspopup="menu" aria-label="Thêm" data-i18n-aria="header.more" title="Thêm" data-i18n-ta="header.more">⋯</button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
     <button class="btn primary" id="agentNewBtn" hidden type="button" data-i18n="agent.spawn.add">+ Agent</button>
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
@@ -1516,6 +1523,15 @@ function renderUsageChips() {
   }).join('');
 }
 $('uchips').addEventListener('click', (e) => { if (e.target.closest('.uchip')) showTab('tokens'); });
+const MORE_IDS = ['filesBtn', 'consoleBtn', 'liveBtn'];
+const syncMore = () => { $('moreBtn').hidden = !MORE_IDS.some((id) => !$(id).hidden); };
+function moreMenu(anchor) {
+  const items = MORE_IDS.map($).filter((b) => !b.hidden);
+  if (!items.length) return;
+  openMenu(anchor, items.map((b, i) => `<button class="item" role="menuitem" data-more="${i}">${esc(b.textContent.trim())}</button>`).join(''), (m) => {
+    m.querySelectorAll('[data-more]').forEach((x) => x.onclick = () => { closeMenu(); items[+x.dataset.more].click(); });
+  });
+}
 function renderHeader() {
   renderUsageChips();
   const r = room(S.current);
@@ -1531,6 +1547,7 @@ function renderHeader() {
   void ms.slice(0, 8).map((s) => `<button type="button" class="mb ${s.status}" data-name="${esc(s.name)}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</button>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
   $('filesBtn').hidden = !r?.dm;
   $('consoleBtn').hidden = !r || !ms.length;
+  syncMore();
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = $('searchBtn').hidden = !r;
   $('agentNewBtn').hidden = !r || !!r.dm;
   $('membersCount').textContent = ms.length;
@@ -2102,6 +2119,7 @@ const queueLiveRender = () => { if (!liveRaf) liveRaf = requestAnimationFrame(()
 function renderLive() {
   const pane = $('livePane'), sid = liveSid(), st = sid && S.live[sid];
   $('liveBtn').hidden = !st || st.off || st.running;
+  syncMore();
   const tabOpen = !!(sid && S.sessions[sid]?.tab), lb = $('liveBtn'), key = tabOpen ? (S.wantLive[sid] ? 'live.openBam.wait' : 'live.openBam') : 'live.title';
   if (lb.dataset.i18n !== key) { lb.dataset.i18n = key; lb.textContent = t(key); }
   pane.hidden = !st || st.off || (!st.running && !st.items.length);
@@ -2299,6 +2317,7 @@ $('newRoom').onsubmit = (e) => {
 $('roomName').onkeydown = (e) => { if (e.key === 'Escape') $('newRoom').classList.remove('open'); };
 $('inviteBtn').onclick = () => copy(inviteText(S.current), t('invite.copied'));
 $('membersBtn').onclick = (e) => membersMenu(e.currentTarget);
+$('moreBtn').onclick = (e) => moreMenu(e.currentTarget);
 $('agentNewBtn').onclick = () => openAgentDialog();
 $('notesBtn').onclick = () => { $('notesPanel').classList.toggle('open'); renderNotes(); };
 $('npClose').onclick = () => $('notesPanel').classList.remove('open');
