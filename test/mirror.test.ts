@@ -16,6 +16,10 @@ test('scrubSecrets: tokens and key=value credentials are redacted, a private key
   assert.equal(scrubSecrets('fix the login button'), 'fix the login button');
   assert.equal(isHubText('[bear-agent-manager] New messages:'), true);
   assert.equal(isHubText('hello [bear-agent-manager]'), false);
+  assert.equal(isHubText('<system-reminder>\n[bear-agent-manager] New messages: ...'), true);
+  assert.equal(isHubText('<task-notification>\n<summary>Stop hook feedback</summary>\n<system-reminder>Stop hook blocking error from command "Stop": [bear-agent-manager] New messages'), true);
+  assert.equal(isHubText('  <system-reminder>something unrelated</system-reminder>'), true);
+  assert.equal(isHubText('please fix the <system-reminder> tag in this file'), false);
 });
 
 test('postMirror: private chat is created hidden, stays hidden, wakes nobody and is never delivered to the agent', () => {
@@ -59,5 +63,20 @@ test('tab mirror: a prompt typed in the tab and its answer reach the private cha
     await hook('prompt', { prompt: 'silent now' });
     await hook('stop', { last_assistant_message: 'quiet' });
     assert.equal((await dm()).length, 2, 'off switch');
+  } finally { await h.hub.close(); }
+});
+
+test('tab mirror: an agent that already room_send-ed into its own DM this turn is not mirrored a second time', async () => {
+  const h = await makeHub();
+  const hook = (event: string, body: object) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'm2', ...body }) });
+  const dm = async () => (await h.call<any[]>('/api/rooms/dm-m2/messages?after=0')).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+  try {
+    await h.call('/api/settings', { mirrorTabs: true }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'm2', cwd: 'C:/fw' });
+    await h.call('/api/sessions/m2/rename', { name: 'bob' });
+    await hook('prompt', { prompt: 'answer in your own DM please' });
+    await h.call('/api/rooms/dm-m2/messages', { sessionId: 'm2', text: 'already answered here' });
+    await hook('stop', { last_assistant_message: 'already answered here' });
+    assert.deepEqual(await dm(), ['[tab] user: answer in your own DM please'], 'no duplicate "[tab] agent" line once the agent itself posted to the DM');
   } finally { await h.hub.close(); }
 });

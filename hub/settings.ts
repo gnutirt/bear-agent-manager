@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renameRetry } from './atomic.ts';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
@@ -280,5 +281,5 @@ export function saveSettings(home: string, s: Settings): void {
   fs.mkdirSync(home, { recursive: true });
   const f = path.join(home, FILE);
   fs.writeFileSync(f + '.tmp', JSON.stringify(s, null, 2));
-  fs.renameSync(f + '.tmp', f);
+  renameRetry(f + '.tmp', f);
 }

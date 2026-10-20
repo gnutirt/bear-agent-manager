@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { renameRetry } from './atomic.ts';
 
 /** Levels of Claude Code's `skillOverrides` setting; `on` is the default and means no entry. */
 export const LEVELS = ['on', 'name-only', 'user-invocable-only', 'off'] as const;
@@ -32,6 +33,6 @@ export function setOverride(configDir: string, name: string, level: string): Lev
   if (Object.keys(o).length) s.skillOverrides = o; else delete s.skillOverrides;
   const tmp = `${file(configDir)}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(s, null, 2) + '\n');
-  fs.renameSync(tmp, file(configDir));
+  renameRetry(tmp, file(configDir));
   return level as Level;
 }

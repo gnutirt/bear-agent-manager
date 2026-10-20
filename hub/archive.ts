@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { probeDir, runWorker } from './slowdir.ts';
+import { renameRetry } from './atomic.ts';
 
 export type ArchiveResult = { ok: boolean; reason: string; copiedFiles: number; copiedBytes: number; errors?: string[] };
 export type ArchiveArgs = { configDirs: string[]; archiveDir: string; onlySession?: string; roomChatRoot?: string; roomsRoot?: string };
@@ -72,7 +73,7 @@ export function archiveNow(configDirs: string[], archiveDir: string, onlySession
   if (res.errors?.length) { res.ok = false; res.reason = `${res.errors.length} file(s) failed: ${res.errors[0]}`; }
   // Saved even when files failed: a lost offset would re-append (duplicate) everything copied in this round.
   fs.writeFileSync(offFile + '.tmp', JSON.stringify(off));
-  fs.renameSync(offFile + '.tmp', offFile);
+  renameRetry(offFile + '.tmp', offFile);
   return res;
 }
 

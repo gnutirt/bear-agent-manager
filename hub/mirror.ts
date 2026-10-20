@@ -1,7 +1,10 @@
 // B1: what a tab turn may show in the agent's private chat. Only the text the user typed and the agent answered; secrets never leave the tab.
 
 /** A hub delivery or a background wake (the room text, not something typed in the tab). */
-export const isHubText = (prompt: string): boolean => /^\s*\[bear-agent-manager\]/.test(prompt);
+export const isHubText = (prompt: string): boolean =>
+  /^\s*\[bear-agent-manager\]/.test(prompt) ||
+  /^\s*<(task-notification|system-reminder)>/.test(prompt) ||
+  prompt.includes('[bear-agent-manager] New messages');
 
 const BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 const TOKENS: RegExp[] = [

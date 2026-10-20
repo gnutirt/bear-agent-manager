@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
 import { permFor, resolveWorkspace, type PermRule, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
+import { renameRetry } from './atomic.ts';
 
 const ROOM = 'bear-agent-manager';
 const LEGACY_ROOM = 'copilot';
@@ -118,7 +119,7 @@ function readIdentity(file: string): Identity {
 function saveIdentity(file: string, identity: Identity): void {
   const temp = `${file}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(identity, null, 2));
-  fs.renameSync(temp, file);
+  renameRetry(temp, file);
 }
 
 function formatMessages(room: string, messages: ReturnType<Store['pending']>['messages'], cwd: string, sessionId: string): string {

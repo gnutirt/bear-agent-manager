@@ -673,6 +673,7 @@ export const en: Record<string, string> = {
   'compact.tasks': 'Open tasks:',
   'tab.tasks': 'Tasks',
   'task.title': 'Room tasks',
+  'task.room': 'Choose which room’s tasks to show',
   'task.todo': 'To do',
   'task.doing': 'Doing',
   'task.blocked': 'Blocked',

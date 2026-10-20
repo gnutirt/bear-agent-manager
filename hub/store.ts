@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../shared/i18n.ts';
 import { LOOP_LIMIT, parseMentions, wakes, type Message, type SysMeta } from './routing.ts';
+import { renameRetry } from './atomic.ts';
 
 export type Status = 'busy' | 'idle' | 'waiting' | 'offline';
 export type Session = {
@@ -135,7 +136,7 @@ export class Store {
   save(): void {
     const file = path.join(this.dir, 'state.json');
     fs.writeFileSync(`${file}.tmp`, JSON.stringify(this.state));
-    fs.renameSync(`${file}.tmp`, file);
+    renameRetry(`${file}.tmp`, file);
   }
 
   private lastId(): number {

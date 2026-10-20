@@ -42,10 +42,8 @@ import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTransc
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { apiEnv, apiPerm, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
-import { MuseAgent } from './museagent.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
-import { chromeCdp } from '../mcp/muse.ts';
-import type { Cdp } from '../mcp/muse-core.ts';
+import { PermissionBroker } from './permissions.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
@@ -128,8 +126,6 @@ export type HubOptions = {
   copilotClientFactory?: CopilotClientFactory;
   /** How a live (stream-json) chat starts its claude (stubbed in tests). */
   liveSpawn?: LiveSpawn;
-  /** The debug Chrome of 'muse' profiles (stubbed in tests; default http://127.0.0.1:9222). */
-  museCdp?: Cdp;
   /** Startup folder for the sign-in script (tests use a temp one). */
   startupDir?: string;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
@@ -397,11 +393,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const prof = copilotProfiles().find((x) => x.id === id)!;
     const agent = copilotFor(prof);
     const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
-    if (on === undefined) agent.resetQuotaLimit();
     if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
       return json(res, 429, { error: `${cap} headless agents already run (settings agents.maxBackground)`, status: copilotStatus(id) });
     }
     if (on !== undefined) setCopilotEnabled(id, on);
+    if (on === undefined) agent.resetQuotaLimit();
     try {
       if (on === false) await agent.stop();
       else await agent.start();
@@ -483,37 +479,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const next = patchSettings(cur, { agents: { profiles: cur.agents.profiles.map((p) => (p.id === id ? { ...p, enabled: on } : p)) } });
     saveSettings(opts.dir, next);
     broadcast('settings', next);
-  }
-
-  // ---- 'muse' profiles: Muse (through the debug Chrome) answers @-mentions as a room member, one question at a time ----
-  const muses = new Map<string, { agent: MuseAgent; key: string }>();
-  const museProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'muse');
-  const museAgents = () => [...muses.values()].map((m) => m.agent);
-  const museHolding = (sid: string) => museAgents().find((m) => m.hasSession(sid));
-  const museCdp = opts.museCdp ?? chromeCdp();
-  function museFor(p: AgentProfile): MuseAgent {
-    const key = JSON.stringify([p.name, p.cwd]), cur = muses.get(p.id);
-    if (cur?.key === key) return cur.agent;
-    const agent = new MuseAgent({
-      dir: opts.dir, profile: { id: p.id, name: p.name, cwd: p.cwd }, store, cdp: museCdp,
-      onChange: (status) => { broadcast('agentprofile', { ...status, enabled: true }); const s = Object.values(store.state.sessions).find((x) => x.name === p.name); if (s) broadcast('session', publicSession(s)); },
-      onRoom: emitRoom,
-      onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
-    });
-    muses.set(p.id, { agent, key });
-    return agent;
-  }
-  const museStatusOf = (p: AgentProfile) => ({ ...museFor(p).snapshot(), enabled: p.enabled });
-  /** Starts the profiles that are on; stops the ones that are off, gone or changed. A Chrome / sign-in problem is the agent's error state, not a failure here. */
-  async function syncMuse(): Promise<void> {
-    const profiles = museProfiles();
-    for (const [id, m] of [...muses]) {
-      const p = profiles.find((x) => x.id === id);
-      if (p && p.enabled && m.key === JSON.stringify([p.name, p.cwd])) continue;
-      if (m.agent.snapshot().state !== 'off') await m.agent.stop().catch(() => {});
-      if (!p || m.key !== JSON.stringify([p.name, p.cwd])) { muses.delete(id); broadcast('agentprofile', { id, removed: true }); }
-    }
-    for (const p of profiles) if (p.enabled && museFor(p).snapshot().state === 'off') void museFor(p).start().catch((e) => console.error(`[muse] ${p.id} start failed:`, e));
   }
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
@@ -663,7 +628,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
-    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)) || liveChat.has(id);
+    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
     const found = store.deaf(isConn, opts.deafMs ?? DEAF_MS);
     for (const id of [...deafTold.keys()]) if (!found.some((f) => f.session.id === id)) deafTold.delete(id);
     for (const { session: s, msg } of found) {
@@ -677,11 +642,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cop = copilotHolding(st.id);
     if (cop) {
       void cop.wake(st.id).catch((error) => cop.reportError(error));
-      return;
-    }
-    const mus = museHolding(st.id);
-    if (mus) {
-      void mus.wake(st.id).catch((error) => mus.reportError(error));
       return;
     }
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
@@ -734,8 +694,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   };
   const reviving = new Set<string>();
   // S2: a chat opened inside BAM is one long-lived claude (stream-json); its events go to the UI as SSE 'live'
+  // S4: a tool call a live chat is not allowed yet waits here for the person's Allow / Deny (SSE 'permission' / 'permission-done'; no answer = deny)
+  const permissions = new PermissionBroker({
+    onAsk: (req) => broadcast('permission', req),
+    onDone: (id, session, answer) => broadcast('permission-done', { id, session, allow: answer.allow, by: answer.by }),
+  });
   const liveChat = new LiveChat({ spawn: opts.liveSpawn, emit: (sid, ev) => {
     broadcast('live', { session: sid, ...ev });
+    if (ev.kind === 'stopped') permissions.cancel(sid);
     if ((ev.kind === 'result' || ev.kind === 'init') && store.state.sessions[sid] && liveChat.has(sid)) emitSession(store.setStatus(sid, 'idle'));
     if (ev.kind === 'stopped') {
       const cur = store.state.sessions[sid];
@@ -927,8 +893,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // A DNS-rebinding page reaches us with its own hostname in Host; only loopback names are ours.
   const allowedHost = (h = '') => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
 
-  /** B1: sessions whose current turn was typed in the tab (the Stop hook then mirrors the answer). */
-  const mirroring = new Set<string>();
+  /** B1: sessions whose current turn was typed in the tab (the Stop hook then mirrors the answer); value is the ts of the mirrored prompt line. */
+  const mirroring = new Map<string, number>();
   function mirrorUser(sid: string, prompt: unknown) {
     mirroring.delete(sid);
     try {
@@ -937,13 +903,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const clean = scrubSecrets(text);
       if (clean === null) return;
       const m = store.postMirror(sid, 'user', relayText(clean, tr('sys.relay.more', { name: store.session(sid).name })));
-      mirroring.add(sid);
+      mirroring.set(sid, m.ts);
       broadcast('msg', m); emitRoom(m.room);
     } catch { /* a mirror never breaks a prompt */ }
   }
   function mirrorAgent(sess: Session, b: any) {
-    if (!mirroring.delete(sess.id)) return;
+    const since = mirroring.get(sess.id);
+    mirroring.delete(sess.id);
+    if (since === undefined) return;
     try {
+      // The agent already answered in its own DM room this turn (e.g. room_send via MCP): don't also auto-mirror it.
+      const dm = `dm-${sess.id}`;
+      if (store.messages.some((m) => m.room === dm && m.fromId === sess.id && m.kind !== 'mirror' && m.ts >= since)) return;
       const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
       const clean = text ? scrubSecrets(text) : null;
       if (!clean) return;
@@ -1380,11 +1351,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   function sweepAll(apply: boolean) {
     if (apply) runArchive();   // starts a round; files it has not reached yet are found again under room_chat with their old key
-    if (m === 'GET' && appAsset(p)) {
-      const a = appAsset(p)!;
-      res.writeHead(200, { 'content-type': a.type, 'cache-control': 'no-cache' });
-      return res.end(a.body);
-    }
     const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
     const revive = new Set<string>();
     const out: Swept[] = [];
@@ -1414,6 +1380,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const hk = m === 'POST' && p.match(/^\/hooks\/([a-z-]+)$/);
     if (hk) return hookRoute(hk[1], req, res);
 
+    if (m === 'GET' && appAsset(p)) {
+      const a = appAsset(p)!;
+      res.writeHead(200, { 'content-type': a.type, 'cache-control': 'no-cache' });
+      return res.end(a.body);
+    }
     if (m === 'GET' && (p === '/' || p === '/index.html')) {
       const html = withManifest(fs.readFileSync(UI_FILE, 'utf8')).replace('__BEAR_AGENT_TOKEN__', token);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
@@ -1573,22 +1544,25 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return copilotToggle(res, 'copilot', b.on);
     }
     if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
-    // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
-    if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus), ...museProfiles().map(museStatusOf)]);
-    const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
-    const mp = ap ? museProfiles().find((x) => x.id === ap[1]) : undefined;
-    if (ap && mp) {
+    // S4: the permission prompt tool of a live chat asks here and waits for the person's answer (or the timeout = deny)
+    if (m === 'POST' && p === '/api/permissions/ask') {
       const b = await readBody(req);
-      if (ap[2] && !mp.enabled) throw new StoreError(409, `${mp.name} is off: turn it on first`);
-      if (!ap[2]) {
-        if (b.confirm !== true) return json(res, 200, { ...museStatusOf(mp), done: false });
-        if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
-        setApiEnabled(mp.id, b.on);   // writes profile.enabled whatever the provider
-        if (!b.on) { await museFor(mp).stop(); return json(res, 200, { ...museStatusOf({ ...mp, enabled: false }), done: true }); }
-      }
-      await museFor({ ...mp, enabled: true }).start();   // also the retry: re-checks Chrome and the sign-in
-      return json(res, 200, { ...museStatusOf({ ...mp, enabled: true }), done: true });
+      const s = store.session(String(b.session ?? ''));
+      if (!liveChat.has(s.id)) throw new StoreError(409, `${s.name} has no live chat`);
+      const a = await permissions.ask(s.id, s.name, String(b.tool ?? ''), b.input);
+      return json(res, 200, { allow: a.allow, ...(a.message ? { message: a.message } : {}) });
     }
+    if (m === 'GET' && p === '/api/permissions') return json(res, 200, permissions.pending());
+    const pm = m === 'POST' ? p.match(/^\/api\/permissions\/([0-9a-f]+)$/) : null;
+    if (pm) {
+      const b = await readBody(req);
+      if (typeof b.allow !== 'boolean') throw new StoreError(400, 'allow must be true or false');
+      if (!permissions.decide(pm[1], b.allow, typeof b.message === 'string' ? b.message : undefined)) throw new StoreError(404, 'no such open request (answered or timed out)');
+      return json(res, 200, { ok: true });
+    }
+    // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
+    if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus)]);
+    const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
     if (ap) {
       const prof = apiProfiles().find((x) => x.id === ap[1]);
       if (!prof) return json(res, 404, { error: `unknown claude-api profile ${ap[1]}` });
@@ -1697,7 +1671,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       saveSettings(opts.dir, next);
       void syncCopilots();
       syncApiAgents();
-      void syncMuse();
       autoCfg.at = 0;
       broadcast('settings', next);
       return json(res, 200, next);
@@ -1912,10 +1885,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to continue`);
         if (liveKinds(s.pids).tab || (waiters.has(s.id) && !waiters.get(s.id)!.headless)) throw new StoreError(409, `${s.name} is open in an editor tab: close the tab first (one chat lives in one place)`);
         if (reviving.has(s.id) || isBackground(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
-        if (copilotHolding(s.id) || museHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
+        if (copilotHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
         const cfg = loadSettings(opts.dir, envCap), model = cfg.agentModel[normAgent(s.name)];
         if (Math.max(countBackground(), reviving.size) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
-        liveChat.start({ id: s.id, cwd: s.cwd, ...(s.configDir ? { configDir: s.configDir } : {}), logDir: opts.dir, perm: permFor(cfg, s.name), ...(model ? { model } : {}) });
+        const perm = permFor(cfg, s.name);
+        let args: string[] | undefined;
+        if (perm.mode !== 'bypass') {   // a tool the agent is not allowed yet asks the person in BAM instead of being refused silently
+          const mcp = path.join(opts.dir, `live-${s.id}.mcp.json`);
+          fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { bearperm: { command: process.execPath, args: ['--no-warnings', path.join(ROOT, 'mcp', 'perm-server.ts')], env: { CLAUDE_CODE_SESSION_ID: s.id, BEAR_AGENT_HOME: opts.dir, BEAR_AGENT_PORT: String(port) } } } }));
+          args = ['--mcp-config', mcp, '--permission-prompt-tool', 'mcp__bearperm__approve'];
+        }
+        liveChat.start({ id: s.id, cwd: s.cwd, ...(s.configDir ? { configDir: s.configDir } : {}), logDir: opts.dir, perm, ...(model ? { model } : {}), ...(args ? { args } : {}) });
         store.touch(s.id);
         emitSession(store.setStatus(s.id, 'idle'));
         return json(res, 200, { running: true, started: true });
@@ -2215,7 +2195,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   port = (server.address() as AddressInfo).port;
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)) || liveChat.has(id))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
     checkDeaf();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
@@ -2224,7 +2204,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   void syncCopilots();
   syncApiAgents();
-  void syncMuse();
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -2246,7 +2225,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
-      for (const m of museAgents()) { try { await m.stop(); } catch (error) { console.error('[muse] shutdown failed:', error); } }
       liveChat.stopAll();
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));

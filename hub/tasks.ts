@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { StoreError } from './store.ts';
+import { renameRetry } from './atomic.ts';
 
 // K1: the task list of a room. Stored per room in rooms/<room>/tasks.json (the room folder follows a rename and goes to the trash with the room).
 export const STATUSES = ['todo', 'doing', 'blocked', 'done'] as const;
@@ -36,7 +37,7 @@ function write(home: string, room: string, f: File): void {
   fs.mkdirSync(dir(home, room), { recursive: true });
   const tmp = `${file(home, room)}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(f));
-  fs.renameSync(tmp, file(home, room));
+  renameRetry(tmp, file(home, room));
 }
 
 export function listTasks(home: string, room: string, q: { status?: string; owner?: string } = {}): Task[] {

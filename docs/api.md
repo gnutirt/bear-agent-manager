@@ -48,6 +48,8 @@
 | GET | `/api/copilot` |  | có |
 | POST | `/api/copilot` | `confirm`, `on` | có |
 | GET | `/api/copilot/profiles` |  | có |
+| POST | `/api/permissions/ask` | `session`, `tool`, `input` | có |
+| GET | `/api/permissions` |  | có |
 | GET | `/api/agent-profiles` |  | có |
 | POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `prompt` | có |
 | GET | `/api/version` |  | có |

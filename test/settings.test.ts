@@ -152,7 +152,7 @@ test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones drop
   assert.deepEqual(d.agents.profiles, []);
   assert.equal(permFor(d, 'Copilot').mode, 'acceptEdits');
   const ok = { id: 'Copilot-Work', provider: 'copilot', name: 'Copilot_Work', cwd: here, enabled: true };
-  const s = patchSettings(d, { agents: { profiles: [ok, { ...ok, id: 'other' }, { ...ok, id: 'x', name: 'rel', cwd: 'rel/dir' }, { ...ok, id: 'y', name: 'unc', cwd: '\\\\srv\\share' }, { ...ok, id: 'z', name: 'bad name!' }, { ...ok, id: 'p', name: 'p', provider: 'other' }, { ...ok, id: 'w', name: 'w', enabled: 'yes' }] } });
+  const s = patchSettings(d, { agents: { profiles: [ok, { ...ok, id: 'other' }, { ...ok, id: 'x', name: 'rel', cwd: 'rel/dir' }, { ...ok, id: 'y', name: 'unc', cwd: '\\\\srv\\share' }, { ...ok, id: 'z', name: 'bad name!' }, { ...ok, id: 'p', name: 'p', provider: 'other' }, { ...ok, id: 'm', name: 'm', provider: 'muse' }, { ...ok, id: 'w', name: 'w', enabled: 'yes' }] } });
   assert.deepEqual(s.agents.profiles.map((p) => [p.id, p.name, p.enabled]), [['copilot-work', 'Copilot_Work', true], ['w', 'w', false]]);   // the duplicate name 'Copilot_Work' is dropped
   assert.equal(patchSettings(s, { agents: { maxBackground: 2 } }).agents.profiles.length, 2, 'a patch without profiles keeps them');
   assert.deepEqual(patchSettings(s, { agents: { profiles: [] } }).agents.profiles, []);

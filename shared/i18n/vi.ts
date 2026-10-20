@@ -673,6 +673,7 @@ export const vi: Record<string, string> = {
   'compact.tasks': 'Việc đang mở:',
   'tab.tasks': 'Việc',
   'task.title': 'Việc của phòng',
+  'task.room': 'Chọn phòng để xem việc',
   'task.todo': 'Cần làm',
   'task.doing': 'Đang làm',
   'task.blocked': 'Kẹt',

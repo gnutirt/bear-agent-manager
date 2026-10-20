@@ -800,6 +800,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <nav id="tabs" role="tablist" aria-label="Màn hình" data-i18n-aria="nav.label">
   <button id="tabsMenu" aria-label="Mở danh sách" data-i18n-aria="nav.open"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button role="tab" data-tab="rooms" aria-selected="true" data-i18n="tab.rooms">Phòng</button>
+  <button role="tab" data-tab="dm"><span data-i18n="rooms.dm.title">Chat riêng</span> <span class="cap" id="tabDmCount"></span></button>
   <button role="tab" data-tab="tasks"><span data-i18n="tab.tasks">Việc</span> <span class="cap" id="tabTaskCount"></span></button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens">Token</button>
@@ -1257,6 +1258,7 @@ function membersMenu(anchor) {
 
 /* ---------- rendering ---------- */
 function renderRooms() {
+  syncChatTabs();
   const el = $('rooms'); el.innerHTML = '';
   const normal = S.rooms.filter((r) => !r.dm);
   if (!normal.length) el.innerHTML = `<div class="side-empty">${t('rooms.none')}</div>`;
@@ -1740,6 +1742,8 @@ async function select(name) {
   if (S.around && S.around !== name) { delete S.messages[S.around]; S.around = null; }   // a partial view of the old room is not kept
   S.current = name; S.unread[name] = 0; S.stick = true; S.find.days = null; S.find.results = null; S.find.q = '';
   try { localStorage.setItem('bear-agent-manager:room', name); } catch {}
+  if (room(name)?.dm) S.lastDm = name;
+  setTaskRoom(name);   // the tasks tab remembers the last non-DM room so it still has something to show while you're in a private chat
   if (name && !S.messages[name]) S.messages[name] = await api(`/api/rooms/${enc(name)}/messages?limit=300`).catch(() => []);
   if (name && !S.notes[name]) await loadNotes(name);
   if (name && !S.topics[name]) loadTopics(name);
@@ -1974,7 +1978,23 @@ $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.tog
 
 /* ---------- tabs ---------- */
 const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'skills', 'settings'];
+/** Phòng and Chat riêng share the chat view but never each other's conversations: each tab keeps its own last conversation. */
+function syncChatTabs() {
+  const dm = !!room(S.current)?.dm, chat = S.tab === 'rooms';
+  document.querySelector('#tabs [data-tab="rooms"]').setAttribute('aria-selected', String(chat && !dm));
+  document.querySelector('#tabs [data-tab="dm"]').setAttribute('aria-selected', String(chat && dm));
+  const un = S.rooms.reduce((n, r) => n + (r.dm && !r.dmHidden ? S.unread[r.name] || 0 : 0), 0);
+  $('tabDmCount').textContent = un || '';
+}
 function showTab(name) {
+  if (name === 'dm' || name === 'rooms') {
+    const wantDm = name === 'dm', isDm = !!room(S.current)?.dm;
+    if (wantDm !== isDm) {
+      const to = wantDm ? (room(S.lastDm) && !room(S.lastDm).dmHidden ? S.lastDm : S.rooms.find((r) => r.dm && !r.dmHidden)?.name) : (room(S.taskRoom) && !room(S.taskRoom).dm ? S.taskRoom : S.rooms.find((r) => !r.dm)?.name);
+      if (to) select(to); else if (wantDm) toast(t('rooms.dm.none'));
+    }
+    name = 'rooms';
+  }
   if (!TABS.includes(name)) name = 'rooms';
   S.tab = name; closeMenu();
   for (const t of TABS) {
@@ -1982,24 +2002,35 @@ function showTab(name) {
     document.querySelector(`#tabs [data-tab="${t}"]`).setAttribute('aria-selected', String(t === name));
   }
   document.body.dataset.tab = name;
+  syncChatTabs();
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
   ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+$('tabs').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const b = e.target.closest('[data-tab=dm]'); if (b) { e.preventDefault(); showTab('dm'); } } });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 // Filled in by the Worker / Token / Cài đặt views below.
 /* ---------- Việc tab (K3): grouped task list (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
 S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
+S.taskRoom = null; try { S.taskRoom = localStorage.getItem('bear-agent-manager:taskRoom') || null; } catch {}
+/** Last non-DM room seen (nav or the Việc tab's own picker): stays valid while a DM has nothing to show. */
+function setTaskRoom(name) { if (!name || room(name)?.dm) return; S.taskRoom = name; try { localStorage.setItem('bear-agent-manager:taskRoom', name); } catch {} }
+/** The room the Việc tab shows: the room you're chatting in, unless that's a DM (DMs have no tasks) — then the remembered one. */
+function taskRoomName() {
+  if (S.current && !room(S.current)?.dm) return S.current;
+  if (S.taskRoom && room(S.taskRoom) && !room(S.taskRoom).dm) return S.taskRoom;
+  return S.rooms.find((x) => !x.dm)?.name ?? null;
+}
 const TCOLS = ['todo', 'doing', 'blocked', 'done'];
 const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
 const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
-function loadTasks(r = S.current) {
+function loadTasks(r = taskRoomName()) {
   if (!r) return Promise.resolve();
-  return api(`/api/rooms/${enc(r)}/tasks`).then((l) => { S.tasks[r] = Array.isArray(l) ? l : []; if (r === S.current) S.tasksErr = ''; }, (e) => { if (r === S.current) S.tasksErr = e.message; }).then(() => { renderTasks(); renderRooms(); });
+  return api(`/api/rooms/${enc(r)}/tasks`).then((l) => { S.tasks[r] = Array.isArray(l) ? l : []; if (r === taskRoomName()) S.tasksErr = ''; }, (e) => { if (r === taskRoomName()) S.tasksErr = e.message; }).then(() => { renderTasks(); renderRooms(); });
 }
 function renderTasks() {
-  const r = S.current, list = S.tasks[r] || [], n = openTasks(r).length;
+  const r = taskRoomName(), list = S.tasks[r] || [], n = openTasks(r).length;
   $('tabTaskCount').textContent = n ? n : '';
   if (S.tab !== 'tasks') return;
   const owners = [...new Set(list.map((x) => x.owner).filter(Boolean))].sort();
@@ -2029,13 +2060,16 @@ function renderTasks() {
   const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TCOLS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
   const chips = [`<button type="button" class="tchip" data-townerf="" aria-selected="${!S.tfOwner}">${t('task.filterAll')}</button>`, ...owners.map((o) => `<button type="button" class="tchip" data-townerf="${esc(o)}" aria-selected="${S.tfOwner === o}">${esc(o)}</button>`)].join('');
   const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
-  $('view-tasks').innerHTML = `<div class="vw"><div class="thead"><h2>${t('task.title')} <span class="aside">#${esc(r || '')}</span></h2><div class="tbar"><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button><details class="tmore"><summary class="btn" aria-label="${t('task.more')}">⋯</summary><div class="tmenu2"><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button></div></details></div></div>
+  const normalRooms = S.rooms.filter((x) => !x.dm);
+  // Standing in a DM (no tasks of its own) shows the remembered/picked normal room instead of an empty tab; the picker lets you switch to any other room's board without leaving the chat you're in.
+  const roomPick = normalRooms.length ? `<select id="taskRoomPick" class="aside" aria-label="${t('task.room')}">${normalRooms.map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select>` : `<span class="aside">#${esc(r || '')}</span>`;
+  $('view-tasks').innerHTML = `<div class="vw"><div class="thead"><h2>${t('task.title')} ${roomPick}</h2><div class="tbar"><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button><details class="tmore"><summary class="btn" aria-label="${t('task.more')}">⋯</summary><div class="tmenu2"><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button></div></details></div></div>
     ${owners.length > 1 ? `<div class="tfilter">${chips}</div>` : ''}${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
     ${statusBar}${TCOLS.map(sec).join('')}</div>`;
   const ed = $('view-tasks').querySelector('[data-tedit-in]'); if (ed) { ed.focus(); ed.select(); }
 }
 $('view-tasks').addEventListener('click', (e) => {
-  const r = S.current, q = (sel) => e.target.closest(sel);
+  const r = taskRoomName(), q = (sel) => e.target.closest(sel);
   const sectionJump = q('[data-task-jump]'); if (sectionJump) { $('task-' + sectionJump.dataset.taskJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   const tn = q('[data-tnext]'); if (tn) {
     const x = (S.tasks[r] || []).find((y) => String(y.id) === tn.dataset.tnext);
@@ -2057,12 +2091,13 @@ $('view-tasks').addEventListener('click', (e) => {
   if (q('#taskDoneAll')) { S.taskDoneAll = true; return renderTasks(); }
   const imp = q('[data-timport]');
   if (imp) return api(`/api/rooms/${enc(r)}/tasks/import`, { file: imp.dataset.timport }).then((d) => { toast(t('task.imported', { n: d?.added ?? d?.imported ?? (Array.isArray(d) ? d.length : 0), file: imp.dataset.timport })); loadTasks(r); }, (err) => toast(err.message));
-  const j = q('[data-tjump]'); if (j) { showTab('rooms'); return jumpTo(+j.dataset.tjump); }
+  const j = q('[data-tjump]'); if (j) { showTab('rooms'); select(r); return jumpTo(+j.dataset.tjump); }   // the message lives in r, which may differ from the DM you were chatting in
   const ed = q('[data-tedit]'); if (ed) { S.taskEdit = +ed.dataset.tedit; return renderTasks(); }
   const del = q('[data-tdel]'); if (del) return armed(del, t('task.deleteAsk'), () => api(`/api/rooms/${enc(r)}/tasks/${del.dataset.tdel}/delete`, {}).then(() => loadTasks(r), (err) => toast(err.message)));
 });
 $('view-tasks').addEventListener('change', (e) => {
-  const r = S.current, el = e.target;
+  const r = taskRoomName(), el = e.target;
+  if (el.id === 'taskRoomPick') { setTaskRoom(el.value); S.tfOwner = ''; return loadTasks(el.value); }
   if (el.id === 'taskOwner') { S.tfOwner = el.value; return renderTasks(); }
   const post = (id, body) => api(`/api/rooms/${enc(r)}/tasks/${id}`, body).then(() => loadTasks(r), (err) => { toast(err.message); loadTasks(r); });
   if (el.dataset.tstatus) return post(el.dataset.tstatus, { status: el.value });
@@ -2072,14 +2107,14 @@ $('view-tasks').addEventListener('keydown', (e) => {
   if (!e.target.matches('[data-tedit-in]')) return;
   const id = e.target.closest('[data-tid]').dataset.tid;
   if (e.key === 'Escape') { S.taskEdit = null; return renderTasks(); }
-  if (e.key === 'Enter') { const title = e.target.value.trim(); S.taskEdit = null; if (!title) return renderTasks(); api(`/api/rooms/${enc(S.current)}/tasks/${id}`, { title }).then(() => loadTasks(), (err) => toast(err.message)); }
+  if (e.key === 'Enter') { const title = e.target.value.trim(); S.taskEdit = null; if (!title) return renderTasks(); api(`/api/rooms/${enc(taskRoomName())}/tasks/${id}`, { title }).then(() => loadTasks(), (err) => toast(err.message)); }
 });
 $('view-tasks').addEventListener('submit', (e) => {
   if (e.target.id !== 'taskNew') return;
   e.preventDefault();
   const f = e.target, body = { title: f.title.value.trim(), doneWhen: f.doneWhen.value.trim(), detail: f.detail.value.trim(), owner: f.owner.value };
   for (const k of Object.keys(body)) if (!body[k]) delete body[k];
-  api(`/api/rooms/${enc(S.current)}/tasks`, body).then(() => { S.taskForm = false; return loadTasks(); }, (err) => toast(err.message));
+  api(`/api/rooms/${enc(taskRoomName())}/tasks`, body).then(() => { S.taskForm = false; return loadTasks(); }, (err) => toast(err.message));
 });
 
 /* ---------- Worker tab ---------- */

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { StoreError } from './store.ts';
+import { renameRetry } from './atomic.ts';
 
 export type Tier = 'free' | 'paid' | 'local';   // local: an Anthropic-compatible host on this machine/LAN (e.g. Ollama); no real key needed
 export type Provider = {
@@ -55,7 +56,7 @@ export function saveProviders(home: string, list: Provider[]): void {
   fs.mkdirSync(home, { recursive: true });
   const file = path.join(home, FILE);
   fs.writeFileSync(file + '.tmp', JSON.stringify(list, null, 2), { mode: 0o600 });
-  fs.renameSync(file + '.tmp', file);
+  renameRetry(file + '.tmp', file);
 }
 
 export function applyPatch(list: Provider[], id: string, patch: Partial<Provider> & { key?: string | null }): Provider[] {
