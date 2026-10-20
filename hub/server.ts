@@ -42,6 +42,7 @@ import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type Ac
 import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { apiEnv, apiPerm, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
 import { MuseAgent } from './museagent.ts';
+import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { chromeCdp } from '../mcp/muse.ts';
 import type { Cdp } from '../mcp/muse-core.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
@@ -124,6 +125,8 @@ export type HubOptions = {
   spawnAgent?: (job: AgentJob) => Promise<number> | number;
   /** Standalone Copilot SDK client factory (stubbed in tests). */
   copilotClientFactory?: CopilotClientFactory;
+  /** How a live (stream-json) chat starts its claude (stubbed in tests). */
+  liveSpawn?: LiveSpawn;
   /** The debug Chrome of 'muse' profiles (stubbed in tests; default http://127.0.0.1:9222). */
   museCdp?: Cdp;
   /** Startup folder for the sign-in script (tests use a temp one). */
@@ -658,7 +661,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
-    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id));
+    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)) || liveChat.has(id);
     const found = store.deaf(isConn, opts.deafMs ?? DEAF_MS);
     for (const id of [...deafTold.keys()]) if (!found.some((f) => f.session.id === id)) deafTold.delete(id);
     for (const { session: s, msg } of found) {
@@ -677,6 +680,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const mus = museHolding(st.id);
     if (mus) {
       void mus.wake(st.id).catch((error) => mus.reportError(error));
+      return;
+    }
+    // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
+    if (liveChat.has(st.id)) {
+      const p = store.pending(st.id);
+      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id))) consume(st.id, p.messages[p.messages.length - 1].id);
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
@@ -722,6 +731,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → ${tr('sys.size.unknown')}`;
   };
   const reviving = new Set<string>();
+  // S2: a chat opened inside BAM is one long-lived claude (stream-json); its events go to the UI as SSE 'live'
+  const liveChat = new LiveChat({ spawn: opts.liveSpawn, emit: (sid, ev) => {
+    broadcast('live', { session: sid, ...ev });
+    if ((ev.kind === 'result' || ev.kind === 'init') && store.state.sessions[sid] && liveChat.has(sid)) emitSession(store.setStatus(sid, 'idle'));
+    if (ev.kind === 'stopped') {
+      const cur = store.state.sessions[sid];
+      // not when a tab came up and took the chat over: the session is alive there
+      if (cur && !waiters.has(sid) && !liveKinds(cur.pids).tab) emitSession(store.markEnded(sid));
+    }
+  } });
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
   const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
@@ -861,7 +880,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   /** A tab of the member opened by hand while its background wake still runs: two claudes on one chat. The background one goes. */
   function tabCameUp(sid: string) {
-    if (!stopRevive(sid)) return;
+    if (!stopRevive(sid) && !liveChat.stop(sid)) return;
     const s = store.session(sid);
     for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.replaced', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
@@ -1761,7 +1780,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|live(?:\/send|\/stop)?))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1868,6 +1887,31 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           emitSession(store.markEnded(s.id));
         });
         return json(res, 202, { started: true });
+      }
+      // S2: a chat inside BAM = one live stream-json claude for this session (events arrive as SSE 'live'; GET returns the recent ones)
+      if (action === 'live' || action === 'live/send' || action === 'live/stop') {
+        const s = store.session(id);
+        if (m === 'GET' && action === 'live') return json(res, 200, { running: liveChat.has(s.id), events: liveChat.events(s.id) });
+        if (m !== 'POST') return json(res, 405, { error: 'method not allowed' });
+        if (action === 'live/stop') return json(res, 200, { stopped: liveChat.stop(s.id) });
+        if (action === 'live/send') {
+          const text = String((await readBody(req)).text ?? '');
+          if (!text.trim() || text.length > 20_000) throw new StoreError(400, 'text must be 1-20000 characters');
+          if (!liveChat.send(s.id, text)) throw new StoreError(409, `${s.name} has no live chat: start it first`);
+          emitSession(store.setStatus(s.id, 'busy'));
+          return json(res, 200, { ok: true });
+        }
+        if (liveChat.has(s.id)) return json(res, 200, { running: true, started: false });
+        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to continue`);
+        if (liveKinds(s.pids).tab || (waiters.has(s.id) && !waiters.get(s.id)!.headless)) throw new StoreError(409, `${s.name} is open in an editor tab: close the tab first (one chat lives in one place)`);
+        if (reviving.has(s.id) || isBackground(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
+        if (copilotHolding(s.id) || museHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
+        const cfg = loadSettings(opts.dir, envCap), model = cfg.agentModel[normAgent(s.name)];
+        if (Math.max(countBackground(), reviving.size) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+        liveChat.start({ id: s.id, cwd: s.cwd, ...(s.configDir ? { configDir: s.configDir } : {}), logDir: opts.dir, perm: permFor(cfg, s.name), ...(model ? { model } : {}) });
+        store.touch(s.id);
+        emitSession(store.setStatus(s.id, 'idle'));
+        return json(res, 200, { running: true, started: true });
       }
       if (m === 'POST' && action === 'status') {
         const b = await readBody(req);
@@ -2164,7 +2208,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   port = (server.address() as AddressInfo).port;
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)) || liveChat.has(id))) emitSession(s);
     checkDeaf();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
@@ -2196,6 +2240,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const r of sse) r.destroy();
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
       for (const m of museAgents()) { try { await m.stop(); } catch (error) { console.error('[muse] shutdown failed:', error); } }
+      liveChat.stopAll();
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));
     },
