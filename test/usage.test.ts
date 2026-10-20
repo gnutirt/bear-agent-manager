@@ -15,9 +15,9 @@ function fakeHome(opts: { agEmail?: string; expired?: boolean } = {}) {
   const creds = (tok: string) => JSON.stringify({ claudeAiOauth: { accessToken: tok, refreshToken: REFRESH, expiresAt: opts.expired ? 1 : Date.now() + 3600_000, subscriptionType: 'pro' } });
   for (const d of ['.claude', '.claude-antigravity']) fs.mkdirSync(path.join(home, d));
   fs.writeFileSync(path.join(home, '.claude', '.credentials.json'), creds(ACCESS));
-  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'nguyen@gmail.com' } }));
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'user@example.com' } }));
   fs.writeFileSync(path.join(home, '.claude-antigravity', '.credentials.json'), creds(ACCESS + '-2'));
-  fs.writeFileSync(path.join(home, '.claude-antigravity', '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: opts.agEmail ?? 'toan@hdbank.com.vn' } }));
+  fs.writeFileSync(path.join(home, '.claude-antigravity', '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: opts.agEmail ?? 'second@example.com' } }));
   return { home, dirs: [path.join(home, '.claude'), path.join(home, '.claude-antigravity')] };
 }
 const okFetch = (seen: any[] = []) => (async (url: any, init: any) => { seen.push({ url, init }); return new Response(JSON.stringify(SAMPLE), { status: 200 }); }) as typeof fetch;
@@ -26,13 +26,13 @@ const status = (code: number) => (async () => new Response('{}', { status: code 
 test('parseUsage reads the 5-hour and weekly windows', () => {
   assert.deepEqual(parseUsage(SAMPLE), { fiveHour: { pct: 42.5, resetsAt: '2026-10-16T15:00:00Z' }, sevenDay: { pct: 91, resetsAt: '2026-10-20T00:00:00Z' } });
   assert.deepEqual(parseUsage({}), { fiveHour: null, sevenDay: null });
-  assert.equal(maskEmail('nguyen@gmail.com'), 'n***@gmail.com');
+  assert.equal(maskEmail('user@example.com'), 'u***@example.com');
 });
 
 test('listAccounts: email from ~/.claude.json for the default dir, <cfg>/.claude.json otherwise; same email = one row', () => {
   let { home, dirs } = fakeHome();
-  assert.deepEqual(listAccounts(dirs, home).map((a) => [a.label, a.email, a.plan, a.configDirs.length]), [['claude', 'nguyen@gmail.com', 'pro', 1], ['antigravity', 'toan@hdbank.com.vn', 'pro', 1]]);
-  ({ home, dirs } = fakeHome({ agEmail: 'nguyen@gmail.com' }));
+  assert.deepEqual(listAccounts(dirs, home).map((a) => [a.label, a.email, a.plan, a.configDirs.length]), [['claude', 'user@example.com', 'pro', 1], ['antigravity', 'second@example.com', 'pro', 1]]);
+  ({ home, dirs } = fakeHome({ agEmail: 'user@example.com' }));
   assert.deepEqual(listAccounts(dirs, home).map((a) => a.configDirs.length), [2]);
   assert.deepEqual(listAccounts([path.join(home, 'nope')], home), []);
 });
@@ -68,11 +68,11 @@ test('UsageReader: 5-minute cache, a failed refresh keeps the old numbers with u
 });
 
 test('usageAlerts: 80% of 5 h and 90% of the week, once per cycle; a new resets_at warns again', () => {
-  const a: any = { configDirs: ['c'], label: 'claude', email: 'nguyen@gmail.com', plan: 'pro', usageError: '', fetchedAt: 0,
+  const a: any = { configDirs: ['c'], label: 'claude', email: 'user@example.com', plan: 'pro', usageError: '', fetchedAt: 0,
     fiveHour: { pct: 85, resetsAt: '2026-10-16T15:00:00Z' }, sevenDay: { pct: 89, resetsAt: '2026-10-20T00:00:00Z' } };
   const first = usageAlerts([a], []);
   assert.equal(first.length, 1);
-  assert.match(first[0].text, /^@you Claude Pro claude \(n\*\*\*@gmail\.com\) đã dùng 85% hạn mức 5 giờ/);
+  assert.match(first[0].text, /^@you Claude Pro claude \(u\*\*\*@example\.com\) đã dùng 85% hạn mức 5 giờ/);
   assert.deepEqual(usageAlerts([a], first.map((x) => x.key)), []);
   assert.equal(usageAlerts([{ ...a, fiveHour: { pct: 81, resetsAt: '2026-10-16T20:00:00Z' } }], first.map((x) => x.key)).length, 1);
   assert.equal(usageAlerts([{ ...a, sevenDay: { pct: 90, resetsAt: 'x' } }], first.map((x) => x.key)).length, 1);
@@ -96,7 +96,7 @@ test('GET /api/claude-usage never returns or logs a token, also on errors; crede
       assert.ok(!body.includes(ACCESS) && !body.includes(REFRESH) && !/accessToken|refreshToken/.test(body), body);
       const j = JSON.parse(body);
       assert.equal(j.accounts.length, 2);
-      assert.equal(j.accounts[0].email, 'n***@gmail.com');
+      assert.equal(j.accounts[0].email, 'u***@example.com');
     } finally { await h.hub.close(); }
   }
   Object.assign(console, orig);

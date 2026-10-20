@@ -14,7 +14,7 @@ Cập nhật 2026-10-20, core-improve. Nguồn ở cuối trang; phần Ollama �
 ## Ollama
 
 - **API:** Ollama có API tương thích Anthropic (`/v1/messages`: messages, streaming, system, tools, tool_result, thinking, ảnh base64). Không có `tool_choice`, `count_tokens`, prompt caching, batches. Có cả API tương thích OpenAI (`/v1/chat/completions`). Khoá API không bị kiểm tra.
-- **Cấu hình worker đã thêm:** provider `ollama-lan` trỏ tới `http://192.168.0.127:11435`, `tier = local`, không cần key, `models.read = ["qwen3.8:latest"]`, `models.edit = []`. Worker dùng credential placeholder `ollama` để Claude CLI vào API mode; Ollama không kiểm tra giá trị này. Tier `local` không bị lẫn vào lựa chọn `free`.
+- **Cấu hình worker đã thêm:** provider `ollama-lan` trỏ tới `http://192.168.1.50:11435`, `tier = local`, không cần key, `models.read = ["qwen3.8:latest"]`, `models.edit = []`. Worker dùng credential placeholder `ollama` để Claude CLI vào API mode; Ollama không kiểm tra giá trị này. Tier `local` không bị lẫn vào lựa chọn `free`.
 - **Trạng thái vận hành:** provider đã được lưu vào cấu hình hub, nhưng health còn `unknown` do hub chưa được restart/re-probe. Chưa đổi route edit sang Ollama; tác vụ sửa code tiếp tục dùng provider khác.
 - **Đã có đường tóm tắt trực tiếp:** `hub/localai.ts` gọi `/api/chat` không dùng tool. Đây là đường riêng với worker Claude Code, và chưa được benchmark trong lượt thử LAN này.
 - **Còn cần xác minh:** giới hạn context thực tế của Ollama trên máy chủ và xử lý khi endpoint LAN không sẵn sàng; không suy ra tốc độ hay chất lượng của máy chủ LAN từ cấu hình Radeon 780M ở phần ghi chú cũ.
@@ -22,7 +22,7 @@ Cập nhật 2026-10-20, core-improve. Nguồn ở cuối trang; phần Ollama �
   **Không nên giao:** sửa code nhiều file, gọi tool nhiều bước, lập luận dài, mọi thứ cần chính xác pháp lý hay số liệu (ví dụ quy định NHNN).
 - **Tài nguyên:** bản 7B lượng tử Q4 khoảng 4–5 GB RAM, cộng bộ nhớ đệm KV theo độ dài ngữ cảnh: dư sức với 61.8 GB.
   Tốc độ: trên Windows, Radeon 780M không chắc có ROCm, nhưng Ollama có Vulkan cho GPU AMD; số đo cộng đồng cho APU tương tự khoảng vài chục token/giây [cần đo trên máy này].
-- **Đo thật:** endpoint LAN `http://192.168.0.127:11435` có các model `qwen-coder-3b:latest`, `qwen3.8:latest`, `qwen:latest`, `gemma4:26b`. Phép thử ban đầu cho thấy Qwen Coder 3B trả JSON trong text nhưng không tạo `tool_use`; Qwen 3.8 tạo `tool_use` qua `/v1/messages` sau 40,24 giây.
+- **Đo thật:** endpoint LAN `http://192.168.1.50:11435` có các model `qwen-coder-3b:latest`, `qwen3.8:latest`, `qwen:latest`, `gemma4:26b`. Phép thử ban đầu cho thấy Qwen Coder 3B trả JSON trong text nhưng không tạo `tool_use`; Qwen 3.8 tạo `tool_use` qua `/v1/messages` sau 40,24 giây.
 
 ## GitHub Copilot
 
@@ -49,7 +49,7 @@ Cập nhật 2026-10-20, core-improve. Nguồn ở cuối trang; phần Ollama �
   - Có thể thử sau dưới dạng lệnh tường minh trong extension, có giới hạn lượt, báo lỗi quota và không tự chạy; trước khi phát hành cần kiểm tra điều khoản hiện hành.
   - Đường rẻ đã chốt vẫn là `localSummarize` (Ollama, chạy trên máy) và worker Intern AI.
 
-### Đo thật Ollama LAN (192.168.0.127:11435, RTX 3060, core-improve 2026-10-19)
+### Đo thật Ollama LAN (192.168.1.50:11435, RTX 3060, core-improve 2026-10-19)
 
 5 việc mẫu lấy từ repo (không gửi gì bí mật), gọi `/v1/chat/completions`, `max_tokens` 500, chấm tay 1-5. `gemma4:26b` chưa đo (bộ chấm dừng vì quá giờ chạy nền).
 
