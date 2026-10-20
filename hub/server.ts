@@ -372,7 +372,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = copilotProfiles(), cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     for (const [id, c] of [...copilots]) {
       const p = profiles.find((x) => x.id === id);
-      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home])) continue;
+      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home, p.model])) continue;
       if (c.agent.snapshot().state !== 'off') await c.agent.stop().catch((error) => console.error('[copilot] stop failed:', error));
       if (!p || c.key !== JSON.stringify([p.name, p.cwd, p.home])) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
     }
