@@ -1675,7 +1675,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const s = store.session(String(b.session ?? ''));
       // note [54]: an agent on a provider off this machine asks nobody: the hub checks the path (inside its folder by realpath, no secrets)
       const api = apiProfileOf(s), prov = api && loadProviders(opts.dir, legacyKey).find((x) => x.id === api.providerId);
-      if (api) return json(res, 200, prov && prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov)) : { allow: false, message: 'not guarded here' });
+      if (api) {
+        const d = prov && prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov)) : { allow: false, message: 'not guarded here' };
+        try { fs.appendFileSync(path.join(opts.dir, 'revive.log'), `${new Date().toISOString()} guard ${s.name} ${String(b.tool ?? '').slice(0, 40)} ${d.allow ? 'allow' : `deny: ${d.message}`}\n`); } catch { /* log only */ }
+        return json(res, 200, d);
+      }
       if (!liveChat.has(s.id)) throw new StoreError(409, `${s.name} has no live chat`);
       const a = await permissions.ask(s.id, s.name, String(b.tool ?? ''), b.input);
       return json(res, 200, { allow: a.allow, ...(a.message ? { message: a.message } : {}) });
