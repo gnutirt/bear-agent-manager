@@ -42,6 +42,7 @@ import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTransc
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
+import { listDir, readFileView, gitView } from './files.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
@@ -1867,11 +1868,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|live(?:\/send|\/stop)?))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|live(?:\/send|\/stop)?))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
       if (m === 'GET' && !action) return json(res, 200, { session: publicSession(store.session(id)) });
+      // S5: read-only file tree / file view / git diff of the agent's folder (hub/files.ts keeps it inside the folder and away from secrets)
+      if (m === 'GET' && (action === 'files' || action === 'file' || action === 'diff')) {
+        const cwd = store.session(id).cwd, rel = url.searchParams.get('path') ?? '';
+        return json(res, 200, action === 'files' ? listDir(cwd, rel) : action === 'file' ? readFileView(cwd, rel) : await gitView(cwd, rel));
+      }
       if (m === 'POST' && action === 'revive') {
         const s = store.session(id);
         if (waiters.has(s.id)) return json(res, 409, { error: `${s.name} is running; mention it instead` });

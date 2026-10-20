@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add: read-only file tree, file view and git diff in a private chat (#68, S5): header button "Files"; `GET /api/sessions/:id/{files,file,diff}` stay inside the agent folder (symlinks resolved), hide `.git`, refuse secrets files (`isSecretFile`), cap a view at 1 MB. Needs hub restart.
+
 - Docs: `docs/live-chat-api-agents-tasks.md` (vi/en) covers claude-api agents, live chat and the permission box, tab mirror, Copilot model, tasks with `after`/auto-next and `npm run setup --app`; linked from README (#84).
 - Add: claude-api agent profiles (#60, UI #63): Settings > Accounts > Agent profiles adds a `claude-api` profile (`providerId` from providers.json, optional `model`, `edit`); the hub runs it as `claude --bare` with only the room MCP, read-only off this machine.
 - Add: live chat (S2 #64, UI S3 #66): `GET|POST /api/sessions/:id/live`, `/live/send`, `/live/stop` and SSE `live` stream one resumed `claude` stream-json session; started from the Live chat button in a private chat's header (streaming text, collapsible tool calls, Stop). Opening the agent's editor tab stops it.

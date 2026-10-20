@@ -439,6 +439,9 @@ header .spacer{flex:1}
 .tfilter{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.tmore{position:relative}.tmore summary{list-style:none;cursor:pointer}.tmore summary::-webkit-details-marker{display:none}.tmenu2{position:absolute;right:0;top:110%;z-index:5;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:210px}
 .tform{grid-template-columns:2fr 1fr 2fr}
 .toastundo{margin-left:8px;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,.16);color:inherit;font-weight:700}#toast.show:has(.toastundo){pointer-events:auto}
+#zoom .zbox.files{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .files .fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#zoom .files .fbar b{font-family:var(--mono);word-break:break-all}
+#zoom .files .frow{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
+#zoom .files pre{margin:0;max-height:60vh;overflow:auto;white-space:pre;font:12.5px var(--mono);background:var(--code);border-radius:10px;padding:10px}#zoom .files .dl-a{color:#1a7f37}#zoom .files .dl-d{color:#C2262E}
 #livePane{margin:0 20px 8px;border:1px solid var(--line);border-radius:14px;background:var(--panel);display:flex;flex-direction:column;max-height:38vh;min-height:0}
 #livePane .lhead{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px}#livePane .lhead .sp{flex:1}
 #livePane .lbody{overflow-y:auto;padding:4px 14px 10px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
@@ -835,6 +838,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="stack" id="stack"></div>
     <button class="btn" id="notesBtn" hidden title="Biên bản: các thỏa thuận chung của phòng" data-i18n-title="notes.tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg><span data-i18n="notes.title">Biên bản</span> <span id="notesCount">0</span></button>
     <button class="btn" id="searchBtn" hidden type="button" title="Tìm trong phòng (Ctrl+F)" data-i18n-ta="search.title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+    <button class="btn" id="filesBtn" hidden type="button" data-i18n="files.title">Tệp</button>
     <button class="btn" id="liveBtn" hidden type="button" data-i18n="live.title">Chat trực tiếp</button>
     <button class="btn" id="membersBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span id="membersCount">0</span></button>
     <button class="btn primary" id="inviteBtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i18n="members.invite">Mời Claude</span></button>
@@ -1499,6 +1503,7 @@ function renderHeader() {
   $('meta').textContent = r ? `${ms.length} Claude${busy ? t('header.busy', { n: busy }) : ''}${lead ? ` · ★ ${lead.name}` : ''}` : '';
   $('stack').hidden = true;
   void ms.slice(0, 8).map((s) => `<button type="button" class="mb ${s.status}" data-name="${esc(s.name)}" title="${esc(s.name)}: ${LABEL[s.status]}">${avatar(s.id, s.status, 'sm')}${s.status === 'idle' ? '<span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>' : ''}</button>`).join('') + (ms.length > 8 ? `<span class="more">+${ms.length - 8}</span>` : '');
+  $('filesBtn').hidden = !r?.dm;
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = $('searchBtn').hidden = !r;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
@@ -2084,6 +2089,34 @@ function renderLive() {
 function liveStart(sid, quiet) {
   return api(`/api/sessions/${enc(sid)}/live`, {}).then(() => { (S.live[sid] ??= newLive()).running = true; renderLive(); }, (e) => { if (!quiet) toast(t('live.startFail', { err: e.message })); throw e; });
 }
+/** S5: read-only file tree / file / diff of the agent's folder, in the zoom overlay. */
+function openFiles(sid, dirPath = '') {
+  const get = (kind, p) => api(`/api/sessions/${enc(sid)}/${kind}${p == null ? '' : '?path=' + enc(p)}`);
+  const show = (head, body) => { zoom.innerHTML = `<div class="zbox files" role="dialog" aria-modal="true" aria-label="${t('files.title')}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="fbar">${head}</div>${body}</div>`; zoom.hidden = false; };
+  const up = (p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+  const join = (a, b) => a ? a + '/' + b : b;
+  const wire = (fn) => zoom.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => fn(b.dataset));
+  const tree = (p) => get('files', p).then((r) => {
+    show(`<b>/${esc(r.path)}</b>${r.path ? `<button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">..</button>` : ''}<button class="btn sm" data-go="changes">${t('files.changes')}</button>`,
+      r.entries.map((e) => `<button class="frow" data-go="${e.dir ? 'dir' : 'file'}" data-p="${esc(join(r.path, e.name))}"${e.secret ? ' disabled' : ''}><span aria-hidden="true">${e.dir ? '📁' : e.secret ? '🔒' : '📄'}</span>${esc(e.name)}<span class="sz">${e.secret ? t('files.secret') : e.size != null ? Math.ceil(e.size / 1024) + ' KB' : ''}</span></button>`).join('') + (r.truncated ? `<div class="muted">${t('files.more')}</div>` : ''));
+    wire(route);
+  }, (e) => toast(e.message));
+  const file = (p) => get('file', p).then((r) => {
+    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">←</button><button class="btn sm" data-go="diff" data-p="${esc(r.path)}">Diff</button>`, r.binary ? `<div class="muted">${t('files.binary')}</div>` : `<pre>${esc(r.content)}</pre>`);
+    wire(route);
+  }, (e) => toast(e.message));
+  const diff = (p) => get('diff', p).then((r) => {
+    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="file" data-p="${esc(r.path)}">←</button>`, r.diff ? `<pre>${r.diff.split('\n').map((l) => `<span class="${l[0] === '+' && l[1] !== '+' ? 'dl-a' : l[0] === '-' && l[1] !== '-' ? 'dl-d' : ''}">${esc(l)}</span>`).join('\n')}</pre>${r.truncated ? `<div class="muted">${t('files.more')}</div>` : ''}` : `<div class="muted">${t('files.nodiff')}</div>`);
+    wire(route);
+  }, (e) => toast(e.message));
+  const changes = () => get('diff').then((r) => {
+    show(`<b>${t('files.changes')}</b><button class="btn sm" data-go="dir" data-p="">←</button>`, r.changes.length ? r.changes.map((c) => `<button class="frow" data-go="diff" data-p="${esc(c.path)}"><span class="st">${esc(c.status)}</span>${esc(c.path)}</button>`).join('') : `<div class="muted">${t('files.clean')}</div>`);
+    wire(route);
+  }, (e) => toast(e.message));
+  const route = (d) => ({ dir: () => tree(d.p), file: () => file(d.p), diff: () => diff(d.p), changes })[d.go]();
+  tree(dirPath);
+}
+$('filesBtn').onclick = () => { const sid = liveSid(); if (sid) openFiles(sid); };
 $('liveBtn').onclick = () => {
   const sid = liveSid(); if (!sid) return;
   if (S.sessions[sid]?.tab) { S.wantLive[sid] = true; toast(t('live.openBam.hint')); renderLive(); return; }   // one chat lives in one place: close the editor tab, then it starts here
