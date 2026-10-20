@@ -203,6 +203,7 @@ input,textarea{font:inherit;color:inherit}
 .new-room{display:none;padding:4px 8px}
 .new-room.open{display:flex;gap:6px}
 .new-room input{flex:1;min-width:0;background:var(--side-2);border:1px solid var(--side-line);border-radius:8px;padding:6px 10px;color:var(--side-strong)}
+.dmnew{display:flex;width:calc(100% - 16px);justify-content:center;margin:0 8px 6px}
 .sess{display:flex;gap:10px;padding:7px 8px;border-radius:8px;align-items:flex-start}
 .sess:hover{background:var(--side-2)}
 .sess .who{flex:1;min-width:0}
@@ -776,8 +777,9 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
-    <div class="sec" id="dmSec" style="display:none"><span data-i18n="rooms.dm.title">Chat riêng</span></div>
-    <div id="dms" hidden></div>
+    <div class="sec" id="dmSec"><span data-i18n="rooms.dm.title">Chat riêng</span></div>
+    <button type="button" class="btn sm dmnew" id="addDmBtn" data-i18n="rooms.dm.new">+ Nhắn riêng…</button>
+    <div id="dms"></div>
     <div class="sec"><button type="button" id="sessToggle" class="sectoggle" aria-expanded="true"><span class="caret">▾</span> <span data-i18n="sessions.title">Agent đang chạy</span> <span id="sessCount" class="seccount"></span></button> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
     <div id="sessions"></div>
     <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy" data-i18n-title="workers.cap.tip">0/4</span></div>
@@ -1220,7 +1222,7 @@ function wireMember(m, list) {
     const compactCall = (id, extra) => api(`/api/sessions/${enc(id)}/compact`, { revive: true, ...extra }).then(() => t('members.compacting', { name: sess(id)?.name }));
     m.querySelectorAll('[data-compact]').forEach((b) => guarded(b, b.dataset.compact, (id, force) => compactCall(id, force ? { force: true } : {}).catch((err) => {
       if (!err.data?.tabOpen) throw err;
-      armed(b, t('members.closeTabAsk'), () => compactCall(id, { ...(force ? { force: true } : {}), closeTab: true }).then((msg) => { done(); toast(msg); }, (e2) => toast(e2.message)));
+      armed(b, t('members.closeTabAsk'), () => compactCall(id, { ...(force ? { force: true } : {}), closeTab: true, confirm: true }).then((msg) => { done(); toast(msg); }, (e2) => toast(e2.message)));
       return new Promise(() => {});   // the second click finishes the job
     }), t('members.confirm')));
     S.git = S.git || {};
@@ -1268,24 +1270,28 @@ function renderRooms() {
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
     el.append(b);
   }
-  const dmSec = $('dmSec'), dmEl = $('dms');
+  const dmEl = $('dms');
   const dms = S.rooms.filter((r) => r.dm && !r.dmHidden);
-  dmSec.style.display = dms.length ? '' : 'none';   // .sec{display:flex} beats the hidden attribute on equal specificity
-  dmEl.hidden = !dms.length;
-  dmEl.innerHTML = '';
+  dmEl.innerHTML = dms.length ? '' : `<div class="side-empty">${t('rooms.dm.none')}</div>`;
   for (const r of dms) {
     const name = S.sessions[r.dm]?.name || r.dm;
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
-    b.innerHTML = `<span class="hash">@</span><span class="rname">${esc(name)}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('members.chatDm.hide')}" title="${t('members.chatDm.hide')}">${I.dots}</button>`;
+    b.innerHTML = `<span class="hash">@</span><span class="rname">${esc(name)}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}" title="${t('rooms.options')}">${I.dots}</button>`;
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => {
       e.stopPropagation();
-      api(`/api/rooms/${enc(r.name)}/hide`, {}).then(() => {
-        if (S.current === r.name) select(dms.find((x) => x.name !== r.name)?.name ?? normal[0]?.name ?? null);
-      }, (err) => toast(err.message));
+      openMenu(e.currentTarget, `<button type="button" class="item" data-a="hide">${t('members.chatDm.hide')}</button>`, (m) => {
+        m.querySelector('[data-a=hide]').onclick = () => {
+          closeMenu();
+          api(`/api/rooms/${enc(r.name)}/hide`, {}).then(() => {
+            if (S.current === r.name) select(dms.find((x) => x.name !== r.name)?.name ?? normal[0]?.name ?? null);
+            toast(t('members.chatDm.hidden'));
+          }, (err) => toast(err.message));
+        };
+      });
     };
     dmEl.append(b);
   }
@@ -1301,9 +1307,9 @@ function sessionRow(s) {
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
   d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub"><span class="st st-${s.status}">${LABEL[s.status]}</span>${bgTag(s)}<span class="rp">${esc(repo(s.cwd))}</span></div></div>
-    <div class="acts"><button class="icon" data-a="dm" title="${t('members.chatDm')}" aria-label="${t('members.chatDm')}">${I.chat.replace('<svg ', '<svg width="14" height="14" ')}</button>${s.status === 'offline' || !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
+    <div class="acts"><button class="icon" data-a="dm" title="${t('members.chatDm.tip')}" aria-label="${t('members.chatDm.tip')}">${I.chat.replace('<svg ', '<svg width="14" height="14" ')}</button>${s.status === 'offline' || !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.tabIndex = 0; d.setAttribute('role', 'button'); d.setAttribute('aria-haspopup', 'menu');
-  d.querySelector('[data-a=dm]')?.addEventListener('click', () => api(`/api/rooms/dm/${enc(s.id)}`, {}).then((r) => select(r.name), (e) => toast(e.message)));
+  d.querySelector('[data-a=dm]')?.addEventListener('click', () => api(`/api/rooms/dm/${enc(s.id)}`, {}).then((r) => { closeMenu(); select(r.name); document.body.classList.remove('side-open'); }, (e) => toast(e.message)));
   d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(t('sessions.added', { name: s.name, room: S.current })), (e) => toast(e.message)));
   const inp = d.querySelector('input');
   if (inp) {

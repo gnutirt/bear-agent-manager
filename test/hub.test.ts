@@ -536,6 +536,29 @@ test('compact: refuses an open tab unless closeTab, then terminates it, runs com
   } finally { await hub.close(); }
 });
 
+test('compact closeTab on an IDE tab needs confirm (409), then reopens the tab once instead of ending the session', async () => {
+  const opened: string[] = [];
+  const procs: any[] = [{ pid: 810, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }];
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    listProcs: async () => procs, kill: async () => {}, compactRevive: async () => 0, openUrl: (u: string) => { opened.push(u); },
+  });
+  try {
+    const tr = path.join(dir, 'i.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 1000 } } }) + '\n');
+    await call('/api/sessions/register', { id: 'i1', cwd: 'C:/fw', transcript: tr, pid: 810 });
+    await call('/api/sessions/i1/ide', { ide: 'vscode' });
+    const post = (body: object) => fetch(hub.url + '/api/sessions/i1/compact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: JSON.stringify(body) });
+    const r1 = await post({ closeTab: true });
+    assert.equal(r1.status, 409);
+    assert.equal((await r1.json() as any).confirm, true);
+    assert.equal(opened.length, 0);
+    assert.equal((await post({ closeTab: true, confirm: true })).status, 202);
+    await until(() => opened.length >= 1, 5000, 'tab reopened');
+    assert.equal(opened.length, 1);
+    assert.equal((await call<any>('/api/sessions/i1')).session.status, 'offline');
+  } finally { await hub.close(); }
+});
+
 test('killTree ends a child started through a shell together with what it started', async () => {
   const { spawn } = await import('node:child_process');
   const { killTree } = await import('../hub/revive.ts');

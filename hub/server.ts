@@ -1648,9 +1648,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
         // An open tab is not killed to compact it (the editor shows "process exited with code 1" and the agent stays down):
         // type /compact in the tab, or pass closeTab to stop it first.
+        let reopenTab = false;
         if (!s.ended && s.status !== 'offline') {
           if (b.closeTab !== true) return json(res, 409, { error: tr('sys.compact.tabOpen', { name: s.name }), tabOpen: true });
+          // An IDE tab dies with "exited with code 1" and is reopened after: the caller (the UI, never an agent) must confirm that.
+          if (s.ide && b.confirm !== true) return json(res, 409, { error: tr('sys.compact.tabConfirm', { name: s.name }), tabOpen: true, confirm: true });
           await terminateSession(s);
+          reopenTab = !!s.ide;
         }
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
@@ -1669,6 +1673,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           })
           .finally(() => {
           reviving.delete(s.id);
+          if (reopenTab) { emitSession(store.markEnded(s.id)); openTab(s); return; }   // the user presses Enter in the new tab
           if (b.revive === true && revive(s.id)) return;
           emitSession(store.markEnded(s.id));
         });
