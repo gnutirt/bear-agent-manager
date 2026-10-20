@@ -555,7 +555,7 @@ export const vi: Record<string, string> = {
   'sys.copilot.quota.wait': '{name} bị giới hạn quota hoặc tốc độ Copilot ({reason}), thử lại {at}. Hiện không có profile Copilot nào khác đang bật và hoạt động trong phòng để nhận tin; các tin vẫn được giữ nguyên trong hàng đợi.',
   'sys.copilot.quota.idle': '{name} bị giới hạn quota hoặc tốc độ Copilot ({reason}), thử lại {at}. Không có tin nào đang chờ.',
   'sys.copilot.quota.switch': '{name} bị giới hạn quota hoặc tốc độ Copilot ({reason}); chuyển các tin đang chờ cho {to} xử lý tới {at}. Hãy là người duy nhất phản hồi, không đánh thức hoặc trả lời {name}:\n{messages}',
-  'sys.usage.near': 'Claude {account} gần hết usage 5 giờ ({pct}%): tạm dừng giao việc mới, hẹn đánh thức lúc {at}.',
+  'sys.usage.near': 'Claude {account} đã đạt ngưỡng usage 5 giờ ({pct}%): tạm dừng giao tin cho agent thuộc tài khoản, hẹn đánh thức lúc {at}.',
   'sys.wake.resume': '@{name} hết hạn mức đã qua, làm tiếp việc đang dở.',
   'sys.wake.giveup': '@you Claude {account} vẫn chưa reset sau nhiều lần thử, tôi ngừng hẹn giờ đánh thức.',
   'sys.wake.reset': '{names} usage Claude {account} đã reset, làm tiếp việc đang dở.',

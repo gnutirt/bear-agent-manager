@@ -646,7 +646,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
   }
-  function deliver(sid: string) {
+  function deliver(sid: string, directUser = false) {
     const st = store.session(sid);
     const cop = copilotHolding(st.id);
     if (cop) {
@@ -654,6 +654,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return;
     }
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
+    if (!directUser && !apiProfileOf(st) && usagePaused(st)) return;
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
       if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id))) consume(st.id, p.messages[p.messages.length - 1].id);
@@ -1106,6 +1107,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const usage = opts.usageFetch === null ? null : new UsageReader(usageHome, opts.usageFetch ?? fetch);
   if (usage) usage.lang = lang;
   /** Rooms of the sessions running on this account (all rooms when none is in a room). */
+  function usagePaused(s: Session): boolean {
+    const dir = path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase();
+    return Object.values(store.state.usagePaused ?? {}).some((p) => p.until > Date.now() && p.configDirs.some((c) => path.resolve(c).toLowerCase() === dir));
+  }
   const onAccount = (a: AccountUsage) => (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
   const accountRooms = (a: AccountUsage) => {
     const mine = onAccount(a);
@@ -1124,13 +1129,34 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     store.state.usageAlerts = sent.slice(-200);
     // T-C: book a wake-up for an account that is about to run dry (one per cycle; the booking survives restarts).
     const have = (store.state.wakeAt ??= {});
-    for (const w of planWakes(accounts, loadSettings(opts.dir, envCap).lead.wake, have)) {
+    const wakeCfg = loadSettings(opts.dir, envCap).lead.wake;
+    const planned = planWakes(accounts, wakeCfg, have);
+    for (const w of planned) {
       have[w.key] = w.entry;
       const at = clock(w.entry.at);
       for (const r of accountRooms(w.account)) { try { broadcast('msg', postSys(r, tr('sys.usage.near', { account: w.account.label, pct: Math.round(w.account.fiveHour!.pct), at }))); emitRoom(r); } catch { /* room gone */ } }
       scheduleWake(w.key);
     }
     store.save();
+    const pauses = (store.state.usagePaused ??= {});
+    if (!wakeCfg.enabled) {
+      for (const key of Object.keys(pauses)) delete pauses[key];
+    } else {
+      for (const account of accounts) {
+        const key = accountKey(account), window = account.fiveHour;
+        if (!window || window.pct < wakeCfg.atPct || !window.resetsAt || !Number.isFinite(Date.parse(window.resetsAt))) continue;
+        const entry = have[key];
+        if (entry) pauses[key] = { until: Math.max(entry.at, blockedUntil(account)), configDirs: [...account.configDirs] };
+      }
+      for (const [key, pause] of Object.entries(pauses)) {
+        const account = accounts.find((a) => accountKey(a) === key);
+        if (!account) delete pauses[key];
+        else if ((!account.fiveHour || account.fiveHour.pct < wakeCfg.atPct) && blockedUntil(account) <= Date.now()) {
+          pause.until = Math.min(pause.until, Date.now());
+          pause.swept = false;
+        }
+      }
+    }
     broadcast('claude-usage', { accounts: accounts.map(publicUsage) });
   }
   const wakeTimers = new Map<string, NodeJS.Timeout>();
@@ -1168,6 +1194,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = acc ? accountRooms(acc) : [];
     if (acc && ((acc.fiveHour && acc.fiveHour.pct >= cfg.atPct) || blockedUntil(acc) > Date.now())) {
       if (++e.tries > 6) {
+      const reset = acc.fiveHour?.resetsAt ? Date.parse(acc.fiveHour.resetsAt) : NaN;
+      const until = Math.max(Number.isFinite(reset) ? reset + cfg.afterResetMin * 60_000 : 0, blockedUntil(acc), Date.now() + 5 * 60_000);
+      (store.state.usagePaused ??= {})[key] = { until, configDirs: [...acc.configDirs] };
         for (const r of rooms) { try { broadcast('msg', postSys(r, tr('sys.wake.giveup', { account: acc.label }))); emitRoom(r); } catch { /* room gone */ } }
         delete have[key];
       } else { e.at = Date.now() + 5 * 60_000; scheduleWake(key); }
@@ -1175,11 +1204,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return;
     }
     if (acc) {
+    if (acc) {
+      const pause = store.state.usagePaused?.[key];
+      if (pause) { pause.until = Date.now(); pause.swept = false; }
+    } else delete store.state.usagePaused?.[key];
       const mine = onAccount(acc);
       for (const r of rooms) {
         const ms = store.members(r).filter((s) => mine(s.configDir ?? ''));
         const lead = ms.find((s) => s.id === store.state.rooms[r]?.lead);
-        const targets = lead ? [lead] : ms;
+        const targets = ms.filter((s) => {
+          const pending = store.pending(s.id);
+          return (pending.wake && pending.messages.length > 0) || endedOnLimit(s.transcript);
+        });
+        if (lead && !targets.some((s) => s.id === lead.id)) targets.unshift(lead);
+        if (!lead && !targets.length) targets.push(...ms);
         if (!targets.length) continue;
         try {
           const posted = store.post(r, null, tr('sys.wake.reset', { names: targets.map((s) => '@' + s.name).join(' '), account: acc.label }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
@@ -2214,7 +2252,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         broadcast('msg', r.message);
         if (r.allDone) broadcast('msg', r.allDone);
         emitRoom(room);
-        for (const id of r.message.wake) deliver(store.resolve(id));
+        for (const id of r.message.wake) deliver(store.resolve(id), !b.sessionId);
         return json(res, 200, r);
       }
     }
@@ -2291,6 +2329,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);
   heartbeat.unref();
+    let changedPause = false;
+    for (const [key, pause] of Object.entries(store.state.usagePaused ?? {})) {
+      if (pause.until > Date.now()) continue;
+      const waitingForRecovery: Session[] = [];
+      for (const s of Object.values(store.state.sessions)) {
+        const dir = path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase();
+        if (pause.configDirs.some((c) => path.resolve(c).toLowerCase() === dir) && !apiProfileOf(s) && !copilotHolding(s.id) && endedOnLimit(s.transcript)) {
+          waitingForRecovery.push(s);
+        }
+      }
+      if (!waitingForRecovery.length) { delete store.state.usagePaused![key]; changedPause = true; }
+      else if (!pause.swept) {
+        pause.swept = true;
+        changedPause = true;
+        for (const s of waitingForRecovery) if (!reviving.has(s.id)) void unstick(s).catch((error) => console.error(`[usage] failed to unstick ${s.id}:`, error));
+      }
+    }
+    if (changedPause) store.save();
 
   void syncCopilots();
   syncApiAgents();

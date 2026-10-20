@@ -43,6 +43,7 @@ type State = {
   sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
   autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
   wakeAt?: Record<string, { at: number; tries: number }>;   // T-C: booked wake-ups per Claude account (email or config dir)
+  usagePaused?: Record<string, { until: number; configDirs: string[]; swept?: boolean }>;   // account delivery is held until reset; expired sessions are swept once
   usageAlerts?: string[];   // Claude Pro usage warnings already posted: "email|window|resets_at"
   skillUse?: { agent: string; skill: string; ts: number; room: string }[];   // newest 500 Skill tool calls (which agent really used which skill)
   leadOpened?: string[];   // rooms the hub already opened a lead terminal for by itself (T19: once per room)

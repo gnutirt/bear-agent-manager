@@ -555,7 +555,7 @@ export const en: Record<string, string> = {
   'sys.copilot.quota.wait': '{name} is limited by Copilot quota or a rate limit ({reason}), retrying {at}. No other enabled Copilot profile currently available in the room can take the pending messages; they remain queued.',
   'sys.copilot.quota.idle': '{name} is limited by Copilot quota or a rate limit ({reason}), retrying {at}. No messages are waiting.',
   'sys.copilot.quota.switch': '{name} is limited by Copilot quota or a rate limit ({reason}); handing these pending messages to {to} until {at}. Continue as the sole responder and do not wake or reply to {name}:\n{messages}',
-  'sys.usage.near': 'Claude {account} is close to its 5-hour usage ({pct}%): new work is paused, wake-up booked for {at}.',
+  'sys.usage.near': 'Claude {account} reached its 5-hour usage threshold ({pct}%): delivery to agents on this account is paused until the wake-up at {at}.',
   'sys.wake.resume': '@{name} the quota has reset, carry on with what you were doing.',
   'sys.wake.giveup': '@you Claude {account} has still not reset after several tries, I stop booking wake-ups.',
   'sys.wake.reset': '{names} the usage of Claude {account} has reset, carry on with what you were doing.',

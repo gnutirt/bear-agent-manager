@@ -5,11 +5,31 @@ import os from 'node:os';
 import path from 'node:path';
 import { planWakes, quotaResetFromTranscript } from '../hub/wake.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
-import { startHub } from '../hub/server.ts';
+import { startHub, type ReviveJob } from '../hub/server.ts';
+import { t } from '../shared/i18n.ts';
 import { makeHub, until } from './helpers.ts';
 
 const acc = (pct: number, resetsAt: string | null, email = 'a@x.com'): any => ({ configDirs: ['C:/cfg'], label: 'main', email, plan: 'pro', fiveHour: { pct, resetsAt }, sevenDay: null, usageError: '', fetchedAt: 0 });
 const cfg = { enabled: true, atPct: 90, afterResetMin: 2 };
+
+async function startUsageHub(dir: string, home: string, usageFetch: typeof fetch, revived: string[], sweepMs = 60_000) {
+  const hub = await startHub({
+    dir, port: 0, revive: (job: ReviveJob) => { revived.push(job.id); return 0; }, batchMs: 0, autoRevive: true,
+    listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'x.key'), usageFetch, versionFetch: null,
+    usageHome: home, openUrl: () => {}, sweepMs,
+  });
+  async function call<T = any>(p: string, body?: unknown): Promise<T> {
+    const res = await fetch(hub.url + p, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw Object.assign(new Error(data.error), { status: res.status });
+    return data as T;
+  }
+  return { hub, call };
+}
 
 test('planWakes: one booking per account and cycle, at reset + delay; off, below threshold or no reset time -> none', () => {
   const t = '2026-10-17T10:00:00Z';
@@ -54,6 +74,98 @@ test('usage wake: books at the poll, then at the reset posts as the user to this
     assert.deepEqual(wake!.mentions, ['alice'], 'only the agent on the reset account');
     assert.equal(again.store.state.wakeAt?.['a@x.com'], undefined, 'booking cleared');
   } finally { await again.close(); }
+});
+
+test('usage threshold pauses account deliveries across restart and reset wakes queued and limited sessions', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-usage-pause-home-'));
+  const configDir = path.join(home, '.claude');
+  fs.mkdirSync(configDir);
+  fs.writeFileSync(path.join(configDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'tok', expiresAt: Date.now() + 3_600_000, subscriptionType: 'pro' } }));
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'a@x.com' } }));
+  const hubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-usage-pause-hub-'));
+  fs.writeFileSync(path.join(hubDir, 'settings.json'), JSON.stringify({ language: 'vi', lead: { wake: { enabled: true, atPct: 90, afterResetMin: 0 } } }));
+  const resetAt = new Date(Date.now() + 3_600_000).toISOString();
+  let pct = 95;
+  const usageFetch = (async () => new Response(JSON.stringify({ five_hour: { utilization: pct, resets_at: resetAt } }))) as typeof fetch;
+  const transcripts = new Map<string, string>();
+  const makeLimitTranscript = (id: string, resetsAt: number) => {
+    const file = path.join(hubDir, `${id}.jsonl`);
+    fs.writeFileSync(file, JSON.stringify({ type: 'assistant', isApiErrorMessage: true, error: 'rate_limit', apiErrorStatus: 429, quotaLimits: { resetsAt, rateLimitType: 'five_hour' } }) + '\n');
+    transcripts.set(id, file);
+  };
+  const revived: string[] = [];
+  const first = await startUsageHub(hubDir, home, usageFetch, revived);
+  try {
+    await until(() => first.hub.store.state.usagePaused?.['a@x.com'], 5_000, 'the account usage pause');
+    const limit = Math.floor(Date.now() / 1000) + 3_600;
+    makeLimitTranscript('alice', limit);
+    makeLimitTranscript('stuck1', limit);
+    makeLimitTranscript('stuck2', limit);
+    for (const [id, name] of [['alice', 'alice'], ['bob', 'bob'], ['stuck1', 'stuck1'], ['stuck2', 'stuck2']]) {
+      await first.call('/api/sessions/register', { id, cwd: 'C:/fw', configDir, ...(transcripts.has(id) ? { transcript: transcripts.get(id) } : {}) });
+      await first.call(`/api/sessions/${id}/rename`, { name });
+      await first.call('/api/rooms/proj/join', { sessionId: id });
+    }
+  } finally { await first.hub.close(); }
+
+  const second = await startUsageHub(hubDir, home, usageFetch, revived);
+  try {
+    await until(() => second.hub.store.state.usagePaused?.['a@x.com'], 5_000, 'the persisted account usage pause');
+    const bobWait = second.call<any>('/api/sessions/bob/wait?timeout=30');
+    await until(() => second.hub.waiting('bob'), 5_000, 'Bob waiter');
+    await second.call('/api/rooms/proj/messages', { sessionId: 'bob', text: '@alice queued by an agent' });
+    assert.equal(second.hub.store.pending('alice').wake, true, 'the @ remains queued');
+    assert.equal(second.hub.store.state.wakeAt?.['s:alice'], undefined, 'paused member was not woken by the agent message');
+    assert.match(t('vi', 'sys.usage.near', { account: 'claude', pct: 95, at: '23:00' }), /tạm dừng giao tin/);
+    assert.doesNotMatch(t('vi', 'sys.usage.near', { account: 'claude', pct: 95, at: '23:00' }), /tạm dừng giao việc mới/);
+    assert.match(t('en', 'sys.usage.near', { account: 'claude', pct: 95, at: '23:00' }), /delivery to agents .* is paused/);
+
+    await second.call('/api/rooms/proj/messages', { text: '@bob direct user message' });
+    const delivered = await bobWait;
+    assert.ok(delivered.messages.some((m: any) => m.text === '@bob direct user message'), 'a direct user message bypasses the account pause');
+
+    pct = 5;
+    for (const file of transcripts.values()) {
+      fs.writeFileSync(file, JSON.stringify({ type: 'assistant', isApiErrorMessage: true, error: 'rate_limit', apiErrorStatus: 429, quotaLimits: { resetsAt: Math.floor(Date.now() / 1000) - 1, rateLimitType: 'five_hour' } }) + '\n');
+    }
+    second.hub.store.state.wakeAt!['a@x.com'].at = Date.now() + 100;
+    second.hub.store.save();
+  } finally { await second.hub.close(); }
+
+  const third = await startUsageHub(hubDir, home, usageFetch, revived, 60_000);
+  try {
+    let reset: any;
+    try {
+      reset = await until(
+        () => third.hub.store.history('proj').find((m) => m.fromId === null && /đã reset/.test(m.text)),
+        10_000,
+        'the reset message',
+      );
+    } catch (error) {
+      throw new Error(`${(error as Error).message}; state=${JSON.stringify({ wakeAt: third.hub.store.state.wakeAt, paused: third.hub.store.state.usagePaused, messages: third.hub.store.history('proj').map((m) => `${m.kind}:${m.text}`) })}`);
+    }
+    for (const name of ['alice', 'stuck1', 'stuck2']) assert.ok(reset.mentions.includes(name), `${name} is targeted after reset`);
+    await until(() => revived.includes('stuck1') && revived.includes('stuck2'), 5_000, 'both limited tabs to resume');
+  } finally { await third.hub.close(); }
+});
+
+test('usage sweep unsticks ended-on-limit sessions after their account pause expires', async () => {
+  const revived: string[] = [];
+  const h = await makeHub(20, (job) => { revived.push(job.id); return new Promise<number>(() => {}); });
+  try {
+    const transcript = path.join(h.dir, 'sweep-limit.jsonl');
+    fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', isApiErrorMessage: true, error: 'rate_limit', apiErrorStatus: 429, quotaLimits: { resetsAt: Math.floor(Date.now() / 1000) - 1, rateLimitType: 'five_hour' } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'sweep-limit', cwd: 'C:/fw', transcript });
+    await h.call('/api/sessions/sweep-limit/rename', { name: 'sweep-limit' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'sweep-limit' });
+    h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() + 5_000, configDirs: [path.join(h.dir, '.claude')] } };
+    h.hub.store.save();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(revived, [], 'a still-paused account is not unstuck');
+    h.hub.store.state.usagePaused['a@x.com'].until = Date.now() - 1;
+    h.hub.store.save();
+    await until(() => revived.includes('sweep-limit'), 5_000, 'the paused account sweep to unstick its tab');
+  } finally { await h.hub.close(); }
 });
 
 test('StopFailure rate_limit: reads the reset from the transcript, marks the session, books its wake', async () => {
