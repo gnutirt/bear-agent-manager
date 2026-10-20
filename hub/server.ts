@@ -219,6 +219,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** A hub notice with its sys meta (from the key of its text unless given). */
   const postSys = (room: string, text: string, topic?: string, meta?: SysMeta) => store.postSystem(room, text, topic, meta ?? sysMeta(text));
   const clock = (ms: number, more: Intl.DateTimeFormatOptions = {}) => new Date(ms).toLocaleString(dateLocale(lang()), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', ...more });
+  /** The time, plus the date when it is not today: "00:00" alone reads as tonight. */
+  const clockWithDay = (ms: number) => { const day = (t: number) => new Date(t).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); return clock(ms, day(ms) === day(Date.now()) ? {} : { day: 'numeric', month: 'numeric' }); };
   store.tr = tr;
   const cap = () => opts.workerCap ?? loadSettings(opts.dir, envCap).workerCap;   // a test's workerCap wins over the file
   const workerLog = path.join(opts.dir, 'workers.jsonl');
@@ -287,7 +289,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const text = tr('sys.copilot.quota.switch', {
             name: source.snapshot().name,
             to: replacement.profile.name,
-            at: limit.retryAt != null ? clock(limit.retryAt) : tr('sys.copilot.quota.unknown'),
+            at: limit.retryAt != null ? clockWithDay(limit.retryAt) : tr('sys.copilot.quota.unknown'),
             reason: limit.reason,
             messages: chunk,
           });
@@ -307,7 +309,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       copilotQuotaNotices.add(noticeKey);
       const text = tr(queued ? 'sys.copilot.quota.wait' : 'sys.copilot.quota.idle', {
         name: source.snapshot().name,
-        at: limit.retryAt != null ? clock(limit.retryAt) : tr('sys.copilot.quota.unknown'),
+        at: limit.retryAt != null ? clockWithDay(limit.retryAt) : tr('sys.copilot.quota.unknown'),
         reason: limit.reason,
         to: replacement?.profile.name ?? '',
       });

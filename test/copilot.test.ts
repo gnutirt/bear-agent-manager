@@ -693,6 +693,7 @@ test('Copilot monthly quota error: profile is limited until the 1st of next mont
     const all = await texts();
     assert.equal(all.filter((t) => /could not complete/.test(t)).length, 0, 'no per-message error line');
     assert.equal(all.filter((t) => /không có profile Copilot/i.test(t)).length, 1, 'one notice only');
+    assert.match(all.find((t) => /không có profile Copilot/i.test(t))!, /thử lại \S+\s+\d{1,2}\/\d{1,2}[,.)\s]/, 'a retry time on another day carries its date');
     assert.equal(h.hub.store.pending(copilotId).wake, true, 'the messages stay queued');
   } finally {
     await h.hub.close();
