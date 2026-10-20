@@ -32,7 +32,7 @@ test('apiPerm: off this machine read-only without secret files; local may edit o
   assert.deepEqual(apiPerm(prof({ edit: true }), prov(), own), { ...own, allow: [LEAN_TOOL] });
   assert.ok(remote.allow.includes(LEAN_TOOL), 'the room tools of the lean claude stay allowed');
   const paid = apiPerm(prof({ edit: true }), prov({ tier: 'paid' }), own);   // the owner's own paid account (DeepSeek) codes, never reading secrets
-  assert.ok(!paid.deny.includes('Edit') && paid.deny.includes('Read(**/.env*)') && paid.allow.includes(LEAN_TOOL));
+  assert.ok(!paid.deny.includes('Edit') && paid.deny.includes('Bash') && paid.deny.includes('Read(**/.env*)') && paid.allow.includes(LEAN_TOOL));
   assert.ok(apiPerm(prof(), prov({ tier: 'paid' }), own).deny.includes('Edit'), 'paid without edit: true stays read-only');
   const localRo = apiPerm(prof(), prov(), own);
   assert.ok(localRo.deny.includes('Edit') && !localRo.deny.some((d) => d.startsWith('Read(')));

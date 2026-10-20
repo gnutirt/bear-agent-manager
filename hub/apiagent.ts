@@ -65,11 +65,12 @@ export const leanMcpConfig = (sid: string, home: string, port: number, mcpServer
   ({ mcpServers: { room: { command: node, args: ['--no-warnings', mcpServer], env: { CLAUDE_CODE_SESSION_ID: sid, BEAR_AGENT_HOME: home, BEAR_AGENT_PORT: String(port) } } } });
 export const leanArgs = (configFile: string): string[] => ['--bare', '--strict-mcp-config', '--mcp-config', configFile];
 
-/** A free provider only reads (never secret files); a local or paid one may edit when the profile says so (edit: true); paid still never reads secret files. */
+/** A free provider only reads (never secret files); a local or paid one may edit when the profile says so (edit: true); paid never gets Bash or secret files. */
 export function apiPerm(p: AgentProfile, prov: Provider, own: Perm): Perm {
   const local = prov.tier === 'local';
   if (local && p.edit === true) return { ...own, allow: [...own.allow, LEAN_TOOL] };
-  // a paid provider is the owner's own account (2026-10-20: DeepSeek as a coder): it may edit too, still never reading secret files
-  if (prov.tier === 'paid' && p.edit === true) return { ...own, allow: [...own.allow, LEAN_TOOL], deny: [...own.deny, ...SECRET_READS] };
+  // a paid provider is the owner's own account (2026-10-20: DeepSeek as a coder, note [53]): it may Edit/Write, never Bash (`cat .env` would get round
+  // the secret-file reads it is denied); a Claude member or Copilot runs the tests and commits for it
+  if (prov.tier === 'paid' && p.edit === true) return { ...own, allow: [...own.allow, LEAN_TOOL], deny: [...own.deny, 'Bash', ...SECRET_READS] };
   return { mode: 'default', allow: [LEAN_TOOL], deny: [...NO_WRITE, ...(local ? [] : SECRET_READS)] };
 }
