@@ -41,6 +41,9 @@ import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type Ac
 import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { apiEnv, apiPerm, isQuotaError } from './apiagent.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { MuseAgent } from './museagent.ts';
+import { chromeCdp } from '../mcp/muse.ts';
+import type { Cdp } from '../mcp/muse-core.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -121,6 +124,8 @@ export type HubOptions = {
   /** Standalone Copilot SDK client factory (stubbed in tests). */
   copilotClientFactory?: CopilotClientFactory;
   /** Startup folder for the sign-in script (tests use a temp one). */
+  /** The debug Chrome of 'muse' profiles (stubbed in tests; default http://127.0.0.1:9222). */
+  museCdp?: Cdp;
   startupDir?: string;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
   batchMs?: number;
@@ -472,6 +477,37 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
+  // ---- 'muse' profiles: Muse (through the debug Chrome) answers @-mentions as a room member, one question at a time ----
+  const muses = new Map<string, { agent: MuseAgent; key: string }>();
+  const museProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'muse');
+  const museAgents = () => [...muses.values()].map((m) => m.agent);
+  const museHolding = (sid: string) => museAgents().find((m) => m.hasSession(sid));
+  const museCdp = opts.museCdp ?? chromeCdp();
+  function museFor(p: AgentProfile): MuseAgent {
+    const key = JSON.stringify([p.name, p.cwd]), cur = muses.get(p.id);
+    if (cur?.key === key) return cur.agent;
+    const agent = new MuseAgent({
+      dir: opts.dir, profile: { id: p.id, name: p.name, cwd: p.cwd }, store, cdp: museCdp,
+      onChange: (status) => { broadcast('agentprofile', { ...status, enabled: true }); const s = Object.values(store.state.sessions).find((x) => x.name === p.name); if (s) broadcast('session', publicSession(s)); },
+      onRoom: emitRoom,
+      onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
+    });
+    muses.set(p.id, { agent, key });
+    return agent;
+  }
+  const museStatusOf = (p: AgentProfile) => ({ ...museFor(p).snapshot(), enabled: p.enabled });
+  /** Starts the profiles that are on; stops the ones that are off, gone or changed. A Chrome / sign-in problem is the agent's error state, not a failure here. */
+  async function syncMuse(): Promise<void> {
+    const profiles = museProfiles();
+    for (const [id, m] of [...muses]) {
+      const p = profiles.find((x) => x.id === id);
+      if (p && p.enabled && m.key === JSON.stringify([p.name, p.cwd])) continue;
+      if (m.agent.snapshot().state !== 'off') await m.agent.stop().catch(() => {});
+      if (!p || m.key !== JSON.stringify([p.name, p.cwd])) { muses.delete(id); broadcast('agentprofile', { id, removed: true }); }
+    }
+    for (const p of profiles) if (p.enabled && museFor(p).snapshot().state === 'off') void museFor(p).start().catch((e) => console.error(`[muse] ${p.id} start failed:`, e));
+  }
+
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
   const relayText = (text: string, more: string) => {
     const flat = text.replace(/\n{3,}/g, '\n\n').trim();
@@ -618,7 +654,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
-    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id));
+    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id));
     const found = store.deaf(isConn, opts.deafMs ?? DEAF_MS);
     for (const id of [...deafTold.keys()]) if (!found.some((f) => f.session.id === id)) deafTold.delete(id);
     for (const { session: s, msg } of found) {
@@ -635,6 +671,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
+    const mus = museHolding(st.id);
+    if (mus) {
+      void mus.wake(st.id).catch((error) => mus.reportError(error));
+      return;
+    }
     // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
     // tab at 02:12). Drop that waiter and unstick the chat instead.
     if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) {
@@ -1477,7 +1518,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
     // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
-    if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus)]);
+    if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus), ...museProfiles().map(museStatusOf)]);
     const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
     if (ap) {
       const prof = apiProfiles().find((x) => x.id === ap[1]);
@@ -1505,6 +1546,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus(prof.id), done: false });
       if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
       return copilotToggle(res, prof.id, b.on);
+    }
+    const mp = ap ? museProfiles().find((x) => x.id === ap[1]) : undefined;
+    if (ap && mp) {
+      const b = await readBody(req);
+      if (ap[2] && !mp.enabled) throw new StoreError(409, `${mp.name} is off: turn it on first`);
+      if (!ap[2]) {
+        if (b.confirm !== true) return json(res, 200, { ...museStatusOf(mp), done: false });
+        if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
+        setApiEnabled(mp.id, b.on);   // writes profile.enabled whatever the provider
+        if (!b.on) { await museFor(mp).stop(); return json(res, 200, { ...museStatusOf({ ...mp, enabled: false }), done: true }); }
+      }
+      await museFor({ ...mp, enabled: true }).start();   // also the retry: re-checks Chrome and the sign-in
+      return json(res, 200, { ...museStatusOf({ ...mp, enabled: true }), done: true });
     }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
@@ -1614,6 +1668,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'POST' && p === '/api/providers') {
       const b = await readBody(req);
+      void syncMuse();
       if (!/^[a-z0-9-]{2,32}$/.test(String(b.id ?? ''))) throw new StoreError(400, 'id must be 2-32 chars a-z 0-9 -');
       const list = loadProviders(opts.dir, legacyKey);
       if (list.some((x) => x.id === b.id)) throw new StoreError(409, `provider ${b.id} exists`);
@@ -2079,7 +2134,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   port = (server.address() as AddressInfo).port;
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || museAgents().some((m) => m.isRunning(id)))) emitSession(s);
     checkDeaf();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
@@ -2114,3 +2169,5 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     },
   };
 }
+  void syncMuse();
+      for (const m of museAgents()) { try { await m.stop(); } catch (error) { console.error('[muse] shutdown failed:', error); } }

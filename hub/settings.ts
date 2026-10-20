@@ -68,7 +68,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 
 /** M3b: one headless provider agent (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
 // 'claude-api': a headless claude on a providers.json provider (providerId) and model; outside this machine it is read-only unless the tier is local and edit is on.
-export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean };
+export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'muse'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
@@ -96,11 +96,12 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): AgentProfile[] {
   for (const r of raw.slice(0, 16)) {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
     const api = r?.provider === 'claude-api', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || (r?.provider !== 'copilot' && !api) || !localAbs(r?.cwd)) continue;
+    const muse = r?.provider === 'muse';   // Muse reads no folder: its cwd is only a label, so a missing one is the hub's repo
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || (r?.provider !== 'copilot' && !api && !muse) || (!muse && !localAbs(r?.cwd))) continue;
     if (api && (!/^[\w-]{1,32}$/.test(providerId) || (model && !/^[\w.:\/-]{1,80}$/.test(model)))) continue;
     if (ids.has(id) || names.has(normAgent(name))) continue;
     ids.add(id); names.add(normAgent(name));
-    out.push({ id, provider: api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
+    out.push({ id, provider: api ? 'claude-api' : muse ? 'muse' : 'copilot', name, cwd: localAbs(r?.cwd) ? path.resolve(r.cwd) : ROOT, ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
       ...(api ? { providerId, ...(model ? { model } : {}), ...(r.edit === true ? { edit: true } : {}) } : {}) });
   }
   return out;
