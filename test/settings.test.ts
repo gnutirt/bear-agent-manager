@@ -156,6 +156,8 @@ test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones drop
   assert.deepEqual(s.agents.profiles.map((p) => [p.id, p.name, p.enabled]), [['copilot-work', 'Copilot_Work', true], ['w', 'w', false]]);   // the duplicate name 'Copilot_Work' is dropped
   assert.equal(patchSettings(s, { agents: { maxBackground: 2 } }).agents.profiles.length, 2, 'a patch without profiles keeps them');
   assert.deepEqual(patchSettings(s, { agents: { profiles: [] } }).agents.profiles, []);
+  assert.equal(patchSettings(d, { agents: { profiles: [{ ...ok, model: 'gpt-6-luna' }] } }).agents.profiles[0].model, 'gpt-6-luna', 'a Copilot profile keeps its model');
+  assert.equal(patchSettings(d, { agents: { profiles: [{ ...ok, model: 'bad model!' }] } }).agents.profiles.length, 0, 'a bad model id drops the profile');
   assert.equal(resolveWorkspace(here), fs.realpathSync(here));
   assert.throws(() => resolveWorkspace('rel'), /absolute local/);
   assert.throws(() => resolveWorkspace(path.parse(here).root), /drive root or the home/);

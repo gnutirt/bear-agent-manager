@@ -15,7 +15,7 @@ const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 type Identity = { hubId: string; providerId?: string };
 type State = 'off' | 'starting' | 'idle' | 'busy' | 'error';
-export type CopilotProfile = { id: string; name: string; cwd: string; home?: string };
+export type CopilotProfile = { id: string; name: string; cwd: string; home?: string; model?: string };   // model: a Copilot model id (client.listModels()); none = the SDK default
 export type CopilotQuotaLimit = { retryAt?: number; reason: string };
 export type CopilotStatus = { id: string; name: string; state: State; auth: 'unknown' | 'ok' | 'no'; room: string; cwd: string; login?: string; error?: string; quotaLimited?: boolean; retryAt?: number };
 
@@ -270,6 +270,7 @@ export class CopilotAgent {
   private sessionConfig(hubId: string) {
     return {
       workingDirectory: this.cwd,
+      ...(this.opts.profile.model ? { model: this.opts.profile.model } : {}),
       enableOnDemandInstructionDiscovery: false,
       enableFileHooks: false,
       enableHostGitOperations: false,

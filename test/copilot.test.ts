@@ -520,11 +520,13 @@ test('Copilot quota exhaustion hands pending messages to another enabled profile
   try {
     const profiles = [
       { id: 'quota-a', provider: 'copilot', name: 'CopilotA', cwd: process.cwd(), enabled: false },
-      { id: 'quota-b', provider: 'copilot', name: 'CopilotB', cwd: process.cwd(), enabled: false },
+      { id: 'quota-b', provider: 'copilot', name: 'CopilotB', cwd: process.cwd(), enabled: false, model: 'gpt-6-luna' },
     ];
     await h.call('/api/settings', { agents: { profiles } }, { method: 'PUT' } as RequestInit);
     await h.call('/api/copilot/profiles/quota-a', { on: true, confirm: true });
+    assert.equal((calls.sessionConfigs[0] as { model?: string }).model, undefined, 'no model in the profile: the SDK default');
     await h.call('/api/copilot/profiles/quota-b', { on: true, confirm: true });
+    assert.equal((calls.sessionConfigs[1] as { model?: string }).model, 'gpt-6-luna', 'the profile model reaches the SDK session');
 
     const queued = await h.call<any>('/api/rooms/bear-agent-manager/messages', { text: '@CopilotA slow quota task' });
     await until(() => calls.prompts.some((prompt) => prompt.includes('slow quota task')), COPILOT_ASYNC_TIMEOUT_MS, 'source profile starts its quota-limited turn');

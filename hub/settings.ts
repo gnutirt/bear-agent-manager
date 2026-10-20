@@ -98,11 +98,11 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): AgentProfile[] {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
     const api = r?.provider === 'claude-api', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
     if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || (r?.provider !== 'copilot' && !api) || !localAbs(r?.cwd)) continue;
-    if (api && (!/^[\w-]{1,32}$/.test(providerId) || (model && !/^[\w.:\/-]{1,80}$/.test(model)))) continue;
+    if ((api && !/^[\w-]{1,32}$/.test(providerId)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) continue;
     if (ids.has(id) || names.has(normAgent(name))) continue;
     ids.add(id); names.add(normAgent(name));
     out.push({ id, provider: api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
-      ...(api ? { providerId, ...(model ? { model } : {}), ...(r.edit === true ? { edit: true } : {}) } : {}) });
+      ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}) });
   }
   return out;
 }

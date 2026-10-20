@@ -330,7 +330,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return false;
   }
   function copilotFor(p: AgentProfile): CopilotAgent {
-    const key = JSON.stringify([p.name, p.cwd, p.home]);
+    const key = JSON.stringify([p.name, p.cwd, p.home, p.model]);
     const cur = copilots.get(p.id);
     if (cur?.key === key) return cur.agent;
     const agent = new CopilotAgent({
