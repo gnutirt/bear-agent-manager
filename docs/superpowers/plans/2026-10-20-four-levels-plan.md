@@ -57,3 +57,26 @@ Muse: giữ nguyên, không đưa vào bảng.
 - **frontend** (đang blocked #69) → T1 ngay (không phụ thuộc #68), #69 tiếp tục chờ, rồi T2
 - **Copilot** (đang #89) → giữ nguyên #89 (đã gồm B1)
 - **thu-vien-skill** (idle) → chưa gán, lead cân nhắc nếu cần thêm việc
+
+Toàn bộ bảng trên đã xong (xem room_tasks #92-#99); plan này giữ lại làm lịch sử.
+
+## Cập nhật 21/10 — vòng nghiên cứu sau #108 (lead duyệt, note [57])
+
+| # | Việc | File chính | Owner | Điều kiện xong |
+|---|---|---|---|---|
+| — | Checklist bắt buộc khi thêm provider trả phí/ngoài máy | `docs/live-chat-api-agents-tasks.md` | deepseek — **#109** (xong, f4dcfaf) | xem task #109 |
+| — | Đếm lượt gọi / chi phí provider trả phí (DeepSeek…) | `hub/providers.ts`, `ui/index.html` | deepseek — sau #109 | Settings hiện số lượt gọi/chi phí ước tính theo profile trả phí; test |
+| — | Helper test tái hiện "ngoài cwd phải bị từ chối" cho profile ngoài máy | `test/helpers.ts`, `test/apiagent.test.ts` | Copilot — **#110** | xem task #110 |
+| — | Nhật ký quyết định guard hiện trong Console UI | `hub/server.ts`, `hub/console.ts` | Copilot — sau #110 | Một lượt guard allow/deny của profile ngoài máy hiện trong Console của session đó; test |
+
+## Cập nhật 21/10 — nhịp làm việc (spec `docs/superpowers/specs/2026-10-21-workflow-rhythm.md`, 15c8847, lead duyệt cả 6 ý)
+
+Chỗ nghẽn đã thấy: commit cuốn/revert nhầm (6 lần), chỉ lead tạo được task nên mỗi việc bị đánh thức hai lần (planner @ rồi lead tạo task), deepseek không Bash nên luôn chờ người khác commit, agent post "đã nhận/chờ việc" làm tốn hạn mức, tab IDE hết hạn mức "điếc".
+
+| # | Việc | File chính | Owner | Điều kiện xong |
+|---|---|---|---|---|
+| (1) | Công cụ MCP `room_commit {paths, message}`: hub tự `read-tree HEAD` + add đúng paths + test liên quan (tuỳ chọn) + commit + soát mọi dòng "-" phải nằm trong paths đó (huỷ + báo lỗi nếu không); dùng lại `commitPaths` (`hub/filewrite.ts:64`). Đường commit duy nhất, deepseek commit được mà không cần Bash. | `mcp/tools.ts`, `hub/server.ts`, `hub/filewrite.ts` | Copilot (sau #110) | Agent gọi `room_commit` thành công khi path sạch; bị huỷ + báo lỗi rõ khi có dòng "-" ngoài paths; test |
+| (2) | Vai planner được tạo task: mở `room_tasks add` cho new-planner bên cạnh lead (hiện chỉ lead, chặn ở `hub/server.ts:2090-2102`). Việc xong vẫn gọi lead audit (Q2 #74). | `hub/server.ts`, `mcp/tools.ts` | deepseek, Copilot commit | new-planner gọi `room_tasks add` tạo được task (403 vẫn áp dụng cho người khác không phải lead/planner); test |
+| (3) | Lọc tin không cần thiết: tin không có @ và ngắn hơn ~80 ký tự kiểu xác nhận ("đã nhận", "chờ việc", "không có việc") thì giữ lại hiện trong UI nhưng không giao/không đánh thức ai; `@all` từ agent chỉ dùng khi có cờ xác nhận rõ ràng (không phải mặc định). | `hub/server.ts` (đường giao tin/wake), `hub/store.ts` | deepseek, Copilot commit | Tin ngắn không @ không đánh thức ai nhưng vẫn hiện trong room_read; `@all` của agent bị chặn trừ khi có cờ; test |
+
+(4) và (5) là quy tắc vận hành, không phải code — lead ghi note ngay: audit theo lô (2-3 việc hoặc 20 phút), 1 restart hub/lô; mỗi task ghi `files:` là vùng file của mình, hai task đang làm không đụng cùng file. (6) chat gọn: core-improve làm tiếp ở #113(b).
