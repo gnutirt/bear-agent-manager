@@ -2105,7 +2105,7 @@ function loadMonaco() {
   });
 }
 const monacoLang = (m, path) => { const ext = '.' + (path.split('.').pop() || '').toLowerCase(); return m.languages.getLanguages().find((l) => (l.extensions || []).includes(ext))?.id || 'plaintext'; };
-const isDarkUi = const isDarkUi = () => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255]; return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128; };
+const isDarkUi = () => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255]; return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128; };
 /** S5: read-only file tree / file / diff of the agent's folder, in the zoom overlay. */
 function openFiles(sid, dirPath = '') {
   const get = (kind, p) => api(`/api/sessions/${enc(sid)}/${kind}${p == null ? '' : '?path=' + enc(p)}`);
