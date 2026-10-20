@@ -623,6 +623,20 @@ export class Store {
   }
 
   /**
+   * "Deaf" tabs: alive (not ended/offline), no waiter, and an @-message has waited longer than `minMs`. A busy tab only
+   * counts once it has been silent that long too (a long tool sends no hook). Returns the oldest waiting message per session.
+   */
+  deaf(isConnected: (id: string) => boolean, minMs: number, now = this.now()): { session: Session; msg: Message }[] {
+    const out: { session: Session; msg: Message }[] = [];
+    for (const s of Object.values(this.state.sessions)) {
+      if (s.ended || s.status === 'offline' || isConnected(s.id) || (s.status === 'busy' && now - s.lastSeen < minMs)) continue;
+      const msg = this.pending(s.id).messages.find((m) => m.wake.some((w) => this.resolve(w) === s.id));
+      if (msg && now - msg.ts > minMs) out.push({ session: s, msg });
+    }
+    return out;
+  }
+
+  /**
    * Marks stale, disconnected sessions offline; prunes long-offline sessions in no room. With the claude pid the hooks
    * send, a session is judged by its process: alive = still working (a long tool or answer sends no hook for minutes,
    * it must not look closed), gone = offline and ended at once (a killed tab sends no SessionEnd). Without a pid, or

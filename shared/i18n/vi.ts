@@ -703,6 +703,8 @@ export const vi: Record<string, string> = {
   'sys.usage.updated': 'cập nhật lúc {at}',
   'sys.usage.times': ', {n} lần từ {first}',
   'relay.badge': '↩ chat riêng',
+  'sys.tab.deaf': '@you {name} không đọc tin: tab vẫn mở nhưng lượt trước bị ngắt. Gõ một phím trong tab đó, hoặc bấm Mở tab trong danh sách thành viên.',
+  'sys.wake.cannot': '@you Không đánh thức được {name}: không có hội thoại đã lưu để chạy tiếp và cài đặt tự mở tab khi đánh thức đang tắt. Hãy mở tab của nó bằng tay hoặc bật cài đặt đó.',
   'sys.tab.replaced': 'Tab của {name} đã mở: hub đóng tiến trình nền để không chạy hai claude trên một chat.',
   'sub.perms': 'Quyền',
   'perm.title': 'Quyền của agent do hub khởi chạy',

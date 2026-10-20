@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add: the sweeper reports a "deaf tab" once per stuck message (live tab, no waiter, an @ waiting >10 min, busy tabs only after 10 quiet minutes) and `deliver()` says once when a closed agent cannot be woken (no saved chat and open-tab-on-wake off) instead of staying silent. Needs hub restart.
 - Add: Ollama LAN worker provider `ollama-lan` (tier `local`, no key, read model `qwen3.8:latest`) at `http://192.168.0.127:11434`. The port 11435 first given does not accept connections, so 11434 is used; the base URL stays editable in `~/.bear-agent-manager/providers.json` / Settings if 11435 is a separate proxy.
 - Add: `settings.compact.thresholds` (`{enabled, lead, member, background}`, default on: 200k/250k/150k) — an agent with no `agentCompact` rule of its own now gets `wakeCompact`'s "compact before waking" behavior too, picking the threshold by its role (lead of a room, else a member with an IDE, else a hub-created background agent).
 - Fix: a VS Code tab on the default account (no `CLAUDE_CONFIG_DIR`, empty string) kept showing/limiting the session under its previous account instead — `Store.register` treated `configDir: ''` as "not sent" and skipped the update, and left a stale usage-limit mark from the old account in place. Now any account change (including to the default, empty one) updates `configDir` and clears the stale `limited` mark.

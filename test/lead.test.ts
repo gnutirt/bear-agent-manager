@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import { leadLink, leadPrompt, MAX_PROMPT, sameDir, tabLink } from '../hub/lead.ts';
 import { startHub } from '../hub/server.ts';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 test('leadPrompt: join steps, notes flattened, capped at the deep link limit', () => {
   assert.match(leadPrompt('fw', []), /room_join với room "fw"/);
@@ -150,5 +150,29 @@ test('P3 clear-lead: stops the lead, opens a fresh lead terminal with its handof
     assert.equal(rooms.find((r: any) => r.name === 'r').lead, 'new1');
     assert.equal((await h.call<any>('/api/sessions/new1')).session.name, 'boss');
     assert.equal((await h.call<any>('/api/sessions/old1')).session.name, 'boss-cu');
+  } finally { await h.hub.close(); }
+});
+
+test('C3 deaf tab: a live tab with no waiter and an @ waiting is reported once; C4: a wake that cannot happen is reported once', async () => {
+  const h = await makeHub(20, () => {}, { deafMs: 50 });
+  const texts = async () => (await h.call<any[]>('/api/rooms/r/messages?after=0')).map((m) => m.text as string);
+  try {
+    await h.call('/api/sessions/register', { id: 'a1', cwd: 'C:/alpha' });
+    await h.call('/api/sessions/register', { id: 'b1', cwd: 'C:/beta' });
+    await h.call('/api/sessions/a1/rename', { name: 'alpha' });
+    await h.call('/api/sessions/b1/rename', { name: 'beta' });
+    await h.call('/api/rooms/r/join', { sessionId: 'a1' });
+    await h.call('/api/rooms/r/join', { sessionId: 'b1' });
+    await h.call('/api/rooms/r/messages', { sessionId: 'b1', text: '@alpha are you there' });
+    await until(async () => (await texts()).some((t) => /alpha không đọc tin/.test(t)), 5000, 'the deaf-tab notice');
+    await new Promise((r) => setTimeout(r, 200));   // several more sweeps: still one notice
+    assert.equal((await texts()).filter((t) => /alpha không đọc tin/.test(t)).length, 1);
+    assert.equal((await texts()).filter((t) => /beta không đọc tin/.test(t)).length, 0);
+
+    // C4: beta's tab was closed, there is no saved chat to resume and openTabOnWake is off
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b1' }) });
+    await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta hi' });
+    await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta hi again' });
+    assert.equal((await texts()).filter((t) => /Không đánh thức được beta/.test(t)).length, 1);
   } finally { await h.hub.close(); }
 });

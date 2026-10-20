@@ -495,3 +495,23 @@ test('private chat: dmRoom is idempotent, keyed by session id, hide keeps histor
   assert.throws(() => st.hideDm('plain'), (e: StoreError) => e.status === 400);
   assert.equal('dm' in st.roomInfo('plain'), false);
 });
+
+test('deaf: live tab, no waiter, an @ waiting >10 min is listed; a waiter, a fresh @ or a busy tab seen lately is not', () => {
+  let t = 1_000_000;
+  const st = new Store(tmp(), () => t);
+  const a = st.register({ id: 'a1', cwd: path.join('D:', 'web') });
+  const b = st.register({ id: 'b1', cwd: path.join('D:', 'api') });
+  st.rename('a1', 'alpha'); st.rename('b1', 'beta');
+  st.join(a.id, 'r'); st.join(b.id, 'r');
+  st.post('r', b.id, '@alpha ping');
+  const none = () => false, MIN = 600_000;
+  assert.deepEqual(st.deaf(none, MIN, t + 599_000), []);                                   // not yet 10 minutes
+  assert.deepEqual(st.deaf(none, MIN, t + 601_000).map((d) => d.session.id), ['a1']);      // stuck
+  assert.deepEqual(st.deaf((id) => id === 'a1', MIN, t + 601_000), []);                    // it has a waiter
+  st.setStatus('a1', 'busy', 'Bash');
+  assert.deepEqual(st.deaf(none, MIN, t + 599_000), []);                                   // busy and seen a moment ago: a long tool
+  t += 700_000;
+  assert.equal(st.deaf(none, MIN, t).length, 1);                                           // busy but silent for >10 min
+  st.session('a1').ended = true;
+  assert.deepEqual(st.deaf(none, MIN, t), []);                                             // ended tabs are revived, not "deaf"
+});

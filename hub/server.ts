@@ -111,6 +111,7 @@ export type HubOptions = {
   dir: string;
   port: number;
   sweepMs?: number;
+  deafMs?: number;   // C3: how long an @ may wait on a tab with no waiter before the room is told (default 10 min)
   revive?: (job: ReviveJob) => unknown;
   /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
   compactRevive?: (job: CompactJob) => Promise<number> | number;
@@ -537,6 +538,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const batching = new Set<string>();
+  const cannotTold = new Set<string>();         // C4: sessions already told "cannot be woken"; cleared once a waiter exists again
+  const deafTold = new Map<string, number>();   // C3: session -> id of the waiting message already reported as "deaf tab"
+  const DEAF_MS = 10 * 60_000;
+  /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
+  function checkDeaf() {
+    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id));
+    const found = store.deaf(isConn, opts.deafMs ?? DEAF_MS);
+    for (const id of [...deafTold.keys()]) if (!found.some((f) => f.session.id === id)) deafTold.delete(id);
+    for (const { session: s, msg } of found) {
+      if (deafTold.get(s.id) === msg.id) continue;
+      deafTold.set(s.id, msg.id);
+      try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }))); emitRoom(msg.room); } catch { /* room gone */ }
+    }
+  }
   function deliver(sid: string) {
     const st = store.session(sid);
     const cop = copilotHolding(st.id);
@@ -555,7 +570,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (!waiters.has(sid)) {
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
-      if (autoRevive && store.session(sid).ended && !revive(sid) && !reviving.has(sid)) autoOpenTab(sid);
+      if (autoRevive && st.ended && !revive(sid) && !reviving.has(sid)) {
+        autoOpenTab(sid);
+        // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
+        if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
+          cannotTold.add(sid);
+          for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }))); emitRoom(r); } catch { /* room gone */ } }
+        }
+      }
       return;
     }
     if (batchMs <= 0) return flush(sid);
@@ -735,6 +757,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       json(res, 200, { messages: [] });
     }, seconds * 1000);
     waiters.set(sid, { res, timer, headless });
+    cannotTold.delete(sid);
     res.on('close', () => {
       if (waiters.get(sid)?.res === res) { clearTimeout(timer); waiters.delete(sid); }
     });
@@ -1941,6 +1964,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const sweeper = setInterval(() => {
     for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)))) emitSession(s);
+    checkDeaf();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);

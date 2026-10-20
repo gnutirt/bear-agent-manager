@@ -703,6 +703,8 @@ export const en: Record<string, string> = {
   'sys.usage.updated': 'updated {at}',
   'sys.usage.times': ', {n} readings since {first}',
   'relay.badge': '↩ private chat',
+  'sys.tab.deaf': '@you {name} is not reading its messages: the tab is still open but its last turn was interrupted. Press a key in that tab, or use Open tab in the member list.',
+  'sys.wake.cannot': '@you {name} cannot be woken: it has no saved conversation to resume and open-a-tab-on-wake is off. Open its tab by hand or turn that setting on.',
   'sys.tab.replaced': 'The tab of {name} is open: the hub ended its background process so two claudes do not run on one chat.',
   'sub.perms': 'Permissions',
   'perm.title': 'Permissions of agents the hub starts',
