@@ -379,6 +379,21 @@ export class Store {
     return this.postSystem(roomName, text, topic, { type: 'relay', level: 'info', agent: who.name }, { name: who.name, id: who.id });   // written under the agent's name, so a restart reads the same
   }
 
+  /**
+   * B1: a turn typed in the agent's own tab, copied into its private chat (created hidden the first time; a chat the user hid stays hidden).
+   * Wakes nobody and is never delivered back to the agent.
+   */
+  postMirror(sessionId: string, who: 'user' | 'agent', text: string): Message {
+    const s = this.session(sessionId);
+    const name = `dm-${s.id}`;
+    if (!this.state.rooms[name]) { this.dmRoom(s.id); this.hideDm(name); }
+    const message: Message = { id: this.lastId() + 1, room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `[tab] ${who}: ${text}`, ts: this.now(), wake: [], kind: 'mirror' };
+    this.messages.push(message);
+    fs.appendFileSync(path.join(this.dir, 'rooms', `${name}.jsonl`), JSON.stringify(message) + '\n');
+    this.save();
+    return message;
+  }
+
   /** Hub notice in the room: wakes nobody and leaves the loop guard alone. */
   postSystem(roomName: string, text: string, topic?: string, sys: SysMeta = { type: 'info', level: 'info' }, as?: { name: string; id: string }, wake: string[] = []): Message {
     this.room(roomName);
@@ -566,7 +581,7 @@ export class Store {
   pending(id: string): { messages: Message[]; wake: boolean } {
     const s = this.session(id);
     const messages = this.messages.filter((m) =>
-      m.id > s.cursor && m.room in s.rooms && m.id > s.rooms[m.room] &&
+      m.id > s.cursor && m.room in s.rooms && m.id > s.rooms[m.room] && m.kind !== 'mirror' &&
       (m.fromId === null || this.resolve(m.fromId) !== s.id));
     const wake = messages.some((m) => m.wake.some((w) => this.resolve(w) === s.id));
     // Topics: messages in a topic this session does not follow (and that did not wake it) collapse to one line per room/topic.

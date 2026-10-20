@@ -22,6 +22,7 @@ import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '..
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
+import { isHubText, scrubSecrets } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
 import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
@@ -902,6 +903,30 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // A DNS-rebinding page reaches us with its own hostname in Host; only loopback names are ours.
   const allowedHost = (h = '') => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
 
+  /** B1: sessions whose current turn was typed in the tab (the Stop hook then mirrors the answer). */
+  const mirroring = new Set<string>();
+  function mirrorUser(sid: string, prompt: unknown) {
+    mirroring.delete(sid);
+    try {
+      const text = String(prompt ?? '').trim();
+      if (!text || isHubText(text) || reviving.has(sid) || !loadSettings(opts.dir, envCap).mirrorTabs) return;
+      const clean = scrubSecrets(text);
+      if (clean === null) return;
+      const m = store.postMirror(sid, 'user', relayText(clean, tr('sys.relay.more', { name: store.session(sid).name })));
+      mirroring.add(sid);
+      broadcast('msg', m); emitRoom(m.room);
+    } catch { /* a mirror never breaks a prompt */ }
+  }
+  function mirrorAgent(sess: Session, b: any) {
+    if (!mirroring.delete(sess.id)) return;
+    try {
+      const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
+      const clean = text ? scrubSecrets(text) : null;
+      if (!clean) return;
+      const m = store.postMirror(sess.id, 'agent', relayText(clean, tr('sys.relay.more', { name: sess.name })));
+      broadcast('msg', m); emitRoom(m.room);
+    } catch { /* ignore */ }
+  }
   const heldTurns = new Set<string>();   // prompt_ids whose auto compaction was blocked (pre-compact)
   /** Claude Code "http" hooks POST their JSON input here (no process spawn per tool call). */
   async function hookRoute(event: string, req: http.IncomingMessage, res: http.ServerResponse) {
@@ -922,6 +947,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     switch (event) {
       case 'prompt': {
         status('busy', 'thinking');
+        mirrorUser(id, b.prompt);
         // The hook must never break a prompt: any failure here just means no reminder.
         let text = '';
         try {
@@ -955,6 +981,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
         const sess = store.session(id), w = relayWatch.get(sess.id);
         relayWatch.delete(sess.id);
+        mirrorAgent(sess, b);
         if (!w || !loadSettings(opts.dir, envCap).relayChat) break;
         if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
         const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add: tab mirror (B1, setting `mirrorTabs`, default on). A turn typed directly in an agent's tab (UserPromptSubmit + Stop hooks) is copied into that agent's private chat as `[tab] user: …` / `[tab] agent: …` (message kind `mirror`): wakes nobody, is never delivered back to the agent, hub deliveries are not mirrored, tokens/keys are redacted and a private key block is dropped. The chat is created hidden the first time and a chat the user hid stays hidden. Needs hub restart.
 - Fix: a Copilot turn that fails with "exceeded your monthly quota" now limits that profile until the 1st of next month (same path as the SDK quota event: failover to another profile, or one notice and the messages stay queued) instead of posting an error and retrying on every message. Needs hub restart.
 ## 0.9.0 - 2026-10-20
 

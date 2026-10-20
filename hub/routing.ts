@@ -13,7 +13,7 @@ export type Message = {
   topic?: string;        // sub-topic of the room ([a-z0-9-]{1,32}); missing = 'chung'
   replyTo?: number;      // id of an earlier message in the same room this one answers
   replyQuote?: { from: string; text: string }; // that message's sender and first 80 chars, kept so deliveries need no lookup
-  kind?: 'done' | 'system'; // done = a member finished its part; system = hub notice (wakes nobody)
+  kind?: 'done' | 'system' | 'mirror'; // done = a member finished its part; system = hub notice (wakes nobody); mirror = a tab turn copied into the agent's private chat (wakes nobody, never delivered)
   sys?: SysMeta;          // system notices: what kind, how serious, about whom (the UI draws them as compact cards)
   attachments?: { id: string; name: string; mime: string; size: number; sha256: string }[];   // A1: files in rooms/<room>/files/<id>
 };
