@@ -1,35 +1,33 @@
-# Tính năng mới: chat riêng, nhiều Copilot, tạo agent trong trình duyệt
+# Tính năng mới: chat riêng, Copilot, tạo agent trong trình duyệt
 
-Dựa trên commit `8b6a752`, `f52195c` (chat riêng), `ef2227e`, `bacbbd7` (Copilot nhiều hồ sơ),
-`cbf6418` (tạo agent có chọn thư mục). Cần khởi động lại hub sau khi cập nhật lên các commit này.
+Dựa trên commit `8b6a752`, `f52195c` (chat riêng), Copilot model settings và `cbf6418` (tạo agent có
+chọn thư mục). Cần khởi động lại hub sau khi cập nhật lên các commit này.
 
 ## 1. Chat riêng 1-1 với một agent
 
 - Trong danh sách thành viên, bấm vào một agent rồi chọn **Chat riêng** để mở một phòng chỉ giữa
   bạn và agent đó, tách khỏi phòng chung.
+- Chỉ bạn và đúng agent đó được vào/gửi tin trong phòng riêng; agent khác, kể cả trưởng phòng,
+  không được tham gia. Muốn nhắn agent khác, hãy `@` họ trong phòng chung.
 - **Ẩn chat riêng** chỉ ẩn khỏi danh sách; lịch sử được giữ lại và mở lại được bất cứ lúc nào bằng
   cách chọn **Chat riêng** với agent đó lần nữa.
 - API đứng sau tính năng này: `POST /api/rooms/dm/:sessionId` (tạo/lấy lại phòng riêng),
   `POST /api/rooms/:room/hide` (ẩn).
 
-## 2. Nhiều Copilot, mỗi cái một hồ sơ (profile)
+## 2. Một tài khoản Copilot, chọn model
 
-Trước đây hub chỉ chạy được một Copilot. Giờ Settings > Accounts > **Hồ sơ Copilot** cho thêm
-nhiều hồ sơ, mỗi hồ sơ là một agent Copilot riêng với thư mục làm việc và tên trong phòng riêng.
+Copilot hiện dùng một tài khoản đã đăng nhập, với hồ sơ mặc định `copilot`; không cấu hình nhiều
+tài khoản Copilot. Đăng nhập CLI một lần bằng tài khoản Windows đang chạy hub:
 
-1. Đăng nhập Copilot CLI bằng tài khoản Windows đang chạy hub (một lần, dùng chung cho mọi hồ sơ):
-   ```
-   copilot login
-   ```
-   hoặc chạy `copilot` rồi gõ `/login` trong phiên đó.
-2. Settings > Accounts > Hồ sơ Copilot > **Thêm hồ sơ**: nhập ID (chữ thường, có gạch nối, vd.
-   `copilot-work`), tên hiển thị trong phòng, thư mục làm việc tuyệt đối, và thư mục dữ liệu riêng
-   nếu muốn tách lịch sử hội thoại với hồ sơ khác.
-3. Bật **Cho phép chạy** cho hồ sơ đó; trạng thái chạy và đăng nhập GitHub hiện riêng cho từng hồ
-   sơ. **Thử đăng nhập lại** khởi động lại một hồ sơ sau khi đăng nhập xong mà không cần restart hub.
-4. Giới hạn 16 hồ sơ; ID và tên phải duy nhất.
+```
+copilot login
+```
 
-API: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`,
+Hoặc chạy `copilot` rồi gõ `/login` trong phiên đó. Trong Settings > Accounts > hồ sơ Copilot, chọn
+model cho `copilot` và bấm **Lưu model**. Để trống thì Copilot SDK dùng model mặc định; model được
+hiển thị cạnh hồ sơ. Tài khoản đăng nhập không tách theo model hay thư mục làm việc.
+
+API hồ sơ: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`,
 `POST /api/copilot/profiles/:id/retry`.
 
 ## 3. Quyền của từng Copilot/agent
@@ -47,39 +45,37 @@ mục sẽ dùng, để kiểm tra trước khi agent thật sự khởi động
 
 ---
 
-# What's new: private chats, multiple Copilot profiles, browser agent creation
+# What's new: private chats, Copilot, browser agent creation
 
-Based on commits `8b6a752`, `f52195c` (private chat), `ef2227e`, `bacbbd7` (multi-profile
-Copilot), `cbf6418` (agent creation with folder picker). A hub restart is required after updating
-to these commits.
+Based on commits `8b6a752`, `f52195c` (private chat), Copilot model settings, and `cbf6418` (agent
+creation with folder picker). A hub restart is required after updating to these commits.
 
 ## 1. Private 1-1 chat with an agent
 
 - In the member list, click an agent and choose **Private chat** to open a room shared only
   between you and that agent, separate from the shared room.
+- Only you and that specific agent may join or send messages in the private room. No other agent,
+  including the lead, may participate. To message another agent, `@` them in the shared room.
 - **Hide private chat** only hides it from the list; history is kept and reopens any time by
   choosing the private chat with that agent again.
 - API behind this: `POST /api/rooms/dm/:sessionId` (create/reopen the private room),
   `POST /api/rooms/:room/hide` (hide).
 
-## 2. Multiple Copilots, one per profile
+## 2. One Copilot account, choose a model
 
-The hub used to run only one Copilot. Settings > Accounts > **Copilot profiles** now lets you add
-several, each its own Copilot agent with its own working folder and room name.
+Copilot currently uses one signed-in account with the default `copilot` profile; do not configure
+multiple Copilot accounts. Sign in to the CLI once as the Windows user running the hub:
 
-1. Sign in to the Copilot CLI once, as the Windows user running the hub (shared by every profile):
-   ```
-   copilot login
-   ```
-   or run `copilot` then type `/login` in that session.
-2. Settings > Accounts > Copilot profiles > **Add profile**: enter a Profile ID (lowercase,
-   hyphenated, e.g. `copilot-work`), the agent name in the room, the absolute working folder, and
-   an optional separate data folder if you want this profile's conversation history kept apart.
-3. Turn on **Enabled** for that profile; runtime and GitHub sign-in status are shown per profile.
-   **Retry sign-in** restarts one profile after signing in, without a hub restart.
-4. Limit: 16 profiles; IDs and names must be unique.
+```
+copilot login
+```
 
-API: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`,
+Or run `copilot` and type `/login` in that session. In Settings > Accounts > the Copilot profile,
+choose a model for `copilot` and click **Save model**. Leave the field blank to use the Copilot SDK
+default; the selected model is shown beside the profile. The signed-in account is not separate by
+model or working folder.
+
+Profile API: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`,
 `POST /api/copilot/profiles/:id/retry`.
 
 ## 3. Permissions per Copilot/agent
