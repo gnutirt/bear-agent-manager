@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { carrySessionDirs, pickAccount } from '../hub/accountswitch.ts';
 import { applyShare, planShare } from '../hub/accounts.ts';
+import type { LiveSpawn } from '../hub/livechat.ts';
 
 const acc = (dir: string, five: number, extra: object = {}) => ({ configDirs: [dir], label: path.basename(dir), email: '', plan: '', fiveHour: { pct: five, resetsAt: null }, sevenDay: { pct: 10, resetsAt: null }, usageError: '', fetchedAt: 0, ...extra });
 const cfg = { mode: 'ask' as const, atPct: 90, minOtherLeftPct: 20 };
@@ -45,6 +47,63 @@ test('POST /api/sessions/:id/switch: refused without shared chats; then the agen
     const notes = (await h.call<any[]>('/api/rooms/web/messages?limit=10')).filter((m) => m.kind === 'system').map((m) => m.text);
     assert.ok(notes.some((t) => t.includes('alice') && t.includes('.claude-b')), notes.join(' | '));
   } finally { await h.hub.close(); }
+});
+
+test('switching an open IDE tab needs confirmation and can continue the same session in BAM on the other account', async () => {
+  const { makeHub } = await import('./helpers.ts');
+  const tabProc = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000)'], { stdio: 'ignore' });
+  await new Promise<void>((resolve, reject) => { tabProc.once('spawn', () => resolve()); tabProc.once('error', reject); });
+  const tabPid = tabProc.pid!;
+  const killed: number[] = [], backgroundRuns: any[] = [];
+  let liveConfigDir = '';
+  const liveSpawn: LiveSpawn = (_cmd, _args, options) => {
+    liveConfigDir = String((options.env as NodeJS.ProcessEnv).CLAUDE_CONFIG_DIR ?? '');
+    return spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000)'], { ...options, shell: false });
+  };
+  const { hub, dir, call } = await makeHub(undefined, (job) => { backgroundRuns.push(job); }, {
+    listProcs: async () => [{ pid: tabPid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async (pid: number) => {
+      killed.push(pid);
+      await new Promise<void>((resolve) => { if (tabProc.exitCode !== null) return resolve(); tabProc.once('exit', () => resolve()); tabProc.kill(); });
+    },
+    liveSpawn,
+  });
+  try {
+    const a = path.join(dir, '.claude'), b = path.join(dir, '.claude-b'), transcript = path.join(a, 'projects', 'alice.jsonl');
+    fs.mkdirSync(path.dirname(transcript), { recursive: true });
+    fs.writeFileSync(transcript, '');
+    fs.mkdirSync(path.join(b, 'plugins'), { recursive: true });
+    fs.writeFileSync(path.join(b, 'plugins', 'installed_plugins.json'), '{}');
+    await call('/api/sessions/register', { id: 'same-id', cwd: dir, name: 'alice', transcript, configDir: a, pid: tabPid });
+    await call('/api/sessions/same-id/ide', { ide: 'vscode' });
+    await call('/api/rooms/web/join', { sessionId: 'same-id' });
+    applyShare(planShare([a, b], a, true), a);
+
+    const unconfirmed = await fetch(`${hub.url}/api/sessions/same-id/switch`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ to: b }),
+    });
+    assert.equal(unconfirmed.status, 409);
+    const offer = await unconfirmed.json() as any;
+    assert.equal(offer.confirm, true);
+    assert.match(offer.error, /tab IDE/i);
+    assert.deepEqual(killed, [], 'the tab remains open until explicit confirmation');
+    assert.equal(path.resolve((await call<any>('/api/sessions/same-id')).session.configDir), path.resolve(a));
+
+    await call('/api/sessions/same-id/switch', { to: b, confirm: true, continueInBam: true });
+    const switched = (await call<any>('/api/sessions/same-id')).session;
+    assert.equal(switched.id, 'same-id');
+    assert.equal(path.resolve(hub.store.session('same-id').transcript), path.resolve(transcript), 'the transcript path is unchanged');
+    assert.equal(path.resolve(switched.configDir), path.resolve(b));
+    assert.deepEqual(killed, [tabPid]);
+    assert.equal(backgroundRuns.length, 0, 'the confirmed BAM handoff does not also spawn a background resume');
+
+    assert.equal((await call<any>('/api/sessions/same-id/live', {})).started, true);
+    assert.equal(path.resolve(liveConfigDir), path.resolve(b), 'the shared live-chat route uses the selected account');
+  } finally {
+    await hub.close();
+    if (tabProc.exitCode === null) tabProc.kill();
+  }
 });
 
 test('B2 carrySessionDirs: a switch copies the session rewind history, hook env and todos, never overwrites, skips shared folders', () => {

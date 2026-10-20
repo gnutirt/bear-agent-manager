@@ -578,16 +578,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const offerTold = new Map<string, string>();   // session -> account already offered (one offer per target)
   const pctOf = (a?: AccountUsage) => Math.round(Math.max(a?.fiveHour?.pct ?? 0, a?.sevenDay?.pct ?? 0));
   /** Resume the session on the account in `to`: stop what is left of it, then a background run with that config dir. */
-  async function switchSession(s: Session, to: string, note: string) {
-    const live = !s.ended && s.status !== 'offline';
+  async function switchSession(s: Session, to: string, note: string, continueInBam = false) {
+    if (tabHolds(s) && !continueInBam) throw new StoreError(409, tr('sys.switch.tabConfirm'));
+    const live = tabHolds(s) || (!s.ended && s.status !== 'offline');
     if (live) { try { await terminateSession(s); } catch { if (!s.pid || !pidAlive(s.pid)) emitSession(store.markEnded(s.id)); else throw new StoreError(409, `${s.name}: its claude (pid ${s.pid}) could not be stopped`); } }
     stopRevive(s.id);
     const cur = store.session(s.id);
     carrySessionDirs(cur.configDir || path.join(usageHome, '.claude'), to, cur.id);   // B2: rewind history and todos come along
     cur.configDir = to; cur.ended = true; store.save();
-    for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
+    for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr(continueInBam ? 'sys.switch.doneBam' : 'sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
     emitSession(cur);
-    revive(cur.id);
+    if (!continueInBam) revive(cur.id);
   }
   /** Still limited: auto mode switches now (true), ask mode posts one offer with a Switch action (false: the wake is still booked). */
   async function trySwitch(s: Session, cfg: ReturnType<typeof loadSettings>): Promise<boolean> {
@@ -596,6 +597,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const pick = pickAccount(await usage.read(dirs), s.configDir || primary, cfg.accountSwitch, listConfigAccounts(dirs, primary).shared);
     if (!pick.target) return false;
     const to = pick.target.configDirs[0], note = tr('sys.switch.note', { from: pick.from?.label ?? path.basename(s.configDir || primary), pct: pctOf(pick.from), left: 100 - pctOf(pick.target) });
+    if (tabHolds(s)) {
+      if (offerTold.get(s.id) !== to) {
+        offerTold.set(s.id, to);
+        for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.offerTab', { name: s.name, to: pick.target.label, note }), undefined, { type: 'wake', level: 'warn', agent: s.name, action: { kind: 'switch', session: s.id, to } })); emitRoom(r); } catch { /* room gone */ } }
+      }
+      return false;
+    }
     if (cfg.accountSwitch.mode === 'auto') { await switchSession(s, to, note); return true; }
     if (offerTold.get(s.id) !== to) {
       offerTold.set(s.id, to);
@@ -1913,7 +1921,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!to) throw new StoreError(400, 'to must be a Claude config dir of this machine');
         if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
         if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
-        await switchSession(s, to, tr('sys.switch.byUser'));
+        const tabOpen = tabHolds(s);
+        if (tabOpen && (b.confirm !== true || b.continueInBam !== true)) return json(res, 409, { error: tr('sys.switch.tabConfirm'), confirm: true, tabOpen: true });
+        await switchSession(s, to, tr('sys.switch.byUser'), b.continueInBam === true);
         return json(res, 200, { ok: true, configDir: to });
       }
       if (m === 'POST' && action === 'terminate') {

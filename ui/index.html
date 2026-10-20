@@ -1606,7 +1606,8 @@ function sysRow(m, run) {
   const when = run ? `${time(run[0].ts)}–${time(run[run.length - 1].ts)}` : time(m.ts);
   const ag = m.sys?.agent && Object.values(S.sessions).find((x) => x.name === m.sys.agent);
   const btn = ag && m.sys.level !== 'info' && (m.sys.type === 'tab' || (['usage', 'wake'].includes(m.sys.type) && ag.status === 'offline')) ? `<button type="button" class="act" data-sysopen="${esc(ag.id)}">${t('members.openTab')}</button>` : '';
-  const act = m.sys?.action?.kind === 'switch' ? `<button type="button" class="act" data-swnow="${esc(m.sys.action.session)}" data-swto="${esc(m.sys.action.to)}">${t('sw.now', { to: esc(repo(m.sys.action.to)) })}</button>` : '';
+  const switchTab = m.sys?.action?.kind === 'switch' && !!S.sessions[m.sys.action.session]?.tab;
+  const act = m.sys?.action?.kind === 'switch' ? `<button type="button" class="act" data-swnow="${esc(m.sys.action.session)}" data-swto="${esc(m.sys.action.to)}" data-swtab="${switchTab}">${t(switchTab ? 'sw.inBam' : 'sw.now', { to: esc(repo(m.sys.action.to)) })}</button>` : '';
   const body = open && long ? `<div class="evbody msg noclamp">${md(lines.slice(1).join('\n') || text)}</div>` : '';
   return `<div class="ev ${m.sys?.level || 'info'}${long ? ' long' : ''}${open ? ' open' : ''}" data-sysid="${m.id}">${sysNode(m)}<span class="t">${inline(lines[0])}${run ? `<span class="x">×${run.length}</span>` : ''}</span>${btn}${act}<time>${when}</time>${body}</div>`;
 }
@@ -1616,8 +1617,24 @@ function relayCard(m) {
 }
 function renderSysSeg() { document.querySelectorAll('#sysSeg [data-sys]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sys === S.sysMode))); }
 $('sysSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-sys]'); if (!b) return; S.sysMode = b.dataset.sys; try { localStorage.setItem('bear-agent-manager:sysmode', S.sysMode); } catch {} renderSysSeg(); S.stick = false; renderLog(); });
+function switchAccount(sid, to, continueInBam = false) {
+  return api(`/api/sessions/${enc(sid)}/switch`, { to, ...(continueInBam ? { confirm: true, continueInBam: true } : {}) })
+    .then(() => continueInBam
+      ? liveStart(sid, true).then(() => toast(t('sw.doneBam')), (err) => toast(t('live.startFail', { err: err.message })))
+      : toast(t('sw.done')),
+    (err) => toast(/share|409/i.test(err.message) ? t('sw.needShare') + ' ' + err.message : err.message));
+}
+function confirmSwitchInBam(sid, to) {
+  zoom.innerHTML = `<div class="zbox" role="dialog" aria-modal="true" aria-labelledby="switchConfirmTitle"><button class="zx" aria-label="${t('common.close')}">✕</button><h3 id="switchConfirmTitle">${t('sw.confirmTitle')}</h3><p>${t('sw.confirmInBam')}</p><div class="row"><button type="button" class="btn" data-swcancel>${t('common.cancel')}</button><button type="button" class="btn primary" data-swconfirm>${t('sw.inBam', { to: esc(repo(to)) })}</button></div></div>`;
+  zoom.hidden = false;
+  zoom.querySelector('[data-swcancel]').onclick = closeZoom;
+  zoom.querySelector('[data-swconfirm]').onclick = () => { closeZoom(); switchAccount(sid, to, true); };
+}
 $('log').addEventListener('click', (e) => {
-  const swn = e.target.closest('[data-swnow]'); if (swn) return api(`/api/sessions/${enc(swn.dataset.swnow)}/switch`, { to: swn.dataset.swto }).then(() => toast(t('sw.done')), (err) => toast(/share|409/i.test(err.message) ? t('sw.needShare') + ' ' + err.message : err.message));
+  const swn = e.target.closest('[data-swnow]'); if (swn) {
+    const inBam = swn.dataset.swtab === 'true';
+    return inBam ? confirmSwitchInBam(swn.dataset.swnow, swn.dataset.swto) : switchAccount(swn.dataset.swnow, swn.dataset.swto);
+  }
   const open = e.target.closest('[data-sysopen]'); if (open) return openTab(open.dataset.sysopen);
   const more = e.target.closest('[data-sysmore]');
   const row = more ? null : e.target.closest('.ev.long');
