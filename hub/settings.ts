@@ -90,22 +90,40 @@ export function resolveWorkspace(asked: unknown, allowWide = false): string {
   return real;
 }
 
-/** Keeps the valid profiles of a patch (unique id and name, absolute local cwd); the folder is only checked for existence when the agent starts, so a drive that is briefly missing does not erase the profile. */
-function profilesOf(raw: unknown, cur: AgentProfile[]): AgentProfile[] {
-  if (!Array.isArray(raw)) return cur;
+export type AgentProfileError = { index: number; id: string; field: string; reason: string };
+type ProfileResult = { profiles: AgentProfile[]; errors: AgentProfileError[] };
+/** Keeps valid profiles for saved settings and reports every invalid field so an API patch can reject it atomically. */
+function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
+  if (!Array.isArray(raw)) return { profiles: cur, errors: [{ index: 0, id: '', field: 'profiles', reason: 'must be an array' }] };
   const out: AgentProfile[] = [], ids = new Set<string>(), names = new Set<string>();
-  for (const r of raw.slice(0, 16)) {
+  const errors: AgentProfileError[] = [];
+  for (const [index, r] of raw.slice(0, 16).entries()) {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
     const api = r?.provider === 'claude-api', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || (r?.provider !== 'copilot' && !api) || !localAbs(r?.cwd)) continue;
-    if ((api && !/^[\w-]{1,32}$/.test(providerId)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) continue;
-    if (ids.has(id) || names.has(normAgent(name))) continue;
+    const safeId = /^[a-z0-9][a-z0-9-]{0,31}$/.test(id) ? id : '';
+    const fail = (field: string, reason: string) => errors.push({ index, id: safeId, field, reason });
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { fail('profile', 'must be an object'); continue; }
+    let unusable = false;
+    if (!safeId) { fail('id', 'must be 1-32 lowercase letters, digits, or hyphens and start with a letter or digit'); unusable = true; }
+    if (!/^[\w.-]{1,40}$/.test(name)) { fail('name', 'must be 1-40 letters, digits, dots, underscores, or hyphens'); unusable = true; }
+    if (r.provider !== 'copilot' && !api) { fail('provider', 'must be copilot or claude-api'); unusable = true; }
+    if (!localAbs(r.cwd)) { fail('cwd', 'must be an absolute local folder, not a network share'); unusable = true; }
+    if (api && !/^[\w-]{1,32}$/.test(providerId)) { fail('providerId', 'must be 1-32 letters, digits, underscores, or hyphens'); unusable = true; }
+    if (model && !/^[\w.:\/-]{1,80}$/.test(model)) { fail('model', 'must be 1-80 letters, digits, _, ., :, /, or -'); unusable = true; }
+    if (r.home != null && r.home !== '' && !localAbs(r.home)) fail('home', 'must be an absolute local folder, not a network share');
+    if (r.enabled != null && typeof r.enabled !== 'boolean') fail('enabled', 'must be true or false');
+    if (r.edit != null && typeof r.edit !== 'boolean') fail('edit', 'must be true or false');
+    if (safeId && ids.has(safeId)) { fail('id', 'must be unique'); unusable = true; }
+    if (name && names.has(normAgent(name))) { fail('name', 'must be unique'); unusable = true; }
+    if (unusable) continue;
     ids.add(id); names.add(normAgent(name));
     out.push({ id, provider: api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
       ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}) });
   }
-  return out;
+  if (raw.length > 16) errors.push({ index: 16, id: '', field: 'profiles', reason: 'at most 16 profiles are allowed' });
+  return { profiles: out, errors };
 }
+export function validateAgentProfiles(raw: unknown): AgentProfileError[] { return profilesOf(raw, []).errors; }
 
 /** An install from before profiles: copilot.autoStart becomes the one profile 'copilot' (cwd = the hub's repo), so nothing needs doing by hand. */
 function migrateProfiles(raw: any): any {
@@ -228,7 +246,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     compact: { thresholds: compactThresholds, onTaskDone: bool(p?.compact?.onTaskDone, s.compact.onTaskDone ?? true) },
     permissions: perm,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),
-    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []) },
+    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []).profiles },
     copilot: { autoStart: bool(p?.copilot?.autoStart, s.copilot?.autoStart ?? false) },
     localSummarize: {
       enabled: bool(p?.localSummarize?.enabled, s.localSummarize.enabled),

@@ -18,7 +18,7 @@ import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings } from './settings.ts';
+import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, validateAgentProfiles } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -1792,7 +1792,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, { skills: skillCache(), overrides, agents: loadSettings(opts.dir, envCap).agentSkills, members: Object.values(store.state.sessions).map((x) => ({ id: x.id, name: x.name })) });
     }
     if (m === 'PUT' && p === '/api/settings') {
-      const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
+      const patch = await readBody(req);
+      if (patch?.agents && typeof patch.agents === 'object' && Object.prototype.hasOwnProperty.call(patch.agents, 'profiles')) {
+        const profileErrors = validateAgentProfiles(patch.agents.profiles);
+        if (profileErrors.length) {
+          const details = profileErrors.map((e) => `${e.id || `#${e.index + 1}`} ${e.field}: ${e.reason}`).join('; ');
+          return json(res, 400, { error: `${tr('agent.profile.invalid')} ${details}`, profileErrors });
+        }
+      }
+      const next = patchSettings(loadSettings(opts.dir, envCap), patch);
       saveSettings(opts.dir, next);
       void syncCopilots();
       syncApiAgents();
