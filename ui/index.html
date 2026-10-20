@@ -441,7 +441,9 @@ header .spacer{flex:1}
 .toastundo{margin-left:8px;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,.16);color:inherit;font-weight:700}#toast.show:has(.toastundo){pointer-events:auto}
 #zoom .zbox.files{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .files .fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#zoom .files .fbar b{font-family:var(--mono);word-break:break-all}
 #zoom .files .medit{flex:1;min-height:55vh;border:1px solid var(--line);border-radius:8px;overflow:hidden}#zoom .files .medit pre{margin:0;height:100%;overflow:auto;padding:8px}
-display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
+#zoom .files [hidden]{display:none!important}
+#zoom .files .cbox{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--panel)}#zoom .files .cbox h4{margin:0 0 6px}#zoom .files .clist{max-height:140px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px;font-family:var(--mono);font-size:12px}#zoom .files .cbox label{display:flex;gap:6px;align-items:center}#zoom .files .cbox input[name=msg]{flex:1;margin-left:6px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}#zoom .files .crow{display:flex;gap:8px;align-items:center;margin-top:8px}
+#zoom .files .frow{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
 #zoom .files pre{margin:0;max-height:60vh;overflow:auto;white-space:pre;font:12.5px var(--mono);background:var(--code);border-radius:10px;padding:10px}#zoom .files .dl-a{color:#1a7f37}#zoom .files .dl-d{color:#C2262E}
 #livePane{margin:0 20px 8px;border:1px solid var(--line);border-radius:14px;background:var(--panel);display:flex;flex-direction:column;max-height:38vh;min-height:0}
 #livePane .lhead{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px}#livePane .lhead .sp{flex:1}
@@ -2027,7 +2029,7 @@ $('composer').onsubmit = async (e) => {
 };
 
 /* ---------- live chat (S3 #66, contract: room notes [41][42][47]) + permission box (S4) ---------- */
-S.live = {}; S.wantLive = {}; S.perms = []; S.liveFold = false; S.liveOpen = new Set();
+S.live = {}; S.savedFiles = {}; S.wantLive = {}; S.perms = []; S.liveFold = false; S.liveOpen = new Set();
 try { S.liveFold = localStorage.getItem('bear-agent-manager:liveFold') === '1'; } catch {}
 const liveSid = () => room(S.current)?.dm || null;
 const newLive = () => ({ running: false, items: [], stream: '', off: false });
@@ -2106,6 +2108,52 @@ function loadMonaco() {
 }
 const monacoLang = (m, path) => { const ext = '.' + (path.split('.').pop() || '').toLowerCase(); return m.languages.getLanguages().find((l) => (l.extensions || []).includes(ext))?.id || 'plaintext'; };
 const isDarkUi = () => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255]; return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128; };
+/** S6: turns the read-only editor into an editable one with Save (button or Ctrl+S); a file changed on disk since it was opened asks before it is overwritten. */
+function editFile(sid, r, ed, m) {
+  const bEdit = $('fEdit'), bSave = $('fSave'), st = $('fState'); let mtime = r.mtime, base = r.content;
+  if (!bEdit) return;
+  const dirty = () => ed.getValue() !== base;
+  const mark = () => { st.textContent = dirty() ? t('files.dirty') : ''; };
+  const save = (force) => {
+    if (!dirty() && !force) return;
+    const content = ed.getValue();
+    api(`/api/sessions/${enc(sid)}/file`, { path: r.path, content, ...(force ? {} : { mtime }) }, 'PUT').then((d) => {
+      mtime = d.mtime; base = content; (S.savedFiles[sid] ??= new Set()).add(r.path); mark(); st.textContent = t('files.saved'); announce(t('files.saved'));
+    }, (e) => {
+      if (e.data?.conflict) {   // no dialogs in a webview: an inline button asks instead
+        st.textContent = t('files.conflict.ask');
+        const ov = document.createElement('button'); ov.type = 'button'; ov.className = 'btn sm'; ov.textContent = t('files.overwrite');
+        ov.onclick = () => { ov.remove(); mtime = e.data.mtime; save(false); };
+        st.after(ov); ov.focus();
+      }
+      else toast(t('files.saveFail', { err: e.message }));
+    });
+  };
+  bEdit.hidden = false;
+  bEdit.onclick = () => { ed.updateOptions({ readOnly: false, domReadOnly: false }); bEdit.hidden = true; bSave.hidden = false; ed.focus(); };
+  bSave.onclick = () => save(false);
+  ed.onDidChangeModelContent(mark);
+  ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => { if (!bSave.hidden) save(false); });
+}
+/** S6: pick files (the ones saved here are ticked), write a message, commit exactly those paths. */
+function commitBox(sid, cur) {
+  const saved = S.savedFiles[sid] || new Set();
+  api(`/api/sessions/${enc(sid)}/diff`).then((r) => {
+    const paths = r.changes.map((c) => c.path);
+    if (!paths.length) return toast(t('files.clean'));
+    const box = document.createElement('div'); box.className = 'cbox';
+    box.innerHTML = `<form id="cform"><h4>${t('files.commit')}</h4><div class="clist">${paths.map((p, i) => `<label><input type="checkbox" name="p" value="${esc(p)}"${saved.has(p) || (!saved.size && p === cur) ? ' checked' : ''}> ${esc(p)}</label>`).join('')}</div><label>${t('files.commit.msg')}<input name="msg" required maxlength="500" autocomplete="off"></label><div class="crow"><button class="btn primary" type="submit">${t('files.commit.go')}</button><button class="btn" type="button" id="cCancel">${t('common.cancel')}</button><span class="muted" id="cState" role="status"></span></div></form>`;
+    zoom.querySelector('.zbox').appendChild(box);
+    box.querySelector('input[name=msg]').focus();
+    box.querySelector('#cCancel').onclick = () => box.remove();
+    box.querySelector('form').onsubmit = (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target), ps = f.getAll('p');
+      if (!ps.length) return toast(t('files.commit.none'));
+      api(`/api/sessions/${enc(sid)}/commit`, { paths: ps, message: String(f.get('msg')) }).then((d) => { saved.clear(); box.remove(); toast(t('files.commit.done', { hash: String(d.commit).slice(0, 7) })); announce(t('files.commit.done', { hash: String(d.commit).slice(0, 7) })); }, (er) => toast(t('files.commit.fail', { err: er.message })));
+    };
+  }, (e) => toast(e.message));
+}
 /** S5: read-only file tree / file / diff of the agent's folder, in the zoom overlay. */
 function openFiles(sid, dirPath = '') {
   const get = (kind, p) => api(`/api/sessions/${enc(sid)}/${kind}${p == null ? '' : '?path=' + enc(p)}`);
@@ -2119,13 +2167,15 @@ function openFiles(sid, dirPath = '') {
     wire(route);
   }, (e) => toast(e.message));
   const file = (p) => get('file', p).then((r) => {
-    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">←</button><button class="btn sm" data-go="diff" data-p="${esc(r.path)}">Diff</button>`, r.binary ? `<div class="muted">${t('files.binary')}</div>` : `<div class="medit" id="medit"><pre>${esc(r.content)}</pre></div>`);
+    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">←</button><button class="btn sm" data-go="diff" data-p="${esc(r.path)}">Diff</button><button class="btn sm" id="fEdit" hidden>${t('files.edit')}</button><button class="btn sm primary" id="fSave" hidden>${t('files.save')}</button><button class="btn sm" id="fCommit">${t('files.commit')}</button><span class="muted" id="fState" role="status"></span>`, r.binary ? `<div class="muted">${t('files.binary')}</div>` : `<div class="medit" id="medit"><pre>${esc(r.content)}</pre></div>`);
     wire(route);
     if (!r.binary) loadMonaco().then((m) => {
       const host = $('medit'); if (!m || !host || !zoom.contains(host)) return;
       host.innerHTML = '';
       monacoEd = m.editor.create(host, { value: r.content, language: monacoLang(m, r.path), readOnly: true, automaticLayout: true, minimap: { enabled: false }, scrollBeyondLastLine: false, theme: isDarkUi() ? 'vs-dark' : 'vs', fontSize: 13, ariaLabel: r.path, domReadOnly: true });
+      editFile(sid, r, monacoEd, m);
     });
+    $('fCommit').onclick = () => commitBox(sid, r.path);
   }, (e) => toast(e.message));
   const diff = (p) => get('diff', p).then((r) => {
     show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="file" data-p="${esc(r.path)}">←</button>`, r.diff ? `<pre>${r.diff.split('\n').map((l) => `<span class="${l[0] === '+' && l[1] !== '+' ? 'dl-a' : l[0] === '-' && l[1] !== '-' ? 'dl-d' : ''}">${esc(l)}</span>`).join('\n')}</pre>${r.truncated ? `<div class="muted">${t('files.more')}</div>` : ''}` : `<div class="muted">${t('files.nodiff')}</div>`);
