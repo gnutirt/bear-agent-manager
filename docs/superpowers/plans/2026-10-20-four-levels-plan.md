@@ -80,3 +80,15 @@ Chỗ nghẽn đã thấy: commit cuốn/revert nhầm (6 lần), chỉ lead t�
 | (3) | Lọc tin không cần thiết: tin không có @ và ngắn hơn ~80 ký tự kiểu xác nhận ("đã nhận", "chờ việc", "không có việc") thì giữ lại hiện trong UI nhưng không giao/không đánh thức ai; `@all` từ agent chỉ dùng khi có cờ xác nhận rõ ràng (không phải mặc định). | `hub/server.ts` (đường giao tin/wake), `hub/store.ts` | deepseek, Copilot commit | Tin ngắn không @ không đánh thức ai nhưng vẫn hiện trong room_read; `@all` của agent bị chặn trừ khi có cờ; test |
 
 (4) và (5) là quy tắc vận hành, không phải code — lead ghi note ngay: audit theo lô (2-3 việc hoặc 20 phút), 1 restart hub/lô; mỗi task ghi `files:` là vùng file của mình, hai task đang làm không đụng cùng file. (6) chat gọn: core-improve làm tiếp ở #113(b).
+
+## Cập nhật 21/10 — usage chung Claude/Copilot/DeepSeek (báo cáo #114, lead duyệt note [60])
+
+Nguồn số liệu: Claude (`hub/usage.ts`, % 5h/7 ngày, atPct 90% đã chặn thật #89) — đủ, không sửa. Copilot (`hub/copilot.ts:147-150,296-303`, chỉ tín hiệu nhị phân OK/hết quota, không có %) — đủ, không sửa. claude-api trả phí (DeepSeek…): đếm lượt chạy + token từ transcript, đang làm ở **#118** (deepseek) — không viết trùng.
+
+| # | Việc | File chính | Owner | Điều kiện xong |
+|---|---|---|---|---|
+| U1 | Set `pricing` thật cho provider "deepseek": **giá giờ cao điểm** để ước tính không bao giờ thấp hơn thực tế — `deepseek-flash` $0.30 input / $1.20 output mỗi 1M token (nguồn api-docs.deepseek.com/quick_start/pricing, tra 21/10) | `hub/providers.ts` (seed provider deepseek) | deepseek — trong **#118** (đang làm), nhập luôn | `pricing` của provider deepseek khớp số trên, có comment dẫn nguồn |
+| U2 | `pricing.budgetUsdPerDay` mặc định $1/ngày (user đổi trong Settings); chạm ngân sách ước tính hôm nay → báo @you + dừng giao việc MỚI cho profile đó tới 0h giờ VN, không tự chuyển provider khác | `hub/providers.ts` (field + default), `hub/paidusage.ts`/`hub/server.ts` (so sánh + dừng giao việc), i18n vi/en | Copilot — sau #117 | Khi `costUsd` hôm nay của 1 profile ≥ `budgetUsdPerDay`: 1 tin báo @you 1 lần, profile đó không nhận việc mới tới 0h giờ VN (lượt đang chạy không bị ngắt); test |
+| U3 | Tab/khu Usage gộp 4 nguồn (Claude acc, Copilot/profile, claude-api trả phí từ #118, Worker/Token tab hiện có) vào 1 chỗ thay vì rải rác | `ui/index.html` | frontend | 1 khu UI hiện đủ 4 nguồn, dùng API có sẵn (`/api/claude-usage`, badge Copilot, `/api/tokens`, API mới của #118); test |
+
+Thứ tự: U1 cùng lúc #118 (deepseek tự nhập) → U2 sau #117 (Copilot) → U3 không phụ thuộc, frontend làm khi rảnh.
