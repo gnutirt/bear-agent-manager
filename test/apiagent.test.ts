@@ -81,6 +81,24 @@ test('claude-api profile: starts with the provider env and a read-only perm, pau
   } finally { await hub.close(); }
 });
 
+test('claude-api profile switched off while it runs: the stopped claude exit code is not reported as a failure', async () => {
+  let finish: (code: number) => void = () => {};
+  const jobs: any[] = [];
+  const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: (job: any) => { jobs.push(job); return new Promise<number>((r) => { finish = r; }); } });
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', { agents: { profiles: [prof()] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'started');
+    await call('/api/agent-profiles/loc', { on: false, confirm: true });
+    finish(1);   // what a killed claude exits with
+    await new Promise((r) => setTimeout(r, 200));
+    const st = (await call<any[]>('/api/agent-profiles')).find((x) => x.id === 'loc');
+    assert.equal(st.error, undefined);
+    assert.ok(!JSON.stringify(hub.store.state.rooms).includes('could not'), 'no failure line in the room');
+  } finally { await hub.close(); }
+});
+
 test('claude-api profile with a provider that has no key stays an error and never spawns', async () => {
   const jobs: any[] = [];
   const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); return 0; } });

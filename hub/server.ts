@@ -425,6 +425,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const apiLimited = (p: AgentProfile) => { const l = apiState.get(p.id)?.limited ?? 0; return l > Date.now() ? l : 0; };
   /** Records why the agent could not run and tells its rooms once: a quota/rate hit pauses it, anything else is shown as an error. */
   function apiFailed(p: AgentProfile, why: string) {
+    if (apiProfiles().find((x) => x.id === p.id)?.enabled === false) return;   // switched off by the user: the exit code of the stopped claude is no failure
     const quota = isQuotaError(why), until = quota ? Date.now() + API_PAUSE_MS : undefined;
     apiState.set(p.id, { error: why.slice(0, 200), ...(until ? { limited: until } : {}) });
     const s = apiSessionOf(p), text = quota ? tr('sys.apiagent.limited', { name: p.name, provider: p.providerId ?? '', at: clock(until!) }) : tr('sys.wake.failed', { name: p.name, why: why.slice(0, 200) });
