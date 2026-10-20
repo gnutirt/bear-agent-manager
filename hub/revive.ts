@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm };
+export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string> };   // env: extra environment (a 'claude-api' agent's provider)
 /** What a hub-started claude may do (settings.permissions of that agent). */
 export type Perm = { mode: string; allow: string[]; deny: string[] };
 export type CompactJob = Omit<ReviveJob, 'text'>;
@@ -57,6 +57,7 @@ const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a
 function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, perm?: Perm, model?: string, idleMin?: number): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
+  Object.assign(env, job.env);
   delete env.BEAR_AGENT_HEADLESS;
   delete env.BEAR_AGENT_IDLE_MIN;
   // Stays alive after the answer: the Stop hook's waiter keeps waiting for room messages for idleMin minutes

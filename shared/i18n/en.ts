@@ -522,6 +522,7 @@ export const en: Record<string, string> = {
   'sys.terminated': '{name}: claude was ended from the hub.',
   'sys.stop.api': '{name}: the turn stopped on an API error ({err}).',
   'sys.compact.tabConfirm': 'The IDE tab of {name} will be closed (VS Code shows "exited with code 1") and reopened after the compact. Send confirm:true to agree.',
+  'sys.apiagent.limited': '{name}: provider {provider} hit its quota or rate limit. Paused until {at}; its messages are kept. Retry in Settings to try sooner.',
   'sys.compact.tabOpen': '{name} has its tab open: type /compact in that tab (or choose to close the tab and compact).',
   'sys.limit.waiting': '{name} hit its usage limit and its tab cannot take messages; it will be woken at {at}.',
   'sys.limit.unstuck': '{name} was stuck after a usage limit: the hub closed the stuck process and wakes it in the background.',

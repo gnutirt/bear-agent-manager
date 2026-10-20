@@ -522,6 +522,7 @@ export const vi: Record<string, string> = {
   'sys.terminated': '{name}: claude đã được kết thúc từ hub.',
   'sys.stop.api': '{name}: lượt bị dừng bởi lỗi API ({err}).',
   'sys.compact.tabConfirm': 'Tab IDE của {name} sẽ bị đóng (VS Code báo "exited with code 1") rồi tự mở lại sau compact. Gửi confirm:true để đồng ý.',
+  'sys.apiagent.limited': '{name}: nhà cung cấp {provider} hết hạn mức hoặc giới hạn tốc độ. Tạm dừng đến {at}; tin vẫn được giữ. Bấm Thử lại trong Cài đặt để thử sớm hơn.',
   'sys.compact.tabOpen': '{name} đang mở tab: gõ /compact ngay trong tab đó (hoặc chọn đóng tab rồi compact).',
   'sys.limit.waiting': '{name} hết hạn mức, tab kẹt không nhận tin; hẹn tự dậy lúc {at}.',
   'sys.limit.unstuck': '{name} kẹt sau khi hết hạn mức: hub đóng tiến trình kẹt và gọi dậy lại ở chế độ nền.',

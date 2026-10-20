@@ -39,7 +39,8 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
-import { countBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { apiEnv, apiPerm, isQuotaError } from './apiagent.ts';
+import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -400,6 +401,76 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return json(res, 200, { ...copilotStatus(id), done: true });
   }
 
+  // ---- 'claude-api' profiles: a headless claude on a providers.json provider (free / paid / local), a room member like any other ----
+  const apiState = new Map<string, { error?: string; limited?: number }>();   // profile id -> last failure / quota pause (until, ms)
+  const API_PAUSE_MS = 3_600_000;   // shortcut: the providers give no reset time, so a quota hit pauses the agent for an hour; retry clears it
+  const apiProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'claude-api');
+  const apiProfileOf = (s: Session) => apiProfiles().find((p) => normAgent(p.name) === normAgent(s.name));
+  const apiSessionOf = (p: AgentProfile) => Object.values(store.state.sessions).find((x) => normAgent(x.name) === normAgent(p.name));
+  /** Environment, permission and model of the profile's claude; throws when the provider cannot serve it. */
+  function apiJob(p: AgentProfile, cfg: ReturnType<typeof loadSettings>) {
+    const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
+    if (!prov || !prov.enabled) throw new Error(`provider ${p.providerId} is missing or off`);
+    return { env: apiEnv(p, prov), perm: apiPerm(p, prov, permFor(cfg, p.name)), model: p.model || prov.models.read[0] };
+  }
+  const apiLimited = (p: AgentProfile) => { const l = apiState.get(p.id)?.limited ?? 0; return l > Date.now() ? l : 0; };
+  /** Records why the agent could not run and tells its rooms once: a quota/rate hit pauses it, anything else is shown as an error. */
+  function apiFailed(p: AgentProfile, why: string) {
+    const quota = isQuotaError(why), until = quota ? Date.now() + API_PAUSE_MS : undefined;
+    apiState.set(p.id, { error: why.slice(0, 200), ...(until ? { limited: until } : {}) });
+    const s = apiSessionOf(p), text = quota ? tr('sys.apiagent.limited', { name: p.name, provider: p.providerId ?? '', at: clock(until!) }) : tr('sys.wake.failed', { name: p.name, why: why.slice(0, 200) });
+    for (const r of Object.keys(s?.rooms ?? { 'bear-agent-manager': 1 })) { try { broadcast('msg', postSys(r, text, undefined, { type: 'wake', level: 'warn', agent: p.name })); emitRoom(r); } catch { /* room gone */ } }
+    broadcast('agentprofile', apiStatus(p));
+  }
+  function apiStatus(p: AgentProfile) {
+    const s = apiSessionOf(p), st = apiState.get(p.id) ?? {}, limited = apiLimited(p);
+    const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
+    const state = !p.enabled ? 'off' : limited || st.error ? 'error' : s && reviving.has(s.id) && !waiters.has(s.id) ? 'busy' : s ? 'idle' : 'off';
+    return { id: p.id, name: p.name, provider: 'claude-api', providerId: p.providerId, model: p.model ?? prov?.models.read[0] ?? '', state, auth: !prov ? 'unknown' : prov.enabled && (prov.key || prov.tier === 'local') ? 'ok' : 'no',
+      ...(st.error ? { error: st.error } : {}), ...(limited ? { limited } : {}), room: 'bear-agent-manager', cwd: p.cwd, enabled: p.enabled, edit: p.edit === true };
+  }
+  /** First start of a profile (no session yet): registers the member and runs `claude` with the provider's environment. An existing session wakes on its first @ like any agent. */
+  function apiStart(p: AgentProfile): boolean {
+    const room = 'bear-agent-manager', cfg = loadSettings(opts.dir, envCap);
+    apiState.delete(p.id);
+    const stale = apiSessionOf(p);
+    if (stale && !stale.ended) return true;
+    if (stale && hasTranscript(stale)) return true;
+    try {
+      if (!store.state.rooms[room]) throw new Error(`room #${room} does not exist`);
+      if (Math.max(countBackground(), reviving.size) >= cfg.agents.maxBackground) throw new Error(`${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+      const cwd = resolveWorkspace(p.cwd, true), job = apiJob(p, cfg);
+      if (stale) store.forget(stale.id);
+      const id = crypto.randomUUID();
+      store.register({ id, cwd });
+      try { store.rename(id, p.name); store.join(id, room); } catch (e) { store.forget(id); throw e; }
+      reviving.add(id);
+      emitSession(store.setStatus(id, 'busy', tr('sys.act.starting')));
+      emitRoom(room);
+      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, text: tr('agent.intro', { name: p.name, room }), logDir: opts.dir, perm: job.perm, idleMin: cfg.lead.idleMin, ...(job.model ? { model: job.model } : {}), env: job.env }))
+        .catch(() => 1)
+        .then((code) => { if (code) apiFailed(p, `${tr('sys.wake.exit', { code: Number(code) })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`); })
+        .finally(() => { reviving.delete(id); if (!waiters.has(id)) emitSession(store.markEnded(id)); broadcast('agentprofile', apiStatus(p)); });
+      return true;
+    } catch (e) { apiFailed(p, (e as Error).message); return false; }
+  }
+  /** Starts profiles that are on and have no session yet; stops the live agent of a profile that is off or gone. */
+  function syncApiAgents() {
+    const profiles = apiProfiles();
+    for (const p of profiles) if (p.enabled && !apiLimited(p)) apiStart(p);
+    for (const s of Object.values(store.state.sessions)) {
+      if (s.ended || !isBackground(s.id)) continue;
+      const p = profiles.find((x) => normAgent(x.name) === normAgent(s.name));
+      if (p && !p.enabled) { stopRevive(s.id); emitSession(store.markEnded(s.id)); }
+    }
+  }
+  function setApiEnabled(id: string, on: boolean) {
+    const cur = loadSettings(opts.dir, envCap);
+    const next = patchSettings(cur, { agents: { profiles: cur.agents.profiles.map((p) => (p.id === id ? { ...p, enabled: on } : p)) } });
+    saveSettings(opts.dir, next);
+    broadcast('settings', next);
+  }
+
   /** Advances a session's delivery cursor and tells the UI (read receipts). */
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
   const relayText = (text: string, more: string) => {
@@ -631,6 +702,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function revive(sid: string): boolean {
     const s = store.session(sid);
     if (reviving.has(s.id) || waiters.has(s.id) || !hasTranscript(s)) return false;
+    // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
+    const api = apiProfileOf(s);
+    let apiRun: ReturnType<typeof apiJob> | undefined;
+    if (api) {
+      if (!api.enabled || apiLimited(api)) return false;
+      try { apiRun = apiJob(api, loadSettings(opts.dir, envCap)); } catch (e) { apiFailed(api, (e as Error).message); return false; }
+    }
     const p = store.pending(s.id);
     const delivery = p.messages.length
       ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id)
@@ -644,8 +722,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const before = readContextTokens(s.transcript);
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript), wakeRole(s), cfg.compact.thresholds);
     let compacted = false;
-    const perm = permFor(cfg, s.name), model = cfg.agentModel[normAgent(s.name)];
-    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
+    const perm = apiRun?.perm ?? permFor(cfg, s.name), model = apiRun?.model ?? cfg.agentModel[normAgent(s.name)];
+    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}), ...(apiRun ? { env: apiRun.env } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
@@ -654,7 +732,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
       .then(async () => {
-        const blocked = await blockedAccount(s, job);
+        const blocked = api ? '' : await blockedAccount(s, job);   // the owner's account usage means nothing to a provider
         if (blocked) { failure = blocked; return; }
         if (compactFirst) {
           // A failed compaction still wakes the agent with a plain resume.
@@ -671,11 +749,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
-          tellRooms(tr('sys.wake.failed', { name: s.name, why: failure }));
-          autoOpenTab(s.id);
+          if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
+          else { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
+        if (api && !failure) apiState.delete(api.id);
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
       });
@@ -1397,6 +1476,26 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return copilotToggle(res, 'copilot', b.on);
     }
     if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
+    // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
+    if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus)]);
+    const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
+    if (ap) {
+      const prof = apiProfiles().find((x) => x.id === ap[1]);
+      if (!prof) return json(res, 404, { error: `unknown claude-api profile ${ap[1]}` });
+      const b = await readBody(req);
+      if (ap[2] && !prof.enabled) throw new StoreError(409, `${prof.name} is off: turn it on first`);
+      if (!ap[2]) {
+        if (b.confirm !== true) return json(res, 200, { ...apiStatus(prof), done: false });
+        if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
+        setApiEnabled(prof.id, b.on);
+        if (!b.on) { syncApiAgents(); return json(res, 200, { ...apiStatus({ ...prof, enabled: false }), done: true }); }
+      }
+      const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
+      if (!apiSessionOf(prof) && Math.max(countBackground(), reviving.size) >= cap) return json(res, 429, { error: `${cap} background agents already run (settings agents.maxBackground)`, status: apiStatus(prof) });
+      const now = { ...prof, enabled: true };
+      if (!apiStart(now)) return json(res, 503, { error: apiState.get(prof.id)?.error ?? 'could not start', status: apiStatus(now) });
+      return json(res, 200, { ...apiStatus(now), done: true });
+    }
     const cp = m === 'POST' ? p.match(/^\/api\/copilot\/profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
     if (cp) {
       const prof = copilotProfiles().find((x) => x.id === cp[1]);
@@ -1487,6 +1586,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const next = patchSettings(loadSettings(opts.dir, envCap), await readBody(req));
       saveSettings(opts.dir, next);
       void syncCopilots();
+      syncApiAgents();
       autoCfg.at = 0;
       broadcast('settings', next);
       return json(res, 200, next);
@@ -1658,16 +1758,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           await terminateSession(s);
           reopenTab = !!s.ide;
         }
+        const apiP = apiProfileOf(s);
+        let apiRun: ReturnType<typeof apiJob> | undefined;
+        if (apiP) { try { apiRun = apiJob(apiP, loadSettings(opts.dir, envCap)); } catch (e) { throw new StoreError(409, (e as Error).message); } }
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
         emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
         // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
-        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}) };
+        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env } : {}) };
         Promise.resolve()
           .then(async () => {
-            const blocked = await blockedAccount(s, cjob);
+            const blocked = apiP ? '' : await blockedAccount(s, cjob);
             if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
             const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
             if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
@@ -1984,6 +2087,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   heartbeat.unref();
 
   void syncCopilots();
+  syncApiAgents();
 
   return {
     url: `http://127.0.0.1:${port}`,

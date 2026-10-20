@@ -36,6 +36,7 @@ export type Settings = {
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
   accountSwitch: { mode: 'off' | 'ask' | 'auto'; atPct: number; minOtherLeftPct: number; autoOnWake: boolean };   // autoOnWake: a wake blocked by the limit runs on the other account without asking   // D2: move an agent to another Claude account when its own runs out
   closeLimitedTab: boolean;   // a tab stuck after a usage limit is closed at wake time so the agent comes back in the background
+  mirrorTabs: boolean;   // B1: a turn typed in an agent's own tab is copied into its private chat
   relayChat: boolean;   // safety net: an answer an agent left in its own chat after a room wake is posted to the room
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
@@ -66,7 +67,8 @@ export function permFor(s: Settings, agent: string): PermRule {
 }
 
 /** M3b: one headless provider agent (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
-export type AgentProfile = { id: string; provider: 'copilot'; name: string; cwd: string; home?: string; enabled: boolean };
+// 'claude-api': a headless claude on a providers.json provider (providerId) and model; outside this machine it is read-only unless the tier is local and edit is on.
+export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
@@ -93,10 +95,13 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): AgentProfile[] {
   const out: AgentProfile[] = [], ids = new Set<string>(), names = new Set<string>();
   for (const r of raw.slice(0, 16)) {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || r?.provider !== 'copilot' || !localAbs(r?.cwd)) continue;
+    const api = r?.provider === 'claude-api', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || (r?.provider !== 'copilot' && !api) || !localAbs(r?.cwd)) continue;
+    if (api && (!/^[\w-]{1,32}$/.test(providerId) || (model && !/^[\w.:\/-]{1,80}$/.test(model)))) continue;
     if (ids.has(id) || names.has(normAgent(name))) continue;
     ids.add(id); names.add(normAgent(name));
-    out.push({ id, provider: 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true });
+    out.push({ id, provider: api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
+      ...(api ? { providerId, ...(model ? { model } : {}), ...(r.edit === true ? { edit: true } : {}) } : {}) });
   }
   return out;
 }
@@ -109,7 +114,7 @@ function migrateProfiles(raw: any): any {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 250_000, background: 150_000 } }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [] }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 250_000, background: 150_000 } }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [] }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -237,6 +242,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     lead,
     workerRoutes: routes,
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
+    mirrorTabs: bool(p?.mirrorTabs, s.mirrorTabs ?? true),
     relayChat: bool(p?.relayChat, s.relayChat ?? true),
     closeLimitedTab: bool(p?.closeLimitedTab, s.closeLimitedTab ?? true),
     accountSwitch: {
