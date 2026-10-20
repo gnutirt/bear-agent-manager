@@ -40,3 +40,27 @@ export function openFolder(dir: string): void {
   const [cmd, args] = process.platform === 'win32' ? ['explorer.exe', [dir]] : process.platform === 'darwin' ? ['open', [dir]] : ['xdg-open', [dir]];
   spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: false }).on('error', () => {}).unref();
 }
+
+/** M4b: native "choose a folder" dialog (Windows only) for the new-agent form; resolves to the chosen absolute
+ *  path, or null if cancelled/unsupported/timed out. The starting folder goes through an env var, never into the
+ *  PowerShell script text, so it cannot be used to inject commands. */
+export function browseFolder(start?: string): Promise<string | null> {
+  if (process.platform !== 'win32') return Promise.resolve(null);
+  const script = 'Add-Type -AssemblyName System.Windows.Forms | Out-Null;'
+    + '$f=New-Object System.Windows.Forms.FolderBrowserDialog;'
+    + '$f.ShowNewFolderButton=$true;'
+    + 'if($env:BAM_BROWSE_START){$f.SelectedPath=$env:BAM_BROWSE_START};'
+    + 'if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::Out.Write($f.SelectedPath)}';
+  return new Promise((resolve) => {
+    let out = '', done = false;
+    const finish = (v: string | null) => { if (done) return; done = true; clearTimeout(timer); resolve(v); };
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      windowsHide: false,
+      env: { ...process.env, BAM_BROWSE_START: start && path.isAbsolute(start) ? start : '' },
+    });
+    child.stdout.on('data', (d) => { out += d; });
+    child.on('error', () => finish(null));
+    child.on('close', () => finish(out.trim() || null));
+    const timer = setTimeout(() => { child.kill(); finish(null); }, 5 * 60_000);   // a forgotten dialog must not pin the hub forever
+  });
+}

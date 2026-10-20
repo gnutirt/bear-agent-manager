@@ -21,7 +21,7 @@ import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentP
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
-import { DATA_SUBS, dataInfo, openFolder } from './datadir.ts';
+import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
 import { addTask, deleteTask, importTodo, listTasks, openTasksText, updateTask, type Task } from './tasks.ts';
@@ -140,6 +140,7 @@ export type HubOptions = {
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
   openFolder?: (dir: string) => void;
+  browseFolder?: (start?: string) => Promise<string | null>;   // tests stub it so no real dialog pops up
   runClaudeCli?: Run;   // tests: no real `claude plugin update`
   pluginUpdateEveryMs?: number | null;   // tests: null = never check by itself
   localFetch?: typeof fetch;   // tests: a fake Ollama   // tests stub it so no file manager opens
@@ -1250,6 +1251,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       fs.mkdirSync(dir, { recursive: true });
       (opts.openFolder ?? openFolder)(dir);
       return json(res, 200, { ok: true, path: dir });
+    }
+    // M4b: native folder-picker for the new-agent form (Windows only; resolveWorkspace still validates the result)
+    if (m === 'POST' && p === '/api/browse-folder') {
+      const b = await readBody(req);
+      const start = typeof b.start === 'string' ? b.start : undefined;
+      const picked = await (opts.browseFolder ?? browseFolder)(start);
+      return json(res, 200, { path: picked });
     }
     // ---- accounts (D1): the Claude config dirs of this machine and whether they share their chats ----
     const accountDirs = machineAccountDirs;

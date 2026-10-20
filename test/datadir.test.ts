@@ -31,3 +31,15 @@ test('GET /api/data and POST /api/data/open: only fixed folder names open', asyn
     assert.equal(opened.length, 2);
   } finally { await hub.close(); }
 });
+
+test('POST /api/browse-folder: M4b agent-form folder picker, passes the start path through and returns null on cancel', async () => {
+  const starts: (string | undefined)[] = [];
+  const { hub, call } = await makeHub(undefined, () => {}, {
+    browseFolder: (start?: string) => { starts.push(start); return Promise.resolve(start ? 'C:\\picked' : null); },
+  });
+  try {
+    assert.deepEqual(await call('/api/browse-folder', {}), { path: null });
+    assert.deepEqual(await call('/api/browse-folder', { start: 'C:\\Projects' }), { path: 'C:\\picked' });
+    assert.deepEqual(starts, [undefined, 'C:\\Projects']);
+  } finally { await hub.close(); }
+});

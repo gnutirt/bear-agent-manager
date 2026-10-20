@@ -91,6 +91,20 @@ test('T38: private chat per agent — popup button, dm rooms split from the room
   } finally { await hub.close(); }
 });
 
+test('T36: new-agent form — folder picker button, review step shows account/permission/folder before running', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'id="cwdBrowse"', "t('ac.agent.browse')",
+      "api('/api/browse-folder'",
+      't(\'ac.agent.reviewTitle\')', "t('ac.agent.reviewAccount'", "t('ac.agent.reviewPerm'", "t('ac.agent.reviewFolder'",
+      'S.agentAsk = { body }',
+      'createAgent(ask.needConfirm ? { ...ask.body, confirm: true } : ask.body)',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('i18n: every key the UI uses exists, and no Vietnamese text is left outside data-i18n fallbacks and comments', async () => {
   const { hub } = await makeHub();
   try {

@@ -2714,7 +2714,14 @@ function accountBlock(st) {
   const rooms = S.rooms.map((r) => r.name);
   const ask = S.agentAsk;
   const acctOpts = `<option value="">${t('ac.agent.auto')}</option>` + A.accounts.filter((a) => a.exists).map((a) => `<option value="${esc(a.dir)}">${esc(a.label)}</option>`).join('');
-  const agent = `<form class="tform" id="agentNew"><input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}"><input name="cwd" placeholder="${t('ac.agent.cwd')}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" value="${esc(ask?.body.cwd || '')}"><select name="room" aria-label="${t('ac.agent.room')}">${rooms.map((r) => `<option${r === S.current ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select><select name="account" aria-label="${t('ac.agent.account')}">${acctOpts}</select><textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea><div class="row"><button class="btn primary">${t('ac.agent.create')}</button></div></form>${ask?.needConfirm ? `<div class="aplan"><b>${t('ac.agent.confirmTitle')}</b><p class="small pwarn">${esc(t('ac.agent.confirmText', { cwd: ask.body.cwd }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="agentCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="agentConfirm">${t('ac.agent.confirm')}</button></div></div>` : ''}`;
+  const askPermMode = ask ? (st.permissions?.perAgent?.[normAgent(ask.body.name)]?.mode || st.permissions?.default?.mode || 'bypass') : '';
+  const askAccountLabel = ask ? (ask.body.account ? (A.accounts.find((a) => a.dir === ask.body.account)?.label || ask.body.account) : t('ac.agent.auto')) : '';
+  const agent = `<form class="tform" id="agentNew"><input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}"><div class="row" style="display:flex;gap:6px"><input name="cwd" placeholder="${t('ac.agent.cwd')}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" value="${esc(ask?.body.cwd || '')}" style="flex:1"><button type="button" class="btn sm" id="cwdBrowse">${t('ac.agent.browse')}</button></div><select name="room" aria-label="${t('ac.agent.room')}">${rooms.map((r) => `<option${r === S.current ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select><select name="account" aria-label="${t('ac.agent.account')}">${acctOpts}</select><textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea><div class="row"><button class="btn primary">${t('ac.agent.create')}</button></div></form>${ask ? `<div class="aplan"><b>${t('ac.agent.reviewTitle')}</b><ul class="small">
+      <li>${esc(t('ac.agent.reviewRoom', { room: ask.body.room }))}</li>
+      <li>${esc(t('ac.agent.reviewAccount', { account: askAccountLabel }))}</li>
+      <li>${esc(t('ac.agent.reviewPerm', { perm: PMODE[askPermMode] || askPermMode }))}${askPermMode === 'bypass' ? ` <span class="pfree">${t('perm.free.badge')}</span>` : ''}</li>
+      <li class="mono">${esc(t('ac.agent.reviewFolder', { cwd: ask.body.cwd }))}</li>
+    </ul>${ask.needConfirm ? `<p class="small pwarn">${esc(t('ac.agent.confirmText', { cwd: ask.body.cwd }))}</p>` : ''}<div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="agentCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="agentConfirm">${t('ac.agent.run')}</button></div></div>` : ''}`;
   const au = S.auto, aa = S.autoAsk;
   const autoHtml = !au ? '' : !au.supported ? `<p class="small muted">${t('ac.auto.unsupported')}</p>` : `<div class="pf"><b class="${au.on ? 'okt' : ''}">${au.on ? t('ac.auto.on') : t('ac.auto.off')}</b><button type="button" class="btn" id="autoToggle">${au.on ? t('ac.auto.turnOff') : t('ac.auto.turnOn')}</button></div>${aa ? `<div class="aplan"><p class="small">${esc(t(au.on ? 'ac.auto.removeFile' : 'ac.auto.file', { file: au.file || '' }))}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="autoCancel">${t('ac.cancel')}</button><button type="button" class="btn primary" id="autoConfirm">${t('ac.share.confirm')}</button></div></div>` : ''}`;
   const cp = S.copilot, ca = S.copilotAsk;
@@ -2922,7 +2929,8 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.id !== 'agentNew') return;
     e.preventDefault();
     const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
-    createAgent(body);
+    S.agentAsk = { body };
+    renderSettingsView();
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
@@ -2938,7 +2946,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('#shareCancel')) { S.sharePlan = null; return renderSettingsView(); }
     if (e.target.closest('#shareConfirm')) { const sp = S.sharePlan; return api('/api/accounts/share', { on: sp.on, confirm: true }).then((d) => { S.acct = { accounts: d.accounts, primary: d.primary, shared: d.shared }; S.sharePlan = null; toast(t('ac.share.done')); renderSettingsView(); }, (err) => { sp.error = err.message; renderSettingsView(); }); }
     if (e.target.closest('#agentCancel')) { S.agentAsk = null; return renderSettingsView(); }
-    if (e.target.closest('#agentConfirm')) return createAgent({ ...S.agentAsk.body, confirm: true });
+    if (e.target.closest('#agentConfirm')) { const ask = S.agentAsk; return createAgent(ask.needConfirm ? { ...ask.body, confirm: true } : ask.body); }
+    const cb = e.target.closest('#cwdBrowse');
+    if (cb) { const f = cb.closest('form'); return api('/api/browse-folder', { start: f.cwd.value.trim() }).then((d) => { if (d.path) f.cwd.value = d.path; }, (err) => toast(err.message)); }
     if (e.target.closest('#autoToggle')) { S.autoAsk = { on: !S.auto.on }; return renderSettingsView(); }
     if (e.target.closest('#autoCancel')) { S.autoAsk = null; return renderSettingsView(); }
     if (e.target.closest('#autoConfirm')) return api('/api/autostart', { on: S.autoAsk.on, confirm: true }).then((d) => { S.auto = { ...S.auto, ...d }; S.autoAsk = null; toast(t('ac.auto.done')); renderSettingsView(); }, (err) => toast(err.message));

@@ -35,6 +35,7 @@
 | POST | `/api/local/summarize` | `text`, `file`, `sessionId`, `task` | có |
 | GET | `/api/data` |  | có |
 | POST | `/api/data/open` | `sub` | có |
+| POST | `/api/browse-folder` | `start` | có |
 
 ## accounts (D1): the Claude config dirs of this machine and whether they share their chats
 
