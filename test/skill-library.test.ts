@@ -81,7 +81,9 @@ test('Vietnamese-law skills record legalAsOf (checked within 180 days), legalDoc
 });
 
 test('CATALOG.md is up to date with index.json', () => {
-  assert.equal(fs.readFileSync(path.join(lib, 'CATALOG.md'), 'utf8'), catalog(skills), 'run: node skill-library/build-index.mjs');
+  // a Windows checkout with core.autocrlf=true turns this file into CRLF; compare the text on LF
+  const lf = (s: string) => s.replace(/\r\n/g, '\n');
+  assert.equal(lf(fs.readFileSync(path.join(lib, 'CATALOG.md'), 'utf8')), lf(catalog(skills)), 'run: node skill-library/build-index.mjs');
 });
 
 test('eval/prompts.json: library skills, known packs, 3 Vietnamese prompts each', () => {
