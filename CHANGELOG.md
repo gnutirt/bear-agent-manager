@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.10.0 - 2026-10-21
+
 - Add: read-only file tree, file view and git diff in a private chat (#68, S5): header button "Files"; `GET /api/sessions/:id/{files,file,diff}` stay inside the agent folder (symlinks resolved), hide `.git`, refuse secrets files (`isSecretFile`), cap a view at 1 MB. Needs hub restart.
 - Add: edit, save and commit in the file view (#69 part 1 3a204a6, part 2 cd4ffe0; backend #98 327c771). A read-only Monaco editor is served offline from `/vendor/monaco` (from node_modules, no CDN; falls back to `<pre>`); Edit makes it writable, Ctrl+S saves through `PUT /api/sessions/:id/file` (inside the agent folder, never `.git` or a secrets file; 409 with the disk mtime when the file changed meanwhile), and Commit sends only the chosen paths to `POST /api/sessions/:id/commit`, which builds a scratch index from HEAD and never touches the shared one. Needs hub restart.
 - Fix: HEAD did not parse (hub/copilot.ts, hub/server.ts, ui/index.html inline script) although the tree on disk was fine, and 4443830 had reverted other work by mistake (#91 942ca63: Copilot model picker, register `configDir: ''` fix and the `p.model` restart key restored; #101 640140e, 114ecdd, a03f1ab: syntax and the usage sweep order fixed, a clean checkout of HEAD passes the suite). Needs hub restart.

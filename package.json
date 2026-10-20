@@ -1,6 +1,6 @@
 {
   "name": "bear-agent-manager",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "repository": "github:gnutirt/bear-agent-manager",
   "type": "module",
