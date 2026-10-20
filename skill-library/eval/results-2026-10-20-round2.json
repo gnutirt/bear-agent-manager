@@ -1,0 +1,171 @@
+{
+  "ran": "2026-10-20T01:43:00.974Z",
+  "with": "logged-in Claude account (C:/Users/nguye/.claude-antigravity)",
+  "model": "haiku",
+  "results": [
+    {
+      "skill": "review-contract",
+      "pack": "legal-core",
+      "prompt": "Rà soát hợp đồng cung cấp phần mềm này, chỉ ra điều khoản bất lợi cho bên mình.",
+      "called": [
+        "review-contract"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "review-contract",
+      "pack": "legal-core",
+      "prompt": "Review hợp đồng dịch vụ, đề xuất sửa phần phạt vi phạm và bồi thường.",
+      "called": [
+        "review-contract"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "review-contract",
+      "pack": "legal-core",
+      "prompt": "Đối chiếu hợp đồng nhà cung cấp gửi với bộ quy tắc đàm phán của công ty.",
+      "called": [
+        "review-contract"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "ppt-template-creator",
+      "pack": "slides-core",
+      "prompt": "Tạo skill từ file mẫu PowerPoint của công ty để sau này làm slide theo đúng mẫu.",
+      "called": [
+        "ppt-template-creator"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "ppt-template-creator",
+      "pack": "slides-core",
+      "prompt": "Biến template slide công ty thành mẫu dùng lại được.",
+      "called": [
+        "ppt-template-creator"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "ppt-template-creator",
+      "pack": "slides-core",
+      "prompt": "Làm mẫu PowerPoint chuẩn cho phòng ban từ file pptx này.",
+      "called": [
+        "ppt-template-creator"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "course-training-skills",
+      "pack": "training-core",
+      "prompt": "Thiết kế khoá đào tạo 2 ngày về thẩm định tín dụng cho nhân viên mới.",
+      "called": [
+        "course-training-skills",
+        "course-designer"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Tạo 20 câu hỏi trắc nghiệm về KYC kèm đáp án và giải thích.",
+      "called": [],
+      "hit": false,
+      "exit": 0
+    },
+    {
+      "skill": "internal-comms",
+      "pack": "training-core",
+      "prompt": "Viết thông báo nội bộ về lịch đào tạo bắt buộc tháng sau.",
+      "called": [
+        "internal-comms"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "course-training-skills",
+      "pack": "training-core",
+      "prompt": "Soạn giáo án chương trình training nội bộ về phòng chống rửa tiền.",
+      "called": [
+        "course-training-skills",
+        "course-designer"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Làm đề kiểm tra cuối khoá đào tạo, có câu đúng sai và điền khuyết.",
+      "called": [
+        "quiz-maker",
+        "course-training-skills"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "internal-comms",
+      "pack": "training-core",
+      "prompt": "Soạn bản tin tuần gửi toàn chi nhánh.",
+      "called": [
+        "internal-comms",
+        "internal-comms"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "course-training-skills",
+      "pack": "training-core",
+      "prompt": "Lên chương trình đào tạo kỹ thuật lắp đặt điện mặt trời cho thợ.",
+      "called": [
+        "course-training-skills",
+        "course-designer"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Soạn bộ câu hỏi ôn tập cho buổi học về an toàn điện.",
+      "called": [],
+      "hit": false,
+      "exit": 0
+    },
+    {
+      "skill": "internal-comms",
+      "pack": "training-core",
+      "prompt": "Viết email gửi nhân viên giới thiệu quy trình mới.",
+      "called": [
+        "internal-comms"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    }
+  ]
+}

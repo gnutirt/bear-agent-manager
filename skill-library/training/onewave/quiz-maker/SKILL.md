@@ -1,6 +1,6 @@
 ---
 name: quiz-maker
-description: Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations. Dùng cả khi người dùng nói tiếng Việt, ví dụ câu hỏi trắc nghiệm, bài kiểm tra, đề thi, quiz, đúng sai, câu hỏi ôn tập.
+description: Create multiple choice, true/false, fill-in-blank, matching quizzes. Auto-generate plausible distractors. Instant grading with explanations. Use this skill whenever the user asks for any set of questions to test or review knowledge (quiz, exam, review questions, answer key), even a quick one you could write directly. Dùng skill này mỗi khi người dùng muốn soạn bộ câu hỏi kiểm tra hoặc ôn tập, kể cả việc đơn giản. Dùng cả khi người dùng nói tiếng Việt, ví dụ câu hỏi trắc nghiệm, bài kiểm tra, đề thi, quiz, đúng sai, câu hỏi ôn tập.
 ---
 
 # Quiz Maker

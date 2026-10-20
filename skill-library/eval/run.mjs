@@ -3,7 +3,7 @@
 // then every prompt runs through `claude -p` with only the Skill tool allowed, and the skill it called is recorded.
 //
 //   node skill-library/eval/run.mjs                      dry run: prints the plan, calls nothing (default)
-//   node skill-library/eval/run.mjs --run --provider intern [--model <id>] [--pack banking-vn] [--skill vn-phan-loai-no] [--limit 20]
+//   node skill-library/eval/run.mjs --run --provider intern [--model <id>] [--pack banking-vn] [--skill a,b] [--limit 20] [--from N] [--tag round2]
 //   CLAUDE_CONFIG_DIR=~/.claude-antigravity node skill-library/eval/run.mjs --run --model haiku --limit 20   (a Claude account)
 //
 // --run costs tokens: run it only after the owner said "ok". --provider takes a provider id from
@@ -31,7 +31,7 @@ const { skills: cases } = JSON.parse(readFileSync(join(libDir, 'eval', 'prompts.
 const byName = new Map(index.map((s) => [s.name, s]));
 
 const selected = Object.entries(cases).filter(([name, c]) =>
-  (!opt('--skill') || name === opt('--skill')) && (!opt('--pack') || c.pack === opt('--pack')));
+  (!opt('--skill') || opt('--skill').split(',').includes(name)) && (!opt('--pack') || c.pack === opt('--pack')));
 const packIds = [...new Set(selected.map(([, c]) => c.pack))];
 
 // Skills installed for one pack: the pack's skills plus any skill under test that the pack does not list.
@@ -116,7 +116,7 @@ outer: for (const packId of new Set(jobs.map((j) => j.pack))) {
   rmSync(proj, { recursive: true, force: true });
 }
 
-const file = join(libDir, 'eval', `results-${new Date().toISOString().slice(0, 10)}.json`);
+const file = join(libDir, 'eval', `results-${new Date().toISOString().slice(0, 10)}${opt('--tag') ? '-' + opt('--tag') : ''}.json`);
 writeFileSync(file, JSON.stringify({ ran: new Date().toISOString(), with: label, model, results }, null, 2) + '\n');
 console.log('\n| Skill | Hit |\n|---|---|');
 for (const [name] of selected) {

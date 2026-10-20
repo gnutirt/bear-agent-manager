@@ -1,0 +1,37 @@
+{
+  "ran": "2026-10-20T01:47:29.319Z",
+  "with": "logged-in Claude account (C:/Users/nguye/.claude-antigravity)",
+  "model": "haiku",
+  "results": [
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Tạo 20 câu hỏi trắc nghiệm về KYC kèm đáp án và giải thích.",
+      "called": [
+        "quiz-maker"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Làm đề kiểm tra cuối khoá đào tạo, có câu đúng sai và điền khuyết.",
+      "called": [
+        "quiz-maker"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "quiz-maker",
+      "pack": "training-core",
+      "prompt": "Soạn bộ câu hỏi ôn tập cho buổi học về an toàn điện.",
+      "called": [
+        "quiz-maker"
+      ],
+      "hit": true,
+      "exit": 0
+    }
+  ]
+}
