@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: a Copilot turn that fails with "exceeded your monthly quota" now limits that profile until the 1st of next month (same path as the SDK quota event: failover to another profile, or one notice and the messages stay queued) instead of posting an error and retrying on every message. Needs hub restart.
 ## 0.9.0 - 2026-10-20
 
 - Add: the sweeper reports a "deaf tab" once per stuck message (live tab, no waiter, an @ waiting >10 min, busy tabs only after 10 quiet minutes) and `deliver()` says once when a closed agent cannot be woken (no saved chat and open-tab-on-wake off) instead of staying silent. Needs hub restart.

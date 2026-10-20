@@ -143,6 +143,10 @@ function splitMessage(text: string, limit = 7800): string[] {
   return chunks;
 }
 
+/** A thrown "exceeded your monthly quota" (not an SDK quota event): the limit lasts until the 1st of next month, local time. */
+export const isMonthlyQuotaError = (message: string): boolean => /exceeded your (monthly )?quota/i.test(message);
+export const nextMonthStart = (now = Date.now()): number => { const d = new Date(now); return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(); };
+
 function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message
@@ -440,6 +444,13 @@ export class CopilotAgent {
   reportError(error: unknown): void {
     if (this.stopping || this.isQuotaLimited()) return;
     const message = safeError(error);
+    if (isMonthlyQuotaError(message)) {
+      // Same path as the SDK quota event (failover or a single "kept queued" notice), instead of one error line per message.
+      const id = this.identity?.hubId;
+      void this.markQuotaLimited({ retryAt: nextMonthStart(), reason: 'monthly quota' })
+        .then((upTo) => { if (id && upTo) this.opts.store.consume(id, upTo); });
+      return;
+    }
     this.setStatus({ state: 'error', error: message });
     if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) {
       this.opts.store.setStatus(this.identity.hubId, 'idle', 'Copilot needs attention');

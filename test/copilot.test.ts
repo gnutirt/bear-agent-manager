@@ -670,3 +670,32 @@ test('Copilot toggle routes: confirm without a boolean `on` is a 400 and never s
     await h.hub.close();
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
+
+test('Copilot monthly quota error: profile is limited until the 1st of next month, one notice, no retry per message', async () => {
+  const { factory, calls } = fakeFactory({ response: async () => { throw new Error('You have exceeded your monthly quota (Request ID: ABCD:1234)'); } });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await h.call('/api/settings', { agents: { profiles: [{ id: 'monthly', provider: 'copilot', name: 'CopilotMonthly', cwd: process.cwd(), enabled: false }] } }, { method: 'PUT' } as RequestInit);
+    await h.call('/api/copilot/profiles/monthly', { on: true, confirm: true });
+    const copilotId = h.hub.store.members('bear-agent-manager').find((member) => member.name === 'CopilotMonthly')!.id;
+    const texts = async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0')).filter((m) => m.kind === 'system').map((m) => m.text as string);
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@CopilotMonthly first' });
+    await until(async () => (await texts()).some((t) => /không có profile Copilot/i.test(t)), COPILOT_ASYNC_TIMEOUT_MS, 'the single no-fallback quota notice');
+    const status = (await h.call<any[]>('/api/copilot/profiles')).find((p) => p.id === 'monthly');
+    assert.equal(status.quotaLimited, true);
+    const first = new Date(status.retryAt);
+    assert.deepEqual([first.getDate(), first.getHours(), first.getMinutes()], [1, 0, 0], 'the 1st of a month, local midnight');
+    assert.ok(status.retryAt > Date.now() && status.retryAt - Date.now() < 32 * 86_400_000);
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@CopilotMonthly second' });
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@CopilotMonthly third' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(calls.prompts.length, 1, 'later messages do not call the model again');
+    const all = await texts();
+    assert.equal(all.filter((t) => /could not complete/.test(t)).length, 0, 'no per-message error line');
+    assert.equal(all.filter((t) => /không có profile Copilot/i.test(t)).length, 1, 'one notice only');
+    assert.equal(h.hub.store.pending(copilotId).wake, true, 'the messages stay queued');
+  } finally {
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });
