@@ -440,7 +440,8 @@ header .spacer{flex:1}
 .tform{grid-template-columns:2fr 1fr 2fr}
 .toastundo{margin-left:8px;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,.16);color:inherit;font-weight:700}#toast.show:has(.toastundo){pointer-events:auto}
 #zoom .zbox.files{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .files .fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#zoom .files .fbar b{font-family:var(--mono);word-break:break-all}
-#zoom .files .frow{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
+#zoom .files .medit{flex:1;min-height:55vh;border:1px solid var(--line);border-radius:8px;overflow:hidden}#zoom .files .medit pre{margin:0;height:100%;overflow:auto;padding:8px}
+display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
 #zoom .files pre{margin:0;max-height:60vh;overflow:auto;white-space:pre;font:12.5px var(--mono);background:var(--code);border-radius:10px;padding:10px}#zoom .files .dl-a{color:#1a7f37}#zoom .files .dl-d{color:#C2262E}
 #livePane{margin:0 20px 8px;border:1px solid var(--line);border-radius:14px;background:var(--panel);display:flex;flex-direction:column;max-height:38vh;min-height:0}
 #livePane .lhead{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px}#livePane .lhead .sp{flex:1}
@@ -2089,10 +2090,26 @@ function renderLive() {
 function liveStart(sid, quiet) {
   return api(`/api/sessions/${enc(sid)}/live`, {}).then(() => { (S.live[sid] ??= newLive()).running = true; renderLive(); }, (e) => { if (!quiet) toast(t('live.startFail', { err: e.message })); throw e; });
 }
+/** Monaco comes from the hub's own /vendor/monaco (node_modules), never a CDN; null when it is missing, and the file view falls back to a plain <pre>. */
+let monacoP = null, monacoEd = null;
+function loadMonaco() {
+  return monacoP ??= new Promise((ok) => {
+    const base = location.origin + '/vendor/monaco/vs', sc = document.createElement('script');
+    sc.src = base + '/loader.js'; sc.onerror = () => ok(null);
+    sc.onload = () => {
+      self.MonacoEnvironment = { getWorkerUrl: () => URL.createObjectURL(new Blob([`self.MonacoEnvironment={baseUrl:'${location.origin}/vendor/monaco/'};importScripts('${base}/base/worker/workerMain.js');`], { type: 'text/javascript' })) };
+      window.require.config({ paths: { vs: base } });
+      window.require(['vs/editor/editor.main'], () => ok(window.monaco), () => ok(null));
+    };
+    document.head.appendChild(sc);
+  });
+}
+const monacoLang = (m, path) => { const ext = '.' + (path.split('.').pop() || '').toLowerCase(); return m.languages.getLanguages().find((l) => (l.extensions || []).includes(ext))?.id || 'plaintext'; };
+const isDarkUi = const isDarkUi = () => { const c = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255]; return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128; };
 /** S5: read-only file tree / file / diff of the agent's folder, in the zoom overlay. */
 function openFiles(sid, dirPath = '') {
   const get = (kind, p) => api(`/api/sessions/${enc(sid)}/${kind}${p == null ? '' : '?path=' + enc(p)}`);
-  const show = (head, body) => { zoom.innerHTML = `<div class="zbox files" role="dialog" aria-modal="true" aria-label="${t('files.title')}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="fbar">${head}</div>${body}</div>`; zoom.hidden = false; };
+  const show = (head, body) => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } zoom.innerHTML = `<div class="zbox files" role="dialog" aria-modal="true" aria-label="${t('files.title')}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="fbar">${head}</div>${body}</div>`; zoom.hidden = false; };
   const up = (p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
   const join = (a, b) => a ? a + '/' + b : b;
   const wire = (fn) => zoom.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => fn(b.dataset));
@@ -2102,8 +2119,13 @@ function openFiles(sid, dirPath = '') {
     wire(route);
   }, (e) => toast(e.message));
   const file = (p) => get('file', p).then((r) => {
-    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">←</button><button class="btn sm" data-go="diff" data-p="${esc(r.path)}">Diff</button>`, r.binary ? `<div class="muted">${t('files.binary')}</div>` : `<pre>${esc(r.content)}</pre>`);
+    show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="dir" data-p="${esc(up(r.path))}">←</button><button class="btn sm" data-go="diff" data-p="${esc(r.path)}">Diff</button>`, r.binary ? `<div class="muted">${t('files.binary')}</div>` : `<div class="medit" id="medit"><pre>${esc(r.content)}</pre></div>`);
     wire(route);
+    if (!r.binary) loadMonaco().then((m) => {
+      const host = $('medit'); if (!m || !host || !zoom.contains(host)) return;
+      host.innerHTML = '';
+      monacoEd = m.editor.create(host, { value: r.content, language: monacoLang(m, r.path), readOnly: true, automaticLayout: true, minimap: { enabled: false }, scrollBeyondLastLine: false, theme: isDarkUi() ? 'vs-dark' : 'vs', fontSize: 13, ariaLabel: r.path, domReadOnly: true });
+    });
   }, (e) => toast(e.message));
   const diff = (p) => get('diff', p).then((r) => {
     show(`<b>${esc(r.path)}</b><button class="btn sm" data-go="file" data-p="${esc(r.path)}">←</button>`, r.diff ? `<pre>${r.diff.split('\n').map((l) => `<span class="${l[0] === '+' && l[1] !== '+' ? 'dl-a' : l[0] === '-' && l[1] !== '-' ? 'dl-d' : ''}">${esc(l)}</span>`).join('\n')}</pre>${r.truncated ? `<div class="muted">${t('files.more')}</div>` : ''}` : `<div class="muted">${t('files.nodiff')}</div>`);
@@ -3316,7 +3338,7 @@ if (![...fontSel.options].some((o) => o.value === fontSel.value)) setFont('');
 // right-click a message group -> enlarged popup (copy of the rendered group, Esc / click outside closes)
 const zoom = document.createElement('div'); zoom.id = 'zoom'; zoom.hidden = true; document.body.appendChild(zoom);
 let zoomBack = null;   // the members menu a member popup was opened from: closing the popup brings that list back
-const closeZoom = () => { zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
+const closeZoom = () => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
 zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZoom(); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
 $('log').addEventListener('contextmenu', (e) => {

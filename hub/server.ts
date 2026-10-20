@@ -1495,6 +1495,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       res.writeHead(200, { 'content-type': a.type, 'cache-control': 'no-cache' });
       return res.end(a.body);
     }
+    // Monaco editor, served from the local node_modules (no CDN, works offline). Static code only, no token needed (the web worker cannot send one).
+    if (m === 'GET' && p.startsWith('/vendor/monaco/')) {
+      const base = path.join(ROOT, 'node_modules', 'monaco-editor', 'min'), file = path.resolve(base, decodeURIComponent(p.slice('/vendor/monaco/'.length)));
+      const types: Record<string, string> = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.ttf': 'font/ttf', '.json': 'application/json' };
+      const type = types[path.extname(file)];
+      if (!file.startsWith(base + path.sep) || !type || !fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': type, 'cache-control': 'public, max-age=86400' });
+      return res.end(fs.readFileSync(file));
+    }
     if (m === 'GET' && (p === '/' || p === '/index.html')) {
       const html = withManifest(fs.readFileSync(UI_FILE, 'utf8')).replace('__BEAR_AGENT_TOKEN__', token);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
