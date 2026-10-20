@@ -903,31 +903,33 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // A DNS-rebinding page reaches us with its own hostname in Host; only loopback names are ours.
   const allowedHost = (h = '') => h === `127.0.0.1:${port}` || h === `localhost:${port}`;
 
-  /** B1: sessions whose current turn was typed in the tab (the Stop hook then mirrors the answer); value is the ts of the mirrored prompt line. */
-  const mirroring = new Map<string, number>();
+  /** B1: sessions whose current turn was typed in the tab (every Stop of that turn mirrors its answer). ts: the mirrored prompt line; last: the last answer mirrored (a Stop the waiter blocks is followed by more Stops); at: last activity. */
+  const mirroring = new Map<string, { ts: number; last: string; answered: boolean; at: number }>();
   function mirrorUser(sid: string, prompt: unknown) {
-    mirroring.delete(sid);
+    const cur = mirroring.get(sid), text0 = String(prompt ?? '').trim();
+    // Hub text (a delivery, a wake) in the middle of a tab turn that has not been answered yet must not drop the entry.
+    if (!(text0 && isHubText(text0) && cur && !cur.answered && Date.now() - cur.at < 30 * 60_000)) mirroring.delete(sid);
     try {
-      const text = String(prompt ?? '').trim();
+      const text = text0;
       if (!text || isHubText(text) || reviving.has(sid) || !loadSettings(opts.dir, envCap).mirrorTabs) return;
       const clean = scrubSecrets(text);
       if (clean === null) return;
       const m = store.postMirror(sid, 'user', relayText(clean, tr('sys.relay.more', { name: store.session(sid).name })));
-      mirroring.set(sid, m.ts);
+      mirroring.set(sid, { ts: m.ts, last: '', answered: false, at: Date.now() });
       broadcast('msg', m); emitRoom(m.room);
     } catch { /* a mirror never breaks a prompt */ }
   }
   function mirrorAgent(sess: Session, b: any) {
-    const since = mirroring.get(sess.id);
-    mirroring.delete(sess.id);
-    if (since === undefined) return;
+    const cur = mirroring.get(sess.id);
+    if (!cur) return;
     try {
       // The agent already answered in its own DM room this turn (e.g. room_send via MCP): don't also auto-mirror it.
       const dm = `dm-${sess.id}`;
-      if (store.messages.some((m) => m.room === dm && m.fromId === sess.id && m.kind !== 'mirror' && m.ts >= since)) return;
+      if (store.messages.some((m) => m.room === dm && m.fromId === sess.id && m.kind !== 'mirror' && m.ts >= cur.ts)) { mirroring.delete(sess.id); return; }
       const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
       const clean = text ? scrubSecrets(text) : null;
-      if (!clean) return;
+      if (!clean || clean === cur.last) return;   // the entry stays: a later Stop of the same turn may carry the real answer
+      cur.last = clean; cur.answered = true; cur.at = Date.now();
       const m = store.postMirror(sess.id, 'agent', relayText(clean, tr('sys.relay.more', { name: sess.name })));
       broadcast('msg', m); emitRoom(m.room);
     } catch { /* ignore */ }

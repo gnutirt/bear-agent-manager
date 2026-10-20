@@ -80,3 +80,21 @@ test('tab mirror: an agent that already room_send-ed into its own DM this turn i
     assert.deepEqual(await dm(), ['[tab] user: answer in your own DM please'], 'no duplicate "[tab] agent" line once the agent itself posted to the DM');
   } finally { await h.hub.close(); }
 });
+
+test('tab mirror: a Stop the waiter blocked does not end the mirroring; the real answer at a later Stop still reaches the chat, and a hub prompt mid-turn keeps it', async () => {
+  const h = await makeHub();
+  const hook = (event: string, body: object) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'm3', ...body }) });
+  const dm = async () => (await h.call<any[]>('/api/rooms/dm-m3/messages?after=0')).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+  try {
+    await h.call('/api/settings', { mirrorTabs: true }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'm3', cwd: 'C:/fw' });
+    await h.call('/api/sessions/m3/rename', { name: 'carol' });
+    await hook('prompt', { prompt: 'run the tests' });
+    await hook('stop', { last_assistant_message: '' });                                  // blocked Stop, no text yet
+    await hook('prompt', { prompt: '[bear-agent-manager] New messages:\n#proj\n  you: hi' });   // room text in the middle of the turn
+    await hook('stop', { last_assistant_message: 'working on it' });                     // blocked again
+    await hook('stop', { last_assistant_message: 'working on it' });                     // same text: no duplicate
+    await hook('stop', { last_assistant_message: 'All 12 tests pass.' });                // the real answer
+    assert.deepEqual(await dm(), ['[tab] user: run the tests', '[tab] agent: working on it', '[tab] agent: All 12 tests pass.']);
+  } finally { await h.hub.close(); }
+});
