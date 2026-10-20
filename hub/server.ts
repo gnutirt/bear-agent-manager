@@ -721,6 +721,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   } });
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
+  /** B4: a live claude with a tab or terminal (any editor) holds the chat; the hub starts or opens nothing next to it. */
+  const tabHolds = (s: Session) => liveKinds(s.pids).tab;
   const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
   /** T-W: opens the tab of an offline member; the user presses Enter once. */
   function openTab(s: Session) {
@@ -732,7 +734,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
     const s = store.session(sid);
-    if (!loadSettings(opts.dir, envCap).openTabOnWake || waiters.has(s.id) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
+    if (!loadSettings(opts.dir, envCap).openTabOnWake || waiters.has(s.id) || tabHolds(s) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
     openTab(s);
   }
   /** T18c: role for the compact.thresholds fallback — lead of any room it's in, else member (has an IDE), else background (hub-created, no IDE). */
@@ -745,6 +747,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const s = store.session(sid);
     if (apiProfileOf(s)) attachTranscript(s);
     if (reviving.has(s.id) || waiters.has(s.id) || !hasTranscript(s)) return false;
+    if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = apiProfileOf(s);
     let apiRun: ReturnType<typeof apiJob> | undefined;
@@ -1864,13 +1867,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const s = store.session(id);
         if (waiters.has(s.id)) return json(res, 409, { error: `${s.name} is running; mention it instead` });
         if (!hasTranscript(s)) return json(res, 409, { error: `${s.name} has no saved conversation to resume` });
+        if (tabHolds(s)) return json(res, 409, { error: tr('sys.tab.holds', { name: s.name }) });
         return json(res, 200, { started: revive(s.id) });
       }
       if (m === 'POST' && action === 'open-tab') {
         const s = store.session(id);
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
-        if ((waiters.has(s.id) || (s.status !== 'offline' && !s.ended)) && !deafTold.has(s.id)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !deafTold.has(s.id)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
         stopRevive(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });

@@ -717,6 +717,7 @@ export const vi: Record<string, string> = {
   'sys.tab.deaf': '@you {name} không đọc tin: tab vẫn mở nhưng lượt trước bị ngắt. Gõ một phím trong tab đó, hoặc bấm Mở tab trong danh sách thành viên.',
   'sys.wake.cannot': '@you Không đánh thức được {name}: không có hội thoại đã lưu để chạy tiếp và cài đặt tự mở tab khi đánh thức đang tắt. Hãy mở tab của nó bằng tay hoặc bật cài đặt đó.',
   'sys.tab.replaced': 'Tab của {name} đã mở: hub đóng tiến trình nền để không chạy hai claude trên một chat.',
+  'sys.tab.holds': 'Chat của {name} vẫn đang được một tab hoặc terminal editor giữ: đóng nó trước rồi mới hồi sinh (một chat chỉ sống ở một nơi).',
   'sub.perms': 'Quyền',
   'perm.title': 'Quyền của agent do hub khởi chạy',
   'perm.note': 'Áp cho mọi tiến trình hub tự chạy: gọi dậy nền, compact, làm mới trưởng phòng, worker. Tab VS Code do extension quản lý nên không bị ép, và tab terminal hub mở ra chưa nhận được cờ quyền.',

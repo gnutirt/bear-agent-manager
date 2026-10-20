@@ -624,3 +624,20 @@ test('private chat routes: POST /api/rooms/dm/:id opens it, POST /api/rooms/:roo
     fs.rmSync(h.dir, { recursive: true, force: true });
   }
 });
+
+test('B4: a chat still held by a live editor claude is never resumed or reopened next to it', async () => {
+  const jobs: any[] = [], opened: string[] = [];
+  const h = await makeHub(undefined, (job: any) => { jobs.push(job); }, { openUrl: (u: string) => { opened.push(u); } });
+  try {
+    await h.call('/api/settings', { openTabOnWake: true }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'b4', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, pid: process.pid, ide: 'antigravity' });
+    await h.call('/api/sessions/b4/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'b4' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b4', cwd: 'C:/fw' }) });   // SessionEnd seen, yet the pid is alive
+    await h.call('/api/rooms/proj/messages', { text: '@fw are you there?' });
+    assert.equal(jobs.length, 0, 'no second claude on the same chat');
+    assert.equal(opened.length, 0, 'no second editor tab either');
+    await assert.rejects(h.call('/api/sessions/b4/revive', {}), (e: any) => e.status === 409 && /tab|terminal/.test(e.message));
+    assert.equal(jobs.length, 0);
+  } finally { await h.hub.close(); }
+});

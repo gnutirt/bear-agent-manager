@@ -717,6 +717,7 @@ export const en: Record<string, string> = {
   'sys.tab.deaf': '@you {name} is not reading its messages: the tab is still open but its last turn was interrupted. Press a key in that tab, or use Open tab in the member list.',
   'sys.wake.cannot': '@you {name} cannot be woken: it has no saved conversation to resume and open-a-tab-on-wake is off. Open its tab by hand or turn that setting on.',
   'sys.tab.replaced': 'The tab of {name} is open: the hub ended its background process so two claudes do not run on one chat.',
+  'sys.tab.holds': 'The chat of {name} is still held by an open editor tab or terminal: close it first, then resume (one chat lives in one place).',
   'sub.perms': 'Permissions',
   'perm.title': 'Permissions of agents the hub starts',
   'perm.note': 'Applies to every process the hub starts itself: background wake, compact, lead refresh, workers. VS Code tabs are managed by the extension and are not forced, and terminals the hub opens do not get the permission flag yet.',
