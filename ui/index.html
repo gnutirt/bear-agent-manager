@@ -1513,11 +1513,19 @@ function lastWakes(list) {
 }
 /* Read receipts on the newest message that woke each member: waiting → received (or offline). Once the
    member has answered the chip goes away (the answer is right below), so old messages stay quiet. */
+const isOwn = (x) => !x.fromId && x.kind !== 'mirror' && x.kind !== 'system' && !x.sys;
+let ownMemo = { list: null, n: -1, id: -1 };
+function newestOwn(list) {
+  if (ownMemo.list === list && ownMemo.n === list.length) return ownMemo.id;
+  let id = -1; for (let i = list.length - 1; i >= 0; i--) if (isOwn(list[i])) { id = list[i].id; break; }
+  ownMemo = { list, n: list.length, id }; return id;
+}
 function receipts(m, list, last = lastWakes(list)) {
-  if (!m.wake?.length) return '';
-  const chips = m.wake.map((id) => {
+  const dm = S.rooms?.find((r) => r.name === m.room)?.dm;   // a private chat keeps the receipt on your newest message even after the answer, and on any message still unread
+  if (!m.wake?.length && !(dm && isOwn(m))) return '';
+  const chips = (dm && !m.wake?.length ? [dm] : m.wake).map((id) => {
     const s = S.sessions[id];
-    if (!s || last[id] !== m.id || list.some((x) => x.id > m.id && x.fromId === id)) return '';
+    if (!s || (dm ? newestOwn(list) !== m.id && (s.cursor ?? 0) >= m.id : last[id] !== m.id || list.some((x) => x.id > m.id && x.fromId === id))) return '';
     const [cls, txt] = (s.cursor ?? 0) >= m.id ? ['got', s.status === 'busy' ? t('rcpt.gotBusy') : t('rcpt.got')]
       : s.status === 'offline' ? ['dead', t('rcpt.dead')]
       : ['wait', t('rcpt.wait')];
@@ -1625,6 +1633,8 @@ let lastLogSig = '';
 /** What the drawn log depends on besides the messages: who the senders are and their status (receipts, names, avatars). Activity text and context size are not in it. */
 /** A private chat also shows the answers its agent left as relay cards in the rooms (a turn answered in its own tab is relayed to the room it was asked in). */
 const isRelayOf = (m, sid) => m.sys?.type === 'relay' && m.fromId === sid;
+/** A turn typed in the agent's own tab arrives as "[tab] user: ...": the prefix is noise, the badge already names the editor. */
+const msgText = (m) => m.kind === 'mirror' ? String(m.text).replace(/^\[tab\]\s+(?:user|agent):\s*/, '') : m.text;
 const dmAsked = new Set();
 /** An agent that answered in its own tab gets a private chat with you (created once, idempotent on the hub), where that answer is shown. */
 function ensureDm(sid) {
@@ -1705,11 +1715,11 @@ function renderLog() {
     closeRail();
     const tome = m.fromId && m.mentions.includes('you');
     const cont = prev && prev.from === m.from && prev.kind === m.kind && m.ts - prev.ts < 5 * 60e3 && !tome && topicOf(prev) === topicOf(m);
-    if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
+    if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(msgText(m))}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = messageName(m);
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}${m.kind === 'mirror' ? ' mirror' : ''}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}${m.kind === 'mirror' ? `<span class="mirrorbadge" title="${t('msg.fromTab.hint')}">${t('msg.fromTab')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}${m.kind === 'mirror' ? ' mirror' : ''}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}${m.kind === 'mirror' ? `<span class="mirrorbadge" title="${t('msg.fromTab.hint')}">${IDE[S.sessions[room(m.room)?.dm]?.ide] || t('msg.fromTab')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(msgText(m))}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -3286,7 +3296,7 @@ $('log').addEventListener('mouseover', (e) => {
 $('log').addEventListener('mouseleave', (e) => { if (e.relatedTarget !== rplBtn && e.relatedTarget !== cpyBtn) rplBtn.style.display = cpyBtn.style.display = 'none'; });
 $('log').addEventListener('scroll', () => { rplBtn.style.display = cpyBtn.style.display = 'none'; });
 cpyBtn.onmouseleave = rplBtn.onmouseleave = (e) => { if (!e.relatedTarget?.closest?.('#log') && e.relatedTarget !== rplBtn && e.relatedTarget !== cpyBtn) rplBtn.style.display = cpyBtn.style.display = 'none'; };
-cpyBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = cpyBtn.style.display = 'none'; if (m) copy(m.text || '', t('msg.copied')); };
+cpyBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = cpyBtn.style.display = 'none'; if (m) copy(msgText(m) || '', t('msg.copied')); };
 rplBtn.onclick = () => { const m = (S.messages[S.current] || []).find((x) => String(x.id) === rplFor); rplBtn.style.display = 'none'; if (m) setReply(m); };
 $('log').addEventListener('click', (e) => {
   if (e.target.closest('#olderBtn')) return showOlder(150);
