@@ -69,6 +69,7 @@
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
 | GET | `/api/providers` |  | có |
+| GET | `/api/paid-usage` |  | có |
 | PUT | `/api/providers/:param` |  | có |
 | POST | `/api/providers` | `id` | có |
 | DELETE | `/api/providers/:param` |  | có |

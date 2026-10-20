@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
+import { paidProfileUsage } from './paidusage.ts';
 import { summarize } from './tokens.ts';
 import { appAsset, withManifest } from './appshell.ts';
 import { probeDir, runWorker } from './slowdir.ts';
@@ -1829,6 +1830,20 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     // ---- providers: worker endpoints + keys (keys never leave the hub) ----
     if (m === 'GET' && p === '/api/providers') return json(res, 200, withHealth(loadProviders(opts.dir, legacyKey)));
+    // #118: what each paid claude-api profile used, read from its own transcripts (runs = user turns, tokens = message.usage).
+    // Cost is filled only from the provider's price block: no pricing, costUsd stays null instead of being guessed.
+    if (m === 'GET' && p === '/api/paid-usage') {
+      const provs = loadProviders(opts.dir, legacyKey);
+      const rows = apiProfiles().flatMap((prof) => {
+        const prov = provs.find((x) => x.id === prof.providerId);
+        if (!prov || prov.tier !== 'paid') return [];
+        const texts = Object.values(store.state.sessions)
+          .filter((s) => normAgent(s.name) === normAgent(prof.name) && s.transcript && fs.existsSync(s.transcript))
+          .map((s) => { try { return fs.readFileSync(s.transcript!, 'utf8'); } catch { return ''; } });
+        return [{ ...paidProfileUsage(prof.name, prov.id, prof.model || prov.models.read[0] || '', texts, prov.pricing), pricing: prov.pricing ?? null }];
+      });
+      return json(res, 200, rows);
+    }
     const pv = p.match(/^\/api\/providers\/([a-z0-9-]+)$/);
     if (pv && m === 'PUT') {
       const list = applyPatch(loadProviders(opts.dir, legacyKey), pv[1], await readBody(req));
