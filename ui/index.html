@@ -1845,8 +1845,9 @@ function connect() {
   es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); });
   es.addEventListener('session', (e) => {
     const s = JSON.parse(e.data); S.sessions[s.id] = s;
+    if (S.wantLive[s.id] && !s.tab) { delete S.wantLive[s.id]; liveStart(s.id, true).catch(() => {}); }   // the editor tab was closed after "Open in BAM": the chat moves here by itself
     if (S.renaming !== s.id) renderSessions();
-    renderHeader(); renderPresence(); renderLogIfChanged();
+    renderHeader(); renderPresence(); renderLogIfChanged(); if (typeof renderLive === 'function') renderLive();
     if (S.tab === 'workers') renderWorkersView();
   });
   es.addEventListener('room', (e) => {
@@ -2003,7 +2004,7 @@ $('composer').onsubmit = async (e) => {
 };
 
 /* ---------- live chat (S3 #66, contract: room notes [41][42][47]) + permission box (S4) ---------- */
-S.live = {}; S.perms = []; S.liveFold = false; S.liveOpen = new Set();
+S.live = {}; S.wantLive = {}; S.perms = []; S.liveFold = false; S.liveOpen = new Set();
 try { S.liveFold = localStorage.getItem('bear-agent-manager:liveFold') === '1'; } catch {}
 const liveSid = () => room(S.current)?.dm || null;
 const newLive = () => ({ running: false, items: [], stream: '', off: false });
@@ -2043,6 +2044,8 @@ const queueLiveRender = () => { if (!liveRaf) liveRaf = requestAnimationFrame(()
 function renderLive() {
   const pane = $('livePane'), sid = liveSid(), st = sid && S.live[sid];
   $('liveBtn').hidden = !st || st.off || st.running;
+  const tabOpen = !!(sid && S.sessions[sid]?.tab), lb = $('liveBtn'), key = tabOpen ? (S.wantLive[sid] ? 'live.openBam.wait' : 'live.openBam') : 'live.title';
+  if (lb.dataset.i18n !== key) { lb.dataset.i18n = key; lb.textContent = t(key); }
   pane.hidden = !st || st.off || (!st.running && !st.items.length);
   if (pane.hidden) return;
   const body = pane.querySelector('.lbody'), atEnd = !body || body.scrollHeight - body.scrollTop - body.clientHeight < 40;
@@ -2064,7 +2067,11 @@ function renderLive() {
 function liveStart(sid, quiet) {
   return api(`/api/sessions/${enc(sid)}/live`, {}).then(() => { (S.live[sid] ??= newLive()).running = true; renderLive(); }, (e) => { if (!quiet) toast(t('live.startFail', { err: e.message })); throw e; });
 }
-$('liveBtn').onclick = () => { const sid = liveSid(); if (sid) liveStart(sid).catch(() => {}); };
+$('liveBtn').onclick = () => {
+  const sid = liveSid(); if (!sid) return;
+  if (S.sessions[sid]?.tab) { S.wantLive[sid] = true; toast(t('live.openBam.hint')); renderLive(); return; }   // one chat lives in one place: close the editor tab, then it starts here
+  liveStart(sid).catch(() => {});
+};
 $('livePane').addEventListener('click', (e) => {
   const b = e.target.closest('[data-live]'), sid = liveSid(); if (!b || !sid) return;
   if (b.dataset.live === 'fold') { S.liveFold = !S.liveFold; try { localStorage.setItem('bear-agent-manager:liveFold', S.liveFold ? '1' : '0'); } catch {} return renderLive(); }
