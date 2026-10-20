@@ -16,6 +16,9 @@ export function defaultProviders(): Provider[] {
   return [
     { id: 'intern', label: 'Intern AI (free)', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', auth: 'api-key', key: '',
       models: { read: ['deepseek-v4-flash-0731', 'glm-5.3', 'kimi-k2.6'], edit: ['kimi-k2.6', 'glm-5.3', 'deepseek-v4-pro-0813'] } },
+    // api-docs.deepseek.com/guides/anthropic_api (2026-10-20): x-api-key; only deepseek-flash and deepseek-v4-pro are model names
+    { id: 'deepseek', label: 'DeepSeek', tier: 'paid', enabled: false, baseUrl: 'https://api.deepseek.com/anthropic', auth: 'api-key', key: '',
+      models: { read: ['deepseek-flash'], edit: ['deepseek-flash', 'deepseek-v4-pro'] } },
     // Values below are confirmed by the nghiencuu step of Task 4 before merging.
     { id: 'openrouter', label: 'OpenRouter', tier: 'paid', enabled: false, baseUrl: 'https://openrouter.ai/api', auth: 'auth-token', key: '',
       models: { read: [], edit: [] } },
