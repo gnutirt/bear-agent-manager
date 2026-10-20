@@ -204,10 +204,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     ['sys.stop.limit', { type: 'usage', level: 'warn' }], ['sys.act.limit', { type: 'usage', level: 'warn' }],
     ['sys.limit.stuck', { type: 'wake', level: 'error' }], ['sys.limit.unstuck', { type: 'wake', level: 'warn' }],
     ['sys.wake.giveup', { type: 'wake', level: 'error' }], ['sys.wake.failed', { type: 'wake', level: 'error' }],
+    ['sys.wake.cannot', { type: 'wake', level: 'warn' }],
     ['sys.wake.compactFailed', { type: 'compact', level: 'error' }], ['sys.wake.compacted', { type: 'compact', level: 'done' }],
     ['sys.wake.', { type: 'wake', level: 'info' }],
     ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }],
     ['sys.plugin.failed', { type: 'update', level: 'error' }], ['sys.plugin.', { type: 'update', level: 'info' }],
+    ['sys.tab.deaf', { type: 'tab', level: 'warn' }],
     ['sys.tab.', { type: 'tab', level: 'info' }], ['sys.lead.', { type: 'lead', level: 'info' }],
     ['sys.task.done', { type: 'task', level: 'done' }], ['sys.task.', { type: 'task', level: 'info' }],
     ['sys.stop.', { type: 'error', level: 'error' }], ['sys.archive', { type: 'backup', level: 'warn' }],
@@ -549,7 +551,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const { session: s, msg } of found) {
       if (deafTold.get(s.id) === msg.id) continue;
       deafTold.set(s.id, msg.id);
-      try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }))); emitRoom(msg.room); } catch { /* room gone */ }
+      try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
   }
   function deliver(sid: string) {
@@ -575,7 +577,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
           cannotTold.add(sid);
-          for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }))); emitRoom(r); } catch { /* room gone */ } }
+          for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }), undefined, { type: 'wake', level: 'warn', agent: st.name })); emitRoom(r); } catch { /* room gone */ } }
         }
       }
       return;
@@ -1583,7 +1585,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'open-tab') {
         const s = store.session(id);
-        if (waiters.has(s.id) || (s.status !== 'offline' && !s.ended)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
+        // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
+        if ((waiters.has(s.id) || (s.status !== 'offline' && !s.ended)) && !deafTold.has(s.id)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
         stopRevive(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });

@@ -119,6 +119,16 @@ test('bug: private-chat entry reachable from the running-agents sidebar too, and
   } finally { await hub.close(); }
 });
 
+test('T54: sys.tab.deaf / sys.wake.cannot messages offer a "Mở lại" button (data-sysopen) even while the session still looks online', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      "m.sys.type === 'tab' || (['usage', 'wake'].includes(m.sys.type) && ag.status === 'offline')",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('i18n: every key the UI uses exists, and no Vietnamese text is left outside data-i18n fallbacks and comments', async () => {
   const { hub } = await makeHub();
   try {

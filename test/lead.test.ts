@@ -155,7 +155,8 @@ test('P3 clear-lead: stops the lead, opens a fresh lead terminal with its handof
 
 test('C3 deaf tab: a live tab with no waiter and an @ waiting is reported once; C4: a wake that cannot happen is reported once', async () => {
   const h = await makeHub(20, () => {}, { deafMs: 50 });
-  const texts = async () => (await h.call<any[]>('/api/rooms/r/messages?after=0')).map((m) => m.text as string);
+  const msgs = async () => h.call<any[]>('/api/rooms/r/messages?after=0');
+  const texts = async () => (await msgs()).map((m) => m.text as string);
   try {
     await h.call('/api/sessions/register', { id: 'a1', cwd: 'C:/alpha' });
     await h.call('/api/sessions/register', { id: 'b1', cwd: 'C:/beta' });
@@ -168,11 +169,19 @@ test('C3 deaf tab: a live tab with no waiter and an @ waiting is reported once; 
     await new Promise((r) => setTimeout(r, 200));   // several more sweeps: still one notice
     assert.equal((await texts()).filter((t) => /alpha không đọc tin/.test(t)).length, 1);
     assert.equal((await texts()).filter((t) => /beta không đọc tin/.test(t)).length, 0);
+    // #54: the notice carries a session name in sys meta so the UI can offer a "Mở lại" button
+    const deafNotice = (await msgs()).find((m) => /alpha không đọc tin/.test(m.text));
+    assert.deepEqual(deafNotice.sys, { type: 'tab', level: 'warn', agent: 'alpha' });
+    // ...and open-tab, normally refused for a session that still looks online, is let through for this flagged one
+    assert.deepEqual(await h.call('/api/sessions/a1/open-tab', {}), { ok: true, ide: 'vscode' });
 
     // C4: beta's tab was closed, there is no saved chat to resume and openTabOnWake is off
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b1' }) });
     await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta hi' });
     await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta hi again' });
     assert.equal((await texts()).filter((t) => /Không đánh thức được beta/.test(t)).length, 1);
+    const cannotNotice = (await msgs()).find((m) => /Không đánh thức được beta/.test(m.text));
+    assert.deepEqual(cannotNotice.sys, { type: 'wake', level: 'warn', agent: 'beta' });
+    assert.deepEqual(await h.call('/api/sessions/b1/open-tab', {}), { ok: true, ide: 'vscode' });   // beta is offline+ended: already allowed before #54
   } finally { await h.hub.close(); }
 });

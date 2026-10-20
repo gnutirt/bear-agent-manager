@@ -1567,7 +1567,7 @@ function sysRow(m, run) {
   const open = S.sysMode === 'full' || S.expanded.has('s' + m.id);
   const when = run ? `${time(run[0].ts)}–${time(run[run.length - 1].ts)}` : time(m.ts);
   const ag = m.sys?.agent && Object.values(S.sessions).find((x) => x.name === m.sys.agent);
-  const btn = ag && ag.status === 'offline' && ['usage', 'wake'].includes(m.sys.type) && m.sys.level !== 'info' ? `<button type="button" class="act" data-sysopen="${esc(ag.id)}">${t('members.openTab')}</button>` : '';
+  const btn = ag && m.sys.level !== 'info' && (m.sys.type === 'tab' || (['usage', 'wake'].includes(m.sys.type) && ag.status === 'offline')) ? `<button type="button" class="act" data-sysopen="${esc(ag.id)}">${t('members.openTab')}</button>` : '';
   const act = m.sys?.action?.kind === 'switch' ? `<button type="button" class="act" data-swnow="${esc(m.sys.action.session)}" data-swto="${esc(m.sys.action.to)}">${t('sw.now', { to: esc(repo(m.sys.action.to)) })}</button>` : '';
   const body = open && long ? `<div class="evbody msg noclamp">${md(lines.slice(1).join('\n') || text)}</div>` : '';
   return `<div class="ev ${m.sys?.level || 'info'}${long ? ' long' : ''}${open ? ' open' : ''}" data-sysid="${m.id}">${sysNode(m)}<span class="t">${inline(lines[0])}${run ? `<span class="x">×${run.length}</span>` : ''}</span>${btn}${act}<time>${when}</time>${body}</div>`;
