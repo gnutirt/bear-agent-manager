@@ -16,6 +16,36 @@ export const PERMISSION = 'mcp__plugin_bear-agent-manager_room';
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 
+async function ollamaStatus(config, fetchImpl = fetch) {
+  if (!config || typeof config !== 'object') return ['Ollama', 'skip', 'optional; localSummarize is not configured'];
+  const model = typeof config.model === 'string' ? config.model.trim() : '';
+  if (!/^[\w.:/-]{1,80}$/.test(model)) return ['Ollama', 'warn', 'localSummarize has no valid model configured'];
+  let endpoint;
+  try {
+    const host = new URL(config.host);
+    if (host.protocol !== 'http:' && host.protocol !== 'https:') throw new Error('unsupported protocol');
+    endpoint = `${host.origin}/api/tags`;
+  } catch {
+    return ['Ollama', 'warn', 'localSummarize has an invalid Ollama host'];
+  }
+  let response;
+  try {
+    response = await fetchImpl(endpoint, { redirect: 'error', signal: AbortSignal.timeout(3000) });
+  } catch (error) {
+    return ['Ollama', 'warn', error?.name === 'TimeoutError' ? 'Ollama check timed out (optional)' : 'Ollama host is not reachable (optional)'];
+  }
+  if (!response.ok) return ['Ollama', 'warn', `Ollama answered HTTP ${response.status} (optional)`];
+  let result;
+  try { result = await response.json(); } catch {
+    return ['Ollama', 'warn', 'Ollama returned an invalid model list (optional)'];
+  }
+  const installed = Array.isArray(result?.models) && result.models.some((m) => m?.name === model || m?.model === model);
+  const mode = config.enabled === true ? '' : ' (localSummarize is off)';
+  return installed
+    ? ['Ollama', 'ok', `model ${model} is available${mode}`]
+    : ['Ollama', 'warn', `model ${model} is missing${mode}; run ollama pull ${model} if desired (setup will not install it)`];
+}
+
 /** The settings.json after adding the room permission, or null when it is already there. */
 export function withPermission(settings) {
   const allow = settings?.permissions?.allow;
@@ -127,6 +157,8 @@ export async function main(argv = process.argv.slice(2), { out = (s) => console.
     // 3. every Claude config dir: plugin + room permission
     const found = o.dirs.length ? o.dirs : check({ home: o.home }).configDirs.map((c) => c.dir);
     if (!found.length) report.push(['Claude config dir', 'warn', `none under ${o.home}: run claude once, then setup again`]);
+    const missingLogins = [];
+    let loginChecks = 0;
     for (const dir of found) {
       const env = { CLAUDE_CONFIG_DIR: dir };
       const installed = Object.keys(readJson(path.join(dir, 'plugins', 'installed_plugins.json'), {}).plugins ?? {}).includes(PLUGIN);
@@ -149,10 +181,24 @@ export async function main(argv = process.argv.slice(2), { out = (s) => console.
         } else report.push([`permission @ ${dir}`, 'todo', o.dry ? 'dry run' : 'not changed: run again with --yes']);
       }
       const logged = fs.existsSync(path.join(dir, '.credentials.json'));
+      loginChecks++;
+      if (!logged) missingLogins.push(path.basename(dir));
       report.push([`login @ ${dir}`, logged ? 'ok' : 'todo', logged ? 'signed in' : 'run claude here and /login (macOS keeps it in the keychain: not checked)']);
     }
+    report.push([
+      'Missing sign-ins',
+      loginChecks === 0 || missingLogins.length ? 'todo' : 'ok',
+      loginChecks === 0 ? 'no Claude login files checked' : missingLogins.length ? `${missingLogins.map((name) => `Claude ${name}`).join(', ')} (file presence only; macOS Keychain is not checked)` : 'no missing Claude login files',
+    ]);
 
     // 4. optional extras
+    const hubHome = process.env.BEAR_AGENT_HOME ?? path.join(o.home, '.bear-agent-manager');
+    const hubSettingsFile = path.join(hubHome, 'settings.json');
+    if (!fs.existsSync(hubSettingsFile)) report.push(['Ollama', 'skip', 'optional; hub settings not found']);
+    else {
+      const hubSettings = readJson(hubSettingsFile, null);
+      report.push(hubSettings ? await ollamaStatus(hubSettings.localSummarize) : ['Ollama', 'warn', 'hub settings.json is invalid or unreadable']);
+    }
     const machine = check({ home: o.home });
     const accountCount = machine.configDirs.length;
     const projectsShared = machine.links.find(({ name }) => name === 'projects')?.state === 'linked';

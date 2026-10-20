@@ -61,7 +61,8 @@ dùng model mặc định của Copilot SDK. Copilot hiện dùng một tài kho
 - `npm run setup`: cài plugin cho từng thư mục cấu hình Claude, in thay đổi quyền và hỏi trước khi
   ghi, chạy lại an toàn. Nếu có cả `.claude` và `.claude-antigravity` mà projects chưa dùng chung,
   setup hỏi có bật chia sẻ chat không; `--link` đồng ý trực tiếp, `--yes` không tự bật phần tùy chọn.
-  `--dry-run` chỉ xem trước.
+  Setup cũng kiểm tra host/model Ollama đã cấu hình nhưng không tự cài; danh sách đăng nhập chỉ kiểm tra
+  file credentials tồn tại, không đọc nội dung token. `--dry-run` chỉ xem trước.
 - `npm run setup -- --app`: tạo lối tắt **Bear Agent Manager** (Desktop và Start Menu trên Windows)
   mở hub trong Edge/Chrome ở chế độ app. Trang hub cũng có manifest nên dùng được **Cài đặt app** của
   trình duyệt.
@@ -131,7 +132,9 @@ the Copilot SDK default. Copilot uses one GitHub account for now (profile `copil
 - `npm run setup`: installs the plugin for each Claude config dir, prints the permission change and
   asks before writing, safe to re-run. If both `.claude` and `.claude-antigravity` exist and their
   projects are not shared, setup asks whether to share chats; `--link` opts in directly, while
-  `--yes` does not silently enable this optional change. `--dry-run` only previews.
+  `--yes` does not silently enable this optional change. It also checks the configured Ollama host/model
+  without installing anything; the sign-in checklist checks credential-file existence only and never reads
+  token contents. `--dry-run` only previews.
 - `npm run setup -- --app`: creates a **Bear Agent Manager** shortcut (Desktop and Start Menu on
   Windows) that opens the hub in Edge/Chrome app mode. The hub page also has a manifest, so the
   browser's **Install app** works.

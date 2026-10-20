@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 // @ts-expect-error plain .mjs script
@@ -29,8 +30,15 @@ if (a[1] === 'install') { fs.mkdirSync(path.join(dir, 'plugins'), { recursive: t
 `);
   const run = async (extra: string[] = []) => {
     const lines: string[] = [];
-    const r = await main(['--home', home, '--config-dir', cfg, '--claude', `node ${stub}`, '--skip-npm', ...extra], { out: (s: string) => lines.push(s) });
-    return { ...r, text: lines.join('\n') };
+    const previousHome = process.env.BEAR_AGENT_HOME;
+    process.env.BEAR_AGENT_HOME = path.join(home, '.bear-agent-manager');
+    try {
+      const r = await main(['--home', home, '--config-dir', cfg, '--claude', `node ${stub}`, '--skip-npm', ...extra], { out: (s: string) => lines.push(s) });
+      return { ...r, text: lines.join('\n') };
+    } finally {
+      if (previousHome === undefined) delete process.env.BEAR_AGENT_HOME;
+      else process.env.BEAR_AGENT_HOME = previousHome;
+    }
   };
   try {
     // no --yes and no terminal: the settings file is not touched
@@ -80,8 +88,15 @@ if (a[1] === 'install') { fs.mkdirSync(path.join(dir, 'plugins'), { recursive: t
 `);
   const run = async (extra: string[] = [], ask?: (question: string) => boolean | Promise<boolean>) => {
     const lines: string[] = [];
-    const r = await main(['--home', home, '--config-dir', cfg, '--claude', `node ${stub}`, '--skip-npm', ...extra], { out: (s: string) => lines.push(s), ask });
-    return { ...r, text: lines.join('\n') };
+    const previousHome = process.env.BEAR_AGENT_HOME;
+    process.env.BEAR_AGENT_HOME = path.join(home, '.bear-agent-manager');
+    try {
+      const r = await main(['--home', home, '--config-dir', cfg, '--claude', `node ${stub}`, '--skip-npm', ...extra], { out: (s: string) => lines.push(s), ask });
+      return { ...r, text: lines.join('\n') };
+    } finally {
+      if (previousHome === undefined) delete process.env.BEAR_AGENT_HOME;
+      else process.env.BEAR_AGENT_HOME = previousHome;
+    }
   };
   try {
     const dry = await run(['--dry-run']);
@@ -115,4 +130,62 @@ if (a[1] === 'install') { fs.mkdirSync(path.join(dir, 'plugins'), { recursive: t
     assert.equal(linked.code, 0);
     assert.equal(rerun.code, 0);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('setup checks the configured Ollama model and reports missing Claude login files without reading credentials', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-setup-status-'));
+  const cfg = path.join(home, '.claude');
+  const ag = path.join(home, '.claude-antigravity');
+  const hubHome = path.join(home, '.bear-agent-manager');
+  fs.mkdirSync(path.join(cfg, 'plugins'), { recursive: true });
+  fs.mkdirSync(path.join(ag, 'plugins'), { recursive: true });
+  fs.mkdirSync(hubHome, { recursive: true });
+  fs.writeFileSync(path.join(cfg, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'bear-agent-manager@bear-agent-manager-local': [{}] } }));
+  fs.writeFileSync(path.join(ag, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'bear-agent-manager@bear-agent-manager-local': [{}] } }));
+  fs.writeFileSync(path.join(ag, '.credentials.json'), 'FAKE_TOKEN_MUST_NOT_BE_READ_OR_PRINTED');
+  let models = [{ name: 'qwen2.5:7b' }];
+  const requests: string[] = [];
+  const server = createServer((req, res) => {
+    assert.equal(req.headers.authorization, undefined, 'Ollama status is a public tags check, not an authenticated request');
+    requests.push(`${req.method} ${req.url}`);
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ models }));
+  });
+  const previousHome = process.env.BEAR_AGENT_HOME;
+  let output = '';
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('fake Ollama host did not bind');
+    fs.writeFileSync(path.join(hubHome, 'settings.json'), JSON.stringify({
+      localSummarize: { enabled: false, host: `http://127.0.0.1:${address.port}`, model: 'qwen2.5:7b' },
+    }));
+    process.env.BEAR_AGENT_HOME = hubHome;
+    const run = async () => {
+      const lines: string[] = [];
+      const result = await main(['--home', home, '--config-dir', cfg, '--config-dir', ag, '--skip-npm', '--dry-run'], { out: (s: string) => lines.push(s) });
+      output = lines.join('\n');
+      return result;
+    };
+
+    const available = await run();
+    assert.match(output, /OK\s+Ollama: model qwen2\.5:7b is available/);
+    assert.match(output, /TODO\s+Missing sign-ins: Claude \.claude \(file presence only/);
+    assert.match(output, /OK\s+login @ .*\.claude-antigravity: signed in/);
+    assert.doesNotMatch(output, /FAKE_TOKEN_MUST_NOT_BE_READ_OR_PRINTED|accessToken|refreshToken/);
+    assert.deepEqual(requests, ['GET /api/tags']);
+    assert.equal(available.code, 0);
+
+    models = [{ name: 'another-model' }];
+    const missing = await run();
+    assert.match(output, /WARN\s+Ollama: model qwen2\.5:7b is missing/);
+    assert.match(output, /ollama pull qwen2\.5:7b/);
+    assert.deepEqual(requests, ['GET /api/tags', 'GET /api/tags'], 'setup only lists models; it never runs an install');
+    assert.equal(missing.code, 0);
+  } finally {
+    if (previousHome === undefined) delete process.env.BEAR_AGENT_HOME;
+    else process.env.BEAR_AGENT_HOME = previousHome;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });

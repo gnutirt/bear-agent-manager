@@ -74,7 +74,8 @@ It installs the plugin and the room permission for every Claude config dir it fi
 directly, while `--yes` does not silently accept this optional change and `--dry-run` only previews it. Setup also
 offers (flags `--vscode`, `--autostart`, `--app`) the editor panel, hub autostart and a "Bear Agent Manager"
 app-window shortcut (Edge/Chrome `--app` mode; the hub also serves `/manifest.webmanifest` so the browser's "Install app" works),
-and prints what is still open (sign-in). Manual steps, if you prefer:
+checks the configured `localSummarize` Ollama host/model without installing anything, and prints missing Claude
+login files (existence only; token contents are never read). Manual steps, if you prefer:
 
 ```bash
 claude plugin marketplace add <path-to-bear-agent-manager>
