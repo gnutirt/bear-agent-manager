@@ -15,9 +15,11 @@ const empty = (): Usage => ({ runs: 0, input: 0, output: 0, cacheRead: 0, cacheC
 const add = (to: Usage, from: Usage): void => {
   to.runs += from.runs; to.input += from.input; to.output += from.output; to.cacheRead += from.cacheRead; to.cacheCreation += from.cacheCreation;
 };
+export const hasRates = (p: Pricing | undefined): p is Pricing & Required<Pick<Pricing, 'inPerM' | 'outPerM' | 'cacheReadPerM'>> =>
+  !!p && Number.isFinite(p.inPerM) && Number.isFinite(p.outPerM) && Number.isFinite(p.cacheReadPerM);
 
 /** USD for one usage block. providers.json has no separate cache-write rate, so a cache write is billed at the input rate. */
-export function usageCost(u: Usage, p: Pricing): number {
+export function usageCost(u: Usage, p: Pricing & Required<Pick<Pricing, 'inPerM' | 'outPerM' | 'cacheReadPerM'>>): number {
   const usd = ((u.input + u.cacheCreation) * p.inPerM + u.output * p.outPerM + u.cacheRead * p.cacheReadPerM) / 1_000_000;
   return Math.round(usd * 1e6) / 1e6;
 }
@@ -28,7 +30,7 @@ const dayOf = (timestamp: unknown): string => (typeof timestamp === 'string' && 
  * `assistant` entries carry token usage; `user` entries are a run when they hold text (the intro / a wake
  * prompt). Tool results also arrive as `user`, but they only hold `tool_result` blocks, so they are not runs.
  */
-function collect(jsonl: string): { total: Usage; days: Map<string, Usage> } {
+function collect(jsonl: string, dayOfTimestamp = dayOf): { total: Usage; days: Map<string, Usage> } {
   const total = empty(), days = new Map<string, Usage>();
   const bump = (day: string, f: (u: Usage) => void) => {
     const b = days.get(day) ?? empty();
@@ -39,7 +41,7 @@ function collect(jsonl: string): { total: Usage; days: Map<string, Usage> } {
     if (!line.trim()) continue;
     let j: any;
     try { j = JSON.parse(line); } catch { continue; }   // a partial first line, or not JSON
-    const day = dayOf(j?.timestamp);
+    const day = dayOfTimestamp(j?.timestamp);
     if (j?.type === 'assistant') {
       const u = j?.message?.usage;
       if (!u) continue;
@@ -59,22 +61,44 @@ function collect(jsonl: string): { total: Usage; days: Map<string, Usage> } {
 /** One transcript's usage, with per-day buckets and (when the provider has a price) the estimated cost. */
 export function summarizeTranscript(jsonl: string, pricing?: Pricing): PaidUsage {
   const { total, days } = collect(jsonl);
+  const rates = hasRates(pricing) ? pricing : undefined;
   const dayList: DayUsage[] = [...days].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([day, u]) => ({ day, ...u, costUsd: pricing ? usageCost(u, pricing) : null }));
-  return { ...total, costUsd: pricing ? usageCost(total, pricing) : null, days: dayList };
+    .map(([day, u]) => ({ day, ...u, costUsd: rates ? usageCost(u, rates) : null }));
+  return { ...total, costUsd: rates ? usageCost(total, rates) : null, days: dayList };
 }
 
 /** Several transcripts of one profile (a stale session plus the current one): totals and days added up. */
 export function paidUsage(transcripts: string[], pricing?: Pricing): PaidUsage {
   const total = empty(), days = new Map<string, Usage>();
+  const rates = hasRates(pricing) ? pricing : undefined;
   for (const text of transcripts) {
     const one = collect(text);
     add(total, one.total);
     for (const [day, u] of one.days) { const b = days.get(day) ?? empty(); days.set(day, b); add(b, u); }
   }
   const dayList: DayUsage[] = [...days].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([day, u]) => ({ day, ...u, costUsd: pricing ? usageCost(u, pricing) : null }));
-  return { ...total, costUsd: pricing ? usageCost(total, pricing) : null, days: dayList };
+    .map(([day, u]) => ({ day, ...u, costUsd: rates ? usageCost(u, rates) : null }));
+  return { ...total, costUsd: rates ? usageCost(total, rates) : null, days: dayList };
+}
+
+/** Estimated spend for one calendar day in a requested timezone (the budget uses Vietnam local time). */
+export function paidUsageForDay(transcripts: string[], pricing: Pricing | undefined, day: string, timeZone = 'Asia/Ho_Chi_Minh'): DayUsage {
+  const total = empty();
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const toDay = (timestamp: unknown) => {
+    if (typeof timestamp !== 'string') return 'unknown';
+    const ms = Date.parse(timestamp);
+    if (!Number.isFinite(ms)) return 'unknown';
+    const parts = formatter.formatToParts(ms);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  };
+  for (const text of transcripts) {
+    const found = collect(text, toDay).days.get(day);
+    if (found) add(total, found);
+  }
+  const rates = hasRates(pricing) ? pricing : undefined;
+  return { day, ...total, costUsd: rates ? usageCost(total, rates) : null };
 }
 
 export const paidProfileUsage = (profile: string, providerId: string, model: string, transcripts: string[], pricing?: Pricing): PaidProfileUsage =>

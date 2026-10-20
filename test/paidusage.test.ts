@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { paidProfileUsage, paidUsage, summarizeTranscript, usageCost } from '../hub/paidusage.ts';
+import { paidProfileUsage, paidUsage, paidUsageForDay, summarizeTranscript, usageCost } from '../hub/paidusage.ts';
 import { applyPatch, defaultProviders, loadProviders, publicProvider, saveProviders } from '../hub/providers.ts';
 
 const j = (o: unknown) => JSON.stringify(o);
@@ -51,6 +51,16 @@ test('several transcripts of one profile add up, days merged and sorted', () => 
   assert.ok(u.costUsd !== null && u.costUsd > 0);
 });
 
+test('daily budget uses Vietnam calendar days rather than UTC dates', () => {
+  const aroundMidnight = [
+    j({ type: 'assistant', timestamp: '2026-10-20T16:59:00.000Z', message: { usage: { input_tokens: 1_000_000 } } }),
+    j({ type: 'assistant', timestamp: '2026-10-20T17:00:00.000Z', message: { usage: { input_tokens: 2_000_000 } } }),
+  ].join('\n');
+  assert.equal(paidUsageForDay([aroundMidnight], PRICE, '2026-10-20').costUsd, 1);
+  assert.equal(paidUsageForDay([aroundMidnight], PRICE, '2026-10-21').costUsd, 2);
+  assert.equal(paidUsage([aroundMidnight], { budgetUsdPerDay: 1 }).costUsd, null, 'a budget without rates does not invent a cost');
+});
+
 test('an empty or unreadable transcript is all zeros, not an error', () => {
   const u = paidUsage(['', 'not json\n{}\n'], PRICE);
   assert.deepEqual([u.runs, u.input, u.output, u.cacheRead, u.cacheCreation, u.costUsd], [0, 0, 0, 0, 0, 0]);
@@ -58,26 +68,28 @@ test('an empty or unreadable transcript is all zeros, not an error', () => {
 });
 
 test('the built-in deepseek provider ships the lead-approved peak-hour prices', () => {
-  assert.deepEqual(defaultProviders().find((x) => x.id === 'deepseek')!.pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 });
+  assert.deepEqual(defaultProviders().find((x) => x.id === 'deepseek')!.pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3, budgetUsdPerDay: 1 });
   assert.equal(defaultProviders().find((x) => x.id === 'intern')!.pricing, undefined, 'the free provider needs no price');
 });
 
-test('providers.json keeps a valid pricing block, drops an invalid or cleared one, and never hides it from the public view', () => {
+test('providers.json keeps rates and budgets, accepts budget-only pricing and never hides either from the public view', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-paid-'));
   try {
-    let list = applyPatch(defaultProviders(), 'deepseek', { pricing: { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 } });
+    let list = applyPatch(defaultProviders(), 'deepseek', { pricing: { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3, budgetUsdPerDay: 1 } });
     const p = list.find((x) => x.id === 'deepseek')!;
-    assert.deepEqual(p.pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 });
-    assert.deepEqual(publicProvider(p).pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 }, 'pricing is not a secret');
+    assert.deepEqual(p.pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3, budgetUsdPerDay: 1 });
+    assert.deepEqual(publicProvider(p).pricing, p.pricing, 'pricing is not a secret');
     saveProviders(home, list);
-    assert.deepEqual(loadProviders(home).find((x) => x.id === 'deepseek')!.pricing, { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 });
+    assert.deepEqual(loadProviders(home).find((x) => x.id === 'deepseek')!.pricing, p.pricing);
 
-    const bad = applyPatch(list, 'deepseek', { pricing: { inPerM: -1, outPerM: 1, cacheReadPerM: 0 } as any });
-    assert.equal(bad.find((x) => x.id === 'deepseek')!.pricing, undefined);
+    const bad = applyPatch(list, 'deepseek', { pricing: { inPerM: -1, outPerM: 1, cacheReadPerM: 0, budgetUsdPerDay: -1 } as any });
+    assert.deepEqual(bad.find((x) => x.id === 'deepseek')!.pricing, { budgetUsdPerDay: 1 }, 'invalid rates are not estimated and invalid budget keeps default');
+    const budgetOnly = applyPatch(defaultProviders(), 'openrouter', { pricing: { budgetUsdPerDay: 3 } });
+    assert.deepEqual(budgetOnly.find((x) => x.id === 'openrouter')!.pricing, { budgetUsdPerDay: 3 });
     const partial = applyPatch(list, 'deepseek', { pricing: { inPerM: 1 } as any });
-    assert.equal(partial.find((x) => x.id === 'deepseek')!.pricing, undefined);
+    assert.deepEqual(partial.find((x) => x.id === 'deepseek')!.pricing, { inPerM: 1, outPerM: 1.2, cacheReadPerM: 0.3, budgetUsdPerDay: 1 }, 'a partial rate update keeps the other saved rates');
     const cleared = applyPatch(list, 'deepseek', { pricing: null as any });
-    assert.equal(cleared.find((x) => x.id === 'deepseek')!.pricing, undefined);
+    assert.deepEqual(cleared.find((x) => x.id === 'deepseek')!.pricing, { budgetUsdPerDay: 1 });
     const other = applyPatch(list, 'deepseek', { label: 'DeepSeek' });
     assert.deepEqual(other.find((x) => x.id === 'deepseek')!.pricing, p.pricing, 'a patch without pricing keeps it');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }

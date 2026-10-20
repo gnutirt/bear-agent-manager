@@ -27,6 +27,20 @@ test('UI inline script compiles and the workers panel is wired (list, live updat
   } finally { await hub.close(); }
 });
 
+test('paid-provider Settings expose an editable daily budget and save it with pricing', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      "t('prov.dailyBudget')",
+      'name="budgetUsdPerDay"',
+      'p.pricing?.budgetUsdPerDay ?? 1',
+      'patch.pricing = { budgetUsdPerDay }',
+      "t('prov.dailyBudget.invalid')",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('tasks use grouped status sections with a completed checklist and an undo window', async () => {
   const { hub } = await makeHub();
   try {

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
-import { paidProfileUsage } from './paidusage.ts';
+import { hasRates, paidProfileUsage, paidUsageForDay } from './paidusage.ts';
 import { summarize } from './tokens.ts';
 import { appAsset, withManifest } from './appshell.ts';
 import { probeDir, runWorker } from './slowdir.ts';
@@ -230,6 +230,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** A hub notice with its sys meta (from the key of its text unless given). */
   const postSys = (room: string, text: string, topic?: string, meta?: SysMeta) => store.postSystem(room, text, topic, meta ?? sysMeta(text));
   const clock = (ms: number, more: Intl.DateTimeFormatOptions = {}) => new Date(ms).toLocaleString(dateLocale(lang()), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', ...more });
+  const vnDay = (ms: number) => {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(ms);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  };
+  const nextVnMidnight = (ms: number) => {
+    const [year, month, day] = vnDay(ms).split('-').map(Number);
+    return Date.UTC(year, month - 1, day + 1) - 7 * 60 * 60_000;
+  };
+  const usd = (amount: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(amount);
   /** The time, plus the date when it is not today: "00:00" alone reads as tonight. */
   const clockWithDay = (ms: number) => { const day = (t: number) => new Date(t).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }); return clock(ms, day(ms) === day(Date.now()) ? {} : { day: 'numeric', month: 'numeric' }); };
   store.tr = tr;
@@ -418,6 +428,43 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const apiProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'claude-api');
   const apiProfileOf = (s: Session) => apiProfiles().find((p) => normAgent(p.name) === normAgent(s.name));
   const apiSessionOf = (p: AgentProfile) => Object.values(store.state.sessions).find((x) => normAgent(x.name) === normAgent(p.name));
+  const budgetCostCache = new Map<string, { day: string; signature: string; cost: number | null }>();
+  function apiBudgetUntil(p: AgentProfile): number {
+    if (!p.enabled) return 0;
+    const provider = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
+    if (!provider || provider.tier !== 'paid' || !hasRates(provider.pricing)) return 0;
+    const day = vnDay(Date.now()), session = apiSessionOf(p);
+    if (session && !hasTranscript(session)) attachTranscript(session);
+    const files = Object.values(store.state.sessions)
+      .filter((s) => normAgent(s.name) === normAgent(p.name) && s.transcript)
+      .map((s) => s.transcript!);
+    const signature = `${provider.pricing.inPerM}/${provider.pricing.outPerM}/${provider.pricing.cacheReadPerM}\n`
+      + files.map((file) => {
+        try {
+          const stat = fs.statSync(file);
+          return `${file}:${stat.size}:${stat.mtimeMs}`;
+        } catch { return `${file}:missing`; }
+      }).join('\n');
+    let cached = budgetCostCache.get(p.id);
+    if (!cached || cached.day !== day || cached.signature !== signature) {
+      const transcripts = files.map((file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } });
+      cached = { day, signature, cost: paidUsageForDay(transcripts, provider.pricing, day).costUsd };
+      budgetCostCache.set(p.id, cached);
+    }
+    const spent = cached.cost;
+    const budget = provider.pricing.budgetUsdPerDay ?? 1;
+    if (spent == null || spent < budget) return 0;
+    if (store.state.budgetAlerts?.[p.id] !== day) {
+      (store.state.budgetAlerts ??= {})[p.id] = day;
+      store.save();
+      const msg = postSys('bear-agent-manager', tr('sys.apiagent.budget', {
+        name: p.name, provider: provider.label, budget: usd(budget), spent: usd(spent),
+      }), undefined, { type: 'usage', level: 'warn', agent: p.name });
+      broadcast('msg', msg);
+      emitRoom('bear-agent-manager');
+    }
+    return nextVnMidnight(Date.now());
+  }
   /** Environment, permission and model of the profile's claude; throws when the provider cannot serve it. */
   function apiJob(p: AgentProfile, cfg: ReturnType<typeof loadSettings>, sid: string) {
     const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
@@ -447,11 +494,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     broadcast('agentprofile', apiStatus(p));
   }
   function apiStatus(p: AgentProfile) {
-    const s = apiSessionOf(p), st = apiState.get(p.id) ?? {}, limited = apiLimited(p);
+    const s = apiSessionOf(p), st = apiState.get(p.id) ?? {}, limited = apiLimited(p), budgetLimitedUntil = apiBudgetUntil(p);
     const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
-    const state = !p.enabled ? 'off' : limited || st.error ? 'error' : s && reviving.has(s.id) && !waiters.has(s.id) ? 'busy' : s ? 'idle' : 'off';
+    const state = !p.enabled ? 'off' : limited || budgetLimitedUntil || st.error ? 'error' : s && reviving.has(s.id) && !waiters.has(s.id) ? 'busy' : s ? 'idle' : 'off';
     return { id: p.id, name: p.name, provider: 'claude-api', providerId: p.providerId, model: p.model ?? prov?.models.read[0] ?? '', state, auth: !prov ? 'unknown' : prov.enabled && (prov.key || prov.tier === 'local') ? 'ok' : 'no',
-      ...(st.error ? { error: st.error } : {}), ...(limited ? { limited } : {}), room: 'bear-agent-manager', cwd: p.cwd, enabled: p.enabled, edit: p.edit === true };
+      ...(st.error ? { error: st.error } : {}), ...(limited ? { limited } : {}), ...(budgetLimitedUntil ? { budgetLimitedUntil } : {}), room: 'bear-agent-manager', cwd: p.cwd, enabled: p.enabled, edit: p.edit === true };
   }
   /** First start of a profile (no session yet): registers the member and runs `claude` with the provider's environment. An existing session wakes on its first @ like any agent. */
   function apiStart(p: AgentProfile): boolean {
@@ -460,6 +507,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const stale = apiSessionOf(p);
     if (stale && !stale.ended) return true;
     if (stale && hasTranscript(stale)) return true;
+    if (apiBudgetUntil(p)) return false;
     try {
       if (!store.state.rooms[room]) throw new Error(`room #${room} does not exist`);
       if (Math.max(countBackground(), reviving.size) >= cfg.agents.maxBackground) throw new Error(`${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
@@ -480,7 +528,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Starts profiles that are on and have no session yet; stops the live agent of a profile that is off or gone. */
   function syncApiAgents() {
     const profiles = apiProfiles();
-    for (const p of profiles) if (p.enabled && !apiLimited(p)) apiStart(p);
+    for (const p of profiles) if (p.enabled && !apiLimited(p) && !apiBudgetUntil(p)) apiStart(p);
     for (const s of Object.values(store.state.sessions)) {
       if (s.ended || !isBackground(s.id)) continue;
       const p = profiles.find((x) => normAgent(x.name) === normAgent(s.name));
@@ -661,6 +709,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
   function deliver(sid: string, directUser = false) {
     const st = store.session(sid);
+    const api = apiProfileOf(st);
+    if (api && apiBudgetUntil(api)) return;
     const cop = copilotHolding(st.id);
     if (cop) {
       void cop.wake(st.id).catch((error) => cop.reportError(error));
@@ -768,7 +818,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const api = apiProfileOf(s);
     let apiRun: ReturnType<typeof apiJob> | undefined;
     if (api) {
-      if (!api.enabled || apiLimited(api)) return false;
+      if (!api.enabled || apiLimited(api) || apiBudgetUntil(api)) return false;
       try { apiRun = apiJob(api, loadSettings(opts.dir, envCap), s.id); } catch (e) { apiFailed(api, (e as Error).message); return false; }
     }
     const p = store.pending(s.id);
@@ -1701,6 +1751,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!prof) return json(res, 404, { error: `unknown claude-api profile ${ap[1]}` });
       const b = await readBody(req);
       if (ap[2] && !prof.enabled) throw new StoreError(409, `${prof.name} is off: turn it on first`);
+      if (ap[2]) {
+        const budgetUntil = apiBudgetUntil(prof);
+        if (budgetUntil) return json(res, 429, { error: tr('sys.apiagent.budgetRetry', { name: prof.name, at: clock(budgetUntil) }), retryAt: budgetUntil, status: apiStatus(prof) });
+      }
       if (!ap[2]) {
         if (b.confirm !== true) return json(res, 200, { ...apiStatus(prof), done: false });
         if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
@@ -2370,6 +2424,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
+    const profile = apiProfiles().find((p) => p.name.toLowerCase() === (t.owner ?? '').toLowerCase());
+    if (profile && apiBudgetUntil(profile)) {
+      if (t.status === 'doing') {
+        updateTask(opts.dir, room, t.id, { status: 'todo' });
+        emitTaskList(room);
+      }
+      return;
+    }
     const extra = `${t.detail ? `\n${t.detail}` : ''}${t.doneWhen ? `\n${tr('sys.task.doneWhen', { text: t.doneWhen })}` : ''}${t.fromMsg ? ` ${tr('sys.task.src', { id: t.fromMsg })}` : ''}`;
     const r = store.post(room, fromId, tr('sys.task.assign', { owner: t.owner!, id: t.id, title: t.title, extra }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
     broadcast('msg', r.message);
@@ -2405,6 +2467,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const mine = all.filter((t) => (t.owner ?? '').toLowerCase() === mem.name.toLowerCase());
         const next = mine.find((t) => t.status === 'todo');
         if (!next || mine.some((t) => t.status === 'doing')) continue;
+        const profile = apiProfiles().find((p) => p.name.toLowerCase() === mem.name.toLowerCase());
+        if (profile && apiBudgetUntil(profile)) continue;
         const key = `${room}|${mem.name.toLowerCase()}`;
         if (now - (lastAutoNext.get(key) ?? 0) < AUTO_NEXT_COOLDOWN_MS) continue;
         lastAutoNext.set(key, now);
@@ -2437,6 +2501,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
     if (changedPause) store.save();
+    let changedBudgetAlerts = false;
+    const todayVn = vnDay(Date.now());
+    for (const p of apiProfiles()) {
+      if (apiBudgetUntil(p)) continue;
+      const alertedDay = store.state.budgetAlerts?.[p.id];
+      if (!alertedDay || alertedDay === todayVn) continue;
+      delete store.state.budgetAlerts![p.id];
+      changedBudgetAlerts = true;
+      const s = apiSessionOf(p);
+      if (s && store.pending(s.id).wake) deliver(s.id);
+    }
+    if (changedBudgetAlerts) { store.save(); syncApiAgents(); }
     checkDeaf();
     autoNextTasks();
   }, opts.sweepMs ?? 30_000);

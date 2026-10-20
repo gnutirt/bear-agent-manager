@@ -45,6 +45,7 @@ type State = {
   wakeAt?: Record<string, { at: number; tries: number }>;   // T-C: booked wake-ups per Claude account (email or config dir)
   usagePaused?: Record<string, { until: number; configDirs: string[]; swept?: boolean }>;   // account delivery is held until reset; expired sessions are swept once
   usageAlerts?: string[];   // Claude Pro usage warnings already posted: "email|window|resets_at"
+  budgetAlerts?: Record<string, string>;   // paid-provider budget notices already posted: profile id -> Vietnam-local date
   skillUse?: { agent: string; skill: string; ts: number; room: string }[];   // newest 500 Skill tool calls (which agent really used which skill)
   leadOpened?: string[];   // rooms the hub already opened a lead terminal for by itself (T19: once per room)
 };

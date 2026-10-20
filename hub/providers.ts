@@ -4,8 +4,8 @@ import { StoreError } from './store.ts';
 import { renameRetry } from './atomic.ts';
 
 export type Tier = 'free' | 'paid' | 'local';   // local: an Anthropic-compatible host on this machine/LAN (e.g. Ollama); no real key needed
-/** Optional USD prices per 1M tokens: a published rate the owner approved, or a value typed in Settings; never guessed from usage. */
-export type Pricing = { inPerM: number; outPerM: number; cacheReadPerM: number };
+/** USD per 1M tokens and a daily USD cap. Rates are optional until the owner supplies them; usage never guesses. */
+export type Pricing = { inPerM?: number; outPerM?: number; cacheReadPerM?: number; budgetUsdPerDay?: number };
 export type Provider = {
   id: string; label: string; tier: Tier; enabled: boolean; baseUrl: string;
   auth: 'api-key' | 'auth-token'; key: string; models: { read: string[]; edit: string[] }; pricing?: Pricing;
@@ -23,25 +23,32 @@ export function defaultProviders(): Provider[] {
     // a cache read is priced at the input rate too, which can only overestimate.
     { id: 'deepseek', label: 'DeepSeek', tier: 'paid', enabled: false, baseUrl: 'https://api.deepseek.com/anthropic', auth: 'api-key', key: '',
       models: { read: ['deepseek-flash'], edit: ['deepseek-flash', 'deepseek-v4-pro'] },
-      pricing: { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3 } },
+      pricing: { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3, budgetUsdPerDay: 1 } },
     // Values below are confirmed by the nghiencuu step of Task 4 before merging.
     { id: 'openrouter', label: 'OpenRouter', tier: 'paid', enabled: false, baseUrl: 'https://openrouter.ai/api', auth: 'auth-token', key: '',
-      models: { read: [], edit: [] } },
+      models: { read: [], edit: [] }, pricing: { budgetUsdPerDay: 1 } },
   ];
 }
 
-/** A price block is kept only when all three rates are finite and >= 0; an invalid one is dropped, never guessed. */
-const priceOf = (v: any): Pricing | undefined => {
-  if (!v || typeof v !== 'object') return undefined;
-  const ok = (x: any) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
-  return ok(v.inPerM) && ok(v.outPerM) && ok(v.cacheReadPerM) ? { inPerM: v.inPerM, outPerM: v.outPerM, cacheReadPerM: v.cacheReadPerM } : undefined;
+const RATE_KEYS = ['inPerM', 'outPerM', 'cacheReadPerM'] as const;
+const validAmount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+/** Keep the budget even when rates are unknown; incomplete or invalid rates never produce a cost estimate. */
+const priceOf = (v: any, base?: Pricing, paid = true): Pricing | undefined => {
+  if (!v || typeof v !== 'object') return paid ? { budgetUsdPerDay: base?.budgetUsdPerDay ?? 1 } : undefined;
+  const ratesPresent = RATE_KEYS.some((key) => v[key] !== undefined);
+  const ratesValid = RATE_KEYS.every((key) => validAmount(v[key]));
+  const rates = ratesPresent && ratesValid ? Object.fromEntries(RATE_KEYS.map((key) => [key, v[key]])) : {};
+  const budgetUsdPerDay = validAmount(v.budgetUsdPerDay) ? v.budgetUsdPerDay : base?.budgetUsdPerDay ?? 1;
+  if (!paid && !Object.keys(rates).length) return undefined;
+  return { ...rates, budgetUsdPerDay } as Pricing;
 };
 
 const clean = (p: any, base?: Provider): Provider => {
-  const pricing = p.pricing === undefined ? base?.pricing : priceOf(p.pricing);
+  const tier = p.tier === 'paid' ? 'paid' : p.tier === 'free' ? 'free' : p.tier === 'local' ? 'local' : base?.tier ?? 'paid';
+  const pricing = priceOf(p.pricing === undefined ? base?.pricing : p.pricing, base?.pricing, tier === 'paid');
   return {
     id: String(p.id ?? base?.id ?? ''), label: String(p.label ?? base?.label ?? p.id ?? ''),
-    tier: p.tier === 'paid' ? 'paid' : p.tier === 'free' ? 'free' : p.tier === 'local' ? 'local' : base?.tier ?? 'paid',
+    tier,
     enabled: typeof p.enabled === 'boolean' ? p.enabled : base?.enabled ?? false,
     baseUrl: String(p.baseUrl ?? base?.baseUrl ?? ''),
     auth: p.auth === 'auth-token' ? 'auth-token' : (p.auth === 'api-key' ? 'api-key' : base?.auth ?? 'api-key'),
@@ -82,7 +89,9 @@ export function applyPatch(list: Provider[], id: string, patch: Partial<Provider
   const cur = list.find((p) => p.id === id);
   if (!cur) throw new StoreError(404, `unknown provider ${id}`);
   const { key, ...rest } = patch;
-  const next = clean({ ...rest, id }, cur);
+  const pricingInput = patch.pricing && typeof patch.pricing === 'object' ? { ...cur.pricing, ...patch.pricing } : patch.pricing;
+  const pricing = patch.pricing === undefined ? cur.pricing : priceOf(pricingInput, cur.pricing, (patch.tier ?? cur.tier) === 'paid');
+  const next = clean({ ...rest, id, pricing }, cur);
   next.key = key === null ? '' : (typeof key === 'string' && key.trim() ? key.trim() : cur.key);
   return list.map((p) => (p.id === id ? next : p));
 }

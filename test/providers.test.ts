@@ -11,6 +11,8 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ar-prov-'));
 test('defaults: intern free enabled, deepseek and openrouter paid disabled', () => {
   const d = defaultProviders();
   assert.deepEqual(d.map((p) => [p.id, p.tier, p.enabled]), [['intern', 'free', true], ['deepseek', 'paid', false], ['openrouter', 'paid', false]]);
+  assert.equal(d.find((p) => p.id === 'deepseek')!.pricing?.budgetUsdPerDay, 1);
+  assert.equal(d.find((p) => p.id === 'openrouter')!.pricing?.budgetUsdPerDay, 1);
   assert.equal(d[0].baseUrl, 'https://discovery-api.intern-ai.org.cn');
   assert.deepEqual(d[0].models.read, ['deepseek-v4-flash-0731', 'glm-5.3', 'kimi-k2.6']);
 });
@@ -57,6 +59,10 @@ test('API: GET masks keys, PUT stores them', async () => {
     assert.deepEqual([put.hasKey, put.keyHint, put.enabled], [true, '…9999', true]);
     const list = await call('/api/providers');
     assert.ok(!JSON.stringify(list).includes('sk-or-9999'));
+    assert.equal(list.find((p: any) => p.id === 'openrouter').pricing.budgetUsdPerDay, 1);
+    const budget = await call('/api/providers/openrouter', { pricing: { budgetUsdPerDay: 2.5 } }, { method: 'PUT' });
+    assert.equal(budget.pricing.budgetUsdPerDay, 2.5);
+    assert.equal(budget.pricing.inPerM, undefined, 'budget settings do not invent provider prices');
   } finally { await hub.close(); }
 });
 
@@ -65,9 +71,12 @@ test('API: POST adds a second free provider, DELETE removes it but never the bui
   try {
     const add = await call('/api/providers', { id: 'intern-2', tier: 'free', enabled: true, baseUrl: 'https://discovery-api.intern-ai.org.cn', key: 'sk-two-7335' });
     assert.deepEqual([add.id, add.tier, add.enabled, add.keyHint], ['intern-2', 'free', true, '…7335']);
+    const paid = await call('/api/providers', { id: 'paid-one' });
+    assert.deepEqual(paid.pricing, { budgetUsdPerDay: 1 }, 'new paid providers default to $1/day without guessed token prices');
     await assert.rejects(call('/api/providers', { id: 'intern-2' }), /exists/);
     await assert.rejects(call('/api/providers/intern', undefined, { method: 'DELETE' }), /cannot be removed/);
     await call('/api/providers/intern-2', undefined, { method: 'DELETE' });
+    await call('/api/providers/paid-one', undefined, { method: 'DELETE' });
     assert.deepEqual((await call<any[]>('/api/providers')).map((p) => p.id), ['intern', 'deepseek', 'openrouter']);
   } finally { await hub.close(); }
 });

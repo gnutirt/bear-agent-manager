@@ -2846,6 +2846,7 @@ function providerCard(p) {
     <div class="two"><label>${t('prov.auth')}<select name="auth"><option value="api-key"${p.auth === 'api-key' ? ' selected' : ''}>x-api-key</option><option value="auth-token"${p.auth === 'auth-token' ? ' selected' : ''}>Bearer token</option></select></label>
     <label>Key<input name="key" type="password" autocomplete="off" placeholder="${p.hasKey ? t('prov.keySaved', { hint: esc(p.keyHint) }) : p.tier === 'local' ? t('prov.localNoKey') : t('prov.noKey')}"></label></div>
     <div class="two"><label>${t('prov.modelRead')}<input name="read" value="${esc(p.models.read.join(', '))}"${mph(p)}></label><label>${t('prov.modelEdit')}<input name="edit" value="${esc(p.models.edit.join(', '))}"${mph(p)}></label></div>
+    ${p.tier === 'paid' ? `<label>${t('prov.dailyBudget')}<input name="budgetUsdPerDay" type="number" min="0" step="0.01" value="${esc(String(p.pricing?.budgetUsdPerDay ?? 1))}"><small>${t('prov.dailyBudget.hint')}</small></label>` : ''}
     <div class="pf"><button class="btn primary">${t('common.save')}</button>${p.hasKey ? `<button type="button" class="btn" data-clearkey>${t('prov.clearKey')}</button>` : ''}<span class="spacer"></span>${p.id === 'intern' ? '' : `<button type="button" class="btn danger" data-delprov>${t('prov.delete')}</button>`}</div>
   </form>`;
 }
@@ -3493,6 +3494,12 @@ async function saveProvider(form) {
   const id = form.dataset.prov;
   const patch = { enabled: form.enabled.checked, baseUrl: form.baseUrl.value.trim(), auth: form.auth.value,
     models: { read: splitList(form.read.value), edit: splitList(form.edit.value) } };
+  const budgetField = form.elements.namedItem('budgetUsdPerDay');
+  if (budgetField) {
+    const budgetUsdPerDay = Number(budgetField.value);
+    if (!Number.isFinite(budgetUsdPerDay) || budgetUsdPerDay < 0) return toast(t('prov.dailyBudget.invalid'));
+    patch.pricing = { budgetUsdPerDay };
+  }
   if (form.key.value.trim()) patch.key = form.key.value.trim();   // empty = keep the saved key
   try { await api(`/api/providers/${enc(id)}`, patch, 'PUT'); toast(t('prov.saved', { id })); loadSettingsView(); }
   catch (e) { toast(e.message); }
