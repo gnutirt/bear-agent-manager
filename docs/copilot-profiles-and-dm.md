@@ -55,29 +55,28 @@ to these commits.
 
 ## 1. Private 1-1 chat with an agent
 
-- In the member list, click an agent and choose **Chat riêng** (Private chat) to open a room
-  shared only between you and that agent, separate from the shared room.
-- **Ẩn chat riêng** (Hide private chat) only hides it from the list; history is kept and reopens
-  any time by choosing the private chat with that agent again.
+- In the member list, click an agent and choose **Private chat** to open a room shared only
+  between you and that agent, separate from the shared room.
+- **Hide private chat** only hides it from the list; history is kept and reopens any time by
+  choosing the private chat with that agent again.
 - API behind this: `POST /api/rooms/dm/:sessionId` (create/reopen the private room),
   `POST /api/rooms/:room/hide` (hide).
 
 ## 2. Multiple Copilots, one per profile
 
-The hub used to run only one Copilot. Settings > Accounts > **Hồ sơ Copilot** (Copilot profiles)
-now lets you add several, each its own Copilot agent with its own working folder and room name.
+The hub used to run only one Copilot. Settings > Accounts > **Copilot profiles** now lets you add
+several, each its own Copilot agent with its own working folder and room name.
 
 1. Sign in to the Copilot CLI once, as the Windows user running the hub (shared by every profile):
    ```
    copilot login
    ```
    or run `copilot` then type `/login` in that session.
-2. Settings > Accounts > Copilot profiles > **Thêm hồ sơ** (Add profile): enter an ID (lowercase,
-   hyphenated, e.g. `copilot-work`), the display name in the room, the absolute working folder,
-   and an optional separate data folder if you want this profile's conversation history kept apart.
-3. Turn on **Cho phép chạy** (Enabled) for that profile; runtime and GitHub sign-in status are
-   shown per profile. **Thử đăng nhập lại** (Retry) restarts one profile after signing in, without
-   a hub restart.
+2. Settings > Accounts > Copilot profiles > **Add profile**: enter a Profile ID (lowercase,
+   hyphenated, e.g. `copilot-work`), the agent name in the room, the absolute working folder, and
+   an optional separate data folder if you want this profile's conversation history kept apart.
+3. Turn on **Enabled** for that profile; runtime and GitHub sign-in status are shown per profile.
+   **Retry sign-in** restarts one profile after signing in, without a hub restart.
 4. Limit: 16 profiles; IDs and names must be unique.
 
 API: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`,
@@ -85,15 +84,14 @@ API: `GET /api/copilot/profiles`, `POST /api/copilot/profiles/:id {on, confirm}`
 
 ## 3. Permissions per Copilot/agent
 
-Each Copilot profile defaults to **Tự sửa file** (`acceptEdits`): it can read/write files in its
-own working folder but not run shell commands on its own. To let a profile run commands (tests,
-build, git), go to Settings > Quyền (Permissions) > **Ghi đè theo agent** (Per-agent override), add
-that profile's name and set it to `bypass`. The change applies on the agent's next turn, no restart
-needed.
+Each Copilot profile defaults to **Auto-accept edits** (`acceptEdits`): it can read/write files in
+its own working folder but not run shell commands on its own. To let a profile run commands
+(tests, build, git), go to Settings > Permissions > **Per-agent overrides**, add that profile's
+name and set it to `bypass`. The change applies on the agent's next turn, no restart needed.
 
 ## 4. Creating an agent in the browser, with a folder picker
 
-Settings > Accounts > **Tạo agent nền** (Create background agent): the **Chọn thư mục…** (Browse…)
-button opens a folder picker instead of typing a path by hand. Before you click **Chạy** (Run), a
-review screen shows the room, account, permission and folder that will be used, so you can check
-before the agent actually starts.
+Settings > Accounts > **Create a background agent (no editor needed)**: the **Choose folder…**
+button opens a folder picker instead of typing a path by hand. Before you click Run, a review
+screen shows the room, account, permission and folder that will be used, so you can check before
+the agent actually starts.
