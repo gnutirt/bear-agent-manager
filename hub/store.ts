@@ -120,6 +120,21 @@ export class Store {
     }
     this.messages.sort((a, b) => a.id - b.id);
     this.migrateNames();
+    this.evictDmStrangers();
+  }
+
+  /** A private chat `dm-<id>` belongs to the user and session <id> only: drop anyone else who got in before this rule existed. */
+  private evictDmStrangers(): void {
+    let changed = false;
+    for (const s of Object.values(this.state.sessions)) {
+      for (const room of Object.keys(s.rooms)) {
+        if (room.startsWith('dm-') && room !== `dm-${s.id}`) { delete s.rooms[room]; changed = true; }
+      }
+    }
+    for (const r of Object.values(this.state.rooms)) {
+      if (r.name.startsWith('dm-') && r.lead && r.name !== `dm-${r.lead}`) { r.lead = null; changed = true; }
+    }
+    if (changed) this.save();
   }
 
   /** v0.1 auto names were "<repo>-<id4>"; give those sessions v0.2 names, live sessions first. */
@@ -299,6 +314,9 @@ export class Store {
 
   join(id: string, room: string): Session {
     const s = this.session(id);
+    if (room.startsWith('dm-') && room !== `dm-${s.id}`) {
+      throw new StoreError(403, `#${room} là chat riêng của user với một agent, không vào được; muốn nói với agent đó thì @ trong phòng chung / #${room} is a private chat between the user and one agent; @mention them in the shared room instead`);
+    }
     this.createRoom(room);
     if (!(room in s.rooms)) s.rooms[room] = this.lastId();
     this.save();
@@ -412,6 +430,9 @@ export class Store {
     if (!body && !attachments?.length) throw new StoreError(400, 'empty message');
     if (body.length > MAX_TEXT) throw new StoreError(413, `message longer than ${MAX_TEXT} chars`);
     const sender = fromId === null ? null : this.session(fromId);
+    if (sender && roomName.startsWith('dm-') && roomName !== `dm-${sender.id}`) {
+      throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
+    }
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);
     if (sender) sender.lastSeen = this.now();
 
