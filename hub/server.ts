@@ -1391,7 +1391,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/copilot') {
       const b = await readBody(req);
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus('copilot'), done: false });
-      return copilotToggle(res, 'copilot', b.on === true);
+      if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
+      return copilotToggle(res, 'copilot', b.on);
     }
     if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
     const cp = m === 'POST' ? p.match(/^\/api\/copilot\/profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
@@ -1401,7 +1402,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       if (cp[2]) return copilotToggle(res, prof.id, undefined);
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus(prof.id), done: false });
-      return copilotToggle(res, prof.id, b.on === true);
+      if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
+      return copilotToggle(res, prof.id, b.on);
     }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).

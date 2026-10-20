@@ -648,3 +648,25 @@ test('Copilot profile routes: 429 past agents.maxBackground, retry/hide 404 for 
     await h.hub.close();
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
+
+test('Copilot toggle routes: confirm without a boolean `on` is a 400 and never stops a running agent', async () => {
+  const { factory } = fakeFactory();
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-on-'));
+    await fetch(h.hub.url + '/api/settings', {
+      method: 'PUT', headers: { 'content-type': 'application/json', 'x-room-token': h.hub.token },
+      body: JSON.stringify({ agents: { profiles: [{ id: 'work', provider: 'copilot', name: 'CopilotWork', cwd: dir, enabled: false }] } }),
+    });
+    await h.call('/api/copilot/profiles/work', { on: true, confirm: true });
+    for (const path_ of ['/api/copilot/profiles/work', '/api/copilot']) {
+      for (const body of [{ confirm: true }, { on: 'true', confirm: true }, { on: 1, confirm: true }, { on: null, confirm: true }]) {
+        await assert.rejects(h.call(path_, body), (e: any) => e.status === 400 && /true or false/.test(e.message), `${path_} ${JSON.stringify(body)}`);
+      }
+    }
+    assert.equal((await h.call<any[]>('/api/copilot/profiles')).find((s) => s.id === 'work').state, 'idle', 'still running');
+    await h.call('/api/copilot/profiles/work', { on: false, confirm: true });
+  } finally {
+    await h.hub.close();
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
