@@ -191,7 +191,7 @@ input,textarea{font:inherit;color:inherit}
 .repo-filter{flex:1;min-width:0;max-width:112px;margin-left:6px;font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--side-mute);border-radius:6px;padding:1px 4px}
 .sec button{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--side-mute)}
 .sec button:hover{background:var(--side-2);color:var(--side-strong)}
-.room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text)}
+.room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text);cursor:pointer}
 .room:hover{background:var(--side-2)}
 .room.active{background:var(--accent);color:var(--on-accent,#fff)}
 .room .hash{opacity:.6;font-weight:600}
@@ -892,6 +892,7 @@ const I = {
   plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12H4M8 8l-4 4 4 4M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/></svg>',
   dots: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
 };
 
 async function api(p, body, method) {
@@ -1300,8 +1301,9 @@ function sessionRow(s) {
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
     : `<span class="n" title="${esc(s.name)}">${esc(s.name)}</span>${ctxBadge(s)}`;
   d.innerHTML = `${avatar(s.id, s.status, 'sm')}<div class="who"><div class="nm">${nameHtml}</div>${s.title ? `<div class="ttl" title="${esc(s.title)}">${esc(s.title)}</div>` : ''}<div class="sub"><span class="st st-${s.status}">${LABEL[s.status]}</span>${bgTag(s)}<span class="rp">${esc(repo(s.cwd))}</span></div></div>
-    <div class="acts">${s.status === 'offline' || !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
+    <div class="acts"><button class="icon" data-a="dm" title="${t('members.chatDm')}" aria-label="${t('members.chatDm')}">${I.chat.replace('<svg ', '<svg width="14" height="14" ')}</button>${s.status === 'offline' || !S.current ? '' : inRoom ? `<span class="in" title="${t('sessions.inRoom', { room: esc(S.current) })}" aria-label="${t('sessions.inRoomAria')}">✓</span>` : `<button class="add icon" data-a="add" title="${t('sessions.addTo', { room: esc(S.current) })}" aria-label="${t('sessions.addTo', { room: esc(S.current) })}">${I.plus.replace('width="15" height="15"', 'width="14" height="14"')}</button>`}</div>`;
   d.tabIndex = 0; d.setAttribute('role', 'button'); d.setAttribute('aria-haspopup', 'menu');
+  d.querySelector('[data-a=dm]')?.addEventListener('click', () => api(`/api/rooms/dm/${enc(s.id)}`, {}).then((r) => select(r.name), (e) => toast(e.message)));
   d.querySelector('[data-a=add]')?.addEventListener('click', () => api(`/api/rooms/${enc(S.current)}/join`, { sessionId: s.id }).then(() => toast(t('sessions.added', { name: s.name, room: S.current })), (e) => toast(e.message)));
   const inp = d.querySelector('input');
   if (inp) {
@@ -1327,10 +1329,11 @@ function sessionMenu(anchor, id) {
   openMenu(anchor, `<div class="smhead">${avatar(s.id, s.status, 'sm')}<div class="who"><b>${esc(s.name)}</b><div><span class="st st-${s.status}">${LABEL[s.status]}</span>${bgTag(s)}</div></div></div>
     ${s.title ? `<div class="vbody small muted">${esc(s.title)}</div>` : ''}${rows.map(([k, v]) => `<div class="smrow"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}
     <div class="smrow">${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide] || s.ide}</span>` : ''}${acctChip(s)}${ctxBadge(s)}</div><div class="sep"></div>
-    ${it('rename', ico(I.edit) + t('sessions.rename'))}${inRoom ? it('lead', isLead(id) ? '☆ ' + t('members.unlead') : '★ ' + t('sessions.setLead')) : ''}${S.current && !inRoom && s.status !== 'offline' ? it('add', ico(I.plus) + t('sessions.addTo', { room: esc(S.current) })) : ''}
+    ${it('rename', ico(I.edit) + t('sessions.rename'))}${it('dm', ico(I.chat) + t('members.chatDm'))}${inRoom ? it('lead', isLead(id) ? '☆ ' + t('members.unlead') : '★ ' + t('sessions.setLead')) : ''}${S.current && !inRoom && s.status !== 'offline' ? it('add', ico(I.plus) + t('sessions.addTo', { room: esc(S.current) })) : ''}
     ${s.status === 'offline' ? it('wake', t('sessions.wake')) + it('opentab', t('members.openTab')) + it('forget', ico(I.trash) + t('sessions.forget'), ' danger') : ''}`, (m) => {
     const on = (a, f) => { const b = m.querySelector(`[data-a=${a}]`); if (b) b.onclick = () => { if (a !== 'rename') closeMenu(); f(); }; };
     on('rename', () => renameSessionForm(anchor, id));
+    on('dm', () => api(`/api/rooms/dm/${enc(id)}`, {}).then((r) => select(r.name), (e) => toast(e.message)));
     on('lead', () => setLead(id));
     on('wake', () => reviveSession(id));
     on('opentab', () => openTab(id));

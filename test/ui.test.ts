@@ -105,6 +105,20 @@ test('T36: new-agent form — folder picker button, review step shows account/pe
   } finally { await hub.close(); }
 });
 
+test('bug: private-chat entry reachable from the running-agents sidebar too, and room/DM rows show a pointer cursor', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      "it('dm', ico(I.chat) + t('members.chatDm'))",
+      "on('dm', () => api(`/api/rooms/dm/${enc(id)}`, {})",
+      '.room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text);cursor:pointer}',
+      'data-a="dm" title="${t(\'members.chatDm\')}"',
+      "d.querySelector('[data-a=dm]')?.addEventListener('click', () => api(`/api/rooms/dm/${enc(s.id)}`, {})",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('i18n: every key the UI uses exists, and no Vietnamese text is left outside data-i18n fallbacks and comments', async () => {
   const { hub } = await makeHub();
   try {
