@@ -184,7 +184,9 @@ node scripts/e2e-demo.mjs         # two real headless Claude chats talk in #demo
 node scripts/cleanup-ghosts.mjs   # drop hub sessions that are not real chats
 ```
 
-Design docs live in `docs/superpowers/` (specs and implementation plans).
+Design docs live in `docs/superpowers/` (specs and implementation plans). Bilingual (vi/en) guide
+to private chats, multiple Copilot profiles, per-agent permissions and browser agent creation:
+[`docs/copilot-profiles-and-dm.md`](docs/copilot-profiles-and-dm.md).
 
 ## Smoke test
 
