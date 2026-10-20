@@ -78,6 +78,7 @@
 | POST | `/api/sessions/register` | `headless`, `id`, `cwd`, `name`, `source`, `configDir`, `transcript`, `ctx`, `pid`, `ide`, `title` | có |
 | GET | `/api/rooms` |  | có |
 | POST | `/api/rooms` | `name` | có |
+| POST | `/api/sessions/:id/room-commit` |  | có |
 
 ## attachments (A1): raw upload (name and mime in headers), download by id; files live in rooms/<room>/files
 

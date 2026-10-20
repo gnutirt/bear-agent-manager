@@ -22,6 +22,7 @@ export const TOOLS = [
   { name: 'room_notes', description: 'Read the room notes (agreements the room relies on).', inputSchema: obj({ room: { type: 'string', description: 'Defaults to your only room' } }) },
   { name: 'room_note_remove', description: 'Remove an outdated room note by its number.', inputSchema: obj({ id: { type: 'number' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['id']) },
   { name: 'room_done', description: 'Report that your part of the current task is finished, with a one-line summary. The room lead (if any) is notified; when every member is done the room tells the user once. Use this instead of chatty "done" messages.', inputSchema: obj({ summary: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['summary']) },
+  { name: 'room_commit', description: 'Commit only the listed paths inside this session folder. Remote agents may commit only files they edited. Use this instead of running git commit; returns the commit hash and line counts.', inputSchema: obj({ paths: { type: 'array', items: { type: 'string' }, description: 'Repo-relative paths inside this session folder' }, message: { type: 'string', description: 'Commit message' } }, ['paths', 'message']) },
 ];
 
 type Note = { id: number; text: string; by: string };
@@ -151,6 +152,10 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       const room = await pickRoom(args.room);
       const r = await api<{ message: Message; allDone: Message | null }>(`/api/rooms/${enc(room)}/done`, { body: { sessionId: sid, summary: String(args.summary ?? '') } });
       return r.allDone ? `Marked done in #${room}. The whole room is done; the user has been told. Stop here.` : `Marked done in #${room}. Stop here unless someone mentions you.`;
+    }
+    case 'room_commit': {
+      const r = await api<{ commit: string; paths: string[]; insertions: number; deletions: number }>(`/api/sessions/${enc(sid)}/room-commit`, { body: { paths: args.paths, message: args.message } });
+      return `Committed ${r.commit} (+${r.insertions}/-${r.deletions} lines):\n${r.paths.map((p) => `  ${p}`).join('\n')}`;
     }
     default:
       throw new Error(`unknown tool ${name}`);

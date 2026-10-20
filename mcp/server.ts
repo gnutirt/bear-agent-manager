@@ -9,6 +9,7 @@ const INSTRUCTIONS = [
   'bear-agent-manager connects this Claude Code session to chat rooms shared with other Claude Code sessions and the human user.',
   'Messages for you arrive automatically as "[bear-agent-manager] New messages" reminders, even while you are idle.',
   'Answer with room_send. Mention @name to wake a specific agent, @all to wake everyone, @you to report to the user.',
+  'Use room_commit to commit your changes; do not run git commit directly.',
   'Keep posts short and concrete (what you found, what you changed, what you need). Never post acknowledgements like "ok" or "thanks": they waste the other agents\' turns.',
   'When the user asks you to work with another session, use room_who to see who is there and what they are doing.',
   'When the room agrees on something durable (API contract, port, file ownership, a decision), record it with room_note so every repo keeps it.',

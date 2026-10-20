@@ -151,6 +151,11 @@ export function extractRoutes(sourceText) {
   }
 
   scanBlock('mm', /\/api\/sessions\//, '/api/sessions/:id', /!\s*action\b/);
+  for (let i = 0; i < lines.length; i++) {
+    if (/action\s*===\s*['"`]room-commit['"`]/.test(lines[i])) {
+      add('POST', '/api/sessions/:id/room-commit', i, bodyFields(i));
+    }
+  }
   scanBlock('tm', /\/api\/rooms\/[^\/]+\/tasks/, '/api/rooms/:room/tasks', /!\s*sub\b/);
   scanBlock('mm', /\/api\/rooms\/[^\/]+\/notes/, '/api/rooms/:room/notes', /!\s*mm\[2\]/);
   scanBlock('mm', /join\|leave\|resume\|messages\|rename\|delete\|lead\|clear-lead\|done\|open-lead\|topics\|days/, '/api/rooms/:room', /!\s*action\b/);

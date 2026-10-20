@@ -21,7 +21,7 @@ import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, validateAgentProfiles } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
-import { MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
+import { editedFiles, MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
 import { isHubText, scrubSecrets } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
@@ -1900,7 +1900,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|commit|console|live(?:\/send|\/stop)?))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|commit|room-commit|console|live(?:\/send|\/stop)?))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1919,6 +1919,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (e instanceof Conflict) return json(res, e.status, { error: e.message, ...e.extra });   // a write conflict carries the disk mtime
           throw e;
         }
+      }
+      if (m === 'POST' && action === 'room-commit') {
+        const s = store.session(id), b = await readBody(req);
+        const profile = apiProfileOf(s);
+        let options: { allowedPaths?: ReadonlySet<string>; refuseStagedPaths?: boolean } = {};
+        if (profile) {
+          if (profile.edit !== true) throw new StoreError(403, 'this agent profile is read-only and cannot commit');
+          const provider = loadProviders(opts.dir, legacyKey).find((p) => p.id === profile.providerId);
+          if (!provider) throw new StoreError(409, `provider ${profile.providerId} is missing`);
+          if (provider.tier !== 'local') {
+            if (!remoteCanEdit(profile, provider)) throw new StoreError(403, 'this provider profile cannot edit files');
+            if (!attachTranscript(s) || !s.transcript) throw new StoreError(403, "cannot verify this agent's edited files");
+            const owned = editedFiles(s.transcript, s.cwd);
+            if (!owned) throw new StoreError(403, "cannot verify this agent's edited files");
+            options = { allowedPaths: owned, refuseStagedPaths: true };
+          }
+        }
+        return json(res, 200, await commitPaths(s.cwd, b.paths, b.message, options));
       }
       if (m === 'POST' && action === 'revive') {
         const s = store.session(id);
