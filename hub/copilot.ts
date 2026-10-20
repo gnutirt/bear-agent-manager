@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest } from '@github/copilot-sdk';
+import type { AutoModeSwitchRequest, CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, SessionEvent } from '@github/copilot-sdk';
 import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
 import { permFor, resolveWorkspace, type PermRule, type Settings } from './settings.ts';
@@ -15,7 +15,8 @@ const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 type Identity = { hubId: string; providerId?: string };
 type State = 'off' | 'starting' | 'idle' | 'busy' | 'error';
 export type CopilotProfile = { id: string; name: string; cwd: string; home?: string };
-export type CopilotStatus = { id: string; name: string; state: State; auth: 'unknown' | 'ok' | 'no'; room: string; cwd: string; login?: string; error?: string };
+export type CopilotQuotaLimit = { retryAt?: number; reason: string };
+export type CopilotStatus = { id: string; name: string; state: State; auth: 'unknown' | 'ok' | 'no'; room: string; cwd: string; login?: string; error?: string; quotaLimited?: boolean; retryAt?: number };
 
 export class CopilotAuthError extends Error {}
 
@@ -33,6 +34,7 @@ export type CopilotAgentOptions = {
   onRoom: (room: string) => void;
   onRooms: () => void;
   onMessage: (room: string, message: Message) => void;
+  onQuota?: (limit: CopilotQuotaLimit) => Promise<number | false> | number | false;
   createClient?: CopilotClientFactory;
 };
 
@@ -119,9 +121,9 @@ function saveIdentity(file: string, identity: Identity): void {
   fs.renameSync(temp, file);
 }
 
-function formatMessages(room: string, messages: ReturnType<Store['pending']>['messages'], cwd: string): string {
+function formatMessages(room: string, messages: ReturnType<Store['pending']>['messages'], cwd: string, sessionId: string): string {
   const items = messages
-    .filter((m) => m.kind !== 'system')
+    .filter((m) => m.kind !== 'system' || m.wake.includes(sessionId))
     .map((m) => `[${m.from}] ${m.text}`)
     .filter(Boolean);
   return `New messages in the Bear Agent Manager room #${room}:\n${items.join('\n\n')}\n\nWork in ${cwd}. When you need another agent to respond, write @ followed by their exact room name (for example @Coder_No_2); the hub parses that as a mention and wakes them. Reply to this room only; the hub posts your final response here.`;
@@ -160,6 +162,10 @@ export class CopilotAgent {
   private startTask?: Promise<void>;
   private stopTask?: Promise<void>;
   private wakeTask?: Promise<void>;
+  private quotaLimit?: CopilotQuotaLimit;
+  private quotaTask?: Promise<number | false>;
+  private quotaTaskPending = false;
+  private quotaTimer?: NodeJS.Timeout;
 
   constructor(opts: CopilotAgentOptions) {
     this.opts = opts;
@@ -181,6 +187,15 @@ export class CopilotAgent {
 
   isRunning(id: string): boolean {
     return this.hasSession(id);
+  }
+
+  hubSessionId(): string | undefined {
+    return this.identity?.hubId;
+  }
+
+  isQuotaLimited(): boolean {
+    if (this.quotaLimit?.retryAt != null && this.quotaLimit.retryAt <= Date.now()) this.clearQuotaLimit();
+    return this.quotaLimit !== undefined;
   }
 
   async start(): Promise<void> {
@@ -266,6 +281,23 @@ export class CopilotAgent {
         },
       },
       onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), this.name), this.cwd),
+      onEvent: (event: SessionEvent) => {
+        if (event.type !== 'session.quota_observation') return;
+        const observation = event.data.observation;
+        if (observation.capacityState === 'exhausted' || observation.accessState === 'denied') {
+          void this.markQuotaLimited({
+            ...(observation.budgetMetadata?.resetAtEpochMs != null ? { retryAt: observation.budgetMetadata.resetAtEpochMs } : {}),
+            reason: observation.reason || observation.capacityState,
+          });
+        } else if (observation.capacityState === 'available' || observation.capacityState === 'unlimited' || observation.accessState === 'allowed') {
+          this.clearQuotaLimit();
+        }
+      },
+      onAutoModeSwitchRequest: (request: AutoModeSwitchRequest) => {
+        const retryAt = request.retryAfterSeconds != null ? Date.now() + Math.max(0, request.retryAfterSeconds) * 1000 : undefined;
+        void this.markQuotaLimited({ ...(retryAt != null ? { retryAt } : {}), reason: request.errorCode || 'rate_limit' });
+        return 'no';
+      },
       systemMessage: {
         mode: 'append' as const,
         content: `You are ${this.name}, an independent coding agent in Bear Agent Manager. You participate in the shared room #${ROOM} and may also be a member of private one-to-one rooms. Use the bear-agent-manager MCP tools (tool names start with "bear-agent-manager-", especially bear-agent-manager-room_tasks, bear-agent-manager-room_note, and bear-agent-manager-room_send) to work with the room; do not rely only on the hub's message relay. For every room tool call, pass the exact room name from the message prompt. Work in the session working directory. Do not claim to be Claude or the user's VS Code assistant. When you need another agent to respond, write @ followed by their exact room name (including underscores, e.g. @Coder_No_2); the hub parses that as a mention and wakes them. If you use room_send to post in the room for the current turn, do not repeat that message in your final response: the hub suppresses its automatic relay, so a one-line confirmation is enough. Reply with a concise status and result when finished.`,
@@ -298,6 +330,12 @@ export class CopilotAgent {
 
   async wake(id: string): Promise<void> {
     if (!this.hasSession(id)) return;
+    if (this.isQuotaLimited()) {
+      const pending = this.opts.store.pending(id);
+      const transferredUpTo = await this.tryQuotaHandoff();
+      if (transferredUpTo && pending.messages.length) this.opts.store.consume(id, transferredUpTo);
+      return;
+    }
     if (this.wakeTask) return this.wakeTask;
     this.wakeTask = this.drain(id);
     try {
@@ -313,6 +351,7 @@ export class CopilotAgent {
     for (;;) {
       const pending = this.opts.store.pending(id);
       if (!pending.wake || !pending.messages.length) {
+        if (this.isQuotaLimited()) return;
         this.opts.store.setStatus(id, 'idle');
         this.opts.onChange(this.snapshot());
         return;
@@ -327,13 +366,21 @@ export class CopilotAgent {
       }
       for (const [room, messages] of byRoom) {
         if (messages.every((message) => message.kind === 'system')) continue;
-        const prompt = formatMessages(room, messages, this.cwd);
+        const prompt = formatMessages(room, messages, this.cwd, id);
         this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
         this.setStatus({ state: 'busy', error: undefined });
         this.opts.onChange(this.snapshot());
         const lastRoomMessageId = this.opts.store.history(room, 0, 500).at(-1)?.id ?? 0;
         const response = await session.sendAndWait({ prompt }, TURN_TIMEOUT_MS);
         const content = response?.data.content?.trim();
+        if (this.isQuotaLimited()) {
+          const transferredUpTo = await this.quotaTask;
+          if (transferredUpTo) {
+            this.opts.store.consume(id, transferredUpTo);
+            this.opts.store.setStatus(id, 'idle', 'Copilot quota exhausted');
+          }
+          return;
+        }
         const alreadyPosted = this.opts.store.history(room, lastRoomMessageId, 500).some((message) => message.fromId === id);
         if (!alreadyPosted) {
           if (!content) throw new Error(`Copilot finished without a final response for #${room}.`);
@@ -366,6 +413,7 @@ export class CopilotAgent {
       try { await this.startTask; } catch (error) { console.error('[copilot] start failed before shutdown:', safeError(error)); }
     }
     const session = this.session, client = this.client, id = this.identity?.hubId;
+    this.clearQuotaLimit(false);
     this.session = undefined;
     this.client = undefined;
     this.stopping = true;
@@ -390,7 +438,7 @@ export class CopilotAgent {
   private stopping = false;
 
   reportError(error: unknown): void {
-    if (this.stopping) return;
+    if (this.stopping || this.isQuotaLimited()) return;
     const message = safeError(error);
     this.setStatus({ state: 'error', error: message });
     if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) {
@@ -404,5 +452,74 @@ export class CopilotAgent {
   private setStatus(next: Partial<CopilotStatus> & Pick<CopilotStatus, 'state'>): void {
     this.status = { ...this.status, ...next, room: ROOM, cwd: this.cwd };
     this.opts.onChange(this.snapshot());
+  }
+
+  private markQuotaLimited(limit: CopilotQuotaLimit): Promise<number | false> {
+    if (this.quotaLimit) {
+      const retryAt = Math.max(this.quotaLimit.retryAt ?? 0, limit.retryAt ?? 0) || undefined;
+      if (retryAt !== this.quotaLimit.retryAt) {
+        this.quotaLimit = { ...this.quotaLimit, retryAt };
+        this.setStatus({ state: 'error', retryAt });
+        this.scheduleQuotaClear(this.quotaLimit);
+      }
+      return this.quotaTask ?? Promise.resolve(false);
+    }
+    this.quotaLimit = limit;
+    this.setStatus({
+      state: 'error',
+      error: 'Copilot quota/rate limit reached',
+      quotaLimited: true,
+      retryAt: limit.retryAt,
+    });
+    const id = this.identity?.hubId;
+    if (id && this.opts.store.state.sessions[id]) this.opts.store.setStatus(id, 'idle', 'Copilot quota/rate limit reached');
+    this.scheduleQuotaClear(limit);
+    return this.tryQuotaHandoff();
+  }
+
+  private scheduleQuotaClear(limit: CopilotQuotaLimit): void {
+    if (this.quotaTimer) clearTimeout(this.quotaTimer);
+    this.quotaTimer = undefined;
+    if (limit.retryAt != null) {
+      const delay = Math.max(0, Math.min(limit.retryAt - Date.now(), 2_147_000_000));
+      this.quotaTimer = setTimeout(() => {
+        if (this.quotaLimit?.retryAt === limit.retryAt) this.clearQuotaLimit();
+      }, delay);
+      this.quotaTimer.unref();
+    }
+  }
+
+  private tryQuotaHandoff(): Promise<number | false> {
+    const limit = this.quotaLimit;
+    if (!limit) return Promise.resolve(false);
+    if (this.quotaTaskPending && this.quotaTask) return this.quotaTask;
+    this.quotaTaskPending = true;
+    let task: Promise<number | false>;
+    task = Promise.resolve()
+      .then(() => this.opts.onQuota?.(limit) ?? false)
+      .catch((error) => {
+        const message = safeError(error);
+        this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not hand off quota-limited messages: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
+        console.error('[copilot] quota handoff failed:', message);
+        return false;
+      })
+      .finally(() => { if (this.quotaTask === task) this.quotaTaskPending = false; });
+    this.quotaTask = task;
+    return task;
+  }
+
+  private clearQuotaLimit(resume = true): void {
+    if (!this.quotaLimit) return;
+    this.quotaLimit = undefined;
+    if (this.quotaTimer) clearTimeout(this.quotaTimer);
+    this.quotaTimer = undefined;
+    this.quotaTask = undefined;
+    this.quotaTaskPending = false;
+    this.setStatus({ state: 'idle', error: undefined, quotaLimited: false, retryAt: undefined });
+    const id = this.identity?.hubId;
+    if (id && this.opts.store.state.sessions[id]) {
+      this.opts.store.setStatus(id, 'idle', '');
+      if (resume) void this.wake(id).catch((error) => this.reportError(error));
+    }
   }
 }

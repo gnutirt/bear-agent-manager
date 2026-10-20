@@ -15,7 +15,7 @@ import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, pla
 import { pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
-import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotStatus } from './copilot.ts';
+import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
@@ -91,6 +91,20 @@ async function readBody(req: http.IncomingMessage): Promise<any> {
   const raw = Buffer.concat(chunks).toString('utf8');
   if (!raw) return {};
   try { return JSON.parse(raw); } catch { throw new StoreError(400, 'invalid JSON'); }
+}
+
+function splitText(text: string, limit: number): string[] {
+  const chunks: string[] = [];
+  let chunk = '';
+  for (const char of text) {
+    if (chunk.length + char.length > limit) {
+      chunks.push(chunk);
+      chunk = '';
+    }
+    chunk += char;
+  }
+  if (chunk) chunks.push(chunk);
+  return chunks;
 }
 
 export type HubOptions = {
@@ -234,10 +248,74 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
   // M3a: one CopilotAgent per settings.agents.profiles entry (provider copilot); an install with no profile gets the legacy 'copilot' one (shortcut: deleting every profile brings it back, until copilot.autoStart goes).
   const copilots = new Map<string, { agent: CopilotAgent; key: string }>();
+  const copilotQuotaNotices = new Set<string>();
   function copilotProfiles(): AgentProfile[] {
     const s = loadSettings(opts.dir, envCap);
     const list = s.agents.profiles.filter((p) => p.provider === 'copilot');
     return list.length ? list : [{ id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
+  }
+  async function handleCopilotQuota(profileId: string, limit: CopilotQuotaLimit): Promise<number | false> {
+    const source = copilots.get(profileId)?.agent;
+    const sourceId = source?.hubSessionId();
+    if (!source || !sourceId) return false;
+    const pending = store.pending(sourceId).messages;
+    const queued = pending.some((message) => message.kind !== 'system' && message.wake.some((id) => store.resolve(id) === sourceId));
+    const groups = new Map<string, typeof pending>();
+    if (queued) {
+      for (const message of pending) {
+        if (message.kind === 'system') continue;
+        const roomMessages = groups.get(message.room) ?? [];
+        roomMessages.push(message);
+        groups.set(message.room, roomMessages);
+      }
+    }
+    const enabled = copilotProfiles().filter((p) => p.enabled && p.id !== profileId);
+    const replacement = enabled
+      .map((p) => ({ profile: p, agent: copilots.get(p.id)?.agent }))
+      .find(({ agent }) => agent && !agent.isQuotaLimited() && ['idle', 'busy'].includes(agent.snapshot().state) &&
+        !!agent.hubSessionId() && groups.size > 0 &&
+        [...groups.keys()].every((room) => store.members(room).some((member) => member.id === agent.hubSessionId())));
+    if (replacement) {
+      const targetId = replacement.agent!.hubSessionId()!;
+      let transferredUpTo = 0;
+      for (const [room, messages] of groups) {
+        const detail = messages.map((message) => `[${message.from}] ${message.text}`).join('\n\n');
+        for (const chunk of splitText(detail, 6000)) {
+          const text = tr('sys.copilot.quota.switch', {
+            name: source.snapshot().name,
+            to: replacement.profile.name,
+            at: limit.retryAt != null ? clock(limit.retryAt) : tr('sys.copilot.quota.unknown'),
+            reason: limit.reason,
+            messages: chunk,
+          });
+          const posted = store.postSystem(room, text, undefined, { type: 'usage', level: 'warn' }, undefined, [targetId]);
+          broadcast('msg', posted);
+          emitRoom(room);
+        }
+        transferredUpTo = Math.max(transferredUpTo, messages[messages.length - 1].id);
+      }
+      if (transferredUpTo) {
+        void replacement.agent!.wake(targetId).catch((error) => replacement.agent!.reportError(error));
+        return transferredUpTo;
+      }
+    }
+    const noticeKey = `${profileId}:${limit.retryAt ?? 'unknown'}`;
+    if (!copilotQuotaNotices.has(noticeKey)) {
+      copilotQuotaNotices.add(noticeKey);
+      const text = tr(queued ? 'sys.copilot.quota.wait' : 'sys.copilot.quota.idle', {
+        name: source.snapshot().name,
+        at: limit.retryAt != null ? clock(limit.retryAt) : tr('sys.copilot.quota.unknown'),
+        reason: limit.reason,
+        to: replacement?.profile.name ?? '',
+      });
+      const posted = store.postSystem('bear-agent-manager', text, undefined, { type: 'usage', level: 'warn' });
+      const notify = (room: string, message: Message) => {
+        broadcast('msg', message);
+        emitRoom(room);
+      };
+      notify('bear-agent-manager', posted);
+    }
+    return false;
   }
   function copilotFor(p: AgentProfile): CopilotAgent {
     const key = JSON.stringify([p.name, p.cwd, p.home]);
@@ -254,6 +332,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       onRoom: emitRoom,
       onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
       onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
+      onQuota: (limit) => handleCopilotQuota(p.id, limit),
       createClient: opts.copilotClientFactory,
     });
     copilots.set(p.id, { agent, key });

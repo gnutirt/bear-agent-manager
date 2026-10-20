@@ -8,6 +8,7 @@ import { makeHub, until } from './helpers.ts';
 import { copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
 import { defaultSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
+import type { AutoModeSwitchRequest, SessionEvent } from '@github/copilot-sdk';
 
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
 // The full suite runs test files concurrently and Copilot tests spawn MCP/runtime processes.
@@ -50,7 +51,8 @@ function callRoomMcp(config: { command?: string; args?: string[]; env?: Record<s
 
 function fakeFactory({ authenticated = true, response = 'Copilot reply', start = async () => {} }: { authenticated?: boolean; response?: string | ((prompt: string) => string | Promise<string>); start?: () => Promise<void> } = {}) {
   type McpConfig = { command?: string; args?: string[]; env?: Record<string, string>; workingDirectory?: string };
-  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig>; systemPrompt?: string } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0 };
+  type FakeSessionConfig = { sessionId?: string; availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig>; systemMessage?: { content?: string }; onEvent?: (event: SessionEvent) => void; onAutoModeSwitchRequest?: (request: AutoModeSwitchRequest) => 'yes' | 'yes_always' | 'no' | Promise<'yes' | 'yes_always' | 'no'> };
+  const calls: { prompts: string[]; created: number; resumed: string[]; stopped: number; started: number; providerId?: string; availableTools?: string[]; mcpServers?: Record<string, McpConfig>; systemPrompt?: string; sessionConfigs: FakeSessionConfig[] } = { prompts: [], created: 0, resumed: [], stopped: 0, started: 0, sessionConfigs: [] };
   function session(sessionId: string) {
     return {
       sessionId,
@@ -66,19 +68,21 @@ function fakeFactory({ authenticated = true, response = 'Copilot reply', start =
     return {
       start: async () => { calls.started++; await start(); },
       getAuthStatus: async () => ({ isAuthenticated: authenticated, login: authenticated ? 'test-user' : undefined }),
-      createSession: async (config: { sessionId?: string; availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig>; systemMessage?: { content?: string } }) => {
+      createSession: async (config: FakeSessionConfig) => {
         calls.created++;
         calls.providerId = config.sessionId ?? uuid;
         calls.availableTools = config.availableTools ? [...config.availableTools] : undefined;
         calls.mcpServers = config.mcpServers;
         calls.systemPrompt = config.systemMessage?.content;
+        calls.sessionConfigs.push(config);
         return session(calls.providerId);
       },
-      resumeSession: async (id: string, config?: { availableTools?: readonly string[]; mcpServers?: Record<string, McpConfig>; systemMessage?: { content?: string } }) => {
+      resumeSession: async (id: string, config?: FakeSessionConfig) => {
         calls.resumed.push(id);
         calls.availableTools = config?.availableTools ? [...config.availableTools] : undefined;
         calls.mcpServers = config?.mcpServers;
         calls.systemPrompt = config?.systemMessage?.content;
+        if (config) calls.sessionConfigs.push(config);
         return session(id);
       },
       stop: async () => { calls.stopped++; return []; },
@@ -501,3 +505,112 @@ test('Copilot profile whose folder is the home folder is refused at start (no un
     await h.hub.close();
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 2 });
+
+test('Copilot quota exhaustion hands pending messages to another enabled profile', async () => {
+  let releaseSource!: () => void;
+  const sourceGate = new Promise<void>((resolve) => { releaseSource = resolve; });
+  const { factory, calls } = fakeFactory({
+    response: async (prompt) => {
+      if (prompt.includes('bị giới hạn quota hoặc tốc độ Copilot')) return 'Fallback profile handled the transferred work.';
+      if (prompt.includes('slow quota task')) await sourceGate;
+      return `handled: ${prompt}`;
+    },
+  });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    const profiles = [
+      { id: 'quota-a', provider: 'copilot', name: 'CopilotA', cwd: process.cwd(), enabled: false },
+      { id: 'quota-b', provider: 'copilot', name: 'CopilotB', cwd: process.cwd(), enabled: false },
+    ];
+    await h.call('/api/settings', { agents: { profiles } }, { method: 'PUT' } as RequestInit);
+    await h.call('/api/copilot/profiles/quota-a', { on: true, confirm: true });
+    await h.call('/api/copilot/profiles/quota-b', { on: true, confirm: true });
+
+    const queued = await h.call<any>('/api/rooms/bear-agent-manager/messages', { text: '@CopilotA slow quota task' });
+    await until(() => calls.prompts.some((prompt) => prompt.includes('slow quota task')), COPILOT_ASYNC_TIMEOUT_MS, 'source profile starts its quota-limited turn');
+    const sourceConfig = calls.sessionConfigs[0];
+    const retryAt = Date.now() + 60_000;
+    sourceConfig.onEvent?.({
+      id: uuid,
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      ephemeral: true,
+      type: 'session.quota_observation',
+      data: {
+        observation: {
+          accessState: 'denied',
+          capacityState: 'exhausted',
+          provider: { id: 'github-copilot', kind: 'copilot', label: 'GitHub Copilot' },
+          quotaId: 'premium-requests',
+          unit: 'requests',
+          reason: 'capacity exhausted',
+          budgetMetadata: {
+            consumed: 100,
+            entitlement: 100,
+            overage: 0,
+            overageAllowedWhenExhausted: false,
+            remainingPercentage: 0,
+            resetAtEpochMs: retryAt,
+            unlimited: false,
+            usageAllowedWhenExhausted: false,
+          },
+        },
+      },
+    });
+    await until(async () => {
+      const statuses = await h.call<any[]>('/api/copilot/profiles');
+      return calls.prompts.some((prompt) => prompt.includes('CopilotA bị giới hạn quota') && prompt.includes('slow quota task'))
+        && statuses.find((status) => status.id === 'quota-a')?.quotaLimited === true;
+    }, COPILOT_ASYNC_TIMEOUT_MS, 'fallback profile receives the handed-off request');
+    const quotaMessages = (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0'))
+      .filter((message) => message.kind === 'system' && /bị giới hạn quota/.test(message.text));
+    assert.equal(quotaMessages.length, 1, 'one localized system notice accompanies the handoff');
+    const sourceStatus = (await h.call<any[]>('/api/copilot/profiles')).find((status) => status.id === 'quota-a');
+    assert.ok(sourceStatus.retryAt >= retryAt - 1000);
+
+    releaseSource();
+    const sourceId = h.hub.store.members('bear-agent-manager').find((member) => member.name === 'CopilotA')!.id;
+    await until(() => h.hub.store.state.sessions[sourceId]?.cursor >= queued.message.id, COPILOT_ASYNC_TIMEOUT_MS, 'source cursor advances only after successful handoff');
+    assert.equal(h.hub.store.pending(sourceId).wake, false);
+  } finally {
+    releaseSource();
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });
+
+test('Copilot rate limits keep pending messages queued when no enabled fallback is available', async () => {
+  let releaseSource!: () => void;
+  const sourceGate = new Promise<void>((resolve) => { releaseSource = resolve; });
+  const { factory, calls } = fakeFactory({
+    response: async (prompt) => {
+      if (prompt.includes('rate-limited task')) await sourceGate;
+      return `handled: ${prompt}`;
+    },
+  });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await h.call('/api/settings', { agents: { profiles: [{ id: 'quota-only', provider: 'copilot', name: 'CopilotOnly', cwd: process.cwd(), enabled: false }] } }, { method: 'PUT' } as RequestInit);
+    await h.call('/api/copilot/profiles/quota-only', { on: true, confirm: true });
+    const copilotId = h.hub.store.members('bear-agent-manager').find((member) => member.name === 'CopilotOnly')!.id;
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@CopilotOnly rate-limited task' });
+    await until(() => calls.prompts.some((prompt) => prompt.includes('rate-limited task')), COPILOT_ASYNC_TIMEOUT_MS, 'profile starts its rate-limited turn');
+
+    const retryAt = Date.now() + 60_000;
+    assert.equal(await calls.sessionConfigs[0].onAutoModeSwitchRequest?.({ errorCode: 'rate_limit', retryAfterSeconds: 60 }), 'no');
+    const status = (await h.call<any[]>('/api/copilot/profiles')).find((profile) => profile.id === 'quota-only');
+    assert.equal(status.quotaLimited, true);
+    assert.ok(status.retryAt >= retryAt - 1000);
+    const notice = await until(async () => (await h.call<any[]>('/api/rooms/bear-agent-manager/messages?after=0'))
+      .find((message) => message.kind === 'system' && /không có profile Copilot/i.test(message.text)), COPILOT_ASYNC_TIMEOUT_MS, 'localized no-fallback quota notice');
+    assert.match(notice.text, /vẫn được giữ nguyên trong hàng đợi/);
+
+    releaseSource();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(h.hub.store.pending(copilotId).wake, true, 'the source cursor is not advanced without a successful handoff');
+  } finally {
+    releaseSource();
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });
