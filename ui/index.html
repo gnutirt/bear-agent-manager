@@ -320,6 +320,8 @@ header .spacer{flex:1}
 .group .head b{font-size:14.5px}
 .group .head time{color:var(--mute);font-size:12px}
 .donebadge{font-size:11.5px;font-weight:700;color:#16A34A;background:color-mix(in srgb,#16A34A 14%,var(--panel));border-radius:6px;padding:0 7px}
+.mirrorbadge{font-size:11.5px;font-weight:700;color:var(--text);background:color-mix(in srgb,var(--accent) 16%,var(--panel));border:1px dashed var(--mute);border-radius:6px;padding:0 7px}
+.group.mirror .msg{border-left:3px dashed var(--mute);padding-left:10px;font-style:italic}
 .sysline{text-align:center;color:var(--mute);font-size:13px;font-weight:600;margin:10px 0 14px}
 .sysline p{margin:0}
 .sysrun summary{cursor:pointer;list-style:none}.sysrun summary::-webkit-details-marker{display:none}
@@ -1684,12 +1686,12 @@ function renderLog() {
     }
     closeRail();
     const tome = m.fromId && m.mentions.includes('you');
-    const cont = prev && prev.from === m.from && m.ts - prev.ts < 5 * 60e3 && !tome && topicOf(prev) === topicOf(m);
+    const cont = prev && prev.from === m.from && prev.kind === m.kind && m.ts - prev.ts < 5 * 60e3 && !tome && topicOf(prev) === topicOf(m);
     if (cont) html = html.replace(/<\/div><\/div>$/, `${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`);
     else {
       const s = m.fromId ? S.sessions[m.fromId] : null;
       const who = messageName(m);
-      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
+      html += `<div class="group${tome ? ' tome' : ''}${m.fromId ? '' : ' you'}${m.kind === 'mirror' ? ' mirror' : ''}" style="--c:${m.fromId ? color(m.fromId) : 'var(--accent)'}">${avatar(m.fromId ?? 'you', null)}<div class="body"><div class="head"${tome ? ` data-to-you="${t('msg.toYou')}"` : ''}><b${m.fromId ? ` data-name="${esc(who)}"` : ''} style="color:${m.fromId ? color(m.fromId) : 'var(--accent)'}" title="${esc(s?.title || '')}">${m.fromId ? esc(who) : t('you')}</b>${isLead(m.fromId, m.room) ? STAR : ''}${s ? `<button class="rn" data-rename="${esc(s.id)}" title="${t('rn.title')}" aria-label="${t('rn.aria', { name: esc(who) })}">${I.edit}</button>` : ''}${s?.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}<time>${time(m.ts)}</time>${m.topic && !tf ? `<button type="button" class="ttag" data-topic="${esc(m.topic)}">#${esc(m.topic)}</button>` : ''}${m.kind === 'done' ? `<span class="donebadge">${t('done.badge')}</span>` : ''}${m.kind === 'mirror' ? `<span class="mirrorbadge" title="${t('msg.fromTab.hint')}">${t('msg.fromTab')}</span>` : ''}</div>${quote(m)}<div class="msg" data-mid="${m.id}">${md(m.text)}</div>${attachHtml(m)}${receipts(m, ms, last)}</div></div>`;
     }
     prev = m;
   }
@@ -2819,7 +2821,8 @@ function healthBlock() {
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
 S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
 function loadCopilotProfiles() {
-  return api('/api/copilot/profiles').then((statuses) => {
+  api('/api/providers').then((p) => { S.providers = p; }, () => {});
+  return api('/api/agent-profiles').then((statuses) => {
     S.copilotProfiles = Object.fromEntries(statuses.map((status) => [status.id, status]));
     S.copilotProfileError = '';
   }, (error) => {
@@ -2846,9 +2849,11 @@ async function saveCopilotProfiles(profiles) {
   }
   catch (e) { toast(e.message); }
 }
+/** copilot profiles have their own routes; claude-api ones (a headless claude on a worker provider) use /api/agent-profiles. */
+const profileRoute = (id) => `${(S.settings.agents?.profiles || []).find((p) => p.id === id)?.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/'}${enc(id)}`;
 async function setCopilotProfile(id, on) {
   try {
-    await api(`/api/copilot/profiles/${enc(id)}`, { on, confirm: true });
+    await api(profileRoute(id), { on, confirm: true });
     [S.settings] = await Promise.all([api('/api/settings'), loadCopilotProfiles()]);
     S.copilotProfileAsk = null;
     toast(t(on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
@@ -2898,10 +2903,13 @@ function accountBlock(st) {
     const status = S.copilotProfiles?.[p.id];
     const ask = S.copilotProfileAsk?.id === p.id ? S.copilotProfileAsk : null;
     const runtime = status ? t(`ac.copilot.${status.state === 'error' ? 'error' : status.state === 'busy' ? 'busy' : status.state === 'idle' ? 'ready' : status.state === 'starting' ? 'starting' : 'off'}`) : t('ac.profile.statusUnavailable');
-    const login = status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
-    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span><span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
-      <div class="small mono">${esc(p.cwd)}</div>${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
-      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t('ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t('ac.profile.retry')}</button>` : ''}</div>
+    const isApi = p.provider === 'claude-api';
+    const login = isApi ? (status?.auth === 'ok' ? t('ac.api.auth.ok') : status?.auth === 'no' ? t('ac.api.auth.no') : t('ac.profile.authUnknown'))
+      : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
+    const apiInfo = isApi ? `<div class="small">${esc(t('ac.api.info', { provider: p.providerId || '?', model: status?.model || p.model || '?' }))}${p.edit ? ` · <b>${t('ac.api.mayEdit')}</b>` : ` · ${t('ac.api.readOnly')}`}</div>${status?.limited ? `<p class="small pwarn">${esc(t('ac.api.limited', { at: fmtWhen(status.limited) }))}</p>` : ''}` : '';
+    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
+      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
+      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
       ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
   const profileForm = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<form class="cprofile-new" id="copilotProfileNew">
@@ -2912,7 +2920,19 @@ function accountBlock(st) {
     <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
     <button class="btn primary">${t('ac.profile.add')}</button>
   </form>`;
-  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}`;
+  // a headless claude on one of the worker providers (Settings > Providers): free / paid ones only read, a local one edits only when ticked
+  const provOpts = S.providers.filter((x) => x.enabled).map((x) => `<option value="${esc(x.id)}" data-tier="${esc(x.tier)}">${esc(x.label)} (${esc(x.tier)})</option>`).join('');
+  const apiForm = profiles.length >= 16 ? '' : `<h3>${t('ac.api.title')}</h3><p class="small muted note">${t('ac.api.note')}</p><form class="cprofile-new" id="apiProfileNew">
+    <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
+    <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
+    <input name="cwd" required placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
+    <select name="providerId" required aria-label="${t('ac.api.provider')}"><option value="">${t('ac.api.pickProvider')}</option>${provOpts}</select>
+    <input name="model" maxlength="80" placeholder="${t('ac.api.model')}" aria-label="${t('ac.api.model')}" spellcheck="false">
+    <label class="inline"><input name="edit" type="checkbox">${t('ac.api.edit')}</label>
+    <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
+    <button class="btn primary">${t('ac.api.add')}</button>
+  </form>`;
+  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}${apiForm}`;
   return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
@@ -3092,6 +3112,16 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
       return saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd, ...(home ? { home } : {}), enabled: f.elements.namedItem('enabled').checked }]);
     }
+    if (e.target.id === 'apiProfileNew') {
+      e.preventDefault();
+      const f = e.target, v = (n) => f.elements.namedItem(n).value.trim();
+      const id = v('id'), name = v('name'), cwd = v('cwd'), providerId = v('providerId'), model = v('model'), edit = f.elements.namedItem('edit').checked;
+      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !providerId || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
+      if (edit && S.providers.find((p) => p.id === providerId)?.tier !== 'local') return toast(t('ac.api.editLocalOnly'));
+      const profiles = S.settings.agents?.profiles || [];
+      if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
+      return saveCopilotProfiles([...profiles, { id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit ? { edit: true } : {}), enabled: f.elements.namedItem('enabled').checked }]);
+    }
     if (e.target.id !== 'agentNew') return;
     e.preventDefault();
     const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
@@ -3124,7 +3154,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const profileRemove = e.target.closest('[data-profile-remove]');
     if (profileRemove) return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== profileRemove.dataset.profileRemove));
     const profileRetry = e.target.closest('[data-profile-retry]');
-    if (profileRetry) return api(`/api/copilot/profiles/${enc(profileRetry.dataset.profileRetry)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t('ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
+    if (profileRetry) return api(`${profileRoute(profileRetry.dataset.profileRetry)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t('ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
     if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
     const profileConfirm = e.target.closest('[data-profile-confirm]');
     if (profileConfirm) return setCopilotProfile(profileConfirm.dataset.profileConfirm, S.copilotProfileAsk?.on === true);
