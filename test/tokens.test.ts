@@ -21,6 +21,12 @@ test('summarize buckets by tier, provider, model and day; unknown tier for old l
   assert.deepEqual(s.byDay, [{ day: '1970-01-01', free: 110, paid: 0 }, { day: '1970-01-02', free: 0, paid: 55 }]);
 });
 
+test('summarize: a tier it has no bucket for (local Ollama) counts as unknown instead of throwing', () => {
+  const s = summarize([run({ tier: 'local', usage: { in: 7, out: 1, cacheRead: 0, cacheWrite: 0 } })], [], 0, 0);
+  assert.equal(s.byTier.unknown.in, 7);
+  assert.deepEqual(s.byDay, []);
+});
+
 test('summarize ignores runs before sinceMs and lists chats by context size', () => {
   const s = summarize([run({ startedAt: 5 })], [
     { id: 'a', name: 'small', ctx: 10, status: 'idle', cwd: 'D:\\r\\one' } as any,

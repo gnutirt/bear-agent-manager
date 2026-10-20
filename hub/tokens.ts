@@ -23,10 +23,10 @@ export function summarize(runs: WorkerRun[], sessions: PublicSession[], sinceMs:
   for (const r of runs) {
     if (r.startedAt < sinceMs) continue;
     add(s.total, r);
-    add(s.byTier[r.tier || 'unknown'], r);
+    add(s.byTier[r.tier as 'free' | 'paid'] ?? s.byTier.unknown, r);   // a tier this summary has no bucket for (e.g. 'local') counts as unknown
     add(pick(s.byProvider, r.provider || 'unknown'), r);
     add(pick(s.byModel, r.model || 'unknown'), r);
-    if (r.tier) {
+    if (r.tier === 'free' || r.tier === 'paid') {
       const day = new Date(r.startedAt - tzOffsetMin * 60_000).toISOString().slice(0, 10);
       const d = days.get(day) ?? { day, free: 0, paid: 0 };
       d[r.tier] += r.usage.in + r.usage.out;
