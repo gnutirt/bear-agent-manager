@@ -27,9 +27,19 @@ export function apiEnv(p: AgentProfile, prov: Provider): Record<string, string> 
   return env;
 }
 
+/**
+ * Lean claude: `--bare` skips plugins, skills and hooks, whose system prompt is far bigger than an Ollama context window (2026-10-20: the user's question was
+ * cut off and the model answered the prompt itself, or the resume failed with "no user query found"). The room tools come from this one MCP server instead, so the
+ * agent has no Stop-hook waiter: every @ resumes it for one turn.
+ */
+export const LEAN_TOOL = 'mcp__room';
+export const leanMcpConfig = (sid: string, home: string, port: number, mcpServer: string, node = process.execPath) =>
+  ({ mcpServers: { room: { command: node, args: ['--no-warnings', mcpServer], env: { CLAUDE_CODE_SESSION_ID: sid, BEAR_AGENT_HOME: home, BEAR_AGENT_PORT: String(port) } } } });
+export const leanArgs = (configFile: string): string[] => ['--bare', '--strict-mcp-config', '--mcp-config', configFile];
+
 /** Off this machine the agent only reads (and never secret files); a local provider may edit when the profile says so (edit: true, after tool_use is confirmed for that model). */
 export function apiPerm(p: AgentProfile, prov: Provider, own: Perm): Perm {
   const local = prov.tier === 'local';
-  if (local && p.edit === true) return own;
-  return { mode: 'default', allow: [], deny: [...NO_WRITE, ...(local ? [] : SECRET_READS)] };
+  if (local && p.edit === true) return { ...own, allow: [...own.allow, LEAN_TOOL] };
+  return { mode: 'default', allow: [LEAN_TOOL], deny: [...NO_WRITE, ...(local ? [] : SECRET_READS)] };
 }

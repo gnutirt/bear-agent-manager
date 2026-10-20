@@ -8,7 +8,7 @@ import { adoptBackground, claudeArgs, isBackground, killTree, stopRevive, type P
 // for idleMin minutes between room messages, like a woken background agent. The chat is saved in projects/, so it can
 // be opened in an editor at any time (resume by id).
 
-export type AgentJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; perm?: Perm; model?: string; idleMin: number; env?: Record<string, string> };
+export type AgentJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; perm?: Perm; model?: string; idleMin: number; env?: Record<string, string>; args?: string[] };
 const MAX_RUN_MS = 4 * 3_600_000;
 const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a) ? `"${a}"` : a);
 
@@ -24,7 +24,7 @@ export function spawnAgent(job: AgentJob): Promise<number> {
   fs.mkdirSync(job.logDir, { recursive: true });
   const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
   fs.writeSync(log, `\n${new Date().toISOString()} new agent ${job.id} in ${job.cwd} [perm: ${job.perm?.mode ?? 'default'}]\n`);
-  const child = spawn('claude', agentArgs(job.id, job.perm, job.model).map(shellArg), {
+  const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
     cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', log, log],
   });
   child.stdin?.end(job.text);

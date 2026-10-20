@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { apiEnv, apiPerm, isQuotaError } from '../hub/apiagent.ts';
+import { apiEnv, apiPerm, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig } from '../hub/apiagent.ts';
 import type { AgentProfile } from '../hub/settings.ts';
 import type { Provider } from '../hub/providers.ts';
 
@@ -29,9 +29,15 @@ test('apiPerm: off this machine read-only without secret files; local may edit o
   const remote = apiPerm(prof({ edit: true }), prov({ tier: 'free' }), own);
   assert.equal(remote.mode, 'default');
   for (const d of ['Edit', 'Write', 'Bash', 'Read(**/.env*)', 'Read(**/providers.json)']) assert.ok(remote.deny.includes(d), d);
-  assert.deepEqual(apiPerm(prof({ edit: true }), prov(), own), own);
+  assert.deepEqual(apiPerm(prof({ edit: true }), prov(), own), { ...own, allow: [LEAN_TOOL] });
+  assert.ok(remote.allow.includes(LEAN_TOOL), 'the room tools of the lean claude stay allowed');
   const localRo = apiPerm(prof(), prov(), own);
   assert.ok(localRo.deny.includes('Edit') && !localRo.deny.some((d) => d.startsWith('Read(')));
+});
+
+test('leanMcpConfig: one stdio server named room that knows the session, the hub home and port', () => {
+  const c = leanMcpConfig('sid-1', 'H', 4242, 'S/mcp.ts', 'node');
+  assert.deepEqual(c.mcpServers.room, { command: 'node', args: ['--no-warnings', 'S/mcp.ts'], env: { CLAUDE_CODE_SESSION_ID: 'sid-1', BEAR_AGENT_HOME: 'H', BEAR_AGENT_PORT: '4242' } });
 });
 
 test('isQuotaError sees the provider quota / rate-limit wording', () => {
@@ -51,6 +57,10 @@ test('claude-api profile: starts with the provider env and a read-only perm, pau
     await until(() => jobs.length === 1, 5000, 'the agent starts');
     assert.equal(jobs[0].env.ANTHROPIC_API_KEY, 'sk-top-secret-123');
     assert.equal(jobs[0].perm.mode, 'default');
+    assert.deepEqual(jobs[0].args.slice(0, 3), leanArgs('x').slice(0, 3));   // --bare --strict-mcp-config --mcp-config <file>
+    const mcp = JSON.parse(fs.readFileSync(jobs[0].args[3], 'utf8'));
+    assert.equal(mcp.mcpServers.room.env.CLAUDE_CODE_SESSION_ID, jobs[0].id);
+    assert.ok(!JSON.stringify(mcp).includes('sk-top-secret-123'), 'the key is only in the process environment');
     assert.ok(jobs[0].perm.deny.includes('Edit'));
     const st = await until(async () => { const s = (await call<any[]>('/api/agent-profiles')).find((x) => x.id === 'loc'); return s?.limited ? s : null; }, 5000, 'paused on quota');
     assert.equal(st.state, 'error');

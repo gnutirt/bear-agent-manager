@@ -40,11 +40,11 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
-import { apiEnv, apiPerm, isQuotaError } from './apiagent.ts';
-import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { apiEnv, apiPerm, isQuotaError, leanArgs, leanMcpConfig } from './apiagent.ts';
 import { MuseAgent } from './museagent.ts';
 import { chromeCdp } from '../mcp/muse.ts';
 import type { Cdp } from '../mcp/muse-core.ts';
+import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { workerConfigDir } from '../shared/worker-chat.ts';
@@ -124,9 +124,9 @@ export type HubOptions = {
   spawnAgent?: (job: AgentJob) => Promise<number> | number;
   /** Standalone Copilot SDK client factory (stubbed in tests). */
   copilotClientFactory?: CopilotClientFactory;
-  /** Startup folder for the sign-in script (tests use a temp one). */
   /** The debug Chrome of 'muse' profiles (stubbed in tests; default http://127.0.0.1:9222). */
   museCdp?: Cdp;
+  /** Startup folder for the sign-in script (tests use a temp one). */
   startupDir?: string;
   /** Wait this long after the first waking message so bursts wake a session once (default 3000). */
   batchMs?: number;
@@ -414,10 +414,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const apiProfileOf = (s: Session) => apiProfiles().find((p) => normAgent(p.name) === normAgent(s.name));
   const apiSessionOf = (p: AgentProfile) => Object.values(store.state.sessions).find((x) => normAgent(x.name) === normAgent(p.name));
   /** Environment, permission and model of the profile's claude; throws when the provider cannot serve it. */
-  function apiJob(p: AgentProfile, cfg: ReturnType<typeof loadSettings>) {
+  function apiJob(p: AgentProfile, cfg: ReturnType<typeof loadSettings>, sid: string) {
     const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
     if (!prov || !prov.enabled) throw new Error(`provider ${p.providerId} is missing or off`);
-    return { env: apiEnv(p, prov), perm: apiPerm(p, prov, permFor(cfg, p.name)), model: p.model || prov.models.read[0] };
+    const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name));
+    const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
+    fs.writeFileSync(mcp, JSON.stringify(leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'))));
+    return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp) };
   }
   const apiLimited = (p: AgentProfile) => { const l = apiState.get(p.id)?.limited ?? 0; return l > Date.now() ? l : 0; };
   /** Records why the agent could not run and tells its rooms once: a quota/rate hit pauses it, anything else is shown as an error. */
@@ -445,15 +448,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     try {
       if (!store.state.rooms[room]) throw new Error(`room #${room} does not exist`);
       if (Math.max(countBackground(), reviving.size) >= cfg.agents.maxBackground) throw new Error(`${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
-      const cwd = resolveWorkspace(p.cwd, true), job = apiJob(p, cfg);
+      const cwd = resolveWorkspace(p.cwd, true), id = crypto.randomUUID(), job = apiJob(p, cfg, id);
       if (stale) store.forget(stale.id);
-      const id = crypto.randomUUID();
       store.register({ id, cwd });
       try { store.rename(id, p.name); store.join(id, room); } catch (e) { store.forget(id); throw e; }
       reviving.add(id);
       emitSession(store.setStatus(id, 'busy', tr('sys.act.starting')));
       emitRoom(room);
-      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, text: tr('agent.intro', { name: p.name, room }), logDir: opts.dir, perm: job.perm, idleMin: cfg.lead.idleMin, ...(job.model ? { model: job.model } : {}), env: job.env }))
+      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, text: tr('agent.intro', { name: p.name, room }), logDir: opts.dir, perm: job.perm, idleMin: cfg.lead.idleMin, ...(job.model ? { model: job.model } : {}), env: job.env, args: job.args }))
         .catch(() => 1)
         .then((code) => { if (code) apiFailed(p, `${tr('sys.wake.exit', { code: Number(code) })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`); })
         .finally(() => { reviving.delete(id); if (!waiters.has(id)) emitSession(store.markEnded(id)); broadcast('agentprofile', apiStatus(p)); });
@@ -477,7 +479,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     broadcast('settings', next);
   }
 
-  /** Advances a session's delivery cursor and tells the UI (read receipts). */
   // ---- 'muse' profiles: Muse (through the debug Chrome) answers @-mentions as a room member, one question at a time ----
   const muses = new Map<string, { agent: MuseAgent; key: string }>();
   const museProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'muse');
@@ -509,6 +510,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const p of profiles) if (p.enabled && museFor(p).snapshot().state === 'off') void museFor(p).start().catch((e) => console.error(`[muse] ${p.id} start failed:`, e));
   }
 
+  /** Advances a session's delivery cursor and tells the UI (read receipts). */
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
   const relayText = (text: string, more: string) => {
     const flat = text.replace(/\n{3,}/g, '\n\n').trim();
@@ -671,12 +673,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       void cop.wake(st.id).catch((error) => cop.reportError(error));
       return;
     }
-    // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
     const mus = museHolding(st.id);
     if (mus) {
       void mus.wake(st.id).catch((error) => mus.reportError(error));
       return;
     }
+    // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
     // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
     // tab at 02:12). Drop that waiter and unstick the chat instead.
     if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) {
@@ -749,7 +751,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let apiRun: ReturnType<typeof apiJob> | undefined;
     if (api) {
       if (!api.enabled || apiLimited(api)) return false;
-      try { apiRun = apiJob(api, loadSettings(opts.dir, envCap)); } catch (e) { apiFailed(api, (e as Error).message); return false; }
+      try { apiRun = apiJob(api, loadSettings(opts.dir, envCap), s.id); } catch (e) { apiFailed(api, (e as Error).message); return false; }
     }
     const p = store.pending(s.id);
     const delivery = p.messages.length
@@ -765,7 +767,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript), wakeRole(s), cfg.compact.thresholds);
     let compacted = false;
     const perm = apiRun?.perm ?? permFor(cfg, s.name), model = apiRun?.model ?? cfg.agentModel[normAgent(s.name)];
-    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}), ...(apiRun ? { env: apiRun.env } : {}) };
+    const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
@@ -1547,6 +1549,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
     if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus), ...museProfiles().map(museStatusOf)]);
     const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
+    const mp = ap ? museProfiles().find((x) => x.id === ap[1]) : undefined;
+    if (ap && mp) {
+      const b = await readBody(req);
+      if (ap[2] && !mp.enabled) throw new StoreError(409, `${mp.name} is off: turn it on first`);
+      if (!ap[2]) {
+        if (b.confirm !== true) return json(res, 200, { ...museStatusOf(mp), done: false });
+        if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
+        setApiEnabled(mp.id, b.on);   // writes profile.enabled whatever the provider
+        if (!b.on) { await museFor(mp).stop(); return json(res, 200, { ...museStatusOf({ ...mp, enabled: false }), done: true }); }
+      }
+      await museFor({ ...mp, enabled: true }).start();   // also the retry: re-checks Chrome and the sign-in
+      return json(res, 200, { ...museStatusOf({ ...mp, enabled: true }), done: true });
+    }
     if (ap) {
       const prof = apiProfiles().find((x) => x.id === ap[1]);
       if (!prof) return json(res, 404, { error: `unknown claude-api profile ${ap[1]}` });
@@ -1573,19 +1588,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus(prof.id), done: false });
       if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
       return copilotToggle(res, prof.id, b.on);
-    }
-    const mp = ap ? museProfiles().find((x) => x.id === ap[1]) : undefined;
-    if (ap && mp) {
-      const b = await readBody(req);
-      if (ap[2] && !mp.enabled) throw new StoreError(409, `${mp.name} is off: turn it on first`);
-      if (!ap[2]) {
-        if (b.confirm !== true) return json(res, 200, { ...museStatusOf(mp), done: false });
-        if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
-        setApiEnabled(mp.id, b.on);   // writes profile.enabled whatever the provider
-        if (!b.on) { await museFor(mp).stop(); return json(res, 200, { ...museStatusOf({ ...mp, enabled: false }), done: true }); }
-      }
-      await museFor({ ...mp, enabled: true }).start();   // also the retry: re-checks Chrome and the sign-in
-      return json(res, 200, { ...museStatusOf({ ...mp, enabled: true }), done: true });
     }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
@@ -1668,6 +1670,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       saveSettings(opts.dir, next);
       void syncCopilots();
       syncApiAgents();
+      void syncMuse();
       autoCfg.at = 0;
       broadcast('settings', next);
       return json(res, 200, next);
@@ -1695,7 +1698,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'POST' && p === '/api/providers') {
       const b = await readBody(req);
-      void syncMuse();
       if (!/^[a-z0-9-]{2,32}$/.test(String(b.id ?? ''))) throw new StoreError(400, 'id must be 2-32 chars a-z 0-9 -');
       const list = loadProviders(opts.dir, legacyKey);
       if (list.some((x) => x.id === b.id)) throw new StoreError(409, `provider ${b.id} exists`);
@@ -1842,14 +1844,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         const apiP = apiProfileOf(s);
         let apiRun: ReturnType<typeof apiJob> | undefined;
-        if (apiP) { try { apiRun = apiJob(apiP, loadSettings(opts.dir, envCap)); } catch (e) { throw new StoreError(409, (e as Error).message); } }
+        if (apiP) { try { apiRun = apiJob(apiP, loadSettings(opts.dir, envCap), s.id); } catch (e) { throw new StoreError(409, (e as Error).message); } }
         reviving.add(s.id);
         const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
         emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
         const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
         // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
-        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env } : {}) };
+        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
         Promise.resolve()
           .then(async () => {
             const blocked = apiP ? '' : await blockedAccount(s, cjob);
@@ -2170,6 +2172,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   void syncCopilots();
   syncApiAgents();
+  void syncMuse();
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -2191,10 +2194,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
+      for (const m of museAgents()) { try { await m.stop(); } catch (error) { console.error('[muse] shutdown failed:', error); } }
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));
     },
   };
 }
-  void syncMuse();
-      for (const m of museAgents()) { try { await m.stop(); } catch (error) { console.error('[muse] shutdown failed:', error); } }

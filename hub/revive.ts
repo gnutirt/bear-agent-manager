@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string> };   // env: extra environment (a 'claude-api' agent's provider)
+export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[] };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
 /** What a hub-started claude may do (settings.permissions of that agent). */
 export type Perm = { mode: string; allow: string[]; deny: string[] };
 export type CompactJob = Omit<ReviveJob, 'text'>;
@@ -65,7 +65,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   fs.mkdirSync(job.logDir, { recursive: true });
   const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
   fs.writeSync(log, `\n${new Date().toISOString()} ${label} ${job.id} in ${job.cwd} [perm: ${perm?.mode ?? 'default'}${perm?.allow?.length ? ` +${perm.allow.length}` : ''}${perm?.deny?.length ? ` -${perm.deny.length}` : ''}]\n`);
-  const child = spawn('claude', claudeArgs(job.id, perm, model).map(shellArg), {
+  const child = spawn('claude', [...claudeArgs(job.id, perm, model), ...(job.args ?? [])].map(shellArg), {
     cwd: fs.existsSync(job.cwd) ? job.cwd : undefined,
     env,
     shell: process.platform === 'win32', // resolves claude.cmd / claude.exe on PATH; args contain no user text
