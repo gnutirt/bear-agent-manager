@@ -322,6 +322,7 @@ test('settings sub-tabs, Claude usage first in the Token tab, text button to mak
   try {
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of ['data-sub="${k}"', "general: 'sub.general'", "lead: 'sub.lead'", "account: 'sub.account'", "t('members.lead')", "t('members.unlead')"]) assert.ok(html.includes(s), `missing ${s}`);
-    assert.ok(html.includes('<div class="vw">${claudeProBlock()}${head}'), 'Claude usage comes before the worker token KPIs');
+    assert.ok(html.includes("<div class=\"vw\">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}"), 'Usage tab: Claude, Copilot and paid providers come before the worker token KPIs');
+    for (const x of ["'/api/paid-usage'", 'data-tab="tokens" data-i18n="tab.usage"', 'function copilotUsageBlock', 'function paidUsageBlock']) assert.ok(html.includes(x), `Usage tab: missing ${x}`);
   } finally { await hub.close(); }
 });

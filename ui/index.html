@@ -845,7 +845,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <button role="tab" data-tab="dm"><span data-i18n="rooms.dm.title">Chat riêng</span> <span class="cap" id="tabDmCount"></span></button>
   <button role="tab" data-tab="tasks"><span data-i18n="tab.tasks">Việc</span> <span class="cap" id="tabTaskCount"></span></button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
-  <button role="tab" data-tab="tokens">Token</button>
+  <button role="tab" data-tab="tokens" data-i18n="tab.usage">Usage</button>
   <button role="tab" data-tab="skills">Skill</button>
   <button role="tab" data-tab="settings" data-i18n="tab.settings">Cài đặt</button>
 </nav>
@@ -2642,8 +2642,38 @@ function barChart(days) {
     <line x1="0" y1="${top}" x2="${W}" y2="${top}" class="grid"/><text x="0" y="${top - 4}" class="ax">${fmtTok(max)}</text>
     <line x1="0" y1="${H}" x2="${W}" y2="${H}" class="base"/>${bars}</svg>`;
 }
+/** U3: the Usage tab shows every source in one place: Claude accounts, Copilot profiles, paid claude-api profiles (/api/paid-usage) and the worker tokens below. */
+const usd = (n) => n == null ? '–' : '$' + (n < 0.01 && n > 0 ? '<0.01' : n.toFixed(2));
+function copilotUsageBlock() {
+  const profs = (S.settings?.agents?.profiles || []).filter((p) => p.provider === 'copilot');
+  const head = `<h2>${t('usage.copilot')}</h2>`;
+  if (!profs.length && !S.copilot) return head + `<div class="vempty">${t('usage.copilot.none')}</div>`;
+  const rows = (profs.length ? profs.map((p) => [p.name, S.copilotProfiles?.[p.id] || (p.id === 'copilot' ? S.copilot : null)]) : [['Copilot', S.copilot]]).map(([name, st]) => {
+    const limited = !!st?.quotaLimited;
+    const state = !st ? t('ac.profile.statusUnavailable') : limited ? t('usage.copilot.out', { at: st.retryAt ? new Date(st.retryAt).toLocaleString(loc(), { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'numeric' }) : '?' }) : st.auth === 'no' ? t('ac.profile.signInRequired') : st.state === 'error' ? t('ac.copilot.error') : t('usage.copilot.ok');
+    return `<tr><td>${esc(name)}</td><td>${st?.login ? esc(st.login) : '–'}</td><td><span class="${limited || st?.state === 'error' || st?.auth === 'no' ? 'bad' : 'okt'}">${esc(state)}</span></td></tr>`;
+  }).join('');
+  return head + table([t('col.profile'), t('usage.login'), t('col.state')], rows) + `<p class="small muted">${t('usage.copilot.note')}</p>`;
+}
+function paidUsageBlock() {
+  const head = `<h2>${t('usage.paid')}</h2>`, pu = S.paidUsage;
+  if (pu === undefined) return head + `<div class="vempty">${t('common.loading')}</div>`;
+  if (pu === null) return head + `<div class="vempty">${t('usage.paid.unavailable')}</div>`;
+  if (!pu.length) return head + `<div class="vempty">${t('usage.paid.none')}</div>`;
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = pu.map((x) => { const d = (x.days || []).find((y) => y.day === today); return `<tr><td>${esc(x.profile)}</td><td>${esc(x.providerId || '')}${x.model ? ' · ' + esc(x.model) : ''}</td><td class="num">${x.runs}</td><td class="num">${fmtTok(x.input)}</td><td class="num">${fmtTok(x.output)}</td><td class="num">${usd(x.costUsd)}</td><td class="num">${d ? usd(d.costUsd) : '–'}</td></tr>`; }).join('');
+  const noPrice = pu.some((x) => x.costUsd == null);
+  return head + table([t('col.profile'), t('prov.title'), '#' + t('col.runs'), '#' + t('col.in'), '#' + t('col.out'), '#' + t('usage.paid.cost'), '#' + t('usage.paid.today')], rows) + `<p class="small muted">${t('usage.paid.note')}${noPrice ? ' ' + t('usage.paid.noPrice') : ''}</p>`;
+}
 function loadTokens() {
   loadClaudeUsage();
+  api('/api/paid-usage').then((r) => { S.paidUsage = r; renderTokensView(); }, () => { S.paidUsage = null; renderTokensView(); });
+  Promise.all([api('/api/copilot').catch(() => null), api('/api/agent-profiles').catch(() => null), S.settings ? null : api('/api/settings').catch(() => null)]).then(([cp, ap, st]) => {
+    if (cp) S.copilot = cp;
+    if (ap) { S.agentProfiles = Object.fromEntries(ap.map((x) => [x.id, x])); S.copilotProfiles = S.agentProfiles; }
+    if (st && !S.settings) S.settings = st;
+    renderTokensView();
+  });
   api('/api/tokens?days=' + S.tkDays).then((s) => { S.viewErr.tokens = ''; S.tokens = s; renderTokensView(); }, (e) => viewFail('tokens', e));
   renderTokensView();
 }
@@ -2653,7 +2683,7 @@ function renderTokensView() {
   const RANGES = { 1: t('range.24h'), 7: t('range.7d'), 30: t('range.30d') };
   const head = `<p class="lede">${t('tokens.lede')}</p>
     <span class="seg" role="group" aria-label="${t('range.label')}">${Object.entries(RANGES).map(([d, l]) => `<button data-days="${d}" aria-pressed="${Number(d) === S.tkDays}">${l}</button>`).join('')}</span>`;
-  if (!tk) { $('view-tokens').innerHTML = `<div class="vw">${head}${errBox('tokens') || `<div class="vempty" style="margin-top:16px">${t('common.loading')}</div>`}</div>`; return; }
+  if (!tk) { $('view-tokens').innerHTML = `<div class="vw">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}${errBox('tokens') || `<div class="vempty" style="margin-top:16px">${t('common.loading')}</div>`}</div>`; return; }
   const sum = (b) => b.in + b.out;
   const total = sum(tk.total), freeShare = total ? Math.round(sum(tk.byTier.free) / total * 100) : 0;
   const heavy = tk.chats.filter((c) => c.ctx >= 300e3).length;
@@ -2671,7 +2701,7 @@ function renderTokensView() {
   const bucketRows = (m) => Object.entries(m).sort((a, b) => sum(b[1]) - sum(a[1])).map(([k, b]) => `<tr><td>${esc(k)}</td><td class="num">${b.runs}</td><td class="num">${fmtTok(b.in)}</td><td class="num">${fmtTok(b.out)}</td><td class="num">${fmtTok(b.cacheRead)}</td><td class="num">${b.failed || ''}</td></tr>`).join('');
   const BH = ['', '#' + t('col.runs'), '#' + t('col.in'), '#' + t('col.out'), '#' + t('col.cacheRead'), '#' + t('col.errors')];
   const chats = tk.chats.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.repo)}</td><td class="num"><span class="ctx ${c.ctx < 100e3 ? 'lo' : c.ctx < 300e3 ? 'mid' : 'hi'}">${fmtK(c.ctx)}</span></td><td>${LABEL[c.status] || esc(c.status)}</td><td class="small muted">${c.ctx >= 300e3 ? t('tokens.heavyHint') : ''}</td></tr>`).join('');
-  $('view-tokens').innerHTML = `<div class="vw">${claudeProBlock()}${head}
+  $('view-tokens').innerHTML = `<div class="vw">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}
     <div class="kpis">${kpis}</div>
     <h2>${t('tokens.byDay')}</h2>${chart}
     <div class="cols"><div><h2>${t('tokens.byProvider')}</h2>${table([t('prov.title'), ...BH.slice(1)], bucketRows(tk.byProvider)) }</div><div><h2>${t('tokens.byModel')}</h2>${table(['Model', ...BH.slice(1)], bucketRows(tk.byModel))}</div></div>
