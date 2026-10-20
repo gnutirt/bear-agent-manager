@@ -4,6 +4,10 @@
 
 - Add: tab mirror (B1, setting `mirrorTabs`, default on). A turn typed directly in an agent's tab (UserPromptSubmit + Stop hooks) is copied into that agent's private chat as `[tab] user: …` / `[tab] agent: …` (message kind `mirror`): wakes nobody, is never delivered back to the agent, hub deliveries are not mirrored, tokens/keys are redacted and a private key block is dropped. The chat is created hidden the first time and a chat the user hid stays hidden. Needs hub restart.
 - Fix: a Copilot turn that fails with "exceeded your monthly quota" now limits that profile until the 1st of next month (same path as the SDK quota event: failover to another profile, or one notice and the messages stay queued) instead of posting an error and retrying on every message. Needs hub restart.
+- Add: app window (S1, #67). The hub serves `/manifest.webmanifest` and `/icon.svg` (no token) and links them from the page, so Chrome/Edge "Install app" works; `npm run setup -- --app` creates a "Bear Agent Manager" shortcut (Desktop + Start Menu on Windows, .desktop on Linux) that opens the hub in Edge/Chrome `--app` mode (`--url`, `--browser` to override). Needs hub restart.
+- Fix: the Copilot profile "Retry" button (`POST /api/copilot/profiles/:id/retry`) now clears the quota-limited mark and its retry time, then starts the profile and runs the queued messages (before, only off/on cleared it). Needs hub restart.
+- Add: `npm run setup` (scripts/setup.mjs, C1). One-step install that is safe to re-run: installs the plugin per Claude config dir, adds the room permission only after printing the diff and a yes (`--yes`; backup kept), optional `--link`/`--vscode`/`--autostart`, prints what is left (sign-in). Never reads tokens. `--dry-run`, `--home`, `--config-dir` for tests. README Install shortened.
+
 ## 0.9.0 - 2026-10-20
 
 - Add: the sweeper reports a "deaf tab" once per stuck message (live tab, no waiter, an @ waiting >10 min, busy tabs only after 10 quiet minutes) and `deliver()` says once when a closed agent cannot be woken (no saved chat and open-tab-on-wake off) instead of staying silent. Needs hub restart.

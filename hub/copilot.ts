@@ -203,6 +203,11 @@ export class CopilotAgent {
   }
 
   async start(): Promise<void> {
+  /** The user says the quota is back (retry button): forget the limit mark and its timer. */
+  resetQuotaLimit(): void {
+    this.clearQuotaLimit();
+  }
+
     if (this.stopTask) await this.stopTask;
     if (this.session) return;
     if (this.startTask) return this.startTask;

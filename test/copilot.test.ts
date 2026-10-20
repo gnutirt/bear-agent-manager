@@ -700,3 +700,25 @@ test('Copilot monthly quota error: profile is limited until the 1st of next mont
     fs.rmSync(h.dir, { recursive: true, force: true });
   }
 }, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });
+
+test('Copilot retry button clears the quota mark and runs the queued message', async () => {
+  let fail = true;
+  const { factory, calls } = fakeFactory({ response: async () => { if (fail) throw new Error('You have exceeded your monthly quota'); return 'back'; } });
+  const h = await makeHub(undefined, undefined, { copilotClientFactory: factory });
+  try {
+    await h.call('/api/settings', { agents: { profiles: [{ id: 'monthly', provider: 'copilot', name: 'CopilotMonthly', cwd: process.cwd(), enabled: false }] } }, { method: 'PUT' } as RequestInit);
+    await h.call('/api/copilot/profiles/monthly', { on: true, confirm: true });
+    await h.call('/api/rooms/bear-agent-manager/messages', { text: '@CopilotMonthly first' });
+    const status = async () => (await h.call<any[]>('/api/copilot/profiles')).find((p) => p.id === 'monthly');
+    await until(async () => (await status()).quotaLimited === true, COPILOT_ASYNC_TIMEOUT_MS, 'quota mark');
+    fail = false;
+    const retry = await h.call<any>('/api/copilot/profiles/monthly/retry', {});
+    assert.notEqual(retry.quotaLimited, true);
+    assert.equal(retry.retryAt, undefined);
+    assert.notEqual((await status()).quotaLimited, true);
+    await until(async () => calls.prompts.length >= 2, COPILOT_ASYNC_TIMEOUT_MS, 'the queued message runs again');
+  } finally {
+    await h.hub.close();
+    fs.rmSync(h.dir, { recursive: true, force: true });
+  }
+}, { timeout: COPILOT_ASYNC_TIMEOUT_MS * 3 });

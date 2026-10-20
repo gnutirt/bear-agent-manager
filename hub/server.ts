@@ -10,6 +10,7 @@ import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { summarize } from './tokens.ts';
+import { appAsset, withManifest } from './appshell.ts';
 import { probeDir, runWorker } from './slowdir.ts';
 import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare } from './accounts.ts';
 import { pickAccount } from './accountswitch.ts';
@@ -396,6 +397,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const prof = copilotProfiles().find((x) => x.id === id)!;
     const agent = copilotFor(prof);
     const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
+    if (on === undefined) agent.resetQuotaLimit();
     if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
       return json(res, 429, { error: `${cap} headless agents already run (settings agents.maxBackground)`, status: copilotStatus(id) });
     }
@@ -1378,6 +1380,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   function sweepAll(apply: boolean) {
     if (apply) runArchive();   // starts a round; files it has not reached yet are found again under room_chat with their old key
+    if (m === 'GET' && appAsset(p)) {
+      const a = appAsset(p)!;
+      res.writeHead(200, { 'content-type': a.type, 'cache-control': 'no-cache' });
+      return res.end(a.body);
+    }
     const active = new Set(Object.values(store.state.sessions).filter((s) => s.status !== 'offline').map((s) => s.id));
     const revive = new Set<string>();
     const out: Swept[] = [];
@@ -1408,7 +1415,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (hk) return hookRoute(hk[1], req, res);
 
     if (m === 'GET' && (p === '/' || p === '/index.html')) {
-      const html = fs.readFileSync(UI_FILE, 'utf8').replace('__BEAR_AGENT_TOKEN__', token);
+      const html = withManifest(fs.readFileSync(UI_FILE, 'utf8')).replace('__BEAR_AGENT_TOKEN__', token);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return res.end(html);
     }

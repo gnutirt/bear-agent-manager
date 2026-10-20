@@ -61,8 +61,21 @@ repo (it pulls in `@github/copilot-sdk`); skip it if you don't use Copilot.
 
 ## Install
 
+Quick path (safe to run again; shows each `settings.json` change before writing and never reads tokens):
+
 ```bash
 git clone <this repo> bear-agent-manager
+cd bear-agent-manager
+npm run setup            # add --yes to accept the permission change, --dry-run to only look
+```
+
+It installs the plugin and the room permission for every Claude config dir it finds, then offers (flags `--link`,
+`--vscode`, `--autostart`, `--app`) chat sharing between editors, the editor panel, hub autostart and a "Bear Agent Manager"
+app-window shortcut (Edge/Chrome `--app` mode; the hub also serves `/manifest.webmanifest` so the browser's "Install app" works),
+and prints what is still
+open (sign-in). Manual steps, if you prefer:
+
+```bash
 claude plugin marketplace add <path-to-bear-agent-manager>
 claude plugin install bear-agent-manager@bear-agent-manager-local
 ```
