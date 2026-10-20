@@ -187,3 +187,45 @@ test('a wake that fails leaves the messages unread and says so in the room', asy
     assert.ok(h.hub.store.pending('f1').messages.some((m) => m.text === '@alice hello'), 'still unread');
   } finally { await h.hub.close(); }
 });
+
+test('#79 compact.onTaskDone: a task done/blocked compacts its offline owner past the role threshold; an IDE tab gets a /compact hint', async () => {
+  const order: string[] = [];
+  const h = await makeHub(undefined, () => { order.push('revive'); }, { autoRevive: false, compactRevive: async (job: any) => {
+    order.push('compact');
+    fs.appendFileSync(path.join(h.dir, `${job.id}.jsonl`), JSON.stringify({ type: 'system', subtype: 'compact_boundary', compactMetadata: { preTokens: 150_000, postTokens: 12_000 } }) + '\n');
+    return 0;
+  } });   // an @ does not wake: only #79 runs
+  try {
+    const agent = async (id: string, name: string, ctx: number) => {
+      const tr = path.join(h.dir, `${id}.jsonl`);
+      fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: ctx } } }) + '\n');
+      await h.call('/api/sessions/register', { id, cwd: 'C:/nope-79', transcript: tr });
+      await h.call(`/api/sessions/${id}/rename`, { name });
+      await h.call('/api/rooms/proj/join', { sessionId: id });
+    };
+    await agent('l1', 'boss', 10);
+    await h.call('/api/rooms/proj/lead', { sessionId: 'l1' });
+    await agent('b1', 'big', 150_000);
+    await agent('s1', 'small', 90_000);
+    await agent('t1', 'tab', 150_000);
+    await h.call('/api/sessions/t1/ide', { ide: 'vscode' });
+    for (const id of ['b1', 's1']) await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: id }) });
+    const task = (owner: string) => h.call('/api/rooms/proj/tasks', { sessionId: 'l1', title: `t-${owner}`, owner });
+    const close = (id: number, status: string) => h.call(`/api/rooms/proj/tasks/${id}`, { sessionId: 'l1', status });
+
+    await close((await task('small')).id, 'done');   // 90k < background 100k
+    const big = await task('big');
+    await h.call('/api/settings', { compact: { onTaskDone: false } }, { method: 'PUT' });
+    await close(big.id, 'blocked');
+    await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual(order, [], 'under the threshold or setting off: no compaction');
+
+    await h.call('/api/settings', { compact: { onTaskDone: true } }, { method: 'PUT' });
+    await close(big.id, 'done');
+    await until(() => order.includes('revive'), 5_000, 'the compaction');
+    assert.deepEqual(order, ['compact', 'revive'], 'compacted, then woken for its unread assignment');
+    await close((await task('tab')).id, 'done');
+    await until(async () => (await h.call<any[]>('/api/rooms/proj/messages?limit=5')).some((m: any) => /gõ \/compact trong tab của tab/.test(m.text)), 5_000, 'the tab hint');
+    assert.deepEqual(order, ['compact', 'revive'], 'the open tab is not compacted');
+  } finally { await h.hub.close(); }
+});

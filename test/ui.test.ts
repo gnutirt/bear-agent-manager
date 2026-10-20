@@ -237,11 +237,6 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
     for (const s of [
       "const profiles = st.agents?.profiles || []",
       'id="copilotProfileNew"',
-      'name="model"',
-      'data-profile-model="${esc(p.id)}"',
-      'data-profile-model-save="${esc(p.id)}"',
-      "ac.profile.modelInvalid",
-      "t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') })",
       'data-profile-enabled="${esc(p.id)}"',
       'data-profile-remove="${esc(p.id)}"',
       "saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd",

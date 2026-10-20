@@ -372,7 +372,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = copilotProfiles(), cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     for (const [id, c] of [...copilots]) {
       const p = profiles.find((x) => x.id === id);
-      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home, p.model])) continue;
+      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home])) continue;
       if (c.agent.snapshot().state !== 'off') await c.agent.stop().catch((error) => console.error('[copilot] stop failed:', error));
       if (!p || c.key !== JSON.stringify([p.name, p.cwd, p.home])) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
     }
@@ -799,8 +799,52 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (api && !failure) apiState.delete(api.id);
         reviving.delete(s.id);
         if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
+        const owed = compactAfter.get(s.id);
+        if (owed) { compactAfter.delete(s.id); void compactTaskOwner(...owed); }
       });
     return true;
+  }
+
+  /** Compacts the saved chat of a session that is not running (the caller holds `reviving`) and says how it went in its rooms. */
+  async function compactSaved(s: Session, left: number, apiRun?: ReturnType<typeof apiJob>) {
+    const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
+    emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
+    const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+    // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
+    // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
+    const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
+    const blocked = apiRun ? '' : await blockedAccount(s, cjob);
+    if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
+    const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
+    if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
+    say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
+  }
+
+  const compactAfter = new Map<string, [string, Task]>();   // #79: owners who closed a task mid-turn; compacted when that turn ends
+  /** #79 (settings compact.onTaskDone): a task done or blocked compacts its owner's chat past the role threshold, so the next task does not re-read it all. */
+  async function compactTaskOwner(room: string, task: Task) {
+    const cfg = loadSettings(opts.dir, envCap);
+    const s = store.members(room).find((x) => x.name.toLowerCase() === (task.owner ?? '').toLowerCase());
+    if (!cfg.compact.onTaskDone || !cfg.compact.thresholds.enabled || !s || !hasTranscript(s) || liveChat.has(s.id)) return;
+    const ctx = readContextTokens(s.transcript);
+    if (!ctx || ctx < cfg.compact.thresholds[wakeRole(s)]) return;
+    if (reviving.has(s.id)) { compactAfter.set(s.id, [room, task]); return; }
+    if (waiters.has(s.id) || (!s.ended && s.status !== 'offline')) {
+      // an open tab is never killed for this (see the compact route): the person types /compact there
+      if (s.ide) { try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ } }
+      return;
+    }
+    if (await dirtyUnlessForced(s, false).catch(() => true)) return;   // uncommitted own files: the owner commits first
+    if (reviving.has(s.id) || waiters.has(s.id)) return;   // woke while git ran
+    const api = apiProfileOf(s);
+    let apiRun: ReturnType<typeof apiJob> | undefined;
+    if (api) { try { apiRun = apiJob(api, cfg, s.id); } catch { return; } }
+    reviving.add(s.id);
+    compactSaved(s, 0, apiRun).catch(() => {}).finally(() => {
+      reviving.delete(s.id);
+      if (store.pending(s.id).messages.length && revive(s.id)) return;   // e.g. the next task arrived while it compacted
+      if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
+    });
   }
 
   const lastLogLine = () => {
@@ -1753,7 +1797,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);
       if (b.headless !== true && b.id) { try { tabCameUp(store.session(String(b.id)).id); } catch { /* unknown session yet */ } }
-      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir !== undefined ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
+      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
       if (Number.isInteger(b.pid) && b.pid > 0) {
         s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
         store.save();
@@ -1859,20 +1903,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         let apiRun: ReturnType<typeof apiJob> | undefined;
         if (apiP) { try { apiRun = apiJob(apiP, loadSettings(opts.dir, envCap), s.id); } catch (e) { throw new StoreError(409, (e as Error).message); } }
         reviving.add(s.id);
-        const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
-        emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
-        const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
-        // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
-        // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
-        const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
-        Promise.resolve()
-          .then(async () => {
-            const blocked = apiP ? '' : await blockedAccount(s, cjob);
-            if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
-            const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
-            if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
-            say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
-          })
+        compactSaved(s, left, apiRun)
           .finally(() => {
           reviving.delete(s.id);
           if (reopenTab) { emitSession(store.markEnded(s.id)); openTab(s); return; }   // the user presses Enter in the new tab
@@ -2011,6 +2042,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           } catch { /* room gone */ }
           afterTaskDone(room, task);
         }
+        if ((task.status === 'done' || task.status === 'blocked') && before.status !== task.status) void compactTaskOwner(room, task).catch(() => {});
         return json(res, 200, task);
       }
     }

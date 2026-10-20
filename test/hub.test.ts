@@ -209,18 +209,6 @@ test('lead route: the lead gets untagged user messages with its lead role attach
   } finally { await hub.close(); }
 });
 
-test('session register: an empty configDir updates an existing session to the default account', async () => {
-  const h = await makeHub();
-  try {
-    await h.call('/api/sessions/register', { id: 's-default', cwd: 'C:/fw', configDir: 'C:/Users/me/.claude-antigravity' });
-    assert.equal((await h.call<any>('/api/sessions/s-default')).session.configDir, 'C:/Users/me/.claude-antigravity');
-
-    await h.call('/api/sessions/register', { id: 's-default', cwd: 'C:/fw', configDir: '' });
-
-    assert.equal((await h.call<any>('/api/sessions/s-default')).session.configDir, '');
-  } finally { await h.hub.close(); }
-});
-
 test('revive: a mentioned session that ended is resumed in the background, once', async () => {
   const jobs: any[] = [];
   let finish: () => void = () => {};

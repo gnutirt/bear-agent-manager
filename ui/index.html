@@ -2946,7 +2946,7 @@ function accountBlock(st) {
       : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
     const apiInfo = isApi ? `<div class="small">${esc(t('ac.api.info', { provider: p.providerId || '?', model: status?.model || p.model || '?' }))}${p.edit ? ` · <b>${t('ac.api.mayEdit')}</b>` : ` · ${t('ac.api.readOnly')}`}</div>${status?.limited ? `<p class="small pwarn">${esc(t('ac.api.limited', { at: fmtWhen(status.limited) }))}</p>` : ''}` : '';
     return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
-      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${!isApi ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
+      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
       <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
       ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
@@ -2957,7 +2957,6 @@ function accountBlock(st) {
     <input name="home" placeholder="${t('ac.profile.homeOptional')}" aria-label="${t('ac.profile.homeOptional')}" spellcheck="false">
     <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
     <button class="btn primary">${t('ac.profile.add')}</button>
-    <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" aria-label="${t('ac.profile.modelLabel')}" spellcheck="false">
   </form>`;
   // a headless claude on one of the worker providers (Settings > Providers): free / paid ones only read, a local one edits only when ticked
   const provOpts = S.providers.filter((x) => x.enabled).map((x) => `<option value="${esc(x.id)}" data-tier="${esc(x.tier)}">${esc(x.label)} (${esc(x.tier)})</option>`).join('');
@@ -3194,18 +3193,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (profileRemove) return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== profileRemove.dataset.profileRemove));
     const profileRetry = e.target.closest('[data-profile-retry]');
     if (profileRetry) return api(`${profileRoute(profileRetry.dataset.profileRetry)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t('ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
-    const profileModelSave = e.target.closest('[data-profile-model-save]');
-    if (profileModelSave) {
-      const id = profileModelSave.dataset.profileModelSave, input = sv.querySelector(`[data-profile-model="${id}"]`), model = input?.value.trim() || '';
-      if (model && !/^[\w.:\/-]{1,80}$/.test(model)) return toast(t('ac.profile.modelInvalid'));
-      return saveCopilotProfiles((S.settings.agents?.profiles || []).map((p) => {
-        if (p.id !== id) return p;
-        const next = { ...p };
-        if (model) next.model = model;
-        else delete next.model;
-        return next;
-      }));
-    }
     if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
     const profileConfirm = e.target.closest('[data-profile-confirm]');
     if (profileConfirm) return setCopilotProfile(profileConfirm.dataset.profileConfirm, S.copilotProfileAsk?.on === true);
