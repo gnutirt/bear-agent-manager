@@ -120,6 +120,10 @@ test('room_tasks MCP tool: list, next takes the todo task assigned to me, update
     assert.match(next, /now doing[\s\S]*#1 \[doing\] Do A[\s\S]*details/);
     assert.match(await callTool(api, 'c1', 'room_tasks', { action: 'next' }), /No task is waiting/);
     assert.match(await callTool(api, 'c1', 'room_tasks', { action: 'update', id: 1, status: 'done', commit: 'abcdef1' }), /Task #1 is now done/);
+    assert.match(await callTool(api, 'l1', 'room_tasks', { action: 'add', title: 'Do B', owner: 'coder' }), /Added task #2 for coder/);
+    await assert.rejects(callTool(api, 'c1', 'room_tasks', { action: 'update', id: 2, owner: 'boss' }), /only the room lead/);
+    assert.match(await callTool(api, 'l1', 'room_tasks', { action: 'update', id: 2, owner: 'boss', title: 'Do B now', doneWhen: 'tests pass' }), /Task #2 is now todo \(boss\)/);
+    assert.match(await callTool(api, 'l1', 'room_tasks', { action: 'list', owner: 'boss' }), /#2 \[todo\] Do B now \(boss\)/);
     await assert.rejects(callTool(api, 'c1', 'room_tasks', { action: 'fly' }), /action must be/);
   } finally { await hub.close(); }
 });

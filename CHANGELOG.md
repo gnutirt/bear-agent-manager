@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: MCP `room_tasks update` now passes `owner`, `title`, `detail` and `doneWhen`, so the room lead can reassign or reword a task from the tool (before, only status/note/commit were sent and an owner change was silently dropped). Non-leads still get 403 for those fields. Needs a new session (the MCP server restarts with it).
 - Add: tasks that run themselves (#74). `room_tasks add` takes `after` (ids): the task is blocked until all are done, then the hub makes it todo and wakes the owner (Q1). A task set done wakes the lead to audit it (Q2). The 30 s sweeper gives an idle owner with a todo and nothing in progress the next task and wakes them, at most once per 10 min per owner (Q3). vi/en. Needs hub restart.
 - Fix: a claude-api agent (provider profile) can be woken by every @, not only the first (#78). Its chat is looked up on disk (`<config>/projects/<slug>/<id>.jsonl`, slug keeps case, both drive-letter cases tried) because `--bare` sends no transcript_path; an @ always revives it regardless of `autoRevive`; the room_chat sweeper no longer files its chat away (and a chat already moved is moved back), since `claude --resume` only reads projects/. Needs hub restart.
 - Fix: hub json writes (state.json, settings, providers, tasks, Copilot identity, archive offsets, skill overrides) retry the `.tmp` → file rename on EPERM/EBUSY/EACCES up to 5 times (20–100 ms backoff) before failing, so a file briefly locked by antivirus/indexer on Windows no longer fails `room_send` or other API calls (#70, code landed in 7c726c7). Needs hub restart.
