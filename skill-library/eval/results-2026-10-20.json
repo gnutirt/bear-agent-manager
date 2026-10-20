@@ -1,0 +1,206 @@
+{
+  "ran": "2026-10-20T01:33:28.749Z",
+  "with": "logged-in Claude account (C:/Users/nguye/.claude-antigravity)",
+  "model": "haiku",
+  "results": [
+    {
+      "skill": "vn-phan-loai-no",
+      "pack": "banking-vn",
+      "prompt": "Khoản vay doanh nghiệp quá hạn 120 ngày thì xếp nhóm nợ nào? Có phải trích lập thêm không?",
+      "called": [
+        "vn-phan-loai-no"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "vn-phong-chong-rua-tien",
+      "pack": "banking-vn",
+      "prompt": "Khách chuyển khoản điện tử 600 triệu ra nước ngoài, có phải báo cáo Cục Phòng chống rửa tiền không?",
+      "called": [
+        "vn-phong-chong-rua-tien"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "assessing-credit-risk",
+      "pack": "banking-vn",
+      "prompt": "Thẩm định giúp khả năng trả nợ của công ty này dựa trên báo cáo tài chính 3 năm.",
+      "called": [
+        "assessing-credit-risk"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "drafting-credit-memos",
+      "pack": "banking-vn",
+      "prompt": "Viết tờ trình tín dụng cho khoản vay vốn lưu động 20 tỷ của công ty may mặc.",
+      "called": [
+        "drafting-credit-memos"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "managing-liquidity-risk",
+      "pack": "banking-vn",
+      "prompt": "Lập kế hoạch dự phòng thanh khoản khi rút tiền gửi tăng đột biến.",
+      "called": [
+        "managing-liquidity-risk"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "review-contract",
+      "pack": "legal-core",
+      "prompt": "Rà soát hợp đồng cung cấp phần mềm này, chỉ ra điều khoản bất lợi cho bên mình.",
+      "called": [],
+      "hit": false,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "triage-nda",
+      "pack": "legal-core",
+      "prompt": "Đối tác gửi thoả thuận bảo mật NDA, xem nhanh có ký được không.",
+      "called": [
+        "triage-nda"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "legal-risk-assessment",
+      "pack": "legal-core",
+      "prompt": "Đánh giá rủi ro pháp lý khi công ty ra mắt ví điện tử mới.",
+      "called": [
+        "legal-risk-assessment"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "contract-analysis",
+      "pack": "legal-core",
+      "prompt": "Phân tích hợp đồng thuê kho này: nghĩa vụ hai bên và rủi ro.",
+      "called": [
+        "contract-analysis"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "due-diligence-checklist",
+      "pack": "legal-core",
+      "prompt": "Lập danh mục thẩm định pháp lý khi mua lại 51% cổ phần một công ty.",
+      "called": [
+        "due-diligence-checklist"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "pv-system-design",
+      "pack": "solar-core",
+      "prompt": "Tấm 550W Voc 49.5V, inverter 1000V, nhiệt độ thấp nhất 10 độ: đấu tối đa bao nhiêu tấm một chuỗi?",
+      "called": [
+        "pv-system-design"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "modeling-renewable-resource-yields",
+      "pack": "solar-core",
+      "prompt": "Ước tính sản lượng điện mặt trời P50 P90 cho dự án 2 MWp ở Ninh Thuận.",
+      "called": [
+        "modeling-renewable-resource-yields"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "power-purchase-agreement",
+      "pack": "solar-core",
+      "prompt": "Soạn khung hợp đồng mua bán điện PPA giữa nhà máy điện mặt trời và khách hàng công nghiệp.",
+      "called": [
+        "power-purchase-agreement"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "epc-contract",
+      "pack": "solar-core",
+      "prompt": "Soạn hợp đồng EPC trọn gói cho dự án điện mặt trời mái nhà 1 MWp.",
+      "called": [
+        "epc-contract"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "analyzing-renewable-energy-project-finance",
+      "pack": "solar-core",
+      "prompt": "Đánh giá hiệu quả tài chính dự án điện mặt trời 10 MWp, IRR bao nhiêu thì đáng làm?",
+      "called": [
+        "analyzing-renewable-energy-project-finance"
+      ],
+      "hit": true,
+      "exit": 0
+    },
+    {
+      "skill": "frontend-slides",
+      "pack": "slides-core",
+      "prompt": "Làm slide thuyết trình HTML 10 trang giới thiệu sản phẩm mới.",
+      "called": [
+        "frontend-slides",
+        "frontend-slides"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "pptx-author",
+      "pack": "slides-core",
+      "prompt": "Tạo file PowerPoint 8 slide báo cáo tiến độ dự án.",
+      "called": [
+        "pptx-author"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "deck-refresh",
+      "pack": "slides-core",
+      "prompt": "Cập nhật số liệu quý 3 vào bộ slide quý 2 này.",
+      "called": [
+        "deck-refresh"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    },
+    {
+      "skill": "theme-factory",
+      "pack": "slides-core",
+      "prompt": "Đổi chủ đề màu cho bộ slide này cho chuyên nghiệp hơn.",
+      "called": [
+        "theme-factory"
+      ],
+      "hit": true,
+      "exit": 1,
+      "error": ""
+    }
+  ],
+  "note": "20 prompts total incl. 1 smoke run (vn-phan-loai-no, hit) not listed; --limit 19 split in 2 runs"
+}

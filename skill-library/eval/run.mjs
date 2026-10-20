@@ -3,7 +3,8 @@
 // then every prompt runs through `claude -p` with only the Skill tool allowed, and the skill it called is recorded.
 //
 //   node skill-library/eval/run.mjs                      dry run: prints the plan, calls nothing (default)
-//   node skill-library/eval/run.mjs --run --provider intern [--model <id>] [--pack banking-vn] [--skill vn-phan-loai-no]
+//   node skill-library/eval/run.mjs --run --provider intern [--model <id>] [--pack banking-vn] [--skill vn-phan-loai-no] [--limit 20]
+//   CLAUDE_CONFIG_DIR=~/.claude-antigravity node skill-library/eval/run.mjs --run --model haiku --limit 20   (a Claude account)
 //
 // --run costs tokens: run it only after the owner said "ok". --provider takes a provider id from
 // ~/.bear-agent-manager/providers.json (like skills/worker) and uses the hub's worker-config dir, so the main Claude account
@@ -43,7 +44,7 @@ function packSkills(packId) {
 
 function providerEnv() {
   const id = opt('--provider');
-  if (!id) return { env: { ...process.env }, label: 'logged-in Claude account' };
+  if (!id) return { env: { ...process.env }, label: `logged-in Claude account${process.env.CLAUDE_CONFIG_DIR ? ` (${process.env.CLAUDE_CONFIG_DIR})` : ''}`, model: opt('--model') };
   const home = process.env.BEAR_AGENT_HOME || join(homedir(), '.bear-agent-manager');
   const prov = JSON.parse(readFileSync(join(home, 'providers.json'), 'utf8')).find((p) => p.id === id && p.enabled && p.key);
   if (!prov) throw new Error(`provider ${id} not found, disabled or without key in providers.json`);
@@ -72,8 +73,12 @@ function calledSkills(stdout) {
   return out;
 }
 
-const total = selected.reduce((n, [, c]) => n + c.prompts.length, 0);
-console.log(`${selected.length} skills, ${total} prompts, packs: ${packIds.join(', ')}`);
+// --limit N: the first prompt of every skill, then the second, … so a small budget still covers as many skills as it can.
+const jobs = [];
+for (let i = 0; i < 3; i++) for (const [name, c] of selected) if (c.prompts[i]) jobs.push({ name, pack: c.pack, prompt: c.prompts[i] });
+if (opt('--limit')) jobs.splice(Number(opt('--limit')));
+if (opt('--from')) jobs.splice(0, Number(opt('--from'))); // resume after a stopped run: skip the first N of the list
+console.log(`${selected.length} skills, ${jobs.length} prompts, packs: ${packIds.join(', ')}`);
 for (const p of packIds) console.log(`  ${p}: installs ${packSkills(p).join(', ')}`);
 if (!run) {
   console.log('\nDry run: nothing was called. Add --run (after the owner said "ok") and preferably --provider <id> to execute.');
@@ -84,7 +89,7 @@ const { env, label, model, settings } = providerEnv();
 console.log(`\nRunning with ${label}${model ? `, model ${model}` : ''}`);
 const results = [];
 let rateLimited = 0;
-outer: for (const packId of packIds) {
+outer: for (const packId of new Set(jobs.map((j) => j.pack))) {
   const proj = mkdtempSync(join(tmpdir(), `skill-eval-${packId}-`));
   for (const name of packSkills(packId)) {
     const s = byName.get(name);
@@ -92,9 +97,10 @@ outer: for (const packId of packIds) {
     const from = join(libDir, s.bundle ?? s.path);
     cpSync(from, join(proj, '.claude', 'skills', (s.bundle ?? s.path).split('/').pop()), { recursive: true });
   }
-  for (const [name, c] of selected.filter(([, c]) => c.pack === packId)) {
-    for (const prompt of c.prompts) {
-      const cli = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--tools', 'Skill', '--allowedTools', 'Skill', '--max-turns', '2', '--strict-mcp-config'];
+  for (const { name, prompt } of jobs.filter((j) => j.pack === packId)) {
+    {
+      const cli = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--tools', 'Skill', '--allowedTools', 'Skill', '--max-turns', '2', '--strict-mcp-config', '--setting-sources', 'project'];
+      // project only: the account's user hooks (room waiter, notifications) and plugins must not run for eval prompts.
       if (settings) cli.push('--settings', settings); else if (model) cli.push('--model', model);
       const r = spawnSync(claudeBin, cli, { cwd: proj, env, encoding: 'utf8', timeout: 180000 });
       const called = calledSkills(r.stdout ?? '');
@@ -102,7 +108,8 @@ outer: for (const packId of packIds) {
       results.push(row);
       console.log(`${row.hit ? 'HIT ' : 'MISS'} ${name.padEnd(42)} -> ${called.join(', ') || '(none)'}${row.error ? `  [exit ${r.status}]` : ''}`);
       // Stop after 3 rate-limit failures in a row instead of burning the provider's quota.
-      rateLimited = /429|rate.?limit|quota/i.test((r.stderr ?? '') + (r.stdout ?? '')) && r.status ? rateLimited + 1 : 0;
+      // A call that reached a skill was not rate-limited: exit 1 then is --max-turns, and stream-json always has rate_limit events.
+      rateLimited = !called.length && r.status && /429|rate.?limit|quota/i.test((r.stderr ?? '') + (r.stdout ?? '')) ? rateLimited + 1 : 0;
       if (rateLimited >= 3) { console.log('Stopped: 3 rate-limit errors in a row.'); rmSync(proj, { recursive: true, force: true }); break outer; }
     }
   }
