@@ -442,6 +442,10 @@ header .spacer{flex:1}
 #zoom .zbox.files{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .files .fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#zoom .files .fbar b{font-family:var(--mono);word-break:break-all}
 #zoom .files .medit{flex:1;min-height:55vh;border:1px solid var(--line);border-radius:8px;overflow:hidden}#zoom .files .medit pre{margin:0;height:100%;overflow:auto;padding:8px}
 #zoom .files [hidden]{display:none!important}
+#zoom .zbox.con{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .con .fbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}#zoom .con p{margin:0}
+#zoom .conlist{flex:1;min-height:40vh;max-height:68vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:var(--mono);font-size:12.5px;line-height:1.45}
+#zoom .cent{padding:6px 0;border-bottom:1px solid var(--line)}#zoom .cent:last-child{border-bottom:0}#zoom .cent .chd{display:flex;gap:8px;align-items:center;color:var(--mute)}#zoom .cent .chd b{color:var(--text)}#zoom .cent .cst{margin-left:auto}
+#zoom .cent pre{margin:2px 0 0;white-space:pre-wrap;word-break:break-all}#zoom .cent .cin{color:var(--text)}#zoom .cent .cin::before{content:'$ ';color:var(--mute)}#zoom .cent .cout{color:var(--mute);max-height:180px;overflow:auto;border-left:2px solid var(--line);padding-left:8px}#zoom .cent.bad .cst,#zoom .cent.bad .cout{color:color-mix(in srgb,#EF4444 60%,var(--text))}
 #zoom .files .cbox{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--panel)}#zoom .files .cbox h4{margin:0 0 6px}#zoom .files .clist{max-height:140px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px;font-family:var(--mono);font-size:12px}#zoom .files .cbox label{display:flex;gap:6px;align-items:center}#zoom .files .cbox input[name=msg]{flex:1;margin-left:6px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}#zoom .files .crow{display:flex;gap:8px;align-items:center;margin-top:8px}
 #zoom .files .frow{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 8px;border-radius:8px;font:inherit}#zoom .files .frow:hover{background:var(--hover)}#zoom .files .frow .sz,#zoom .files .frow .st{margin-left:auto;color:var(--mute);font-size:12px}
 #zoom .files pre{margin:0;max-height:60vh;overflow:auto;white-space:pre;font:12.5px var(--mono);background:var(--code);border-radius:10px;padding:10px}#zoom .files .dl-a{color:#1a7f37}#zoom .files .dl-d{color:#C2262E}
@@ -849,6 +853,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <div id="banner"><span data-i18n="banner.paused">Phòng đang tạm dừng: các agent đã gọi nhau 30 lần liên tiếp mà không có bạn. Nhắn một tin hoặc bấm Tiếp tục.</span><button class="btn" id="resume" data-i18n="banner.resume">Tiếp tục</button></div>
   <div id="searchBar" hidden></div>
   <div id="aroundBar" hidden></div>
+    <button class="btn" id="consoleBtn" hidden type="button" data-i18n="console.title">Console</button>
   <div id="roomTools" class="roomtools">
   <div id="topicBar" hidden role="tablist" aria-label="Chủ đề của phòng" data-i18n-aria="topic.bar"></div>
   <span class="seg sysseg" id="sysSeg" role="group" aria-label="Tin hệ thống" data-i18n-aria="sys.label" data-i18n-ta="sys.tip" title="Ẩn: chỉ giữ lỗi và chat riêng của agent. Gọn: mỗi tin một dòng. Đầy đủ: mở rộng hết."><button type="button" data-sys="off" data-i18n="sys.off">Ẩn</button><button type="button" data-sys="compact" data-i18n="sys.compact">Gọn</button><button type="button" data-sys="full" data-i18n="sys.full">Đầy đủ</button></span>
@@ -1524,6 +1529,7 @@ function lastWakes(list) {
 const isOwn = (x) => !x.fromId && x.kind !== 'mirror' && x.kind !== 'system' && !x.sys;
 let ownMemo = { list: null, n: -1, id: -1 };
 function newestOwn(list) {
+  $('consoleBtn').hidden = !r || !ms.length;
   if (ownMemo.list === list && ownMemo.n === list.length) return ownMemo.id;
   let id = -1; for (let i = list.length - 1; i >= 0; i--) if (isOwn(list[i])) { id = list[i].id; break; }
   ownMemo = { list, n: list.length, id }; return id;
@@ -1887,6 +1893,12 @@ function connect() {
   es.addEventListener('permission-done', (e) => permDone(JSON.parse(e.data)));
   es.addEventListener('forget', (e) => { delete S.sessions[JSON.parse(e.data).id]; renderAll(); });
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
+  es.addEventListener('console', (e) => {
+    const d = JSON.parse(e.data), list = S.console[d.session]; if (!list) return;
+    const i = list.findIndex((x) => x.id === d.id); if (i < 0) list.push(d); else list[i] = d;
+    if (list.length > 100) list.splice(0, list.length - 100);
+    if (S.consoleSid === d.session) queueConsole();
+  });
   es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); renderUsageChips(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
   es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
@@ -2128,6 +2140,30 @@ function editFile(sid, r, ed, m) {
       }
       else toast(t('files.saveFail', { err: e.message }));
     });
+/** #104: read-only console: what an agent runs (the command) and what came out. Fed by GET .../console and the SSE 'console' event; there is no input, nothing here can run anything. */
+S.console = {}; S.consoleSid = null;
+const consoleAgents = () => { const dm = liveSid(); return dm ? [S.sessions[dm]].filter(Boolean) : members(S.current); };
+let conRaf = 0;
+const queueConsole = () => { if (!conRaf) conRaf = requestAnimationFrame(() => { conRaf = 0; renderConsole(); }); };
+function loadConsole(sid) {
+  return api(`/api/sessions/${enc(sid)}/console`).then((d) => { S.console[sid] = d.entries || []; }, () => { S.console[sid] = []; }).then(renderConsole);
+}
+function renderConsole() {
+  const box = $('conBody'), sid = S.consoleSid; if (!box || zoom.hidden || !sid) return;
+  const list = S.console[sid] || [], atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.innerHTML = list.length ? list.map((e) => `<div class="cent${e.error ? ' bad' : ''}"><div class="chd"><span class="cts">${new Date(e.ts).toLocaleTimeString(uiLang() === 'vi' ? 'vi-VN' : 'en-GB', { hour12: false })}</span><b>${esc(e.tool)}</b><span class="cst" aria-label="${e.done ? (e.error ? t('live.tool.error') : 'OK') : t('console.running')}">${e.done ? (e.error ? '✕' : '✓') : '…'}</span></div><pre class="cin">${esc(e.input)}</pre>${e.output ? `<pre class="cout" tabindex="0">${esc(e.output)}</pre>` : ''}</div>`).join('') : `<div class="muted">${t('console.empty')}</div>`;
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+function openConsole() {
+  const ags = consoleAgents(); if (!ags.length) return;
+  if (!ags.some((a) => a.id === S.consoleSid)) S.consoleSid = (ags.find((a) => a.status === 'busy') || ags[0]).id;
+  zoom.innerHTML = `<div class="zbox con" role="dialog" aria-modal="true" aria-label="${t('console.title')}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="fbar"><b>${t('console.title')}</b>${ags.length > 1 ? `<label class="muted">${t('console.agent')} <select id="conAgent">${ags.map((a) => `<option value="${esc(a.id)}"${a.id === S.consoleSid ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : `<span>${esc(ags[0].name)}</span>`}</div><p class="muted small">${t('console.note')}</p><div class="conlist" id="conBody" role="log" aria-live="off" tabindex="0"></div></div>`;
+  zoom.hidden = false;
+  $('conAgent')?.addEventListener('change', (e) => { S.consoleSid = e.target.value; loadConsole(S.consoleSid); });
+  loadConsole(S.consoleSid);
+  zoom.querySelector('.zx').focus();
+}
+$('consoleBtn').onclick = openConsole;
   };
   bEdit.hidden = false;
   bEdit.onclick = () => { ed.updateOptions({ readOnly: false, domReadOnly: false }); bEdit.hidden = true; bSave.hidden = false; ed.focus(); };

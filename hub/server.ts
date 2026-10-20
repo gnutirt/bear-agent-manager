@@ -47,6 +47,7 @@ import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
 import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { ToolConsole } from './console.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
@@ -720,8 +721,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     onAsk: (req) => broadcast('permission', req),
     onDone: (id, session, answer) => broadcast('permission-done', { id, session, allow: answer.allow, by: answer.by }),
   });
+  const toolConsole = new ToolConsole((sid, e) => broadcast('console', { session: sid, ...e }));   // #104: read-only console: what each agent runs and what came out
   const liveChat = new LiveChat({ spawn: opts.liveSpawn, emit: (sid, ev) => {
     broadcast('live', { session: sid, ...ev });
+    if (ev.kind === 'tool') toolConsole.start(sid, String(ev.name ?? ''), ev.input, String(ev.id ?? ''));
+    if (ev.kind === 'tool_result') toolConsole.finish(sid, '', { stdout: String(ev.text ?? ''), is_error: !!ev.error }, String(ev.id ?? ''));
     if (ev.kind === 'stopped') permissions.cancel(sid);
     if ((ev.kind === 'result' || ev.kind === 'init') && store.state.sessions[sid] && liveChat.has(sid)) emitSession(store.setStatus(sid, 'idle'));
     if (ev.kind === 'stopped') {
@@ -1077,6 +1081,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       case 'pre-tool': {
         status('busy', activityFor(b.tool_name, b.tool_input));
+        toolConsole.start(store.session(id).id, String(b.tool_name ?? ''), b.tool_input);
         // B: remember every Skill call, so the Skill tab can say whether an agent ever used a skill
         const skill = b.tool_name === 'Skill' ? String(b.tool_input?.skill ?? b.tool_input?.command ?? '').trim().replace(/^\//, '').slice(0, 120) : '';
         if (skill) {
@@ -1091,6 +1096,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       case 'end': emitSession(store.markEnded(id)); setImmediate(() => runArchive(store.session(id).id)); break;
       case 'post-tool': {
         const sid = store.session(id).id;
+        toolConsole.finish(sid, String(b.tool_name ?? ''), b.tool_response);
         const pend = store.pending(sid);
         if (pend.wake && pend.messages.length) {
           consume(sid, pend.messages[pend.messages.length - 1].id);
@@ -1879,7 +1885,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|commit|live(?:\/send|\/stop)?))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|commit|console|live(?:\/send|\/stop)?))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -1893,6 +1899,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const cwd = store.session(id).cwd, b = await readBody(req);
         try {
           return json(res, 200, action === 'file' ? writeFileSafe(cwd, String(b.path ?? ''), b.content, b.mtime) : await commitPaths(cwd, b.paths, b.message));
+      if (m === 'GET' && action === 'console') return json(res, 200, { entries: toolConsole.list(store.session(mm[1]).id) });
         } catch (e: any) {
           if (e instanceof Conflict) return json(res, e.status, { error: e.message, ...e.extra });   // a write conflict carries the disk mtime
           throw e;
