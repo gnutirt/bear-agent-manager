@@ -424,7 +424,8 @@ export class Store {
       if (!sender) wake = [lead.id];
       else if (sender.id !== lead.id && !room.paused) wake = [lead.id];
     }
-    if (sender && wake.length) {
+    // A report that only wakes the lead does not count: the lead's own replies still do, so a lead↔agent loop stays bounded.
+    if (sender && wake.some((id) => id !== room.lead)) {
       room.agentWakeStreak++;
       if (room.agentWakeStreak > LOOP_LIMIT) { room.paused = true; wake = []; }
     }

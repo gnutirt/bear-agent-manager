@@ -354,6 +354,15 @@ test('done: each member reports once; when all live members are done the hub pos
   assert.equal(st.markDone('proj', fw.id, 'x').allDone, null);
 });
 
+test('loop guard: reports that only wake the lead do not count, the lead pinging an agent does', () => {
+  const { st, fw, web } = setup();
+  st.state.rooms.proj.lead = fw.id;
+  for (let i = 0; i < 40; i++) st.post('proj', web.id, `#${i} done`);   // untagged → routed to the lead only
+  assert.equal(st.state.rooms.proj.paused, false);
+  for (let i = 0; i < 31; i++) st.post('proj', fw.id, '@web next');
+  assert.equal(st.state.rooms.proj.paused, true);
+});
+
 test('system messages wake nobody and do not reset the loop guard', () => {
   const { st, fw, web } = setup();
   for (let i = 0; i < 31; i++) st.post('proj', i % 2 ? fw.id : web.id, `@${i % 2 ? 'web' : 'fw'} ping`);
