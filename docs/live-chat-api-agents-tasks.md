@@ -12,9 +12,31 @@ Một agent Claude Code chạy nền bằng một nhà cung cấp trong `~/.bear
   làm việc, nhà cung cấp (`providerId`), model nếu muốn.
 - Agent chạy gọn: `claude --bare`, chỉ có công cụ phòng (MCP room). Mỗi lần @tên nó trong phòng là
   nó dậy trả lời, lượt nào cũng vậy.
-- Nhà cung cấp ngoài máy: agent **chỉ đọc**, không đọc file bí mật. Nhà cung cấp chạy trên máy
-  (Ollama) được sửa file khi hồ sơ đặt `edit: true`.
+- Nhà cung cấp ngoài máy mặc định **chỉ đọc** và không đọc file bí mật. Hồ sơ **trả phí** đặt `edit: true`
+  được sửa file, nhưng vẫn không đọc file bí mật; provider chạy trên máy (Ollama) cũng được sửa khi hồ sơ
+  đặt `edit: true` (note [52]).
 - Khoá API nằm trong `providers.json`, hub không in ra.
+
+### Thêm provider trả phí/ngoài máy mới (note [52]-[54], [58])
+
+Trước khi bật `edit: true` cho một provider trả phí hoặc ngoài máy, phải tái hiện đủ 4 bước trên
+chính profile mới (đừng tin vào cấu hình):
+
+1. Tạo profile với `edit: false` trước. Xác nhận `Read` trong thư mục làm việc (cwd) được, còn
+   `Read` ngoài cwd bị từ chối với câu dạng `D:\...\x.txt is outside the agent folder D:\...\repo`
+   (note [54]).
+2. Chỉ bật `edit: true` sau khi bước 1 đạt. Xác nhận `Edit` trong cwd được và `Edit` ngoài cwd cũng
+   bị từ chối.
+3. Xác nhận toolset **không có `Bash`** (note [53], [58]): Bash né được chặn `isSecretFile`. Việc chạy
+   test và commit nhờ một thành viên Claude/Copilot.
+4. Kiểm cờ quyền: hub phải truyền `--permission-mode default` tường minh (`hub/revive.ts:47`). Nếu
+   `settings.json` của tài khoản đặt `defaultMode: "auto"` mà hub không ép, mọi tool được tự duyệt và
+   guard đường dẫn không bao giờ được hỏi — đúng lỗi #105/a4bb2f1 (agent sửa được file ngoài cwd dù
+   tưởng đã chặn).
+5. Xem `revive.log` có dòng `guard <agent> <tool> allow|deny` cho profile mới (a4bb2f1): guard phải
+   thực sự chạy, không chỉ tồn tại trong code.
+
+Ngoại lệ `edit: true` chỉ áp dụng khi profile nói rõ; file bí mật (`isSecretFile`) luôn bị chặn (note [52]).
 
 ## 2. Chat trực tiếp và hộp hỏi quyền
 
@@ -83,9 +105,32 @@ A background Claude Code agent that runs on a provider from `~/.bear-agent-manag
   folder, provider (`providerId`), optional model.
 - It runs lean: `claude --bare` with only the room tools (MCP room). Every @its-name in the room
   wakes it, every turn.
-- Off-machine providers: the agent **only reads** and never reads secret files. An on-machine
-  provider (Ollama) may edit files when the profile sets `edit: true`.
+- Off-machine providers read by default and never read secret files. A **paid** profile with
+  `edit: true` may edit files, still never reading secret files; an on-machine provider (Ollama) may
+  edit files when the profile sets `edit: true` (note [52]).
 - The API key stays in `providers.json`; the hub never prints it.
+
+### Adding a paid or off-machine provider (notes [52]-[54], [58])
+
+Before turning on `edit: true` for a paid or off-machine provider, reproduce all four steps on the
+new profile itself (do not trust the configuration):
+
+1. Create the profile with `edit: false` first. Confirm `Read` inside the working folder (cwd) works,
+   while `Read` outside cwd is refused with a message like
+   `D:\...\x.txt is outside the agent folder D:\...\repo` (note [54]).
+2. Turn on `edit: true` only after step 1 passes. Confirm `Edit` inside cwd works and `Edit` outside
+   cwd is refused too.
+3. Confirm there is **no `Bash` tool** (notes [53], [58]): Bash would bypass the `isSecretFile` check.
+   Ask a Claude/Copilot member to run tests and commit.
+4. Check the permission flag: the hub must pass `--permission-mode default` explicitly
+   (`hub/revive.ts:47`). If the account's `settings.json` sets `defaultMode: "auto"` and the hub does
+   not override it, every tool is auto-approved and the path guard is never asked — exactly bug
+   #105/a4bb2f1 (the agent edited a file outside cwd although the guard looked enabled).
+5. Check `revive.log` for a `guard <agent> <tool> allow|deny` line for the new profile (a4bb2f1):
+   the guard must really run, not just exist in the code.
+
+The `edit: true` exception applies only when the profile says so; secret files (`isSecretFile`) are
+always blocked (note [52]).
 
 ## 2. Live chat and the permission box
 
