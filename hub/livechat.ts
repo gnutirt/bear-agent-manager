@@ -83,6 +83,7 @@ export class LiveChat {
     const env: NodeJS.ProcessEnv = { ...process.env, ...(job.configDir ? { CLAUDE_CONFIG_DIR: job.configDir } : {}), ...job.env };
     delete env.BEAR_AGENT_HEADLESS;   // no Stop-hook waiter here: this process is driven by the chat, not by room messages
     delete env.BEAR_AGENT_IDLE_MIN;
+    env.BEAR_AGENT_LIVE = '1';   // SessionStart tells the agent it runs in a BAM chat
     fs.mkdirSync(job.logDir, { recursive: true });
     const errLog = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
     fs.writeSync(errLog, `\n${new Date().toISOString()} live ${job.id} in ${job.cwd} [perm: ${job.perm?.mode ?? 'default'}]\n`);

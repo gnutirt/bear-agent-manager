@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { Message } from '../hub/routing.ts';
 import type { NoteLite } from '../shared/format.ts';
 import { api, ApiError, ensureHub, hubUp, sleep } from '../shared/client.ts';
-import { formatDelivery, ideFromCommand, isOneShotCommand, parentCommandLine, readInput, register } from './lib.ts';
+import { formatDelivery, isOneShotCommand, parentCommandLine, readInput, register, runContext } from './lib.ts';
 
 // Must stay below the hook's 604800 s timeout in hooks.json.
 // A background wake (hub/revive.ts) sets BEAR_AGENT_IDLE_MIN: every Stop starts a new waiter, so this is "idle minutes after the last turn".
@@ -22,7 +22,7 @@ let ide = '';
 if (process.env.BEAR_AGENT_HEADLESS !== '1') {
   const parent = parentCommandLine();
   if (isOneShotCommand(parent)) process.exit(0);
-  ide = ideFromCommand(parent);
+  ide = runContext(process.env, parent).ide;
 }
 
 // Only real chats are tracked. A chat is "real" once Claude Code has saved its transcript;

@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { api, ApiError } from '../shared/client.ts';
 
 export type HookInput = {
@@ -65,6 +67,48 @@ export function ideFromCommand(cmd: string): string {
   if (c.includes('/.cursor/')) return 'cursor';
   if (c.includes('/.vscode') || c.includes('/microsoft vs code/')) return 'vscode';
   return 'cli';
+}
+
+export type RunWhere = 'tab' | 'background' | 'live' | 'cli';
+export type RunContext = { where: RunWhere; ide: string };
+
+/**
+ * Where this Claude runs, from the environment the editor/hub gave it. The claude binary of Antigravity is installed
+ * under .vscode\extensions too, so its path says 'vscode' for both: the editor's own VSCODE_* variables win.
+ * BEAR_AGENT_LIVE is set by the hub for a BAM chat; BEAR_AGENT_HEADLESS for a background wake or an agent without IDE.
+ */
+export function runContext(env: NodeJS.ProcessEnv = process.env, parent: string | (() => string) = ''): RunContext {
+  if (env.BEAR_AGENT_LIVE === '1') return { where: 'live', ide: '' };
+  if (env.BEAR_AGENT_HEADLESS === '1') return { where: 'background', ide: '' };
+  const editorEnv = Object.entries(env).filter(([k]) => /^(VSCODE_|TERM_PROGRAM)/.test(k)).map(([, v]) => String(v ?? '').toLowerCase());
+  const fromEnv = editorEnv.some((v) => v.includes('antigravity')) ? 'antigravity' : editorEnv.some((v) => v.includes('cursor')) ? 'cursor' : editorEnv.length ? 'vscode' : '';
+  const entry = String(env.CLAUDE_CODE_ENTRYPOINT ?? '');
+  if (fromEnv && (entry === 'claude-vscode' || env.VSCODE_CWD)) return { where: 'tab', ide: fromEnv };
+  const parentCmd = typeof parent === 'function' ? parent() : parent;   // spawning powershell for the parent is slow: only when the environment said nothing
+  const fromCmd = ideFromCommand(parentCmd);
+  if (entry === 'claude-vscode') return { where: 'tab', ide: fromCmd && fromCmd !== 'cli' ? fromCmd : 'vscode' };
+  if (fromCmd && fromCmd !== 'cli') return { where: 'tab', ide: fromCmd };
+  return { where: 'cli', ide: fromCmd || (parentCmd ? 'cli' : '') };
+}
+
+/** "Đang chạy ở" line for the SessionStart brief. */
+export function describeRun(ctx: RunContext, configDir: string | undefined, email: string): string {
+  const place = ctx.where === 'live' ? 'chat BAM (cửa sổ app / headless stream-json, không IDE)'
+    : ctx.where === 'background' ? 'nền (agent không IDE do hub chạy)'
+      : ctx.where === 'tab' ? `tab ${ctx.ide === 'antigravity' ? 'Antigravity' : ctx.ide === 'cursor' ? 'Cursor' : 'VS Code'}`
+        : 'terminal / không IDE';
+  const account = `${email || 'chưa rõ email'} (${configDir ? configDir : '~/.claude mặc định'})`;
+  return `bear-agent-manager: đang chạy ở: ${place}; tài khoản Claude: ${account}.`;
+}
+
+/** Email of the Claude login in a config dir (oauthAccount.emailAddress only; the token is never read). */
+export function accountEmail(configDir: string | undefined, home = os.homedir()): string {
+  const dir = configDir || path.join(home, '.claude');
+  const isDefault = path.resolve(dir).toLowerCase() === path.resolve(home, '.claude').toLowerCase();
+  for (const f of isDefault ? [path.join(home, '.claude.json'), path.join(dir, '.claude.json')] : [path.join(dir, '.claude.json')]) {
+    try { const e = JSON.parse(fs.readFileSync(f, 'utf8'))?.oauthAccount?.emailAddress; if (e) return String(e); } catch { /* missing file */ }
+  }
+  return '';
 }
 
 /** Command line of the process that spawned this hook (the claude process); '' if unknown. */

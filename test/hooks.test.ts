@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeHub, until } from './helpers.ts';
-import { activityFor, formatDelivery, ideFromCommand, isOneShotCommand, parseInput, readContextTokens, readTitle } from '../hooks/lib.ts';
+import { accountEmail, activityFor, describeRun, formatDelivery, ideFromCommand, isOneShotCommand, parseInput, readContextTokens, readTitle, runContext } from '../hooks/lib.ts';
 import fs from 'node:fs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -339,4 +339,41 @@ test('A background wake: HEADLESS + IDLE_MIN make the waiter give up after the i
     assert.equal(r.code, 2);
     assert.match(r.stderr, /@bgwork again/);
   } finally { await hub.close(); }
+});
+
+test('runContext: where this claude runs, from the environment (Antigravity shares the .vscode binary path)', () => {
+  const vscodeBin = 'c:\\Users\\me\\.vscode\\extensions\\anthropic.claude-code-2.1.296-win32-x64\\resources\\native-binary\\claude.exe --input-format stream-json';
+  const ag = { CLAUDE_CODE_ENTRYPOINT: 'claude-vscode', VSCODE_CWD: 'C:\\Users\\me\\AppData\\Local\\Programs\\Antigravity', VSCODE_IPC_HOOK: '\\\\.\\pipe\\Antigravity-1.0-main-sock' };
+  assert.deepEqual(runContext(ag, vscodeBin), { where: 'tab', ide: 'antigravity' });
+  assert.deepEqual(runContext({ CLAUDE_CODE_ENTRYPOINT: 'claude-vscode', VSCODE_CWD: 'C:\\Program Files\\Microsoft VS Code' }, vscodeBin), { where: 'tab', ide: 'vscode' });
+  assert.deepEqual(runContext({ VSCODE_CWD: '/home/me/.cursor-server' }, ''), { where: 'tab', ide: 'cursor' });
+  assert.deepEqual(runContext({ CLAUDE_CODE_ENTRYPOINT: 'claude-vscode' }, vscodeBin), { where: 'tab', ide: 'vscode' }, 'no VSCODE_* variables: fall back to the path');
+  assert.deepEqual(runContext({ BEAR_AGENT_HEADLESS: '1', VSCODE_CWD: 'x' }, vscodeBin), { where: 'background', ide: '' });
+  assert.deepEqual(runContext({ BEAR_AGENT_LIVE: '1' }, vscodeBin), { where: 'live', ide: '' });
+  assert.deepEqual(runContext({ CLAUDE_CODE_ENTRYPOINT: 'cli' }, '"C:\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe"'), { where: 'cli', ide: 'cli' });
+  let spawned = 0;
+  runContext(ag, () => { spawned++; return ''; });
+  assert.equal(spawned, 0, 'the slow parent lookup is skipped when the environment is enough');
+});
+
+test('describeRun / accountEmail: the SessionStart line names the place and the account', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-who-'));
+  try {
+    fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'a@gmail.com' }, token: 'secret' }));
+    fs.mkdirSync(path.join(home, '.claude-antigravity'));
+    fs.writeFileSync(path.join(home, '.claude-antigravity', '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'b@gmail.com' } }));
+    assert.equal(accountEmail('', home), 'a@gmail.com');
+    assert.equal(accountEmail(path.join(home, '.claude-antigravity'), home), 'b@gmail.com');
+    assert.equal(accountEmail(path.join(home, 'nope'), home), '');
+    const line = describeRun({ where: 'tab', ide: 'antigravity' }, undefined, 'a@gmail.com');
+    assert.ok(line.includes('tab Antigravity'));
+    assert.ok(line.includes('a@gmail.com (~/.claude'));
+    assert.ok(!line.includes('secret'));
+    const bg = describeRun({ where: 'background', ide: '' }, '/x/.claude-antigravity', '');
+    assert.ok(bg.includes('/x/.claude-antigravity') && !bg.includes('tab '));
+    assert.ok(describeRun({ where: 'live', ide: '' }, undefined, '').includes('chat BAM'));
+    assert.ok(describeRun({ where: 'tab', ide: 'vscode' }, undefined, '').includes('tab VS Code'));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });

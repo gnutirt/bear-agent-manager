@@ -1,5 +1,5 @@
 import { api, ensureHub } from '../shared/client.ts';
-import { isSavedChat, readInput, register } from './lib.ts';
+import { accountEmail, describeRun, isSavedChat, parentCommandLine, readInput, register, runContext } from './lib.ts';
 
 // Starts the hub if needed, registers a resumed chat (its transcript already exists, so it is a
 // real chat and not a background helper) and reminds a known member of its rooms. A brand-new tab
@@ -8,7 +8,9 @@ import { isSavedChat, readInput, register } from './lib.ts';
 try {
   const input = await readInput();
   if (await ensureHub()) {
-    if (isSavedChat(input.transcript_path)) await register(input).catch(() => {});
+    const ctx = runContext(process.env, parentCommandLine);
+    process.stdout.write(describeRun(ctx, process.env.CLAUDE_CONFIG_DIR, accountEmail(process.env.CLAUDE_CONFIG_DIR)) + '\n');
+    if (isSavedChat(input.transcript_path)) await register(input, { ide: ctx.ide }).catch(() => {});
     try {
       const { session } = await api<{ session: { name: string; rooms: string[] } }>(`/api/sessions/${encodeURIComponent(input.session_id)}`);
       if (session.rooms.length) {
