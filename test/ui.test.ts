@@ -113,9 +113,39 @@ test('bug: private-chat entry reachable from the running-agents sidebar too, and
       "it('dm', ico(I.chat) + t('members.chatDm'))",
       "on('dm', () => api(`/api/rooms/dm/${enc(id)}`, {})",
       '.room{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;text-align:left;color:var(--side-text);cursor:pointer}',
-      'data-a="dm" title="${t(\'members.chatDm\')}"',
+      'data-a="dm" title="${t(\'members.chatDm.tip\')}"',
       "d.querySelector('[data-a=dm]')?.addEventListener('click', () => api(`/api/rooms/dm/${enc(s.id)}`, {})",
     ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
+test('T56: private chats are easy to find — always-visible "Chat riêng" block with a "+ Nhắn riêng…" picker, and hiding one explains itself instead of vanishing silently', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      // (1) the "Chat riêng" block is static markup with no display:none/hidden gate, plus a visible "+ Nhắn riêng…" picker button
+      '<div class="sec" id="dmSec"><span data-i18n="rooms.dm.title">Chat riêng</span></div>',
+      '<button type="button" class="btn sm dmnew" id="addDmBtn" data-i18n="rooms.dm.new">+ Nhắn riêng…</button>',
+      '<div id="dms"></div>',
+      "$('addDmBtn').onclick",
+      // the picker's own rows are plain menu buttons (not .sess rows), so picking an agent starts the DM in one click — no nested sessionMenu popup
+      'data-dmpick="${esc(s.id)}"',
+      "m.querySelectorAll('[data-dmpick]').forEach((b) => b.onclick = () => {",
+      "api(`/api/rooms/dm/${enc(b.dataset.dmpick)}`, {})",
+      "t('rooms.dm.noAgents')",
+      "t('rooms.dm.none')", // empty-state line shown in #dms instead of hiding the whole block
+      // (2) "…" on a DM row opens a menu with an explicit "keeps history, can reopen" label, not an immediate hide
+      "openMenu(e.currentTarget, `<button type=\"button\" class=\"item\" data-a=\"hide\">${t('members.chatDm.hide')}</button>`",
+      "toast(t('members.chatDm.hidden'))",
+      // (3) the 💬 icon on an agent row gets its own "Nhắn riêng" tooltip, distinct from the menu-item label "Chat riêng"
+      "t('members.chatDm.tip')",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+    const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
+    for (const k of ['rooms.dm.new', 'rooms.dm.none', 'rooms.dm.pick', 'rooms.dm.noAgents', 'members.chatDm.tip', 'members.chatDm.hide', 'members.chatDm.hidden']) {
+      assert.ok(vi[k], `vi missing ${k}`); assert.ok(en[k], `en missing ${k}`);
+    }
+    assert.notEqual(vi['members.chatDm.tip'], vi['members.chatDm']); // icon tooltip ("Nhắn riêng") reads differently from the full action label ("Chat riêng")
   } finally { await hub.close(); }
 });
 

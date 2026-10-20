@@ -1938,6 +1938,16 @@ $('composer').onsubmit = async (e) => {
 /* ---------- chrome ---------- */
 function showNewRoom() { $('newRoom').classList.add('open'); $('roomName').focus(); document.body.classList.add('side-open'); }
 $('addRoomBtn').onclick = () => { $('newRoom').classList.toggle('open'); $('roomName').focus(); };
+$('addDmBtn').onclick = (e) => {
+  const list = Object.values(S.sessions).sort((a, b) => (a.status === 'offline') - (b.status === 'offline') || a.name.localeCompare(b.name));
+  if (!list.length) { toast(t('rooms.dm.noAgents')); return; }
+  openMenu(e.currentTarget, `<div class="label">${t('rooms.dm.pick')}</div><div class="mlist">${list.map((s) => `<button type="button" class="item" data-dmpick="${esc(s.id)}">${avatar(s.id, s.status, 'sm')}<span class="n" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</span><span class="st st-${s.status}">${LABEL[s.status]}</span></button>`).join('')}</div>`, (m) => {
+    m.querySelectorAll('[data-dmpick]').forEach((b) => b.onclick = () => {
+      closeMenu();
+      api(`/api/rooms/dm/${enc(b.dataset.dmpick)}`, {}).then((r) => { select(r.name); document.body.classList.remove('side-open'); }, (err) => toast(err.message));
+    });
+  });
+};
 $('newRoom').onsubmit = (e) => {
   e.preventDefault();
   const name = $('roomName').value.trim().toLowerCase().replace(/\s+/g, '-');
