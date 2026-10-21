@@ -20,7 +20,7 @@ import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
 import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, validateAgentProfiles } from './settings.ts';
+import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, validateAgentProfiles, validateFlowTiers } from './settings.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { editedFiles, MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -2030,6 +2030,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'PUT' && p === '/api/settings') {
       const patch = await readBody(req);
+      if (patch && Object.prototype.hasOwnProperty.call(patch, 'flowTiers')) {
+        const members = Object.fromEntries(Object.keys(store.state.rooms).map((room) => [room, store.members(room).map((member) => member.name)]));
+        const flowTierErrors = validateFlowTiers(patch.flowTiers, members);
+        if (flowTierErrors.length) return json(res, 400, { error: 'Invalid flow tiers', flowTierErrors });
+      }
       if (patch?.agents && typeof patch.agents === 'object' && Object.prototype.hasOwnProperty.call(patch.agents, 'profiles')) {
         const profileErrors = validateAgentProfiles(patch.agents.profiles);
         if (profileErrors.length) {

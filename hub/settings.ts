@@ -22,12 +22,14 @@ export type AutoJobs = {
   notes: { enabled: boolean; minNotes: number }; maxRunsPerDay: number;
 };
 export type WorkerRoute = { enabled: boolean; provider: string; model: string };   // provider/model: 'auto' or an id
+export type FlowTiers = Record<string, Record<string, number>>;
 const ROUTE_KINDS = ['read', 'edit', 'osin'] as const;
 const autoRoute = (): WorkerRoute => ({ enabled: true, provider: 'auto', model: 'auto' });
 export type Settings = {
   skills: { worker: { enabled: boolean }; osin: { enabled: boolean } };
   agentSkills: Record<string, Record<string, SkillRule>>;
   agentCompact: Record<string, AgentCompact>;   // empty = Claude Code's own behavior for everyone
+  flowTiers: FlowTiers;
   compact: { thresholds: CompactThresholds; onTaskDone: boolean };   // T18c: wakeCompact fallback by room role, for an agent with no agentCompact rule; #79 onTaskDone: a task done/blocked compacts its owner's chat past the role threshold
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
@@ -54,6 +56,48 @@ const FILE = 'settings.json';
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, lo: number, hi: number) => (v == null || !Number.isFinite(Number(v)) ? d : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
 export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase();
+
+export type FlowTierError = { room: string; agent?: string; reason: string };
+export function validateFlowTiers(raw: unknown, rooms: Record<string, string[]>): FlowTierError[] {
+  const errors: FlowTierError[] = [];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [{ room: '', reason: 'must be a room-to-agent map' }];
+  for (const [room, value] of Object.entries(raw)) {
+    if (value === null) continue;
+    if (!Object.prototype.hasOwnProperty.call(rooms, room)) { errors.push({ room, reason: 'room is not a member room' }); continue; }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) { errors.push({ room, reason: 'must be an agent-to-tier map' }); continue; }
+    const members = new Set(rooms[room].map(normAgent));
+    const seen = new Set<string>();
+    for (const [agent, tier] of Object.entries(value)) {
+      const key = normAgent(agent);
+      if (!key) { errors.push({ room, agent, reason: 'agent name is required' }); continue; }
+      if (seen.has(key)) errors.push({ room, agent, reason: 'agent name is duplicated' });
+      seen.add(key);
+      if (!members.has(key)) errors.push({ room, agent, reason: 'agent is not a member of this room' });
+      if (tier !== null && (typeof tier !== 'number' || !Number.isInteger(tier) || tier < 1 || tier > 9)) {
+        errors.push({ room, agent, reason: 'tier must be an integer from 1 to 9' });
+      }
+    }
+  }
+  return errors;
+}
+
+function flowTiersPatch(current: FlowTiers, patch: unknown): FlowTiers {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return current;
+  const out: FlowTiers = Object.fromEntries(Object.entries(current).map(([room, agents]) => [room, { ...agents }]));
+  for (const [room, value] of Object.entries(patch)) {
+    if (value === null) { delete out[room]; continue; }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const agents = { ...(out[room] ?? {}) };
+    for (const [name, tier] of Object.entries(value)) {
+      const key = normAgent(name);
+      if (!key) continue;
+      if (tier === null) delete agents[key];
+      else if (typeof tier === 'number' && Number.isInteger(tier) && tier >= 1 && tier <= 9) agents[key] = tier;
+    }
+    if (Object.keys(agents).length) out[room] = agents; else delete out[room];
+  }
+  return out;
+}
 
 export type LocalSummarize = { enabled: boolean; host: string; model: string; numCtx: number; timeoutSec: number; maxChars: number };
 const httpUrl = (v: unknown, cur: string) => { try { const u = new URL(String(v)); return u.protocol === 'http:' || u.protocol === 'https:' ? `${u.protocol}//${u.host}` : cur; } catch { return cur; } };
@@ -138,7 +182,7 @@ function migrateProfiles(raw: any): any {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -248,6 +292,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     },
     agentSkills: agents,
     agentCompact: compact,
+    flowTiers: flowTiersPatch(s.flowTiers ?? {}, p?.flowTiers),
     compact: { thresholds: compactThresholds, onTaskDone: bool(p?.compact?.onTaskDone, s.compact.onTaskDone ?? true) },
     permissions: perm,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),

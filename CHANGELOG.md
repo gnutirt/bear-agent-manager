@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add: the Flow tab now has a per-room, tiered workflow graph with validated member assignments, drag or keyboard tier changes, room-task creation from the selected agent, live/replayed wake edges and a 90-second per-agent timeline; the pixel office remains available as the second view.
 - Fix: worker resolves the native Claude CLI beside the Windows `claude.cmd` shim and invokes it directly, preserving each argv item instead of forwarding through `claude.ps1`; worker/osin never select paid providers, even when paid fallback is enabled.
 
 ## 0.11.0 - 2026-10-21

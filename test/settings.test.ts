@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultSettings, loadSettings, normAgent, patchSettings, saveSettings, validateAgentProfiles } from '../hub/settings.ts';
+import { defaultSettings, loadSettings, normAgent, patchSettings, saveSettings, validateAgentProfiles, validateFlowTiers } from '../hub/settings.ts';
 import { makeHub } from './helpers.ts';
 
 test('defaults: workers on, everything automatic off, no skill rules', () => {
@@ -38,6 +38,7 @@ test('patch validates and merges deeply', () => {
     agentSkills: { ' Boss ': { 'superpowers:*': { mode: 'ban' }, 'ponytail:*': { mode: 'force' }, bad: { mode: 'weird' }, 'x y': { mode: 'ban' } } },
     autoJobs: { handoff: { enabled: true } },
   });
+
   assert.deepEqual([s.skills.worker.enabled, s.skills.osin.enabled, s.workerCap], [true, false, 16]);
   assert.deepEqual(s.agentSkills, { boss: { 'superpowers:*': { mode: 'ban', when: 'every' } } });
   assert.deepEqual(s.autoJobs.handoff, { enabled: true, thresholdK: 300 });
@@ -47,6 +48,27 @@ test('patch validates and merges deeply', () => {
   s = patchSettings(s, { agentSkills: { boss: { 'superpowers:*': null }, planner: null } });
   assert.deepEqual(s.agentSkills, {});
   assert.equal(normAgent('  Quan-Ly-Cong-Nhan '), 'quan-ly-cong-nhan');
+});
+
+test('flowTiers: room scoped, agent keys normalized, tier assignments merge and clear', () => {
+  const d = defaultSettings();
+  assert.deepEqual(d.flowTiers, {});
+  assert.deepEqual(validateFlowTiers({ room: { Alice: 2 } }, { room: ['alice', 'Bob'] }), []);
+  assert.deepEqual(validateFlowTiers({
+    room: { Alice: 1.5, Bob: 10, ghost: 3, '   ': 2 },
+    unknown: { Alice: 2 },
+  }, { room: ['alice', 'Bob'] }), [
+    { room: 'room', agent: 'Alice', reason: 'tier must be an integer from 1 to 9' },
+    { room: 'room', agent: 'Bob', reason: 'tier must be an integer from 1 to 9' },
+    { room: 'room', agent: 'ghost', reason: 'agent is not a member of this room' },
+    { room: 'room', agent: '   ', reason: 'agent name is required' },
+    { room: 'unknown', reason: 'room is not a member room' },
+  ]);
+  let s = patchSettings(d, { flowTiers: { room: { Alice: 2, Bob: 3 } } });
+  assert.deepEqual(s.flowTiers, { room: { alice: 2, bob: 3 } });
+  s = patchSettings(s, { flowTiers: { room: { ALICE: 4, Bob: null } } });
+  assert.deepEqual(s.flowTiers, { room: { alice: 4 } });
+  assert.deepEqual(patchSettings(s, { flowTiers: { room: null } }).flowTiers, {});
 });
 
 test('reviveTools: whole tool names only, per agent, empty clears', () => {
@@ -70,6 +92,29 @@ test('slot is refused for a disabled skill', async () => {
     await call('/api/settings', { skills: { worker: { enabled: false } } }, { method: 'PUT' });
     assert.deepEqual(await call('/api/workers/slot?self=1&kind=worker'), { ok: false, disabled: true, running: 0, cap: 4 });
     assert.equal((await call('/api/workers/slot?self=1&kind=osin')).ok, true);
+  } finally { await hub.close(); }
+});
+
+test('Flow settings validate room members and its task form can assign without a session id', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'lead-flow', cwd: hub.dir, name: 'lead' });
+    await call('/api/sessions/register', { id: 'worker-flow', cwd: hub.dir, name: 'worker' });
+    await call('/api/rooms/flow-room/join', { sessionId: 'lead-flow' });
+    await call('/api/rooms/flow-room/join', { sessionId: 'worker-flow' });
+    const saved = await call<any>('/api/settings', { flowTiers: { 'flow-room': { worker: 2 } } }, { method: 'PUT' });
+    assert.deepEqual(saved.flowTiers, { 'flow-room': { worker: 2 } });
+    const invalid = await fetch(`${hub.url}/api/settings`, {
+      method: 'PUT', headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ flowTiers: { 'flow-room': { worker: 1.5, stranger: 3 } } }),
+    });
+    assert.equal(invalid.status, 400);
+    const failure = await invalid.json() as any;
+    assert.ok(failure.flowTierErrors.some((e: any) => e.agent === 'worker' && /integer/.test(e.reason)));
+    assert.ok(failure.flowTierErrors.some((e: any) => e.agent === 'stranger' && /member/.test(e.reason)));
+    assert.deepEqual((await call<any>('/api/settings')).flowTiers, { 'flow-room': { worker: 2 } }, 'invalid updates do not partially save');
+    const task = await call<any>('/api/rooms/flow-room/tasks', { title: 'Review graph', detail: 'Check the tier layout', owner: 'worker' });
+    assert.deepEqual([task.title, task.detail, task.owner], ['Review graph', 'Check the tier layout', 'worker']);
   } finally { await hub.close(); }
 });
 
