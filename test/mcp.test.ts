@@ -75,6 +75,29 @@ test('room_send refuses a non-string text instead of posting "[object Object]"',
   } finally { await hub.close(); }
 });
 
+test('room_note / room_set_name / room_done take strings only, and a wrong type leaves nothing behind', async () => {
+  const { hub, call } = await makeHub();
+  const api = apiFor(hub.url, hub.token);
+  try {
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    await callTool(api, 's1', 'room_join', { room: 'proj' });
+    const bad: unknown[] = [{ hello: 1 }, 42, ['a', 'b'], true, null];
+    for (const value of bad) {
+      await assert.rejects(callTool(api, 's1', 'room_note', { text: value }), /room_note needs "text" as a string/, `note text=${JSON.stringify(value)}`);
+      await assert.rejects(callTool(api, 's1', 'room_set_name', { name: value }), /room_set_name needs "name" as a string/, `name=${JSON.stringify(value)}`);
+      await assert.rejects(callTool(api, 's1', 'room_done', { summary: value }), /room_done needs "summary" as a string/, `summary=${JSON.stringify(value)}`);
+    }
+    await assert.rejects(callTool(api, 's1', 'room_set_name', {}), /room_set_name needs "name" as a string; got nothing/);
+    assert.match(await callTool(api, 's1', 'room_notes', {}), /no notes yet/, 'a refused note must not be written');
+    assert.match(await callTool(api, 's1', 'room_who', {}), /You are "fw"/, 'a refused name must not rename the agent');
+    assert.match(await callTool(api, 's1', 'room_read', {}), /no messages yet/, 'a refused done must not post a message');
+    // the legal paths are untouched
+    assert.match(await callTool(api, 's1', 'room_note', { text: 'HLP/1 on port 8765' }), /Saved note \[1\] in #proj/);
+    assert.match(await callTool(api, 's1', 'room_done', {}), /Marked done in #proj/, 'a missing summary still gets the hub default');
+    assert.match(await callTool(api, 's1', 'room_set_name', { name: 'fw2' }), /now "fw2"/);
+  } finally { await hub.close(); }
+});
+
 test('stdio server speaks MCP: initialize, tools/list, tools/call, unknown method', async () => {
   const { hub, call, dir } = await makeHub();
   try {

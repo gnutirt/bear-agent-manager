@@ -31,6 +31,18 @@ const noteLines = (notes: Note[]) => notes.map((n) => `  [${n.id}] ${n.text} (${
 const enc = encodeURIComponent;
 const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+/**
+ * A string tool argument. `null` and every other type are a caller bug: the tool says so instead of publishing
+ * "[object Object]" into a room (C2 in room_send; the same hole was in room_note, room_done and room_set_name, where a
+ * number even renamed the agent). `undefined` is left to the call site: a missing text has a documented meaning ('' for
+ * send/note/done), a missing name has none.
+ */
+function stringArg(tool: string, arg: string, value: unknown): string {
+  if (typeof value === 'string') return value;
+  const got = value === undefined ? 'nothing' : value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  throw new Error(`${tool} needs "${arg}" as a string; got ${got}. Send the string itself, not an object or a number.`);
+}
+
 export async function callTool(api: Api, sid: string, name: string, args: Record<string, unknown>): Promise<string> {
   const me = async () => (await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}`)).session;
   const pickRoom = async (room: unknown): Promise<string> => {
@@ -69,15 +81,9 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return `Left #${args.room}.`;
     }
     case 'room_send': {
-      // C2: `String(args.text ?? '')` turned an object or a number into a real message ("[object Object]", "42") and
-      // posted it, and the room could not tell it from what the agent meant to say. A wrong argument type is a caller
-      // bug: say so and post nothing. A missing text stays '' on purpose: an attachments-only message is legal (the hub
-      // answers "empty message" when there is nothing at all).
-      const text = args.text === undefined ? '' : args.text;
-      if (typeof text !== 'string') {
-        const got = text === null ? 'null' : Array.isArray(text) ? 'array' : typeof text;
-        throw new Error(`room_send needs "text" as a string; got ${got}. Send the message text itself, not an object or a number.`);
-      }
+      // A missing text stays '' on purpose: an attachments-only message is legal (the hub answers "empty message" when
+      // there is nothing at all).
+      const text = args.text === undefined ? '' : stringArg('room_send', 'text', args.text);
       const room = await pickRoom(args.room);
       const r = await api<{ message: Message; unknownMentions: string[]; paused: boolean }>(
         `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text, ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}), ...(args.topic ? { topic: String(args.topic) } : {}), ...(Array.isArray(args.attachments) && args.attachments.length ? { attachPaths: args.attachments.map(String) } : {}) } });
@@ -139,12 +145,17 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return `${r.text}\n\n(local model ${r.model}, ${Math.round(r.ms / 1000)} s; a small model: check anything that matters)`;
     }
     case 'room_set_name': {
-      const r = await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}/rename`, { body: { name: String(args.name ?? '') } });
+      // Required in the schema, and an absent name has no meaning: it is refused like a wrong type (before, `42`
+      // quietly became the agent's new name and `{a:1}` came back as a confusing "name must be 1-32 letters" error).
+      const name = stringArg('room_set_name', 'name', args.name);
+      const r = await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}/rename`, { body: { name } });
       return `Your bear-agent-manager name is now "${r.session.name}".`;
     }
     case 'room_note': {
+      // A missing text stays '': the hub answers "empty note".
+      const text = args.text === undefined ? '' : stringArg('room_note', 'text', args.text);
       const room = await pickRoom(args.room);
-      const n = await api<Note>(`/api/rooms/${enc(room)}/notes`, { body: { sessionId: sid, text: String(args.text ?? '') } });
+      const n = await api<Note>(`/api/rooms/${enc(room)}/notes`, { body: { sessionId: sid, text } });
       return `Saved note [${n.id}] in #${room}. All members get it with their next delivery.`;
     }
     case 'room_notes': {
@@ -158,8 +169,10 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return `Removed note [${Number(args.id)}] from #${room}.`;
     }
     case 'room_done': {
+      // A missing summary stays '': the hub fills in its default "done" text.
+      const summary = args.summary === undefined ? '' : stringArg('room_done', 'summary', args.summary);
       const room = await pickRoom(args.room);
-      const r = await api<{ message: Message; allDone: Message | null }>(`/api/rooms/${enc(room)}/done`, { body: { sessionId: sid, summary: String(args.summary ?? '') } });
+      const r = await api<{ message: Message; allDone: Message | null }>(`/api/rooms/${enc(room)}/done`, { body: { sessionId: sid, summary } });
       return r.allDone ? `Marked done in #${room}. The whole room is done; the user has been told. Stop here.` : `Marked done in #${room}. Stop here unless someone mentions you.`;
     }
     case 'room_commit': {
