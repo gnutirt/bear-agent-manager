@@ -247,6 +247,34 @@ test('revive: a mentioned session that ended is resumed in the background, once'
   } finally { await h.hub.close(); }
 });
 
+test('revive: a provider-only stale model is omitted and failures use this run output, not the shared log tail', async () => {
+  const jobs: any[] = [];
+  const h = await makeHub(undefined, (job: any) => {
+    jobs.push(job);
+    job.onOutput?.('session-specific unrecognized_model\n');
+    return 1;
+  });
+  try {
+    fs.writeFileSync(path.join(h.dir, 'revive.log'), 'other concurrent run: unrelated provider error\n');
+    await h.call('/api/sessions/register', { id: 'provider-model', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT });
+    await h.call('/api/sessions/provider-model/rename', { name: 'fw' });
+    await h.call('/api/sessions/provider-model/model', { model: 'deepseek-flash' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'provider-model' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'provider-model', cwd: 'C:/fw' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw please resume' });
+    await until(async () => (await h.call<any>('/api/sessions/provider-model')).session.status === 'offline');
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].model, undefined);
+    const pending = await h.call<any>('/api/sessions/provider-model/pending');
+    assert.equal(pending.wake, true);
+    assert.equal(pending.messages[0].text, '@fw please resume');
+    const messages = await h.call<any[]>('/api/rooms/proj/messages?after=0');
+    const failure = messages.find((m) => m.kind === 'system' && /unrecognized_model/.test(m.text));
+    assert.ok(failure);
+    assert.doesNotMatch(failure.text, /unrelated provider error/);
+  } finally { await h.hub.close(); }
+});
+
 test('revive: never for sessions that only went quiet; manual revive route works for them', async () => {
   const jobs: any[] = [];
   const h = await makeHub(undefined, (job: any) => { jobs.push(job); });

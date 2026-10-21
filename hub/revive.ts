@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[] };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
+export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[]; onOutput?: (chunk: string) => void };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
 /** What a hub-started claude may do (settings.permissions of that agent). */
 export type Perm = { mode: string; allow: string[]; deny: string[]; guarded?: boolean };   // guarded: only perm.allow is pre-allowed, every other tool asks --permission-prompt-tool
 export type CompactJob = Omit<ReviveJob, 'text'>;
@@ -84,8 +84,15 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
     env,
     shell: process.platform === 'win32', // resolves claude.cmd / claude.exe on PATH; args contain no user text
     windowsHide: true,
-    stdio: ['pipe', log, log],
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
+  let outputError: Error | undefined;
+  const recordOutput = (chunk: Buffer) => {
+    try { fs.writeSync(log, chunk); } catch (e) { outputError ??= e instanceof Error ? e : new Error(String(e)); }
+    job.onOutput?.(chunk.toString('utf8'));
+  };
+  child.stdout?.on('data', recordOutput);
+  child.stderr?.on('data', recordOutput);
   // A write into a stdin whose process has just exited emits 'error' on the stream; unhandled, that takes the whole hub
   // down (every room, not only this session) — the same hole as livechat/agents. The exit handler below reports it.
   child.stdin?.on('error', () => { /* the exit handler below reports it */ });
@@ -93,7 +100,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   if (idleMin) live.set(job.id, child);
   const timer = setTimeout(() => killTree(child), maxMs);
   return new Promise((resolve) => {
-    // 'error' and 'exit' can both fire (a spawn that fails, or a process that cannot be killed); resolving twice would
+    // 'error' and 'close' can both fire (a spawn that fails, or a process that cannot be killed); resolving twice would
     // close the same log fd twice and throw inside an event handler, which takes the whole hub down.
     let ended = false;
     const done = (code: number) => {
@@ -102,10 +109,11 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
       clearTimeout(timer);
       if (live.get(job.id) === child) live.delete(job.id);
       try { fs.closeSync(log); } catch { /* already closed */ }
-      resolve(code);
+      if (outputError) job.onOutput?.(`\n[hub could not write revive.log: ${outputError.message}]\n`);
+      resolve(outputError ? 1 : code);
     };
-    child.on('exit', (code) => done(code ?? 1));
-    child.on('error', () => done(1));
+    child.on('close', (code) => done(code ?? 1));
+    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); done(1); });
   });
 }
 

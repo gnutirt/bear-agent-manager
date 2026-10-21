@@ -38,6 +38,16 @@ export function findTranscript(cwd: string, id: string, configDirs: string[], ro
 const QUOTA = /429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|额度|墨点/i;
 export const isQuotaError = (text: string): boolean => QUOTA.test(text);
 
+/** A provider-only model needs that provider's endpoint and credentials; never pass it to an ordinary Claude CLI session. */
+export function claudeCliModel(model: string | undefined, profiles: AgentProfile[], providers: Provider[]): string | undefined {
+  const candidate = model?.trim();
+  if (!candidate) return undefined;
+  const providerModels = new Set<string>();
+  for (const profile of profiles) if (profile.provider === 'claude-api' && profile.model) providerModels.add(profile.model);
+  for (const provider of providers) for (const name of [...provider.models.read, ...provider.models.edit]) providerModels.add(name);
+  return providerModels.has(candidate) ? undefined : candidate;
+}
+
 /** Files a provider outside this machine must not read (mirrors localai.ts SECRET_FILE, as claude permission rules). */
 const SECRET_READS = ['**/.env*', '**/*.pem', '**/*.key', '**/*.pfx', '**/*.p12', '**/*.kdbx', '**/id_rsa*', '**/id_ed25519*', '**/.npmrc', '**/.netrc',
   '**/credentials*.json', '**/secrets.*', '**/*token*', '**/providers.json', '**/.bear-agent-manager/**', '**/.claude/**'].map((g) => `Read(${g})`);

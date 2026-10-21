@@ -43,7 +43,7 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, limitErrorMarker, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
-import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
+import { apiEnv, apiPerm, claudeCliModel, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
 import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
@@ -183,6 +183,7 @@ export type HubOptions = {
 
 const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
+const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const runRevive = opts.revive ?? spawnRevive;
@@ -531,9 +532,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       reviving.add(id);
       emitSession(store.setStatus(id, 'busy', tr('sys.act.starting')));
       emitRoom(room);
-      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, text: tr('agent.intro', { name: p.name, room }), logDir: opts.dir, perm: job.perm, idleMin: cfg.lead.idleMin, ...(job.model ? { model: job.model } : {}), env: job.env, args: job.args }))
+      let output = '';
+      Promise.resolve((opts.spawnAgent ?? spawnAgent)({ id, cwd, text: tr('agent.intro', { name: p.name, room }), logDir: opts.dir, perm: job.perm, idleMin: cfg.lead.idleMin, ...(job.model ? { model: job.model } : {}), env: job.env, args: job.args,
+        onOutput: (chunk) => { output = (output + chunk).slice(-4096); } }))
         .catch(() => 1)
-        .then((code) => { if (code) apiFailed(p, `${tr('sys.wake.exit', { code: Number(code) })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`); })
+        .then((code) => { if (code) { const line = lastOutputLine(output); apiFailed(p, `${tr('sys.wake.exit', { code: Number(code) })}${line ? `: ${line}` : ''}`); } })
         .finally(() => { reviving.delete(id); if (!waiters.has(id)) emitSession(store.markEnded(id)); broadcast('agentprofile', apiStatus(p)); });
       return true;
     } catch (e) { apiFailed(p, (e as Error).message); return false; }
@@ -917,13 +920,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const before = readContextTokens(s.transcript);
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript), wakeRole(s), cfg.compact.thresholds);
     let compacted = false;
-    const perm = apiRun?.perm ?? permFor(cfg, s.name), model = apiRun?.model ?? cfg.agentModel[normAgent(s.name)];
+    const perm = apiRun?.perm ?? permFor(cfg, s.name);
+    const configuredModel = cfg.agentModel[normAgent(s.name)];
+    const model = apiRun?.model ?? claudeCliModel(configuredModel, cfg.agents.profiles, configuredModel ? loadProviders(opts.dir, legacyKey) : []);
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
     };
     emitSession(store.setStatus(s.id, 'busy', tr(compactFirst ? 'sys.act.compact' : 'sys.act.reviving')));
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send. It is ${clock(Date.now(), { day: 'numeric', month: 'numeric' })} now (you have no clock in the background). ${perm.mode === 'bypass' ? 'You run with full permissions (the owner chose this in Settings > Permissions); work in your folder and report in the room.' : `You cannot ask the user for permissions now, so ${perm.allow.length ? `use only read tools and ${perm.allow.join(', ')}` : 'only read files'} and reply.`}`;
+    let output = '';
     let failure = '';   // why the wake did not happen; the messages stay unread
     Promise.resolve()
       .then(async () => {
@@ -935,8 +941,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
-        const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, perm }));
-        if (typeof code === 'number' && code !== 0) failure = `${tr('sys.wake.exit', { code })}${lastLogLine() ? `: ${lastLogLine()}` : ''}`;
+        const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, perm, onOutput: (chunk) => { output = (output + chunk).slice(-4096); } }));
+        if (typeof code === 'number' && code !== 0) { const line = lastOutputLine(output); failure = `${tr('sys.wake.exit', { code })}${line ? `: ${line}` : ''}`; }
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
       .finally(() => {
@@ -1008,9 +1014,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     });
   }
 
-  const lastLogLine = () => {
-    try { return fs.readFileSync(path.join(opts.dir, 'revive.log'), 'utf8').trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? ''; } catch { return ''; }
-  };
   /** Account out of usage (a window at 100%): waking an agent on it only burns the turn. Books a wake-up for the reset and says why. */
   async function blockedAccount(s: Session, job?: { configDir?: string }): Promise<string> {
     if (!usage) return '';

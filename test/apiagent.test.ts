@@ -7,7 +7,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { apiEnv, apiPerm, findTranscript, GUARD_TOOL, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, pathGuard, projectSlug } from '../hub/apiagent.ts';
+import { apiEnv, apiPerm, claudeCliModel, findTranscript, GUARD_TOOL, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, pathGuard, projectSlug } from '../hub/apiagent.ts';
 import { claudeArgs, killTree } from '../hub/revive.ts';
 import { agentArgs } from '../hub/agents.ts';
 import type { AgentProfile } from '../hub/settings.ts';
@@ -102,6 +102,15 @@ test('apiEnv: endpoint + credential of the provider, a local host needs no real 
   assert.equal(t.ANTHROPIC_MODEL, 'x/y:1');
   assert.throws(() => apiEnv(prof(), prov({ tier: 'free', key: '' })), /no key/);
   assert.throws(() => apiEnv(prof(), prov({ models: { read: [], edit: [] } })), /no model/);
+});
+
+test('claudeCliModel: provider-only model is omitted when the session has no provider profile', () => {
+  const deepseek = prof({ model: 'deepseek-flash' });
+  const deepseekProvider = prov({ models: { read: ['deepseek-flash'], edit: ['deepseek-flash'] } });
+  assert.equal(claudeCliModel('deepseek-flash', [], [deepseekProvider]), undefined);
+  assert.equal(claudeCliModel('deepseek-flash', [deepseek], []), undefined);
+  assert.equal(claudeCliModel('claude-sonnet-5-5', [deepseek], [deepseekProvider]), 'claude-sonnet-5-5');
+  assert.equal(claudeCliModel(undefined, [deepseek], [deepseekProvider]), undefined);
 });
 
 test('apiPerm: off this machine guarded (no Bash, no pre-allowed path tool); paid edits only with edit: true; local edits when the profile says so', () => {
@@ -246,11 +255,11 @@ test('isQuotaError sees the provider quota / rate-limit wording', () => {
 test('claude-api profile: starts with the provider env and a read-only perm, pauses on quota, retry clears it, off stops it', async () => {
   const jobs: any[] = [];
   let outcome = 1;   // exit code the fake agent ends with
-  const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); return outcome; } });
+  const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); job.onOutput?.('API Error: 429 rate limit\n'); return outcome; } });
   try {
     fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'free', key: 'sk-top-secret-123' })]));
     await call('/api/rooms', { name: 'bear-agent-manager' });
-    fs.writeFileSync(path.join(dir, 'revive.log'), 'API Error: 429 rate limit\n');
+    fs.writeFileSync(path.join(dir, 'revive.log'), 'unrelated concurrent run: no quota\n');
     await call('/api/settings', { agents: { profiles: [prof()] } }, { method: 'PUT' });
     await until(() => jobs.length === 1, 5000, 'the agent starts');
     assert.equal(jobs[0].env.ANTHROPIC_API_KEY, 'sk-top-secret-123');

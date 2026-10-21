@@ -8,7 +8,7 @@ import { adoptBackground, claudeArgs, forgetBackground, killTree, type Perm } fr
 // for idleMin minutes between room messages, like a woken background agent. The chat is saved in projects/, so it can
 // be opened in an editor at any time (resume by id).
 
-export type AgentJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; perm?: Perm; model?: string; idleMin: number; env?: Record<string, string>; args?: string[] };
+export type AgentJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; perm?: Perm; model?: string; idleMin: number; env?: Record<string, string>; args?: string[]; onOutput?: (chunk: string) => void };
 const MAX_RUN_MS = 4 * 3_600_000;
 const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a) ? `"${a}"` : a);
 
@@ -25,8 +25,15 @@ export function spawnAgent(job: AgentJob): Promise<number> {
   const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
   fs.writeSync(log, `\n${new Date().toISOString()} new agent ${job.id} in ${job.cwd} [perm: ${job.perm?.mode ?? 'default'}]\n`);
   const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
-    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', log, log],
+    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
   });
+  let outputError: Error | undefined;
+  const recordOutput = (chunk: Buffer) => {
+    try { fs.writeSync(log, chunk); } catch (e) { outputError ??= e instanceof Error ? e : new Error(String(e)); }
+    job.onOutput?.(chunk.toString('utf8'));
+  };
+  child.stdout?.on('data', recordOutput);
+  child.stderr?.on('data', recordOutput);
   // A claude that dies at once (bad key, provider down) closes its stdin first; the write then emits 'error',
   // and an unhandled one takes the whole hub down, every room with it.
   child.stdin?.on('error', () => { /* the exit handler below reports it */ });
@@ -34,7 +41,7 @@ export function spawnAgent(job: AgentJob): Promise<number> {
   adoptBackground(job.id, child);   // stopRevive / isBackground / "Mở tab" treat it like any background agent
   const timer = setTimeout(() => killTree(child), MAX_RUN_MS);
   return new Promise((resolve) => {
-    // 'exit' and 'error' can both fire; a second run would close the same log fd twice (EBADF thrown inside an
+    // 'close' and 'error' can both fire; a second run would close the same log fd twice (EBADF thrown inside an
     // event handler) and kill whatever background child holds this id by then.
     let ended = false;
     const done = (code: number) => {
@@ -43,9 +50,10 @@ export function spawnAgent(job: AgentJob): Promise<number> {
       clearTimeout(timer);
       forgetBackground(job.id, child);   // only this child: a newer agent for the same id keeps running
       try { fs.closeSync(log); } catch { /* already closed */ }
-      resolve(code);
+      if (outputError) job.onOutput?.(`\n[hub could not write revive.log: ${outputError.message}]\n`);
+      resolve(outputError ? 1 : code);
     };
-    child.on('exit', (code) => done(code ?? 1));
-    child.on('error', () => done(1));
+    child.on('close', (code) => done(code ?? 1));
+    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); done(1); });
   });
 }
