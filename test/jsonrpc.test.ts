@@ -64,3 +64,17 @@ test('stdio JSON-RPC handles parse errors, requests, notifications and handler f
     lines.close();
   }
 });
+
+test('stdio JSON-RPC tolerates closed pipes while replying or reading', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const server = serve(async () => ({ ok: true }), input, output);
+  const closed = new Promise<void>((resolve) => server.once('close', resolve));
+
+  output.end();
+  assert.doesNotThrow(() => input.write('{"jsonrpc":"2.0","id":1,"method":"ping"}\n'));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.doesNotThrow(() => output.emit('error', new Error('EPIPE')));
+  assert.doesNotThrow(() => input.emit('error', new Error('EIO')));
+  await closed;
+});

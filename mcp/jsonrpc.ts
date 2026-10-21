@@ -14,8 +14,18 @@ type Handler = (method: string, params: any) => Promise<unknown>;
 export function serve(handle: Handler, input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout) {
   input.setEncoding('utf8');
   output.setDefaultEncoding('utf8');
-  const write = (msg: object) => output.write(JSON.stringify(msg) + '\n');
+  // The editor closes these pipes when the chat ends or is restarted while a tool call is still running.
+  // An unhandled 'error' (EPIPE) or a write after end would take the MCP server down and the chat would lose
+  // every room tool until it is reopened, so both ends are guarded here rather than at each call site.
+  output.on('error', () => { /* the chat is gone: nothing left to answer */ });
+  const write = (msg: object) => {
+    try {
+      if (!output.writableEnded) output.write(JSON.stringify(msg) + '\n');
+    } catch { /* write after end: the chat closed between the check and the write */ }
+  };
   const rl = readline.createInterface({ input });
+  // readline forwards input errors as interface errors; close cleanly instead of leaving an unhandled 'error'.
+  rl.on('error', () => rl.close());
   rl.on('line', async (line) => {
     if (!line.trim()) return;
     let req: any;
