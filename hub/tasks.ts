@@ -35,7 +35,14 @@ function write(home: string, room: string, f: File): void {
     fs.appendFileSync(path.join(dir(home, room), 'tasks-archive.jsonl'), old.map((t) => JSON.stringify(t)).join('\n') + '\n');
     f.tasks = f.tasks.filter((t) => !old.includes(t));
   }
-  if (f.tasks.length > KEEP) f.tasks = f.tasks.slice(-KEEP);
+  // Drop the oldest DONE tasks only: a plain slice(-KEEP) threw away open work in a long room, and a todo task that
+  // silently disappears looks exactly like a task someone deleted.
+  if (f.tasks.length > KEEP) {
+    const done = f.tasks.filter((t) => t.status === 'done').sort((a, b) => a.id - b.id);
+    const open = f.tasks.filter((t) => t.status !== 'done');
+    const budget = Math.max(0, KEEP - open.length);
+    f.tasks = [...done.slice(done.length - budget), ...open].sort((a, b) => a.id - b.id);
+  }
   fs.mkdirSync(dir(home, room), { recursive: true });
   const tmp = `${file(home, room)}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(f));
@@ -43,7 +50,7 @@ function write(home: string, room: string, f: File): void {
 }
 
 export function listTasks(home: string, room: string, q: { status?: string; owner?: string } = {}): Task[] {
-  const statuses = q.status ? q.status.split(',').filter((s) => (STATUSES as readonly string[]).includes(s)) : [];
+  const statuses = q.status ? q.status.split(',').map((s) => s.trim()).filter((s) => (STATUSES as readonly string[]).includes(s)) : [];
   const owner = (q.owner ?? '').toLowerCase();
   return read(home, room).tasks.filter((t) => (!statuses.length || statuses.includes(t.status)) && (!owner || (t.owner ?? '').toLowerCase() === owner));
 }
@@ -114,7 +121,12 @@ export function updateTask(home: string, room: string, id: number, b: TaskInput)
   if (!t) throw new StoreError(404, `task #${id} not found`);
   const before = { ...t };
   apply(t, b, false);
-  if (b.after !== undefined && t.status === 'todo' && pending(t, f.tasks)) t.status = 'blocked';
+  // A todo task that gains an open dependency waits; a blocked task whose `after` list is emptied no longer waits for
+  // anything (unless the caller sets a status in the same request, i.e. blocks it on purpose).
+  if (b.after !== undefined && b.status === undefined) {
+    if (t.status === 'todo' && pending(t, f.tasks)) t.status = 'blocked';
+    else if (t.status === 'blocked' && !t.after?.length) t.status = 'todo';
+  }
   t.updatedAt = Date.now();
   write(home, room, f);
   return { task: t, before };
