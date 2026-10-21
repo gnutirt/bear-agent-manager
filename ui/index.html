@@ -1057,8 +1057,8 @@ function inline(s) {
   s = esc(s).replace(/`([^`]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`);
   s = s.replace(/\*\*([^*]+)\*\*/g, (m, x) => { const c = statusClass(x); return c ? `<b class="st ${c}">${x}</b>` : `<b>${x}</b>`; }).replace(/__([^_]+)__/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="chatlink" href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a class="chatlink" href="$2" target="_blank" rel="noopener">$2</a>')
     .replace(/(^|[\s(,;])([A-Za-z]:[\\/][^\s<>"|?*&]*[^\s<>"|?*&.,;:)\]])/g, (m, p, path) => `${p}${pathChip(path)}`)
     .replace(/(^|[\s(,;])@([A-Za-z0-9_-]+)/g, (m, p, n) => `${p}<span class="mention${n.toLowerCase() === 'you' ? ' me' : ''}">@${n}</span>`);
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => /^[A-Za-z]:[\\/][^<>"|?*\r\n&]+$/.test(codes[+i].trim()) ? `<code>${pathChip(codes[+i].trim())}</code>` : `<code>${codes[+i]}</code>`);
@@ -1625,6 +1625,15 @@ function renderTopics() {
 }
 $('topicBar').addEventListener('click', (e) => { const b = e.target.closest('[data-topic]'); if (b) setTopicFilter(b.dataset.topic); });
 $('log').addEventListener('click', (e) => { const b = e.target.closest('.ttag'); if (b) setTopicFilter(b.dataset.topic); });
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a.chatlink');
+  if (!a || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || location.protocol === 'vscode-webview:') return;
+  const popup = window.open('about:blank', 'bam-link', 'popup,width=1100,height=800');
+  if (!popup) return;
+  e.preventDefault();
+  popup.opener = null;
+  popup.location.replace(a.href);
+});
 $('topicBtn').onclick = (e) => {
   const r = S.current, cur = S.ctopic[r] || 'chung', names = [...new Set(['chung', ...topicList(r).map((x) => x.topic), cur])];
   openMenu(e.currentTarget, `<div class="mhead"><b>${t('topic.menu')}</b><span>#${esc(r)}</span></div><div class="tmenu">${names.map((k) => `<button type="button" class="tchip" data-pick="${esc(k)}" aria-selected="${k === cur}">#${esc(k)}</button>`).join('')}<form id="topicNew"><input id="topicNewIn" placeholder="${t('topic.new')}" maxlength="32" autocomplete="off" aria-label="${t('topic.new')}"><button class="btn sm primary">${t('topic.add')}</button></form><div class="small muted">${t('topic.hint')}</div></div>`, (m) => {

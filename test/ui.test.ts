@@ -27,6 +27,22 @@ test('UI inline script compiles and the workers panel is wired (list, live updat
   } finally { await hub.close(); }
 });
 
+test('chat links open a reusable isolated popup, while modifier clicks and VS Code use the default target', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      '<a class="chatlink" href="$2" target="_blank" rel="noopener">',
+      'window.open(\'about:blank\', \'bam-link\', \'popup,width=1100,height=800\')',
+      'popup.opener = null',
+      'popup.location.replace(a.href)',
+      'e.ctrlKey || e.metaKey || e.shiftKey || e.altKey',
+      "location.protocol === 'vscode-webview:'",
+      'if (!popup) return',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('paid-provider Settings expose an editable daily budget and save it with pricing', async () => {
   const { hub } = await makeHub();
   try {
