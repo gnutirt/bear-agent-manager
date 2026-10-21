@@ -357,6 +357,9 @@ export class Store {
           s.userNamed = true;
           s.rooms = prev.rooms;
           s.cursor = prev.cursor;
+          // The chat is the same one with a new id: a message already reported as "not reading" must not be reported
+          // again. Without this every /clear or resume of a stuck tab posted the same notice to the room once more.
+          s.deafMsgId = prev.deafMsgId;
           delete this.state.sessions[prev.id];
           this.state.aliases[prev.id] = s.id;
           aliased = true;
