@@ -25,7 +25,13 @@ export function parseInput(raw: string): HookInput {
 
 export async function readInput(): Promise<HookInput> {
   let raw = '';
-  for await (const chunk of process.stdin) raw += chunk;
+  try {
+    for await (const chunk of process.stdin) raw += chunk;
+  } catch (e) {
+    // The pipe itself can fail (the editor closed it, a broken PowerShell redirect). Name the step, so the caller's
+    // one-line diagnostic says "stdin: ..." instead of a bare EPIPE; fail-open stays the caller's decision.
+    throw new Error(`stdin: ${e instanceof Error ? e.message : String(e)}`);
+  }
   return parseInput(raw);
 }
 

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function runHook(script: string, input: object, env: Record<string, string>, args: string[] = []) {
+function runHook(script: string, input: object | string, env: Record<string, string>, args: string[] = []) {
   const child = spawn(process.execPath, ['--no-warnings', path.join(ROOT, 'hooks', script), ...args], {
     env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -20,7 +20,7 @@ function runHook(script: string, input: object, env: Record<string, string>, arg
   let stderr = '';
   child.stdout.on('data', (d) => (stdout += d));
   child.stderr.on('data', (d) => (stderr += d));
-  child.stdin.end(JSON.stringify(input));
+  child.stdin.end(typeof input === 'string' ? input : JSON.stringify(input));
   const done = new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) =>
     child.on('exit', (code) => resolve({ code, stdout, stderr })));
   return { child, done };
@@ -242,6 +242,20 @@ test('waiter of a helper session without transcript never registers it', async (
     const r = await w.done;
     assert.equal(r.code, 0);
     await assert.rejects(call('/api/sessions/ghost'), (err: any) => err.status === 404);
+  } finally { await hub.close(); }
+});
+
+test('waiter stays fail-open but leaves a trace when the hook input cannot be read', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    const broken = await runHook('waiter.ts', '{"session_id": "s1"', e).done;   // truncated: the client closed mid-write
+    assert.equal(broken.code, 0, 'a broken payload must never block the turn');
+    assert.match(broken.stderr, /waiter: cannot read the hook input .+; no waiter started/);
+    const noSid = await runHook('waiter.ts', '{}', e).done;
+    assert.equal(noSid.code, 0);
+    assert.match(noSid.stderr, /no session_id; no waiter started/);
+    assert.equal(hub.waiting('s1'), false, 'neither run started a waiter');
   } finally { await hub.close(); }
 });
 

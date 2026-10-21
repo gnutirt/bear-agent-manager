@@ -10,8 +10,20 @@ const idleMin = Number(process.env.BEAR_AGENT_IDLE_MIN);
 const LIFETIME_MS = process.env.BEAR_AGENT_HEADLESS === '1' && idleMin > 0 ? Math.min(idleMin, 240) * 60_000 : (604_800 - 600) * 1000;
 const TRANSCRIPT_POLL_MS = 2000;
 
-const input = await readInput().catch(() => null);
-if (!input?.session_id) process.exit(0);
+// Still fail open: a payload that cannot be read or parsed must never block the turn (exit 0, as before). But the old
+// `.catch(() => null)` hid the reason, and a Stop hook that starts no waiter is a chat nobody can wake from outside:
+// the next @ waits for the 10-minute "tab is not reading" notice. One short line on stderr leaves a trace in
+// revive.log / the hook log. fs.writeSync(2, ...) because stderr to a pipe is asynchronous on Windows and process.exit
+// drops a pending write; a gone stderr must not turn this into a crash (the exit code has to stay 0).
+const note = (line: string) => { try { fs.writeSync(2, line + '\n'); } catch { /* no stderr: fail open anyway */ } };
+const input = await readInput().catch((e: unknown) => {
+  note(`bear-agent-manager: waiter: cannot read the hook input (${e instanceof Error ? e.message : String(e)}); no waiter started`);
+  return null;
+});
+if (!input?.session_id) {
+  if (input) note('bear-agent-manager: waiter: hook input has no session_id; no waiter started');
+  process.exit(0);
+}
 const id = encodeURIComponent(input.session_id);
 const started = Date.now();
 
