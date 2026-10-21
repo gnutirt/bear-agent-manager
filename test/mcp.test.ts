@@ -59,6 +59,22 @@ test('join, send (default room), read, who, typo warning', async () => {
   } finally { await hub.close(); }
 });
 
+test('room_send refuses a non-string text instead of posting "[object Object]"', async () => {
+  const { hub, call } = await makeHub();
+  const api = apiFor(hub.url, hub.token);
+  try {
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    await callTool(api, 's1', 'room_join', { room: 'proj' });
+    const bad: unknown[] = [{ hello: 1 }, 42, ['a'], true, null];
+    for (const text of bad) {
+      await assert.rejects(callTool(api, 's1', 'room_send', { text }), /"text" as a string/, `text=${JSON.stringify(text)}`);
+    }
+    assert.match(await callTool(api, 's1', 'room_read', {}), /no messages yet/, 'a refused call must not post anything');
+    assert.match(await callTool(api, 's1', 'room_send', { text: 'plain string still works' }), /Sent to #proj/);
+    assert.match(await callTool(api, 's1', 'room_read', {}), /plain string still works/);
+  } finally { await hub.close(); }
+});
+
 test('stdio server speaks MCP: initialize, tools/list, tools/call, unknown method', async () => {
   const { hub, call, dir } = await makeHub();
   try {

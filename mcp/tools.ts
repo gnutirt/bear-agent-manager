@@ -69,9 +69,18 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return `Left #${args.room}.`;
     }
     case 'room_send': {
+      // C2: `String(args.text ?? '')` turned an object or a number into a real message ("[object Object]", "42") and
+      // posted it, and the room could not tell it from what the agent meant to say. A wrong argument type is a caller
+      // bug: say so and post nothing. A missing text stays '' on purpose: an attachments-only message is legal (the hub
+      // answers "empty message" when there is nothing at all).
+      const text = args.text === undefined ? '' : args.text;
+      if (typeof text !== 'string') {
+        const got = text === null ? 'null' : Array.isArray(text) ? 'array' : typeof text;
+        throw new Error(`room_send needs "text" as a string; got ${got}. Send the message text itself, not an object or a number.`);
+      }
       const room = await pickRoom(args.room);
       const r = await api<{ message: Message; unknownMentions: string[]; paused: boolean }>(
-        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text: String(args.text ?? ''), ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}), ...(args.topic ? { topic: String(args.topic) } : {}), ...(Array.isArray(args.attachments) && args.attachments.length ? { attachPaths: args.attachments.map(String) } : {}) } });
+        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text, ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}), ...(args.topic ? { topic: String(args.topic) } : {}), ...(Array.isArray(args.attachments) && args.attachments.length ? { attachPaths: args.attachments.map(String) } : {}) } });
       let out = `Sent to #${room}.`;
       if (r.paused) out += ' The room is paused by the loop guard, so nobody was woken; wait for the user.';
       else if (r.message.wake.length) out += ` Woke ${r.message.wake.length} member(s).`;
