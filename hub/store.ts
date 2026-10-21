@@ -30,6 +30,7 @@ export type Session = {
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
   limitKilled?: boolean;         // ... and it counts only when the recovery really happened (a kill the hub waited for, or a move to another account): a marker saved by an older build must not block a later @ (#130 follow-up)
+  afterLimitDelivered?: { fromCursor: number; at: number; fallbackStarted?: boolean; fallbackNotified?: boolean }; // afterLimit waiter handoff pending proof of a new turn; expiry requeues it and falls back to background recovery (#134)
   deafSince?: number;            // when the room was told this chat stopped reading: one notice per deaf stretch, cleared when the chat is seen alive again
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
@@ -481,6 +482,7 @@ export class Store {
     s.activity = String(activity).slice(0, 80);
     s.lastSeen = this.now();
     s.deafSince = undefined;   // a hook (or the hub) just saw this chat work: a later silence is a new notice
+    if (status === 'busy') s.afterLimitDelivered = undefined;
     this.save();
     return s;
   }

@@ -610,6 +610,7 @@ export const en: Record<string, string> = {
   'sys.compact.taskTab': '{name} finished task #{id} with a {size} chat: type /compact in the tab of {name} so the next turn does not re-read it all.',
   'sys.limit.waiting': '{name} hit its usage limit and its tab cannot take messages; it will be woken at {at}.',
   'sys.limit.unstuck': '{name} was stuck after a usage limit: the hub closed the stuck process and wakes it in the background.',
+  'sys.limit.afterLimitFallback': '@you {name} did not wake itself after the usage limit; the hub is trying to move the message to a background turn.',
   'sys.limit.stuck': '@you {name} is stuck after a usage limit and takes no messages: open its tab and type to go on.',
   'sys.relay.more': '(full text in the chat of {name})',
   'sys.accounts.busy': '{n} claude processes are running: close every chat (VS Code, Antigravity, background agents) and try again, they may be writing to the chat folder.',

@@ -610,6 +610,7 @@ export const vi: Record<string, string> = {
   'sys.compact.taskTab': '{name} xong việc #{id} với chat {size}: gõ /compact trong tab của {name} để lượt sau không đọc lại cả chat.',
   'sys.limit.waiting': '{name} hết hạn mức, tab kẹt không nhận tin; hẹn tự dậy lúc {at}.',
   'sys.limit.unstuck': '{name} kẹt sau khi hết hạn mức: hub đóng tiến trình kẹt và gọi dậy lại ở chế độ nền.',
+  'sys.limit.afterLimitFallback': '@you {name} không tự dậy sau khi hết hạn mức; hub đang thử chuyển tin sang lượt chạy nền.',
   'sys.limit.stuck': '@you {name} kẹt sau khi hết hạn mức và không nhận tin: mở tab của nó và gõ tiếp.',
   'sys.relay.more': '(xem đủ trong chat của {name})',
   'sys.accounts.busy': 'Đang có {n} tiến trình claude chạy: đóng hết các chat (VS Code, Antigravity, agent nền) rồi thử lại, vì chúng có thể đang ghi vào thư mục chat.',

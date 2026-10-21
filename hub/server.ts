@@ -144,6 +144,8 @@ export type HubOptions = {
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
+  /** Store clock; injected for deterministic clock-driven recovery tests. */
+  now?: () => number;
   /** Ends the hub process for POST /api/restart (a hook starts the next one); stubbed in tests. */
   exit?: () => void;
   /** Max workers running at once on this machine; the cheap API's rate limit is shared (default 6). */
@@ -188,7 +190,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
   // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
-  const store = new Store(opts.dir);
+  const store = new Store(opts.dir, opts.now);
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
@@ -588,8 +590,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const leadRooms = (sid: string) => Object.values(store.state.rooms).filter((r) => r.lead === sid).map((r) => r.name);
 
-  function deliverTo(res: http.ServerResponse, sid: string, messages: Message[]) {
+  function deliverTo(res: http.ServerResponse, sid: string, messages: Message[], afterLimit = false) {
+    const fromCursor = store.session(sid).cursor;
     if (messages.length) consume(sid, messages[messages.length - 1].id);
+    if (afterLimit && messages.length) {
+      const s = store.session(sid);
+      s.afterLimitDelivered = { fromCursor, at: store.now() };
+      store.save();
+    }
     json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms });
   }
 
@@ -698,21 +706,21 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const limitHandled = (s: Session, marker = limitErrorMarker(s.transcript)) => !!marker && s.limitHandled === marker && s.limitKilled === true;
   const markLimitHandled = (s: Session, marker: string) => { s.limitHandled = marker; s.limitKilled = true; store.save(); };
   /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
-  async function unstick(s: Session) {
-    if (unsticking.has(s.id)) return;
+  async function unstick(s: Session): Promise<boolean> {
+    if (unsticking.has(s.id)) return false;
     const marker = limitErrorMarker(s.transcript);
-    if (!marker || limitHandled(s, marker)) return;
+    if (!marker || limitHandled(s, marker)) return false;
     // Nothing waits: nothing was killed either, so this marker must NOT be called handled — a message that arrives later
     // (the next @) has to run this path again. The 30 s sweeper may re-read the transcript tail; that is cheaper than a
     // chat that never runs again because a marker without a kill said it was done (lead, 2026-10-21).
-    if (!pendingLimit(s)) return;
+    if (!pendingLimit(s)) return false;
     unsticking.add(s.id);
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     try {
       const cfg = loadSettings(opts.dir, envCap);
       const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
       if (until > Date.now()) {
-        if (await trySwitch(s, cfg).catch(() => false)) { markLimitHandled(s, marker); return; }
+        if (await trySwitch(s, cfg).catch(() => false)) { markLimitHandled(s, marker); return true; }
         const key = `s:${s.id}`, have = (store.state.wakeAt ??= {});
         if (!have[key]) { have[key] = { at: until + cfg.lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
         if (s.limitNotice !== marker) {
@@ -720,7 +728,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           store.save();
           say(tr('sys.limit.waiting', { name: s.name, at: clock(have[key].at) }));
         }
-        return;
+        return false;
       }
       // A tab still holds the chat: a background resume would give the same JSONL two writers, so that tab has to go
       // first. With closeLimitedTab (the default) the user allowed exactly that, so the stuck process is stopped and the
@@ -733,7 +741,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           store.save();
           say(tr('sys.limit.stuck', { name: s.name }));
         }
-        return;
+        return false;
       }
       // The marker is set only once the process is really gone: setting it on a failed kill would make every later @ skip
       // unstick, so the chat could never recover even after the user closed the tab by hand (#130).
@@ -741,14 +749,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       try { dead = await terminateSession(s); }
       catch (e) {
         // Any known pid still alive means the tab is still there: say so and leave the marker unhandled for a later @.
-        if (claudePids(s).some(isAlive)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return; }
+        if (claudePids(s).some(isAlive)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return false; }
         emitSession(store.markEnded(s.id));   // the process is already gone
         dead = true;
       }
-      if (!dead) return;   // terminateSession told the room why; the marker stays, so the next @ tries again
+      if (!dead) return false;   // terminateSession told the room why; the marker stays, so the next @ tries again
       markLimitHandled(s, marker);
       say(tr('sys.limit.unstuck', { name: s.name }));
       deliver(s.id);   // ended now: the normal wake path revives it
+      return true;
     } finally { unsticking.delete(s.id); }
   }
 
@@ -826,7 +835,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!p.wake) return;
     waiters.delete(sid);
     clearTimeout(w.timer);
-    deliverTo(w.res, sid, p.messages);
+    deliverTo(w.res, sid, p.messages, w.afterLimit);
   }
 
   /** "344k → 12k" from the compact boundary; "chưa đo được" when the transcript has no size for after (never the same number twice). */
@@ -1090,7 +1099,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const old = waiters.get(sid);
     if (old) { clearTimeout(old.timer); waiters.delete(sid); json(old.res, 200, { superseded: true }); }
     const p = store.pending(sid);
-    if (p.wake) return deliverTo(res, sid, p.messages);
+    if (p.wake) return deliverTo(res, sid, p.messages, afterLimit);
     const seconds = Math.max(1, Math.min(Number(url.searchParams.get('timeout') ?? 50), 120));
     const timer = setTimeout(() => {
       if (waiters.get(sid)?.res === res) waiters.delete(sid);
@@ -2632,7 +2641,40 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
   };
 
+  const afterLimitRecovering = new Set<string>();
+  async function recoverAfterLimitDelivery(s: Session): Promise<void> {
+    const delivered = s.afterLimitDelivered;
+    if (!delivered || afterLimitRecovering.has(s.id)) return;
+    afterLimitRecovering.add(s.id);
+    try {
+      if (!delivered.fallbackStarted) {
+        delivered.fallbackStarted = true;
+        s.cursor = Math.min(s.cursor, delivered.fromCursor);
+        store.save();
+      }
+      if (!delivered.fallbackNotified) {
+        delivered.fallbackNotified = true;
+        store.save();
+        for (const r of Object.keys(s.rooms)) {
+          try { broadcast('msg', postSys(r, tr('sys.limit.afterLimitFallback', { name: s.name }), undefined, { type: 'wake', level: 'warn', agent: s.name })); emitRoom(r); }
+          catch { /* room gone */ }
+        }
+      }
+      await unstick(s);
+      if (store.session(s.id).afterLimitDelivered === delivered) {
+        store.session(s.id).afterLimitDelivered = undefined;
+        store.save();
+      }
+    } finally { afterLimitRecovering.delete(s.id); }
+  }
+
   const sweeper = setInterval(() => {
+    const now = store.now();
+    for (const s of Object.values(store.state.sessions)) {
+      if (s.afterLimitDelivered && now - s.afterLimitDelivered.at >= 60_000) {
+        void recoverAfterLimitDelivery(s).catch((error) => console.error(`[usage] failed after-limit fallback for ${s.id}:`, error));
+      }
+    }
     // A running background claude counts as alive even without a waiter: provider agents use `--bare` (no hooks, so no
     // pid in the session and no waiter), and judging them by silence marked them offline/ended in the middle of a turn.
     for (const s of store.sweep(isConn, Date.now(), isAlive)) emitSession(s);
