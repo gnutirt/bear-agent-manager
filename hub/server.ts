@@ -597,9 +597,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // turns posted the agent's private reasoning as noise. An @all wakes every member, so a turn each of them leaves in
     // its own chat is not an answer the room asked for: relay only a DM or a message that also names this session.
     const me = store.session(sid).name.toLowerCase();
-    const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.includes(sid)
+    const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.some((w) => store.resolve(w) === sid)   // a message posted before a resume still names the old id
       && (m.room.startsWith('dm-') || !m.mentions.includes('all') || m.mentions.includes(me))).pop();
     if (asked) relayWatch.set(sid, { at: store.now(), room: asked.room });   // the same clock as Message.ts: a test that injects one must not compare two
+    // A DM delivered by the hub is never typed in the tab, so the tab mirror would skip it: arm the mirror so the Stop
+    // hook copies the answer into the DM even when the agent forgets room_send (mirrorAgent drops it if it did not).
+    if (asked && asked.room === store.privateRoom(sid)?.name && loadSettings(opts.dir, envCap).mirrorTabs) mirroring.set(sid, { ts: asked.ts, last: '', answered: false, at: Date.now() });
     emitSession(store.session(sid));
   }
 
@@ -1270,6 +1273,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         relayWatch.delete(sess.id);
         mirrorAgent(sess, b);
         if (!w || !loadSettings(opts.dir, envCap).relayChat) break;
+        if (w.room === store.privateRoom(sess.id)?.name && mirroring.has(sess.id)) break;   // the tab mirror already posts a DM answer
         if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
         const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
         // A short answer in a private chat ("Xong", "Đã sửa") is the answer; the 40-char floor only keeps shared rooms

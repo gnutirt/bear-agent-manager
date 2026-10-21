@@ -113,8 +113,8 @@ test('a short answer in a private chat is relayed; the same answer in a shared r
     const got = await dmWait;
     assert.equal(got.messages?.length, 1, 'the waiter was handed the owner message (this is what arms the relay watch)');
     await stop();
-    const relayed = (await call<any[]>(`/api/rooms/${dm.name}/messages?limit=50`)).filter((m) => m.sys?.type === 'relay');
-    assert.deepEqual(relayed.map((m) => m.text), ['Xong'], 'the four-character answer is the answer: it reaches the private chat');
+    const relayed = (await call<any[]>(`/api/rooms/${dm.name}/messages?limit=50`)).filter((m) => m.sys?.type === 'relay' || m.kind === 'mirror');
+    assert.deepEqual(relayed.map((m) => m.text), ['[tab] agent: Xong'], 'the four-character answer is the answer: it reaches the private chat (#154: through the tab mirror, so the relay does not post it twice)');
 
     await call('/api/rooms/r/join', { sessionId: 'tab' });
     const { pending: sharedWait } = await openWaiter('tab');

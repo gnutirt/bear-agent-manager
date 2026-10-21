@@ -129,3 +129,64 @@ test('tab mirror (#122): a tab whose hooks still send an aliased session id gets
     assert.equal(h.hub.store.state.rooms['dm-new-id'], undefined, 'does not create a second room for the resumed id');
   } finally { await h.hub.close(); }
 });
+
+// #154: a DM delivered by the hub (never typed in the tab) must still get the tab answer back in the DM.
+const dmHub = async (sid: string, name: string, settings: object) => {
+  const h = await makeHub();
+  const hook = (event: string, body: object = {}) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: sid, ...body }) });
+  await h.call('/api/settings', settings, { method: 'PUT' });
+  await h.call('/api/sessions/register', { id: sid, cwd: 'C:/fw' });
+  await h.call(`/api/sessions/${sid}/rename`, { name });
+  const dm = (await h.call<any>(`/api/rooms/dm/${sid}`, {})).name as string;
+  const lines = async () => (await h.call<any[]>(`/api/rooms/${dm}/messages?after=0`)).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+  return { h, hook, dm, lines };
+};
+
+test('tab mirror (#154): relayChat off, a DM delivered by the hub and answered in the tab reaches the DM', async () => {
+  const { h, hook, dm, lines } = await dmHub('d1', 'dora', { relayChat: false, mirrorTabs: true });
+  try {
+    await h.call(`/api/rooms/${dm}/messages`, { text: 'how is the audit going' });
+    await h.call('/api/sessions/d1/pending?consume=1');   // the waiter / post-tool delivery
+    await hook('stop', { last_assistant_message: 'answer' });
+    assert.deepEqual(await lines(), ['[tab] agent: answer']);
+  } finally { await h.hub.close(); }
+});
+
+test('tab mirror (#154): an agent that room_send-ed into the DM is not mirrored, and a relay does not double-post', async () => {
+  const { h, hook, dm, lines } = await dmHub('d2', 'ed', { relayChat: true, mirrorTabs: true });
+  try {
+    await h.call(`/api/rooms/${dm}/messages`, { text: 'status?' });
+    await h.call('/api/sessions/d2/pending?consume=1');
+    await h.call(`/api/rooms/${dm}/messages`, { sessionId: 'd2', text: 'posted myself' });
+    await hook('stop', { last_assistant_message: 'posted myself' });
+    assert.deepEqual(await lines(), []);
+    const { h: h2, hook: hook2, dm: dm2, lines: lines2 } = await dmHub('d3', 'flo', { relayChat: true, mirrorTabs: true });
+    try {
+      await h2.call(`/api/rooms/${dm2}/messages`, { text: 'status?' });
+      await h2.call('/api/sessions/d3/pending?consume=1');
+      await hook2('stop', { last_assistant_message: 'a short answer from the tab' });
+      assert.deepEqual(await lines2(), ['[tab] agent: a short answer from the tab']);
+      const all = await h2.call<any[]>(`/api/rooms/${dm2}/messages?after=0`);
+      assert.equal(all.filter((m) => m.sys?.type === 'relay').length, 0, 'the mirror answers; the relay card would be a duplicate');
+    } finally { await h2.hub.close(); }
+  } finally { await h.hub.close(); }
+});
+
+test('tab mirror (#154): a DM posted under an id that later became an alias is still mirrored', async () => {
+  const h = await makeHub();
+  const hook = (event: string, body: object = {}) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'old-d', ...body }) });
+  try {
+    await h.call('/api/settings', { relayChat: false, mirrorTabs: true }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'old-d', cwd: 'C:/fw' });
+    await h.call('/api/sessions/old-d/rename', { name: 'gus' });
+    const dm = (await h.call<any>('/api/rooms/dm/old-d', {})).name as string;
+    await h.call(`/api/rooms/${dm}/messages`, { text: 'ping' });   // wake = ['old-d']
+    await hook('end');
+    await h.call('/api/sessions/register', { id: 'new-d', cwd: 'C:/fw', source: 'resume' });
+    assert.equal(h.hub.store.resolve('old-d'), 'new-d');
+    await h.call('/api/sessions/new-d/pending?consume=1');
+    await hook('stop', { last_assistant_message: 'pong' });
+    const lines = (await h.call<any[]>(`/api/rooms/${dm}/messages?after=0`)).filter((m) => m.kind === 'mirror').map((m) => m.text);
+    assert.deepEqual(lines, ['[tab] agent: pong']);
+  } finally { await h.hub.close(); }
+});
