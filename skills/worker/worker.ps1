@@ -1,4 +1,4 @@
-﻿# Run one headless Claude Code turn on a worker provider (free Intern AI first, paid only when allowed), never the main account.
+﻿# Run one headless Claude Code turn on a local/free worker provider, never the main account or a paid provider.
 # Exit codes: 0 ok, 1 task failed on every model, 2 no usable provider/key, 3 QUOTA/limit hit, 4 skill turned off
 # in settings -> on 1-4 the caller must do the job itself.
 # Status goes to ~/.bear-agent-manager/workers.jsonl (start/end, short task summary, never the prompt) so the
@@ -53,7 +53,6 @@ $route = if ($settings -and $settings.workerRoutes) { $settings.workerRoutes.$ro
 if ($route -and $route.enabled -eq $false) {
     Write-Output "[worker] route '$routeKey' is turned off in Bear Agent Manager settings: do the task yourself"; exit 4
 }
-$allowPaid = [bool]($settings -and $settings.allowPaidFallback)
 $defaultModels = [pscustomobject]@{ read = @("deepseek-v4-flash-0731", "glm-5.3", "kimi-k2.6"); edit = @("kimi-k2.6", "glm-5.3", "deepseek-v4-pro-0813") }
 # Without providers.json: the built-in free provider + legacy key file / env.
 $providers = @(Read-Json (Join-Path $hubHome "providers.json"))
@@ -74,8 +73,8 @@ $mkPlan = {
     switch ($Tier) {
         "local" { @(& $usable "local") }
         "free" { @(& $usable "free") }
-        "paid" { @(& $usable "paid") }
-        default { @(& $usable "local") + @(& $usable "free") + $(if ($allowPaid) { @(& $usable "paid") } else { @() }) }
+        "paid" { @() }
+        default { @(& $usable "local") + @(& $usable "free") }
     }
 }
 $routed = $false
@@ -88,7 +87,10 @@ if ($routed -and -not $plan) {
     $Provider = ""; $routed = $false; $plan = @(& $mkPlan)
 }
 if ($routed -and $Model -eq "auto" -and $route.model -and $route.model -ne "auto") { $Model = "$($route.model)" }
-if (-not $plan) { Write-Output "[worker] No usable provider for tier '$Tier' (add a key in Bear Agent Manager > Cài đặt)"; exit 2 }
+if (-not $plan) {
+    if ($Tier -eq "paid") { Write-Output "[worker] paid providers are not allowed for worker/osin runs; use a local or free provider"; exit 2 }
+    Write-Output "[worker] No usable provider for tier '$Tier' (add a key in Bear Agent Manager > Cài đặt)"; exit 2
+}
 $prov = $null
 # Wait while the hub reports the cap reached; give up waiting after 15 min. Hub down -> run right away.
 $tokFile = Join-Path $hubHome "token"
@@ -135,21 +137,35 @@ Set-Location $Dir
 $quotaRx = '429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|额度|墨点'
 
 function Invoke-Claude($Arguments, $Prompt, $TimeoutSec) {
-    # Run the CLI in a child PowerShell so a timeout can terminate its entire process tree,
-    # including a .cmd shim and the CLI process it starts.
-    $runner = @'
-$cliArgs = @(ConvertFrom-Json $env:BEAR_WORKER_CLI_ARGS)
-$OutputEncoding = New-Object Text.UTF8Encoding($false)
-[Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
-[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
-$prompt = [Console]::In.ReadToEnd()
-$prompt | & claude @cliArgs
-exit $LASTEXITCODE
-'@
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($runner))
+    # Invoke the native CLI directly: the PowerShell claude.ps1 shim can collapse
+    # the argument array into one option when it forwards to claude.exe.
+    $shim = Get-Command claude.cmd -ErrorAction Stop
+    $cliPath = Join-Path (Split-Path $shim.Source -Parent) "node_modules\@anthropic-ai\claude-code\bin\claude.exe"
+    if (-not (Test-Path -LiteralPath $cliPath -PathType Leaf)) {
+        $cliPath = (Get-Command claude.exe -ErrorAction Stop).Source
+    }
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = Join-Path $PSHOME "powershell.exe"
-    $psi.Arguments = "-NoProfile -NonInteractive -EncodedCommand $encoded"
+    $psi.FileName = $cliPath
+    $quoted = foreach ($arg in $Arguments) {
+        $b = New-Object Text.StringBuilder
+        [void]$b.Append('"')
+        $slashes = 0
+        foreach ($ch in [string]$arg) {
+            if ($ch -eq '\') { $slashes++; continue }
+            if ($ch -eq '"') {
+                for ($i = 0; $i -lt (2 * $slashes + 1); $i++) { [void]$b.Append('\') }
+                [void]$b.Append('"')
+            } else {
+                for ($i = 0; $i -lt $slashes; $i++) { [void]$b.Append('\') }
+                [void]$b.Append($ch)
+            }
+            $slashes = 0
+        }
+        for ($i = 0; $i -lt (2 * $slashes); $i++) { [void]$b.Append('\') }
+        [void]$b.Append('"')
+        $b.ToString()
+    }
+    $psi.Arguments = $quoted -join ' '
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
     $psi.RedirectStandardInput = $true
@@ -157,7 +173,6 @@ exit $LASTEXITCODE
     $psi.RedirectStandardError = $true
     $psi.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
     $psi.StandardErrorEncoding = New-Object Text.UTF8Encoding($false)
-    $psi.EnvironmentVariables["BEAR_WORKER_CLI_ARGS"] = ConvertTo-Json -Compress -InputObject @($Arguments)
     $proc = New-Object Diagnostics.Process
     $proc.StartInfo = $psi
     $started = $false

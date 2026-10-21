@@ -2,9 +2,10 @@
 
 ## Unreleased
 
+- Fix: worker resolves the native Claude CLI beside the Windows `claude.cmd` shim and invokes it directly, preserving each argv item instead of forwarding through `claude.ps1`; worker/osin never select paid providers, even when paid fallback is enabled.
+
 ## 0.11.0 - 2026-10-21
 
-- Fix: worker prompts are read as UTF-8 and rejected if missing/empty; each Claude CLI call is time-bounded (120 s by default), and provider errors/timeouts fall through to the next model/provider instead of hanging the worker.
 - Fix: when a normal Claude session has a stale provider-only model override, the hub omits it, strips provider model/endpoint/auth-token env vars, and records output to a session-and-time-specific log; wake failures report only that process's output, not a concurrent turn's shared `revive.log` tail.
 - Add: every 10 minutes, the hub compacts saved conversations that are offline, beyond their role's context threshold and not held by a live tab, waiter or background process; room-history rewrites use atomic replacement, and tab mirrors are capped to the regular room-message size.
 - Fix: if the tab does not start a new turn within 60 seconds after an after-limit message is delivered, the hub restores the message to pending and runs the existing background recovery path; the pending recovery record survives hub restarts and is cleared when a prompt/tool turn starts.

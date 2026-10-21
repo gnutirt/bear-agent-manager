@@ -46,9 +46,9 @@ test('worker.ps1 -Tools none passes an empty tool list that survives PowerShell 
 
 test('worker.ps1 pipes the prompt as UTF-8 (PowerShell 5.1 defaults to us-ascii and turns Vietnamese into ?)', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  const enc = ps.indexOf('$OutputEncoding = New-Object Text.UTF8Encoding($false)'), out = ps.indexOf('[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)'), pipe = ps.indexOf('$prompt | & claude');
-  assert.ok(enc > 0 && enc < pipe, 'UTF-8 $OutputEncoding must be set before the prompt is piped');
-  assert.ok(out > 0 && out < pipe, "claude's stdout must be read as UTF-8 too (the hub starts worker.ps1 without a console)");
+  assert.ok(ps.includes('[Text.Encoding]::UTF8.GetBytes($Prompt)'), 'the prompt bytes sent to the native CLI use UTF-8');
+  assert.ok(ps.includes('$proc.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)'), 'write prompt bytes directly to stdin');
+  assert.ok(ps.includes('$psi.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)'), "read CLI stdout as UTF-8");
 });
 
 test('worker.ps1 prints its JSON result as pure ASCII, readable by any caller code page', () => {
@@ -64,5 +64,5 @@ test('worker.ps1 honours settings.workerRoutes (off -> exit 4, unusable provider
 
 test('worker.ps1 tries a "local" tier provider (a LAN/this-machine Ollama-style host) before free/paid, and needs no key for it', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  for (const s of ['$_.tier -eq "local"', '"local" { @(& $usable "local") }', '@(& $usable "local") + @(& $usable "free")', '$credential = if ($prov.tier -eq "local" -and -not $prov.key) { "ollama" }', '$cost = if ($prov.tier -eq "local") { 0 }']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
+  for (const s of ['$_.tier -eq "local"', '"local" { @(& $usable "local") }', '"paid" { @() }', '@(& $usable "local") + @(& $usable "free")', '$credential = if ($prov.tier -eq "local" -and -not $prov.key) { "ollama" }', '$cost = if ($prov.tier -eq "local") { 0 }', 'Get-Command claude.cmd -ErrorAction Stop', 'node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe']) assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
 });
