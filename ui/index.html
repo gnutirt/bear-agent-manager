@@ -668,24 +668,35 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-attn.unread .flow-attn-dot{background:var(--accent)}
 .flow-attn span:last-child{min-width:0;overflow-wrap:anywhere}
 .flow-empty{padding:16px;color:var(--mute);font-size:12.5px}
-.flowgraph-wrap{overflow:auto;max-height:62vh;background:linear-gradient(135deg,var(--panel),var(--bg))}
-.flowgraph{display:block;max-width:none}
-.flow-edge{fill:none;stroke:var(--accent);stroke-opacity:.52;vector-effect:non-scaling-stroke}
-.flow-edge.relay{stroke:var(--mute);stroke-dasharray:5 4;stroke-opacity:.72}
-.flow-edge.is-active{stroke:var(--busy);stroke-opacity:1}
-.flow-edge-count{font-size:10px;fill:var(--mute);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:4px;stroke-linejoin:round}
-.flow-node{cursor:pointer;outline:none}
-.flow-node rect{fill:var(--panel);stroke:var(--line);stroke-width:1.4;vector-effect:non-scaling-stroke}
-.flow-node:hover rect,.flow-node:focus rect{stroke:var(--accent);stroke-width:2.4}
-.flow-node[aria-pressed=true] rect{stroke:var(--accent);stroke-width:2.4;fill:var(--accent-soft)}
-.flow-node[data-status=busy] rect{stroke:var(--busy)}
-.flow-node[data-status=waiting] rect{stroke:var(--waiting)}
-.flow-node[data-status=idle] rect{stroke:var(--idle)}
-.flow-node .flow-name{font-size:12px;font-weight:700;fill:var(--text)}
-.flow-node .flow-meta{font-size:10px;fill:var(--mute)}
-.flow-node .flow-dot{stroke:var(--panel);stroke-width:2}
-.flow-node .flow-lead{font-size:10px;fill:var(--busy)}
-.flow-node .flow-limited{font-size:9px;font-weight:700;fill:var(--waiting)}
+.flowgrid.town{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"world world" "attn insp"}.flowgrid.town .flowcenter{grid-area:world}.flowgrid.town .flow-attnbox{grid-area:attn}.flowgrid.town .flow-inspector{grid-area:insp}@media(max-width:700px){.flowgrid.town{grid-template-columns:minmax(0,1fr);grid-template-areas:"world" "attn" "insp"}}
+.flowcenter{background:#121829;border-color:#0a0f1d;overflow:hidden}
+.flow-hud{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 14px;background:#0c1222;color:#dfe6f7;font-size:12.5px}
+.flow-hudchip{display:inline-flex;align-items:center;gap:6px}.flow-hudchip i{width:10px;height:10px;background:#8a93a8;box-shadow:inset -2px -2px 0 rgba(0,0,0,.35)}.flow-hudchip b{font-variant-numeric:tabular-nums}
+.flow-hudchip[data-k=busy] i{background:#ffb547}.flow-hudchip[data-k=need] i{background:#ff6b6b}.flow-hudchip[data-k=idle] i{background:#3ec9a7}.flow-hudchip[data-k=off] i{background:#5d6b85}
+.flowgraph-wrap{overflow:auto;max-height:72vh;padding:10px;background:#121829}
+.flowgraph{display:block;width:100%;height:auto;font-family:var(--mono)}
+.flow-hint{margin:0;padding:8px 14px 10px;background:#0c1222;color:#a9b4cc;font-size:12px}
+.flow-wall{stroke:#0a0f1d;stroke-width:3}
+.flow-zhead{fill:#0c1222}.flow-ztitle{fill:#e8ecf7;font-size:13px;font-weight:700;letter-spacing:.2px}.flow-zcount{fill:#a9b4cc;font-size:12px}
+.flow-node{cursor:pointer;outline:none}.flow-hit{fill:transparent;stroke:transparent;stroke-width:2}
+.flow-node:hover .flow-hit{fill:rgba(255,255,255,.06)}
+.flow-node:focus-visible .flow-hit{stroke:#fff;stroke-dasharray:4 3}
+.flow-node.is-sel .flow-hit{fill:rgba(255,209,102,.14);stroke:#ffd166}
+.flow-desk{fill:#7b5a3c}.flow-desk2{fill:#a07a53}
+.flow-monb{fill:#161b2b;stroke:#05070d;stroke-width:1}
+.flow-name{fill:#f1f4fc;font-size:11px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px;stroke-linejoin:round}
+.flow-lim{fill:#ff9d8f;font-size:9px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px}
+.flow-z{fill:#c9d3ea;font-size:5px;font-weight:700}
+.flow-node[data-status=offline] .flow-sprite{opacity:.55}
+.flow-bang circle{fill:#ff6b6b;stroke:#0a0f1d;stroke-width:1.5}.flow-bang text{fill:#fff;font-size:11px;font-weight:700}
+.flow-bubble rect{fill:#f7f9ff;stroke:#0a0f1d;stroke-width:1.5}.flow-bubble text{fill:#14192a;font-size:9.5px;font-weight:600}
+.flow-arc{fill:none;stroke:#ffd166;stroke-width:2;stroke-dasharray:5 4}
+.flow-arcg.mine .flow-arc{stroke-width:2.6;stroke-dasharray:none}
+.flow-ac{fill:#ffe9a8;font-size:11px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px}
+.flow-fx{pointer-events:none}
+@keyframes flowtype{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes flowbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+@media (prefers-reduced-motion:no-preference){.flow-mon[data-status=busy] .flow-scr{animation:flowtype 1.1s steps(2,end) infinite}.flow-node[data-status=waiting] .flow-bang{animation:flowbob .9s ease-in-out infinite}}
 .flow-detail{padding:12px;display:grid;gap:8px;font-size:12.5px}
 .flow-detail h3{margin:0;font-size:14px}
 .flow-detail p{margin:0;color:var(--mute);overflow-wrap:anywhere}
@@ -1969,7 +1980,7 @@ function connect() {
     const m = JSON.parse(e.data);
     const flowList = S.flowMessages[m.room];
     if (flowList && !flowList.some((x) => x.id === m.id)) flowList.push(m);
-    if (m.room === S.flowRoom) { queueFlow(); if (S.tab === 'flow') announce(`${messageName(m)}: ${plain(m.text, 160)}`); }
+    if (m.room === S.flowRoom) { flowPulse(m); queueFlow(); if (S.tab === 'flow') announce(`${messageName(m)}: ${plain(m.text, 160)}`); }
     const list = S.messages[m.room];
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
     if (m.sys?.type === 'relay' && m.fromId) ensureDm(m.fromId);
@@ -2481,7 +2492,7 @@ window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
 S.taskRoom = null; try { S.taskRoom = localStorage.getItem('bear-agent-manager:taskRoom') || null; } catch {}
 S.flowRoom = null; try { S.flowRoom = localStorage.getItem('bear-agent-manager:flowRoom') || null; } catch {}
-S.flowRange = '24h'; S.flowSelected = 'you'; S.flowSelectedMsg = null; S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null; S.flowErr = ''; S.flowReplayTimer = null; S.flowReplayIndex = -1;
+S.flowRange = '24h'; S.flowSelected = null; S.flowSelectedMsg = null; S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null; S.flowErr = ''; S.flowReplayTimer = null; S.flowReplayIndex = -1;
 /** Last non-DM room seen (nav or the Việc tab's own picker): stays valid while a DM has nothing to show. */
 function setTaskRoom(name) { if (!name || room(name)?.dm) return; S.taskRoom = name; try { localStorage.setItem('bear-agent-manager:taskRoom', name); } catch {} }
 function flowRoomName() {
@@ -2523,6 +2534,117 @@ function flowMessages() {
   return (S.flowMessages[S.flowRoom] || []).filter((m) => !cutoff || m.ts >= cutoff).sort((a, b) => a.id - b.id);
 }
 const flowShort = (x, n = 26) => { x = String(x || ''); return x.length > n ? x.slice(0, n - 1) + '…' : x; };
+/* ---------- Flow tab (#133): a pixel-art office of one room. Each agent sits in the zone of its state; messages that wake someone fly desk to desk and fade out. ---------- */
+const FLOW_SKIN = ['#f1c9a5', '#e0ac82', '#c68a62', '#8d5a3b', '#f4d7b8'];
+const FLOW_HAIR = ['#2b2118', '#6b3f1d', '#c9852e', '#d9d2c4', '#3a2d6b', '#8a2f3d'];
+const FLOW_SHIRT = ['#4f7cff', '#2fb67c', '#e5675b', '#b36bd9', '#e0a62e', '#2eb5c9', '#d96b9b', '#7d8a9e'];
+const FLOW_SCREEN = { busy: '#ffb547', waiting: '#ff6b6b', idle: '#3ec9a7', offline: '#2a3347', user: '#8ab4ff' };
+const FLOW_ZONES = [
+  { key: 'busy', label: 'flow.zone.busy', a: '#2b3550', b: '#263048' },
+  { key: 'idle', label: 'flow.zone.idle', a: '#24413f', b: '#203836' },
+  { key: 'need', label: 'flow.zone.need', a: '#40303a', b: '#392a33' },
+  { key: 'off', label: 'flow.zone.off', a: '#262a33', b: '#22262e' },
+];
+const flowHash = (s) => { let h = 7; for (const c of String(s)) h = (h * 33 + c.charCodeAt(0)) >>> 0; return h; };
+const flowReduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+S.flowPulseQ = []; S.flowPos = new Map();
+/** One agent at a desk: sprite drawn from rects (crisp pixels). u = pixel size, status picks the pose. */
+function flowSprite(id, status, u) {
+  const h = flowHash(id), skin = FLOW_SKIN[h % FLOW_SKIN.length], hair = FLOW_HAIR[(h >> 3) % FLOW_HAIR.length], shirt = FLOW_SHIRT[(h >> 6) % FLOW_SHIRT.length];
+  const down = status === 'offline' ? 2 : 0, R = (x, y, w, hh, f) => `<rect x="${x}" y="${y + (y < 8 ? down : 0)}" width="${w}" height="${hh}" fill="${f}"/>`;
+  const eyes = status === 'offline' ? R(6, 5, 2, 1, '#1a1a22') + R(9, 5, 2, 1, '#1a1a22') : R(6, 4, 1, 1, '#1a1a22') + R(10, 4, 1, 1, '#1a1a22');
+  const hand = status === 'waiting' ? `<rect x="13" y="2" width="1" height="7" fill="${skin}"/><rect x="12" y="1" width="3" height="2" fill="${skin}"/>` : `<rect x="2" y="9" width="1" height="3" fill="${skin}"/><rect x="13" y="9" width="1" height="3" fill="${skin}"/>`;
+  return `<g class="flow-sprite" transform="scale(${u})" shape-rendering="crispEdges">${R(3, 7, 10, 7, shirt)}${hand}${R(4, 1, 8, 2, hair)}${R(5, 2, 6, 5, skin)}${eyes}${status === 'offline' ? '<text x="13" y="3" class="flow-z">z</text>' : ''}</g>`;
+}
+function flowLayout(nodes, now, narrow) {
+  const small = nodes.length > 24, u = small ? 2 : 2.6, cw = small ? 76 : 100, ch = Math.round(14 + 14 * u + 34);
+  const zoneOf = (n) => n.id === 'you' ? 'need' : n.session?.status === 'waiting' ? 'need' : n.session?.limited?.until > now || n.session?.status === 'offline' || n.session?.ended ? 'off' : n.session?.status === 'busy' ? 'busy' : 'idle';
+  const groups = { busy: [], idle: [], need: [], off: [] };
+  for (const n of nodes) groups[zoneOf(n)].push(n);
+  const W = narrow ? 440 : 1000, gap = 14, wl = narrow ? W - 20 : 600, wr = narrow ? W - 20 : W - wl - gap - 20, head = 34;
+  const colsL = Math.max(1, Math.floor((wl - 24) / cw)), colsR = Math.max(1, Math.floor((wr - 24) / cw));
+  const need = (k, cols) => head + Math.max(1, Math.ceil(groups[k].length / cols)) * ch + 14;
+  let rects, H;
+  if (narrow) {
+    let y = 10; rects = {};
+    for (const k of ['need', 'busy', 'idle', 'off']) { const h = need(k, colsL); rects[k] = { x: 10, y, w: wl, h, cols: colsL }; y += h + gap; }
+    H = y - gap + 10;
+  } else {
+    const h1 = Math.max(need('busy', colsL), need('idle', colsR)), h2 = Math.max(need('need', colsL), need('off', colsR));
+    rects = { busy: { x: 10, y: 10, w: wl, h: h1, cols: colsL }, idle: { x: 10 + wl + gap, y: 10, w: wr, h: h1, cols: colsR }, need: { x: 10, y: 10 + h1 + gap, w: wl, h: h2, cols: colsL }, off: { x: 10 + wl + gap, y: 10 + h1 + gap, w: wr, h: h2, cols: colsR } };
+    H = 20 + h1 + gap + h2;
+  }
+  const cells = [], pos = new Map();
+  for (const z of FLOW_ZONES) {
+    const r = rects[z.key];
+    groups[z.key].forEach((n, i) => {
+      const x = r.x + 12 + (i % r.cols) * cw, y = r.y + head + Math.floor(i / r.cols) * ch;
+      cells.push({ n, x, y, zone: z.key });
+      pos.set(n.id, { x: x + cw / 2, y: y + 14 + 7 * u });
+    });
+  }
+  return { W, H, u, cw, ch, rects, cells, pos, groups };
+}
+const flowArc = (a, b) => {
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, k = Math.min(90, d * 0.28);
+  return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${(mx - dy / d * k).toFixed(1)} ${(my + dx / d * k).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+};
+function flowWorld(L, ctx) {
+  const { now, selected, messages, roomInfo } = ctx;
+  const defs = `<defs>${FLOW_ZONES.map((z) => `<pattern id="flowf-${z.key}" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="${z.a}"/><rect width="12" height="12" fill="${z.b}"/><rect x="12" y="12" width="12" height="12" fill="${z.b}"/></pattern>`).join('')}<marker id="flow-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffd166"/></marker></defs>`;
+  const zones = FLOW_ZONES.map((z) => {
+    const r = L.rects[z.key], n = L.groups[z.key].length;
+    return `<g class="flow-zone" data-zone="${z.key}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="url(#flowf-${z.key})" class="flow-wall"/><rect x="${r.x}" y="${r.y}" width="${r.w}" height="26" rx="6" class="flow-zhead"/><text x="${r.x + 12}" y="${r.y + 18}" class="flow-ztitle">${esc(t(z.label))}</text><text x="${r.x + r.w - 12}" y="${r.y + 18}" class="flow-zcount" text-anchor="end">${n}</text></g>`;
+  }).join('');
+  const recentBy = new Map();
+  for (const m of [...messages].reverse()) { const id = m.fromId || 'you'; if (m.kind !== 'system' && now - m.ts < 45000 && !recentBy.has(id)) recentBy.set(id, m); if (recentBy.size >= 8) break; }
+  const desks = L.cells.map(({ n, x, y, zone }) => {
+    const s = n.session, status = n.id === 'you' ? 'user' : zone === 'off' ? 'offline' : flowStatus(s), limited = !!s?.limited && s.limited.until > now;
+    const lead = n.id !== 'you' && roomInfo?.lead === n.id, sel = selected === n.id, u = L.u, sw = 16 * u, sx = (L.cw - sw) / 2 - 8, deskY = 14 + 14 * u - 6;
+    const act = n.id === 'you' ? t('flow.user') : s?.activity && status === 'busy' ? s.activity : t(`status.${status === 'user' ? 'idle' : status}`);
+    const name = flowShort(n.name, L.cw < 90 ? 11 : 13);
+    const bub = recentBy.get(n.id), bt = bub ? flowShort(plain(bub.text, 40), L.cw < 90 ? 11 : 14) : '';
+    const bw = Math.min(L.cw - 6, bt.length * 5.6 + 12);
+    return `<g class="flow-node${sel ? ' is-sel' : ''}" data-flow-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(sel)}" aria-label="${esc(n.name)} · ${esc(act)}${lead ? ` · ${t('room.lead')}` : ''}${limited ? ` · ${t('flow.limited')}` : ''}" transform="translate(${x} ${y})"><title>${esc(n.name)} · ${esc(act)}</title><rect class="flow-hit" width="${L.cw - 6}" height="${L.ch - 6}" rx="6"/><g transform="translate(${sx} 14)">${flowSprite(n.id, status, u)}</g><rect x="6" y="${deskY}" width="${L.cw - 18}" height="12" class="flow-desk"/><rect x="6" y="${deskY}" width="${L.cw - 18}" height="3" class="flow-desk2"/><g class="flow-mon" data-status="${status}"><rect x="${L.cw - 36}" y="${deskY - 16}" width="22" height="15" class="flow-monb"/><rect x="${L.cw - 34}" y="${deskY - 14}" width="18" height="11" fill="${FLOW_SCREEN[status] || FLOW_SCREEN.idle}" class="flow-scr"/></g><text x="${(L.cw - 6) / 2}" y="${deskY + 26}" text-anchor="middle" class="flow-name">${lead ? '★ ' : ''}${esc(name)}</text>${status === 'waiting' ? `<g class="flow-bang"><circle cx="${sx + sw + 4}" cy="8" r="7"/><text x="${sx + sw + 4}" y="12" text-anchor="middle">!</text></g>` : ''}${limited ? `<text x="${L.cw - 8}" y="${deskY + 40}" text-anchor="end" class="flow-lim">${esc(t('flow.limited'))}</text>` : ''}${bub ? `<g class="flow-bubble" transform="translate(${Math.max(0, (L.cw - 6 - bw) / 2)} -5)"><rect width="${bw}" height="17" rx="3"/><text x="6" y="12">${esc(bt)}</text></g>` : ''}</g>`;
+  }).join('');
+  // arcs: what the selected agent exchanged (top partners) plus anything sent in the last two minutes, fading with age
+  const pair = new Map();
+  for (const m of messages) {
+    if (m.kind === 'system' || m.kind === 'mirror') continue;
+    const from = m.fromId || 'you';
+    for (const to of m.wake || []) {
+      if (from === to || !L.pos.has(from) || !L.pos.has(to)) continue;
+      const k = from + '>' + to, e = pair.get(k) || { from, to, n: 0, ts: 0 };
+      e.n++; e.ts = Math.max(e.ts, m.ts); pair.set(k, e);
+    }
+  }
+  const all = [...pair.values()];
+  const mine = selected ? all.filter((e) => e.from === selected || e.to === selected).sort((a, b) => b.n - a.n).slice(0, 8) : [];
+  const fresh = all.filter((e) => now - e.ts < 120000 && !mine.includes(e));
+  const arcs = [...fresh.map((e) => [e, 'fresh']), ...mine.map((e) => [e, 'mine'])].map(([e, kind]) => {
+    const a = L.pos.get(e.from), b = L.pos.get(e.to), op = kind === 'mine' ? 0.85 : Math.max(0.12, 0.8 - (now - e.ts) / 150000);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    return `<g class="flow-arcg ${kind}" style="opacity:${op.toFixed(2)}"><path d="${flowArc(a, b)}" class="flow-arc" marker-end="url(#flow-arr)"/>${kind === 'mine' && e.n > 1 ? `<text x="${mid.x}" y="${mid.y - 4}" class="flow-ac" text-anchor="middle">${e.n}</text>` : ''}</g>`;
+  }).join('');
+  return `${defs}${zones}<g class="flow-arcs">${arcs}</g>${desks}<g id="flowFx" class="flow-fx"></g>`;
+}
+/** Queue a flying envelope for a message that woke someone; drawn right after the next render (skipped when motion is reduced, the arc still appears). */
+function flowPulse(m) {
+  if (!m || m.kind === 'system' || m.kind === 'mirror') return;
+  const from = m.fromId || 'you';
+  for (const to of m.wake || []) if (to !== from) S.flowPulseQ.push({ from, to, at: Date.now() });
+}
+function flowPlayPulses() {
+  const fx = $('flowFx'); if (!fx) return;
+  const q = S.flowPulseQ.splice(0).filter((p) => Date.now() - p.at < 4000);
+  if (flowReduced()) return;
+  for (const p of q.slice(0, 24)) {
+    const a = S.flowPos.get(p.from), b = S.flowPos.get(p.to); if (!a || !b) continue;
+    const path = flowArc(a, b), dur = 1.1 + Math.min(0.9, Math.hypot(b.x - a.x, b.y - a.y) / 900);
+    fx.insertAdjacentHTML('beforeend', `<g class="flow-mail"><rect x="-6" y="-4" width="12" height="8" fill="#ffd166" stroke="#3a2f12" stroke-width="1" shape-rendering="crispEdges"/><path d="M-6 -4L0 1L6 -4" fill="none" stroke="#3a2f12" stroke-width="1"/><animateMotion dur="${dur}s" fill="freeze" path="${path}" rotate="0"/></g>`);
+  }
+  setTimeout(() => { for (const g of fx.querySelectorAll('.flow-mail')) g.remove(); }, 2400);
+}
 function renderFlow() {
   const el = $('view-flow');
   if (!el || S.tab !== 'flow') return;
@@ -2543,35 +2665,10 @@ function renderFlow() {
     for (const id of m.wake || []) addNode(id);
   }
   const nodes = [...nodeMap.values()].filter((x) => x.id === 'you').concat([...nodeMap.values()].filter((x) => x.id !== 'you').sort((a, b) => Number(b.id === roomInfo?.lead) - Number(a.id === roomInfo?.lead) || a.name.localeCompare(b.name)));
-  const colCount = innerWidth <= 650 ? 2 : 3, cardW = innerWidth <= 650 ? 140 : 158, cardH = 72, stepX = cardW + 22, stepY = 106, left = 12, top = 12;
-  const positions = new Map(nodes.map((n, i) => [n.id, { x: left + (i % colCount) * stepX, y: top + Math.floor(i / colCount) * stepY }]));
-  const width = left * 2 + colCount * cardW + (colCount - 1) * 22;
-  const height = top * 2 + Math.max(1, Math.ceil(nodes.length / colCount)) * stepY - (stepY - cardH);
-  const edgeMap = new Map();
-  const addEdge = (from, to, type) => {
-    if (!positions.has(from) || !positions.has(to) || from === to) return;
-    const key = `${type}:${from}:${to}`, edge = edgeMap.get(key) || { from, to, type, count: 0 };
-    edge.count++; edgeMap.set(key, edge);
-  };
-  for (const m of messages) {
-    const from = m.fromId || 'you';
-    for (const to of m.wake || []) addEdge(from, to, 'wake');
-    if (m.kind === 'mirror' || m.sys?.type === 'relay') addEdge(from, 'you', 'relay');
-  }
-  const edges = [...edgeMap.values()].sort((a, b) => b.count - a.count).slice(0, 240);
-  const edgeHtml = edges.map((edge) => {
-    const a = positions.get(edge.from), b = positions.get(edge.to), x1 = a.x + cardW / 2, y1 = a.y + cardH / 2, x2 = b.x + cardW / 2, y2 = b.y + cardH / 2;
-    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-    const active = messages.some((m) => m.id === S.flowSelectedMsg && (((m.wake || []).includes(edge.to) && (m.fromId || 'you') === edge.from) || (edge.type === 'relay' && (m.kind === 'mirror' || m.sys?.type === 'relay') && (m.fromId || 'you') === edge.from)));
-    return `<g><path class="flow-edge ${edge.type === 'relay' ? 'relay' : ''}${active ? ' is-active' : ''}" d="M${x1} ${y1} L${x2} ${y2}" stroke-width="${Math.min(4, 1.2 + Math.log2(edge.count + 1))}" marker-end="url(#flow-arrow)"/><text class="flow-edge-count" x="${midX}" y="${midY - 3}">${edge.count}</text></g>`;
-  }).join('');
-  const nodeHtml = nodes.map((n) => {
-    const p = positions.get(n.id), s = n.session, status = n.id === 'you' ? 'user' : flowStatus(s), limited = !!s?.limited && s.limited.until > now, name = flowShort(n.name, innerWidth <= 650 ? 19 : 24);
-    const activity = n.id === 'you' ? t('flow.user') : s?.activity && status === 'busy' ? s.activity : t(`status.${status}`);
-    const lead = n.id !== 'you' && roomInfo?.lead === n.id;
-    const tasks = (S.tasks[r] || []).filter((x) => x.status !== 'done' && (x.owner === n.name || x.owner === n.id)).length;
-    return `<g class="flow-node" data-flow-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(S.flowSelected === n.id)}" aria-label="${esc(n.name)} · ${esc(activity)}${lead ? ` · ${t('room.lead')}` : ''}${limited ? ` · ${t('flow.limited')}` : ''}" transform="translate(${p.x} ${p.y})"><rect width="${cardW}" height="${cardH}" rx="11"/><circle class="flow-dot" cx="13" cy="16" r="5" fill="${n.id === 'you' ? 'var(--accent)' : `var(--${status})`}"/><text class="flow-name" x="24" y="20">${esc(name)}${lead ? ' ★' : ''}</text><text class="flow-meta" x="11" y="41">${esc(flowShort(activity, 27))}</text>${limited ? `<text class="flow-limited" x="11" y="58">${esc(t('flow.limited'))}</text>` : tasks ? `<text class="flow-meta" x="11" y="58">${esc(t('flow.tasks', { n: tasks }))}</text>` : s?.ide ? `<text class="flow-meta" x="11" y="58">${esc(IDE[s.ide] || s.ide)}</text>` : ''}</g>`;
-  }).join('');
+  const L = flowLayout(nodes, now, innerWidth < 760); S.flowPos = L.pos;
+  const world = flowWorld(L, { now, selected: S.flowSelected, messages, roomInfo });
+  const cnt = (k) => L.groups[k].length - (k === 'need' ? 1 : 0);
+  const hud = [['busy', 'flow.zone.busy'], ['need', 'flow.zone.need'], ['idle', 'flow.zone.idle'], ['off', 'flow.zone.off']].map(([k, lk]) => `<span class="flow-hudchip" data-k="${k}"><i></i>${esc(t(lk))} <b>${cnt(k)}</b></span>`).join('');
   const waiting = nodes.filter((n) => n.session?.status === 'waiting');
   const blocked = (S.tasks[r] || []).filter((x) => x.status === 'blocked');
   const attention = [
@@ -2587,8 +2684,10 @@ function renderFlow() {
   const ticks = messages.filter((m) => m.kind !== 'system').slice(-120);
   const selectedMessage = detailMsg ? `${messageName(detailMsg)} · ${plain(detailMsg.text, 180)}` : '';
   const rangeOpts = [['1h', 'flow.1h'], ['24h', 'flow.24h'], ['7d', 'flow.7d'], ['all', 'flow.all']];
-  el.innerHTML = `<div class="vw flow"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.lede')}</p><div class="flowbar"><label>${t('flow.room')} <select id="flowRoom">${S.rooms.filter((x) => !x.dm).map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select></label><label>${t('flow.range')} <select id="flowRange">${rangeOpts.map(([v, k]) => `<option value="${v}"${S.flowRange === v ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label><button type="button" class="btn sm" id="flowReplay" aria-pressed="${String(!!S.flowReplayTimer)}">${S.flowReplayTimer ? t('flow.stop') : t('flow.replay')}</button><div class="flowstats"><span class="flowstat">${t('flow.agentCount', { n: nodes.length - 1 })}</span><span class="flowstat">${t('flow.messageCount', { n: messages.length })}</span><span class="flowstat">${t('flow.edgeCount', { n: edges.length })}</span></div></div>${S.flowErr ? `<div class="verr">${esc(S.flowErr)}</div>` : ''}${S.flowLoading === r ? `<div class="flow-empty">${t('common.loading')}</div>` : ''}<div class="flowgrid"><aside class="flowbox"><h2>${t('flow.attention')} <small>${waiting.length + blocked.length + Number(!!S.unread[r])}</small></h2><div class="flowattention">${attention}</div></aside><div class="flowbox"><h2>${t('flow.graph')} <small>${t('flow.edgeHint')}</small></h2><div class="flowgraph-wrap"><svg class="flowgraph" role="group" aria-label="${t('flow.graphAria')}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs>${edgeHtml}${nodeHtml}</svg></div><div class="flow-timeline"><h2>${t('flow.timeline')} <small>${ticks.length}</small></h2><div class="flow-ticks" role="group" aria-label="${t('flow.timeline')}">${ticks.map((m) => `<button type="button" class="flow-tick" style="background:${m.fromId ? color(S.sessions[m.fromId]?.name || m.from) : 'var(--accent)'}" data-flow-message="${m.id}" aria-label="${esc(messageName(m))} · ${esc(time(m.ts))}" title="${esc(messageName(m))} · ${esc(time(m.ts))}" aria-pressed="${String(m.id === S.flowSelectedMsg)}"></button>`).join('')}</div>${detailMsg ? `<p class="flow-msg" aria-live="polite">${esc(selectedMessage)}</p>` : ''}</div></div><aside class="flowbox flow-inspector"><h2>${t('flow.inspector')}</h2>${inspector}</aside></div><div id="flowLive" class="sr-only" aria-live="polite"></div></div>`;
+  el.innerHTML = `<div class="vw flow"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.lede')}</p><div class="flowbar"><label>${t('flow.room')} <select id="flowRoom">${S.rooms.filter((x) => !x.dm).map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select></label><label>${t('flow.range')} <select id="flowRange">${rangeOpts.map(([v, k]) => `<option value="${v}"${S.flowRange === v ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label><button type="button" class="btn sm" id="flowReplay" aria-pressed="${String(!!S.flowReplayTimer)}">${S.flowReplayTimer ? t('flow.stop') : t('flow.replay')}</button><div class="flowstats"><span class="flowstat">${t('flow.agentCount', { n: nodes.length - 1 })}</span><span class="flowstat">${t('flow.messageCount', { n: messages.length })}</span></div></div>${S.flowErr ? `<div class="verr">${esc(S.flowErr)}</div>` : ''}${S.flowLoading === r ? `<div class="flow-empty">${t('common.loading')}</div>` : ''}<div class="flowgrid town"><aside class="flowbox flow-attnbox"><h2>${t('flow.attention')} <small>${waiting.length + blocked.length + Number(!!S.unread[r])}</small></h2><div class="flowattention">${attention}</div></aside><div class="flowbox flowcenter"><div class="flow-hud">${hud}</div><div class="flowgraph-wrap" id="flowWorldBox"><svg class="flowgraph" role="group" aria-label="${t('flow.graphAria')}" viewBox="0 0 ${L.W} ${L.H}" preserveAspectRatio="xMidYMin meet">${world}</svg></div><p class="flow-hint">${t('flow.edgeHint')}</p></div><aside class="flowbox flow-inspector"><h2>${t('flow.inspector')}</h2>${inspector}</aside></div><div class="flowbox flow-timeline"><h2>${t('flow.timeline')} <small>${ticks.length}</small></h2><div class="flow-ticks" role="list">${ticks.map((m) => `<button type="button" role="listitem" class="flow-tick" data-flow-message="${m.id}" aria-pressed="${String(m.id === S.flowSelectedMsg)}" title="${esc(messageName(m))}: ${esc(plain(m.text, 80))}" style="background:${m.fromId ? color(m.fromId) : 'var(--accent)'}"></button>`).join('')}</div>${selectedMessage ? `<div class="flow-msg">${esc(selectedMessage)}</div>` : ''}</div></div>`;
+  flowPlayPulses();
 }
+setInterval(() => { if (S.tab === 'flow' && !document.hidden && !S.flowReplayTimer) queueFlow(); }, 5000);   // arcs and bubbles fade with age
 function stopFlowReplay() {
   if (S.flowReplayTimer) clearInterval(S.flowReplayTimer);
   S.flowReplayTimer = null; S.flowReplayIndex = -1;
@@ -2602,7 +2701,7 @@ function startFlowReplay() {
     const current = flowMessages().filter((m) => m.kind !== 'system');
     if (S.flowReplayIndex >= current.length) return stopFlowReplay(), renderFlow();
     const m = current[S.flowReplayIndex++];
-    S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow();
+    S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; flowPulse(m); renderFlow();
   };
   step();
   S.flowReplayTimer = setInterval(step, 1200);
@@ -2610,7 +2709,7 @@ function startFlowReplay() {
 }
 function flowSelectRoom(name) {
   stopFlowReplay();
-  S.flowRoom = name; S.flowSelected = 'you'; S.flowSelectedMsg = null;
+  S.flowRoom = name; S.flowSelected = null; S.flowSelectedMsg = null;
   try { localStorage.setItem('bear-agent-manager:flowRoom', name); } catch {}
   loadFlow();
 }
