@@ -126,6 +126,26 @@ test('T-W open-tab: refused for an online member, opens the tab of an offline on
   } finally { await h.hub.close(); }
 });
 
+test('#158 open-tab: a provider (claude-api) agent is never opened in an editor tab, by the button or by openTabOnWake', async () => {
+  const fs = await import('node:fs'), path = await import('node:path');
+  const opened: string[] = [];
+  const h = await makeHub(undefined, () => {}, { openUrl: (u: string) => opened.push(u) });
+  try {
+    fs.writeFileSync(path.join(h.dir, 'providers.json'), JSON.stringify([
+      { id: 'paid', label: 'Paid', tier: 'paid', enabled: true, baseUrl: 'http://127.0.0.1:1', auth: 'api-key', key: 'test-key', models: { read: ['model'], edit: ['model'] } },
+    ]));
+    await h.call('/api/settings', { openTabOnWake: true, agents: { profiles: [
+      { id: 'deepseek', provider: 'claude-api', name: 'DeepSeek', cwd: os.tmpdir(), enabled: false, providerId: 'paid' },
+    ] } }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'ds1', cwd: os.tmpdir(), name: 'DeepSeek' });
+    await h.call('/api/rooms/r/join', { sessionId: 'ds1' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'ds1' }) });
+    await assert.rejects(h.call('/api/sessions/ds1/open-tab', {}), /provider/);
+    await h.call('/api/rooms/r/messages', { text: '@DeepSeek hi' });
+    assert.equal(opened.length, 0);
+  } finally { await h.hub.close(); }
+});
+
 test('P3 clear-lead: stops the lead, opens a fresh lead terminal with its handoff, the new session gets ★ and the old name', async () => {
   const fs = await import('node:fs'), path = await import('node:path');
   const opened: string[] = [], killed: number[] = [];

@@ -907,7 +907,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
     const s = store.session(sid);
-    if (!loadSettings(opts.dir, envCap).openTabOnWake || waiters.has(s.id) || tabHolds(s) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
+    if (!loadSettings(opts.dir, envCap).openTabOnWake || apiProfileOf(s) || waiters.has(s.id) || tabHolds(s) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
     openTab(s);
   }
   /** T18c: role for the compact.thresholds fallback — lead of any room it's in, else member (has an IDE), else background (hub-created, no IDE). */
@@ -2234,6 +2234,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'open-tab') {
         const s = store.session(id);
+        // #158: in an editor tab a provider agent runs on the owner's Claude account, without its lean flags or pathGuard
+        if (apiProfileOf(s)) return json(res, 409, { error: `${s.name} runs on its provider in the background; mention it instead of opening a tab` });
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
         const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
