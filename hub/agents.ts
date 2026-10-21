@@ -26,15 +26,8 @@ export function spawnAgent(job: AgentJob): Promise<number> {
   }
   const log = openRunLog(job.logDir, job.id, 'new', job.cwd, job.perm);
   const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
-    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', log.outputFd, log.outputFd],
   });
-  let outputError: Error | undefined;
-  const recordOutput = (chunk: Buffer) => {
-    outputError ??= log.write(chunk);
-    job.onOutput?.(chunk.toString('utf8'));
-  };
-  child.stdout?.on('data', recordOutput);
-  child.stderr?.on('data', recordOutput);
   // A claude that dies at once (bad key, provider down) closes its stdin first; the write then emits 'error',
   // and an unhandled one takes the whole hub down, every room with it.
   child.stdin?.on('error', () => { /* the exit handler below reports it */ });
@@ -45,16 +38,17 @@ export function spawnAgent(job: AgentJob): Promise<number> {
     // 'close' and 'error' can both fire; a second run would close the same log fd twice (EBADF thrown inside an
     // event handler) and kill whatever background child holds this id by then.
     let ended = false;
-    const done = (code: number) => {
+    const done = async (code: number) => {
       if (ended) return;
       ended = true;
       clearTimeout(timer);
       forgetBackground(job.id, child);   // only this child: a newer agent for the same id keeps running
-      log.close();
-      if (outputError) job.onOutput?.(`\n[hub could not write revive logs: ${outputError.message}]\n`);
-      resolve(outputError ? 1 : code);
+      const result = await log.finish();
+      if (result.output) job.onOutput?.(result.output);
+      if (result.error) job.onOutput?.(`\n[hub could not write revive logs: ${result.error.message}]\n`);
+      resolve(result.error ? 1 : code);
     };
-    child.on('close', (code) => done(code ?? 1));
-    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); done(1); });
+    child.on('exit', (code) => { void done(code ?? 1); });
+    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); void done(1); });
   });
 }

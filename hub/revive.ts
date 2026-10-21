@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[]; onOutput?: (chunk: string) => void };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
 /** What a hub-started claude may do (settings.permissions of that agent). */
@@ -13,7 +15,7 @@ const MAX_COMPACT_MS = 10 * 60_000;
 // Background turns cannot ask the user for permissions: allow reading the repo and the room tools only.
 const TOOLS = ['mcp__plugin_bear-agent-manager_room', 'Read', 'Grep', 'Glob', 'LS'];
 
-export type RunLog = { path: string; write(chunk: Buffer | string): Error | undefined; close(): void };
+export type RunLog = { path: string; outputFd: number; finish(): Promise<{ output: string; error?: Error }> };
 
 /** Keep a per-attempt log for attribution while preserving the existing aggregate revive.log for diagnostics. */
 export function openRunLog(logDir: string, id: string, label: string, cwd: string, perm?: Perm): RunLog {
@@ -22,29 +24,33 @@ export function openRunLog(logDir: string, id: string, label: string, cwd: strin
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const runPath = path.join(logDir, `${label}-${safeId}-${stamp}-${crypto.randomUUID()}.log`);
   const runFd = fs.openSync(runPath, 'a');
-  let aggregateFd: number;
-  try { aggregateFd = fs.openSync(path.join(logDir, 'revive.log'), 'a'); } catch (e) { fs.closeSync(runFd); throw e; }
+  const aggregatePath = path.join(logDir, 'revive.log');
   const header = `\n${new Date().toISOString()} ${label} ${id} in ${cwd} [perm: ${perm?.mode ?? 'default'}${perm?.allow?.length ? ` +${perm.allow.length}` : ''}${perm?.deny?.length ? ` -${perm.deny.length}` : ''}]\n`;
   try {
     fs.writeSync(runFd, header);
-    fs.writeSync(aggregateFd, `${header.trimEnd()} log=${path.basename(runPath)}\n`);
+    fs.appendFileSync(aggregatePath, `${header.trimEnd()} log=${path.basename(runPath)}\n`);
   } catch (e) {
     fs.closeSync(runFd);
-    fs.closeSync(aggregateFd);
     throw e;
   }
   return {
     path: runPath,
-    write(chunk) {
-      let failure: Error | undefined;
-      for (const fd of [runFd, aggregateFd]) {
-        try { fs.writeSync(fd, chunk); } catch (e) { failure ??= e instanceof Error ? e : new Error(String(e)); }
-      }
-      return failure;
-    },
-    close() {
+    outputFd: runFd,
+    async finish() {
       try { fs.closeSync(runFd); } catch { /* already closed */ }
-      try { fs.closeSync(aggregateFd); } catch { /* already closed */ }
+      let output = '';
+      const tail = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          output = (output + chunk.toString('utf8')).slice(-4096);
+          callback(null, chunk);
+        },
+      });
+      try {
+        await pipeline(fs.createReadStream(runPath, { start: Buffer.byteLength(header) }), tail, fs.createWriteStream(aggregatePath, { flags: 'a' }));
+        return { output };
+      } catch (e) {
+        return { output, error: e instanceof Error ? e : new Error(String(e)) };
+      }
     },
   };
 }
@@ -124,15 +130,8 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
     env,
     shell: process.platform === 'win32', // resolves claude.cmd / claude.exe on PATH; args contain no user text
     windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    stdio: ['pipe', log.outputFd, log.outputFd],
   });
-  let outputError: Error | undefined;
-  const recordOutput = (chunk: Buffer) => {
-    outputError ??= log.write(chunk);
-    job.onOutput?.(chunk.toString('utf8'));
-  };
-  child.stdout?.on('data', recordOutput);
-  child.stderr?.on('data', recordOutput);
   // A write into a stdin whose process has just exited emits 'error' on the stream; unhandled, that takes the whole hub
   // down (every room, not only this session) — the same hole as livechat/agents. The exit handler below reports it.
   child.stdin?.on('error', () => { /* the exit handler below reports it */ });
@@ -143,17 +142,18 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
     // 'error' and 'close' can both fire (a spawn that fails, or a process that cannot be killed); resolving twice would
     // close the same log fd twice and throw inside an event handler, which takes the whole hub down.
     let ended = false;
-    const done = (code: number) => {
+    const done = async (code: number) => {
       if (ended) return;
       ended = true;
       clearTimeout(timer);
       if (live.get(job.id) === child) live.delete(job.id);
-      log.close();
-      if (outputError) job.onOutput?.(`\n[hub could not write revive logs: ${outputError.message}]\n`);
-      resolve(outputError ? 1 : code);
+      const result = await log.finish();
+      if (result.output) job.onOutput?.(result.output);
+      if (result.error) job.onOutput?.(`\n[hub could not write revive logs: ${result.error.message}]\n`);
+      resolve(result.error ? 1 : code);
     };
-    child.on('close', (code) => done(code ?? 1));
-    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); done(1); });
+    child.on('exit', (code) => { void done(code ?? 1); });
+    child.on('error', (e) => { job.onOutput?.(`${e.message}\n`); void done(1); });
   });
 }
 
