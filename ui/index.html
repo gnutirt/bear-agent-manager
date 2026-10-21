@@ -373,7 +373,7 @@ header .spacer{flex:1}
 .tstatusbar{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .tstatus{display:flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;font-size:12.5px;font-weight:600}
 .tstatus:hover:not(:disabled){border-color:var(--accent);background:var(--hover)}.tstatus:disabled{opacity:.55;cursor:default}.tstatus b{font-variant-numeric:tabular-nums}
-.tdot{width:9px;height:9px;border-radius:50%;background:var(--mute)}.tdot.st-doing{background:#F59E0B}.tdot.st-blocked{background:#EF4444}.tdot.st-done{background:#22C55E}.tdot.st-todo{background:#64748B}
+.tdot{width:9px;height:9px;border-radius:50%;background:var(--mute)}.tdot.st-doing{background:#F59E0B}.tdot.st-blocked{background:#EF4444}.tdot.st-done{background:#22C55E}.tdot.st-todo,.tdot.st-unassigned{background:#64748B}.tdot.st-assigned{background:#3B82F6}
 .tnote{margin-top:4px;font-size:12.5px;color:var(--mute);font-style:italic}.town{padding:0 8px;border-radius:999px;border:1px solid var(--c);color:var(--c);font-weight:600;background:color-mix(in srgb,var(--c) 10%,transparent)}
 .tlink{color:var(--accent);font-weight:600;font-size:12px}.tlink:hover{text-decoration:underline}.tcommit{font:11.5px var(--mono);background:var(--code);border-radius:5px;padding:0 5px}
 .tacts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}.tacts select{flex:1 1 100px;min-width:90px;max-width:none;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px}
@@ -675,8 +675,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-node{cursor:pointer;outline:none}.flow-node .card{fill:var(--card);stroke:var(--cardline);stroke-width:1.5}
 .flow-node:hover .card{stroke:var(--hi)}.flow-node.sel .card{stroke:var(--hi);stroke-width:3}.flow-node.st-ask .card{stroke:var(--bad);stroke-width:2.5}
 .flow-node:focus-visible .card{stroke:var(--hi);stroke-width:3;stroke-dasharray:4 3}
-.flow-node .nm{fill:var(--fg);font:700 13px "IBM Plex Sans",sans-serif;text-anchor:middle}.flow-node .rl{fill:var(--muted);font:11px "IBM Plex Sans",sans-serif;text-anchor:middle}
-.flow-node .ini{fill:#fff;font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node .nm{fill:var(--fg);font:700 12px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .rl{fill:var(--muted);font:10.5px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .last{fill:var(--muted);font:9px "IBM Plex Sans",sans-serif;text-anchor:start}
+.flow-node .avatar{fill:var(--card)}.flow-node .ini{font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
 .flow-node .ping{fill:none;stroke:var(--ok);stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0}
 @media(prefers-reduced-motion:no-preference){.flow-node.st-done .ping{animation:flow-ping 1.4s ease-out infinite}.flow-node.st-ask .dot,.flow .livedot{animation:flow-throb .8s ease-in-out infinite}.flow-node.st-error .card{animation:flow-shake .35s linear 2}.flow-feed li.new{animation:flow-slide .5s ease-out}}
 @media(prefers-reduced-motion:reduce){.flow-node .flow-spin{display:none}}
@@ -704,8 +704,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow button{background:var(--panel2);border-color:var(--line)}.flow button:hover{border-color:var(--hi)}
 .flow button:focus-visible,.flow select:focus-visible,.flow input:focus-visible,.flow textarea:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 .flow button[aria-pressed=true]{background:var(--hi);color:var(--onhi);border-color:var(--hi);font-weight:600}
-.flow-tools{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}.flow-tools button{padding:3px 10px}
-.flow-tier-tools{position:absolute;left:8px;bottom:8px}
+.flow-tools{position:absolute;right:8px;bottom:8px;z-index:2;display:flex;gap:6px}.flow-tools button{padding:3px 10px}
+.flow-tier-tools{position:absolute;left:8px;bottom:8px;z-index:2}.flow-tier-tools button{padding:6px 12px;border-color:var(--hi);background:var(--hi);color:var(--onhi);font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.16)}.flow-tier-tools button:disabled{opacity:.58;cursor:not-allowed}
 .flow-tier-select,.flow-task-form label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
 .flow-tier-select select,.flow-task-form input,.flow-task-form textarea{width:100%;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px}
 .flow-task-form{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
@@ -2540,21 +2540,21 @@ const flowNow = () => Date.now();
 const flowName = (n) => n.id === 'you' ? t('flow.user') : n.name;
 function flowTierLayout(nodes, tiers) {
   const tierCount = Math.max(2, ...Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9));
-  const TX = Array.from({ length: tierCount }, (_, i) => [8, 158, 308, 458, 608][i] ?? 608 + (i - 4) * 150);
+  const TX = Array.from({ length: tierCount }, (_, i) => 8 + i * 184);
   const rows = Array.from({ length: tierCount }, () => []), assigned = new Map();
   for (const n of nodes) {
     const t = n.id === 'you' ? 1 : Math.max(1, Math.min(tierCount, Number(tiers?.[n.name.trim().toLowerCase()]) || Math.floor(tierCount / 2) + 1));
     n.tier = t - 1; rows[t - 1].push(n); assigned.set(n.id, t);
   }
   rows.forEach((list) => list.sort((a, b) => Number(b.session?.status === 'busy') - Number(a.session?.status === 'busy') || a.name.localeCompare(b.name)));
-  const maxRows = Math.max(1, ...rows.map((x) => x.length)), H = Math.max(520, 50 + maxRows * 118);
+  const maxRows = Math.max(1, ...rows.map((x) => x.length)), H = Math.max(520, 80 + maxRows * 100);
   const pos = new Map();
   rows.forEach((list, tier) => list.forEach((n, row) => {
-    const y = 50 + (maxRows - list.length) * 59 + row * 118;
-    n.x = TX[tier] + 39; n.y = y;
-    pos.set(n.id, { x: n.x + 29, y: n.y + 29 });
+    const y = 50 + (maxRows - list.length) * 50 + row * 100;
+    n.x = TX[tier] + 8; n.y = y;
+    pos.set(n.id, { x: n.x + 84, y: n.y + 29 });
   }));
-  return { TX, tierCount, W: Math.max(760, TX[tierCount - 1] + 144), H, rows, pos, assigned };
+  return { TX, tierCount, W: Math.max(760, TX[tierCount - 1] + 184), H, rows, pos, assigned };
 }
 function flowNodes(roomInfo, messages) {
   const map = new Map([['you', { id: 'you', name: t('flow.user'), role: t('flow.role.user'), session: null }]]);
@@ -2598,9 +2598,9 @@ function flowTierTitle(i, roomInfo, rows) {
 function flowGeom(a, b) {
   const A = a.node, B = b.node, back = B.tier < A.tier, off = back ? 10 : -10;
   let x1, x2;
-  if (B.tier > A.tier) { x1 = A.x + 58; x2 = B.x; }
-  else if (B.tier < A.tier) { x1 = A.x; x2 = B.x + 58; }
-  else { x1 = A.x + 29; x2 = B.x + 29; }
+  if (B.tier > A.tier) { x1 = A.x + 168; x2 = B.x; }
+  else if (B.tier < A.tier) { x1 = A.x; x2 = B.x + 168; }
+  else { x1 = A.x + 84; x2 = B.x + 84; }
   const y1 = A.y + 29 + off, y2 = B.y + 29 + off, dx = (x2 - x1) / 2;
   return { d: `M${x1} ${y1}C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 };
 }
@@ -2610,7 +2610,7 @@ function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live) {
     const key = `${e[1]}>${e[2]}`, v = counts.get(key) || { from: e[1], to: e[2], count: 0, ts: 0 };
     v.count++; v.ts = Math.max(v.ts, e[0]); counts.set(key, v); lastAt.set(key, v.ts);
   }
-  const cols = L.rows.map((row, i) => `<g><rect class="flow-tier" x="${L.TX[i] - 6}" y="10" width="144" height="${L.H - 20}" rx="10"/><text class="flow-tierlbl" x="${L.TX[i] + 68}" y="28">${esc(flowTierTitle(i, roomInfo, L.rows))}</text></g>`).join('');
+  const cols = L.rows.map((row, i) => `<g><rect class="flow-tier" x="${L.TX[i] + 4}" y="10" width="176" height="${L.H - 20}" rx="10"/><text class="flow-tierlbl" x="${L.TX[i] + 92}" y="28">${esc(flowTierTitle(i, roomInfo, L.rows))}</text></g>`).join('');
   const edges = [...counts.values()].map((e) => {
     const key = `${e.from}>${e.to}`, age = Math.max(0, cursor - e.ts), rel = selected && (e.from === selected || e.to === selected);
     const heat = Math.max(0, 1 - age / 4), fade = Math.max(.3, 1 - age / 90), opacity = selected && !rel ? .08 : heat > .05 ? 1 : fade * .75;
@@ -2620,11 +2620,12 @@ function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live) {
   }).join('');
   const cards = nodes.map((n) => {
     const status = flowStatusAt(n, events, cursor, live), selectedNode = selected === n.id;
-    const last = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => m.fromId === n.id && m.kind !== 'system' && m.kind !== 'mirror' && m.ts / 1000 <= cursor);
-    const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })}`;
+    const last = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => (m.fromId || 'you') === n.id && m.kind !== 'system' && m.kind !== 'mirror' && m.ts / 1000 <= cursor);
+    const latest = flowShort(last ? plain(last.text, 120) : t('flow.noMessages'), 18);
+    const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })} · ${latest}`;
     const dim = selected && n.id !== selected && ![...counts.values()].some((e) => (e.from === selected && e.to === n.id) || (e.to === selected && e.from === n.id));
     const spin = status === 'working' ? `<path class="flow-spin" d="M43 8a20 20 0 0 1 9 9" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 29 29" to="360 29 29" dur=".9s" repeatCount="indefinite"/></path>` : '';
-    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><circle class="card" cx="29" cy="29" r="28"/><circle class="avatar" cx="29" cy="29" r="20" fill="${flowColor(n.id)}"/><text class="ini" x="29" y="34">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="29" y="72">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 18))}</text><text class="rl" x="29" y="88">${esc(flowShort(n.role || t('flow.role.agent'), 20))}</text><circle class="dot" cx="49" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="49" cy="10" r="5"/>${spin}</g>`;
+    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><rect class="card" x="0" y="0" width="168" height="58" rx="11"/><circle class="avatar-ring" cx="29" cy="29" r="23" fill="${flowColor(n.id)}"/><circle class="avatar" cx="29" cy="29" r="19"/><text class="ini" x="29" y="34" fill="${flowColor(n.id)}">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="58" y="21">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 12))}</text><text class="rl" x="58" y="37">${esc(flowShort(n.role || t('flow.role.agent'), 14))}</text><text class="last" x="58" y="51">${esc(latest)}</text><circle class="dot" cx="158" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="158" cy="10" r="5"/>${spin}</g>`;
   }).join('');
   return `${cols}<g class="flow-edges">${edges}</g><g class="flow-nodes">${cards}</g><g id="flowDots" class="flow-fx"></g>`;
 }
@@ -2696,7 +2697,9 @@ function renderFlow() {
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
   const graphW = Math.max(760, L.W), lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
   const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
-  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}${askBox}<main class="flow-main"><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg><div class="flow-tools"><button type="button" data-flow-zoom="in" aria-label="${esc(t('flow.zoomIn'))}">+</button><button type="button" data-flow-zoom="out" aria-label="${esc(t('flow.zoomOut'))}">−</button><button type="button" data-flow-zoom="reset">${t('flow.zoomReset')}</button></div><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid ? '' : ' disabled'}>${t('flow.addTier')}</button></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes">${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg><div class="flow-tools"><button type="button" data-flow-zoom="in" aria-label="${esc(t('flow.zoomIn'))}">+</button><button type="button" data-flow-zoom="out" aria-label="${esc(t('flow.zoomOut'))}">−</button><button type="button" data-flow-zoom="reset">${t('flow.zoomReset')}</button></div><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes">${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  const graph = el.querySelector('#flowGraph');
+  graph.style.width = `max(100%, ${graphW}px)`;
   flowPaintDots(events, cursor, S.flowSelected);
 }
 function flowSetReplay(ts) {
@@ -2802,7 +2805,7 @@ $('view-flow').addEventListener('pointerup', (e) => {
     const d = S.flowDrag; S.flowDrag = null;
     if (d.moved) {
       const p = flowScreenPoint($('view-flow').querySelector('#flowGraph'), e.clientX, e.clientY, $('view-flow').querySelector('#flowWorld'));
-      const L = S.flowLayout, index = L.TX.reduce((best, x, i) => Math.abs(p.x - x - 68) < best.distance ? { index: i, distance: Math.abs(p.x - x - 68) } : best, { index: 0, distance: Infinity }).index;
+      const L = S.flowLayout, index = L.TX.reduce((best, x, i) => Math.abs(p.x - x - 92) < best.distance ? { index: i, distance: Math.abs(p.x - x - 92) } : best, { index: 0, distance: Infinity }).index;
       const agent = nodeNameForId(d.id); S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
       if (agent) saveFlowTier(agent, index + 1); else renderFlow();
     }
