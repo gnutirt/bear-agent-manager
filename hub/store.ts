@@ -28,6 +28,7 @@ export type Session = {
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
+  deafMsgId?: number;            // newest waiting message the "X is not reading" notice was already posted for: one notice per message, not one per sweep
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
@@ -823,9 +824,15 @@ export class Store {
     const out: { session: Session; msg: Message }[] = [];
     for (const s of Object.values(this.state.sessions)) {
       if (s.ended || s.status === 'offline' || isConnected(s.id) || (s.status === 'busy' && now - s.lastSeen < minMs)) continue;
-      const msg = this.pending(s.id).messages.find((m) => m.wake.some((w) => this.resolve(w) === s.id));
-      if (msg && now - msg.ts > minMs) out.push({ session: s, msg });
+      const msg = this.pending(s.id).messages.find((m) =>
+        m.id > (s.deafMsgId ?? 0) && m.wake.some((w) => this.resolve(w) === s.id));
+      if (!msg || now - msg.ts <= minMs) continue;
+      // One notice per message: the sweep runs every 30 s and the same dead tab kept re-notifying the user for hours.
+      if (s.deafMsgId && msg.id <= s.deafMsgId) continue;
+      s.deafMsgId = msg.id;
+      out.push({ session: s, msg });
     }
+    if (out.length) this.save();
     return out;
   }
 

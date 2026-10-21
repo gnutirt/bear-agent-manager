@@ -523,8 +523,9 @@ test('deaf: live tab, no waiter, an @ waiting >10 min is listed; a waiter, a fre
   assert.deepEqual(st.deaf((id) => id === 'a1', MIN, t + 601_000), []);                    // it has a waiter
   st.setStatus('a1', 'busy', 'Bash');
   assert.deepEqual(st.deaf(none, MIN, t + 599_000), []);                                   // busy and seen a moment ago: a long tool
+  st.post('r', b.id, '@alpha ping again');
   t += 700_000;
-  assert.equal(st.deaf(none, MIN, t).length, 1);                                           // busy but silent for >10 min
+  assert.equal(st.deaf(none, MIN, t).length, 1);                                           // a new message is reported after a busy tab is silent for >10 min
   st.session('a1').ended = true;
   assert.deepEqual(st.deaf(none, MIN, t), []);                                             // ended tabs are revived, not "deaf"
 });

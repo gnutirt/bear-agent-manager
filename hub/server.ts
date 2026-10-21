@@ -723,16 +723,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const batching = new Set<string>();
   const cannotTold = new Set<string>();         // C4: sessions already told "cannot be woken"; cleared once a waiter exists again
-  const deafTold = new Map<string, number>();   // C3: session -> id of the waiting message already reported as "deaf tab"
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
     const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
-    const found = store.deaf(isConn, opts.deafMs ?? DEAF_MS);
-    for (const id of [...deafTold.keys()]) if (!found.some((f) => f.session.id === id)) deafTold.delete(id);
-    for (const { session: s, msg } of found) {
-      if (deafTold.get(s.id) === msg.id) continue;
-      deafTold.set(s.id, msg.id);
+    // store.deaf() owns the "already reported" marker (Session.deafMsgId): a map here used to forget a session as soon as
+    // one sweep found it busy/asleep, and the same message was reported again minutes later, sweep after sweep.
+    for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
       try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
   }
