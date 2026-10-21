@@ -6,6 +6,10 @@ import { renameRetry } from './atomic.ts';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
+/** 'terse' asks agents to write to each other in BAMshort (short status/handoff lines); 'off' leaves their style alone. */
+export type AgentComms = 'off' | 'terse';
+const agentComms = (v: unknown): AgentComms | undefined =>
+  v === 'terse' || v === 'en' || v === 'en-terse' ? 'terse' : v === 'off' ? 'off' : undefined;   // 'en'/'en-terse' were older saved values: an English-only style was dropped, both mean terse now
 /**
  * Per-agent compaction. T18: hold = block automatic compaction until pct% of the window.
  * T18b: wakeCompact = run /compact before an offline agent is woken, once ctx >= pct% (150k without pct).
@@ -29,7 +33,7 @@ export type Settings = {
   lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   autoUpdatePlugin: boolean;   // the hub keeps this plugin's copy in every Claude account at the hub's version (no button)
-  agents: { maxBackground: number; profiles: AgentProfile[] };   // maxBackground: background claudes at once, for agents created without an IDE (POST /api/agents); profiles: headless provider agents (M3b)
+  agents: { maxBackground: number; profiles: AgentProfile[]; autoRevive: boolean };   // maxBackground: background claudes at once, for agents created without an IDE (POST /api/agents); profiles: headless provider agents (M3b); autoRevive: resume a closed or limit-killed chat when a room message wakes it (on)
   copilot: { autoStart: boolean };   // legacy single Copilot toggle, kept until hub/server.ts reads agents.profiles (M3a); migrated into profile 'copilot'
   localSummarize: LocalSummarize;   // summaries by an AI on this machine (Ollama); off by default
   permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
@@ -39,6 +43,7 @@ export type Settings = {
   closeLimitedTab: boolean;   // a tab stuck after a usage limit is closed at wake time so the agent comes back in the background
   mirrorTabs: boolean;   // B1: a turn typed in an agent's own tab is copied into its private chat
   relayChat: boolean;   // safety net: an answer an agent left in its own chat after a room wake is posted to the room
+  agentComms: AgentComms;   // optional style guidance for agent-to-agent room communication
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
@@ -133,7 +138,7 @@ function migrateProfiles(raw: any): any {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [] }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -246,7 +251,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     compact: { thresholds: compactThresholds, onTaskDone: bool(p?.compact?.onTaskDone, s.compact.onTaskDone ?? true) },
     permissions: perm,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),
-    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []).profiles },
+    agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []).profiles, autoRevive: bool(p?.agents?.autoRevive, s.agents?.autoRevive ?? true) },
     copilot: { autoStart: bool(p?.copilot?.autoStart, s.copilot?.autoStart ?? false) },
     localSummarize: {
       enabled: bool(p?.localSummarize?.enabled, s.localSummarize.enabled),
@@ -263,6 +268,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     autoLead: p?.autoLead === 'terminal' || p?.autoLead === 'off' ? p.autoLead : s.autoLead,
     mirrorTabs: bool(p?.mirrorTabs, s.mirrorTabs ?? true),
     relayChat: bool(p?.relayChat, s.relayChat ?? true),
+    agentComms: agentComms(p?.agentComms) ?? agentComms(s.agentComms) ?? 'off',
     closeLimitedTab: bool(p?.closeLimitedTab, s.closeLimitedTab ?? true),
     accountSwitch: {
       mode: ['off', 'ask', 'auto'].includes(p?.accountSwitch?.mode) ? p.accountSwitch.mode : s.accountSwitch?.mode ?? 'ask',

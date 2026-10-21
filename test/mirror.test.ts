@@ -107,6 +107,7 @@ test('tab mirror (#122): a tab whose hooks still send an aliased session id gets
     await h.call('/api/sessions/register', { id: 'old-tab', cwd: 'C:/fw' });
     await h.call('/api/sessions/old-tab/rename', { name: 'lead' });
     const oldDm = await h.call<any>('/api/rooms/dm/old-tab', {});
+    await hook('end');   // SessionEnd runs before SessionStart(source=resume): a chat that still lives is never taken over
     await h.call('/api/sessions/register', { id: 'new-id', cwd: 'C:/fw', source: 'resume' });   // the tab resumed: old-tab becomes an alias of new-id, yet its hooks may still send old-tab
     assert.equal(h.hub.store.resolve('old-tab'), 'new-id');
     await hook('prompt', { prompt: 'fix the wakeup bug' });

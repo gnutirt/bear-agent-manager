@@ -300,7 +300,7 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "data-set=\"agentComms\"", "t('settings.agentComms.hint')", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
   } finally { await hub.close(); }
 });

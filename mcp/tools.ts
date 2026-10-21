@@ -31,6 +31,9 @@ const noteLines = (notes: Note[]) => notes.map((n) => `  [${n.id}] ${n.text} (${
 const enc = encodeURIComponent;
 const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+const gotType = (value: unknown) =>
+  value === undefined ? 'nothing' : value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+
 /**
  * A string tool argument. `null` and every other type are a caller bug: the tool says so instead of publishing
  * "[object Object]" into a room (C2 in room_send; the same hole was in room_note, room_done and room_set_name, where a
@@ -39,14 +42,47 @@ const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digi
  */
 function stringArg(tool: string, arg: string, value: unknown): string {
   if (typeof value === 'string') return value;
-  const got = value === undefined ? 'nothing' : value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
-  throw new Error(`${tool} needs "${arg}" as a string; got ${got}. Send the string itself, not an object or a number.`);
+  throw new Error(`${tool} needs "${arg}" as a string; got ${gotType(value)}. Send the string itself, not an object or a number.`);
+}
+
+/** An optional string: absent stays absent (the call site keeps its documented default). */
+const optString = (tool: string, arg: string, value: unknown): string | undefined =>
+  value === undefined ? undefined : stringArg(tool, arg, value);
+
+/** A number argument; a numeric string is accepted (models send them), anything else is a caller bug. */
+function numberArg(tool: string, arg: string, value: unknown): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(n)) throw new Error(`${tool} needs "${arg}" as a number; got ${gotType(value)}.`);
+  return n;
+}
+
+const optNumber = (tool: string, arg: string, value: unknown): number | undefined =>
+  value === undefined ? undefined : numberArg(tool, arg, value);
+
+/** An array of strings (paths, attachments): one non-string item poisons the whole body downstream. */
+function stringList(tool: string, arg: string, value: unknown, required: boolean): string[] {
+  if (value === undefined) {
+    if (required) throw new Error(`${tool} needs "${arg}" as an array of strings; got nothing.`);
+    return [];
+  }
+  if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) {
+    throw new Error(`${tool} needs "${arg}" as an array of strings; got ${Array.isArray(value) ? 'a non-string item' : gotType(value)}.`);
+  }
+  return value as string[];
+}
+
+function numberList(tool: string, arg: string, value: unknown): number[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error(`${tool} needs "${arg}" as an array of numbers; got ${gotType(value)}.`);
+  return value.map((v) => numberArg(tool, arg, v));
 }
 
 export async function callTool(api: Api, sid: string, name: string, args: Record<string, unknown>): Promise<string> {
   const me = async () => (await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}`)).session;
-  const pickRoom = async (room: unknown): Promise<string> => {
-    if (typeof room === 'string' && room) return room;
+  const pickRoom = async (tool: string, room: unknown): Promise<string> => {
+    // An object or a number used to fall through to the default room: the call would land somewhere the caller never asked for.
+    if (typeof room === 'string') { if (room) return room; }
+    else if (room !== undefined) throw new Error(`${tool} needs "room" as a string; got ${gotType(room)}.`);
     const s = await me();
     if (s.rooms.length === 1) return s.rooms[0];
     if (!s.rooms.length) throw new Error('You are not in any room. Use room_join first.');
@@ -71,22 +107,26 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return lines.join('\n');
     }
     case 'room_join': {
-      const r = await api<RoomInfo>(`/api/rooms/${enc(String(args.room ?? ''))}/join`, { body: { sessionId: sid } });
+      const r = await api<RoomInfo>(`/api/rooms/${enc(stringArg('room_join', 'room', args.room))}/join`, { body: { sessionId: sid } });
       const notes = await api<Note[]>(`/api/rooms/${enc(r.name)}/notes`);
       return [`Joined #${r.name} (${r.members.length} member${r.members.length === 1 ? '' : 's'}). Messages that mention you will wake you automatically.`,
         ...(notes.length ? ['Room notes:', ...noteLines(notes)] : [])].join('\n');
     }
     case 'room_leave': {
-      await api(`/api/rooms/${enc(String(args.room ?? ''))}/leave`, { body: { sessionId: sid } });
-      return `Left #${args.room}.`;
+      const room = stringArg('room_leave', 'room', args.room);
+      await api(`/api/rooms/${enc(room)}/leave`, { body: { sessionId: sid } });
+      return `Left #${room}.`;
     }
     case 'room_send': {
       // A missing text stays '' on purpose: an attachments-only message is legal (the hub answers "empty message" when
       // there is nothing at all).
       const text = args.text === undefined ? '' : stringArg('room_send', 'text', args.text);
-      const room = await pickRoom(args.room);
+      const room = await pickRoom('room_send', args.room);
+      const replyTo = optNumber('room_send', 'replyTo', args.replyTo);
+      const topic = optString('room_send', 'topic', args.topic);
+      const attachPaths = stringList('room_send', 'attachments', args.attachments, false);
       const r = await api<{ message: Message; unknownMentions: string[]; paused: boolean }>(
-        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text, ...(args.replyTo != null ? { replyTo: Number(args.replyTo) } : {}), ...(args.topic ? { topic: String(args.topic) } : {}), ...(Array.isArray(args.attachments) && args.attachments.length ? { attachPaths: args.attachments.map(String) } : {}) } });
+        `/api/rooms/${enc(room)}/messages`, { body: { sessionId: sid, text, ...(replyTo != null ? { replyTo } : {}), ...(topic ? { topic } : {}), ...(attachPaths.length ? { attachPaths } : {}) } });
       let out = `Sent to #${room}.`;
       if (r.paused) out += ' The room is paused by the loop guard, so nobody was woken; wait for the user.';
       else if (r.message.wake.length) out += ` Woke ${r.message.wake.length} member(s).`;
@@ -95,31 +135,43 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       return out;
     }
     case 'room_read': {
-      const room = await pickRoom(args.room);
-      const limit = Math.max(1, Math.min(Number(args.limit ?? 30), 200));
-      const msgs = await api<Message[]>(`/api/rooms/${enc(room)}/messages?limit=${limit}${args.topic ? '&topic=' + enc(String(args.topic)) : ''}`);
+      const room = await pickRoom('room_read', args.room);
+      const topic = optString('room_read', 'topic', args.topic);
+      const limit = Math.max(1, Math.min(optNumber('room_read', 'limit', args.limit) ?? 30, 200));
+      const msgs = await api<Message[]>(`/api/rooms/${enc(room)}/messages?limit=${limit}${topic ? '&topic=' + enc(topic) : ''}`);
       if (!msgs.length) return `#${room} has no messages yet.`;
       return [`#${room}, last ${msgs.length}:`, ...msgs.flatMap((m) => [`[${time(m.ts)}] ${m.from}: ${m.text}`, ...attachmentLines(m)])].join('\n');
     }
     case 'room_topics': {
-      const room = await pickRoom(args.room);
-      if (args.topic && typeof args.follow === 'boolean') {
-        await api(`/api/rooms/${enc(room)}/topics`, { body: { sessionId: sid, topic: String(args.topic), follow: args.follow } });
-        return `${args.follow ? 'Following' : 'Unfollowed'} topic #${args.topic} in #${room}.`;
+      const room = await pickRoom('room_topics', args.room);
+      const topic = optString('room_topics', 'topic', args.topic);
+      // Used to be silent: `follow` was ignored without a topic (a plain list came back) and a string "true" was ignored
+      // too, so a caller thought it had subscribed when it had not.
+      if (args.follow !== undefined && typeof args.follow !== 'boolean') throw new Error(`room_topics needs "follow" as a boolean; got ${gotType(args.follow)}.`);
+      if (args.follow !== undefined && !topic) throw new Error('room_topics needs "topic" with "follow".');
+      if (topic && args.follow === undefined) throw new Error('room_topics: pass "follow" (true or false) with "topic".');
+      if (topic && typeof args.follow === 'boolean') {
+        await api(`/api/rooms/${enc(room)}/topics`, { body: { sessionId: sid, topic, follow: args.follow } });
+        return `${args.follow ? 'Following' : 'Unfollowed'} topic #${topic} in #${room}.`;
       }
       const list = await api<{ topic: string; count: number; follows: boolean }[]>(`/api/rooms/${enc(room)}/topics?session=${enc(sid)}`);
       return [`Topics of #${room}:`, ...list.map((t) => `  ${t.topic}: ${t.count} message(s)${t.follows ? ', you follow it' : ''}`)].join('\n');
     }
     case 'room_tasks': {
-      const room = await pickRoom(args.room);
+      const room = await pickRoom('room_tasks', args.room);
       type T = { id: number; title: string; detail?: string; doneWhen?: string; fromMsg?: number; owner?: string; after?: number[]; status: string; commit?: string; note?: string };
       const line = (t: T) => `  #${t.id} [${t.status}] ${t.title}${t.owner ? ` (${t.owner})` : ''}${t.commit ? ` · ${t.commit.slice(0, 9)}` : ''}`;
       const full = (t: T) => [`#${t.id} [${t.status}] ${t.title}${t.owner ? ` (${t.owner})` : ''}`, ...(t.detail ? [t.detail] : []), ...(t.doneWhen ? [`Done when: ${t.doneWhen}`] : []), ...(t.fromMsg ? [`Source message #${t.fromMsg} (room_read to see it)`] : [])].join('\n');
-      const action = String(args.action ?? 'list');
+      const action = args.action === undefined ? 'list' : stringArg('room_tasks', 'action', args.action);
+      // The hub clips and stores these as strings, so a wrong type used to land in the task list as "[object Object]"
+      // (or, for an array of one name, silently as that name). Validate before anything is written.
+      const s = (k: string) => (args[k] === undefined ? undefined : stringArg('room_tasks', k, args[k]));
       if (action === 'list') {
         const q = new URLSearchParams();
-        if (args.status) q.set('status', String(args.status));
-        if (args.owner) q.set('owner', String(args.owner));
+        const status = optString('room_tasks', 'status', args.status);
+        const owner = optString('room_tasks', 'owner', args.owner);
+        if (status) q.set('status', status);
+        if (owner) q.set('owner', owner);
         const list = await api<T[]>(`/api/rooms/${enc(room)}/tasks?${q}`);
         return list.length ? [`Tasks of #${room}:`, ...list.map(line)].join('\n') : `#${room} has no tasks${q.size ? ' matching that' : ' yet'}.`;
       }
@@ -131,17 +183,17 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
         return `Your next task (now doing):\n${full(t)}`;
       }
       if (action === 'add') {
-        const t = await api<T>(`/api/rooms/${enc(room)}/tasks`, { body: { sessionId: sid, title: args.title, detail: args.detail, doneWhen: args.doneWhen, fromMsg: args.fromMsg, owner: args.owner, after: args.after } });
+        const t = await api<T>(`/api/rooms/${enc(room)}/tasks`, { body: { sessionId: sid, title: stringArg('room_tasks', 'title', args.title), detail: s('detail'), doneWhen: s('doneWhen'), fromMsg: optNumber('room_tasks', 'fromMsg', args.fromMsg), owner: s('owner'), after: numberList('room_tasks', 'after', args.after) } });
         return `Added task #${t.id}${t.owner ? ` for ${t.owner}` : ''}${t.after?.length ? `, waiting for ${t.after.map((n) => `#${n}`).join(', ')} (${t.status})` : ''}.`;
       }
       if (action === 'update') {
-        const t = await api<T>(`/api/rooms/${enc(room)}/tasks/${Number(args.id)}`, { body: { sessionId: sid, status: args.status, note: args.note, commit: args.commit, owner: args.owner, title: args.title, detail: args.detail, doneWhen: args.doneWhen } });
+        const t = await api<T>(`/api/rooms/${enc(room)}/tasks/${numberArg('room_tasks', 'id', args.id)}`, { body: { sessionId: sid, status: s('status'), note: s('note'), commit: s('commit'), owner: s('owner'), title: s('title'), detail: s('detail'), doneWhen: s('doneWhen') } });
         return `Task #${t.id} is now ${t.status}${args.owner !== undefined && t.owner ? ` (${t.owner})` : ''}.`;
       }
       throw new Error('action must be list, next, update or add');
     }
     case 'local_summarize': {
-      const r = await api<{ text: string; model: string; ms: number }>('/api/local/summarize', { body: { sessionId: sid, task: args.task, file: args.file, text: args.text } });
+      const r = await api<{ text: string; model: string; ms: number }>('/api/local/summarize', { body: { sessionId: sid, task: optString('local_summarize', 'task', args.task), file: optString('local_summarize', 'file', args.file), text: optString('local_summarize', 'text', args.text) } });
       return `${r.text}\n\n(local model ${r.model}, ${Math.round(r.ms / 1000)} s; a small model: check anything that matters)`;
     }
     case 'room_set_name': {
@@ -154,29 +206,34 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
     case 'room_note': {
       // A missing text stays '': the hub answers "empty note".
       const text = args.text === undefined ? '' : stringArg('room_note', 'text', args.text);
-      const room = await pickRoom(args.room);
+      const room = await pickRoom('room_note', args.room);
       const n = await api<Note>(`/api/rooms/${enc(room)}/notes`, { body: { sessionId: sid, text } });
       return `Saved note [${n.id}] in #${room}. All members get it with their next delivery.`;
     }
     case 'room_notes': {
-      const room = await pickRoom(args.room);
+      const room = await pickRoom('room_notes', args.room);
       const notes = await api<Note[]>(`/api/rooms/${enc(room)}/notes`);
       return notes.length ? [`Room notes #${room}:`, ...noteLines(notes)].join('\n') : `#${room} has no notes yet.`;
     }
     case 'room_note_remove': {
-      const room = await pickRoom(args.room);
-      await api(`/api/rooms/${enc(room)}/notes/${Number(args.id)}/delete`, { body: {} });
-      return `Removed note [${Number(args.id)}] from #${room}.`;
+      const room = await pickRoom('room_note_remove', args.room);
+      const id = numberArg('room_note_remove', 'id', args.id);
+      await api(`/api/rooms/${enc(room)}/notes/${id}/delete`, { body: {} });
+      return `Removed note [${id}] from #${room}.`;
     }
     case 'room_done': {
       // A missing summary stays '': the hub fills in its default "done" text.
       const summary = args.summary === undefined ? '' : stringArg('room_done', 'summary', args.summary);
-      const room = await pickRoom(args.room);
+      const room = await pickRoom('room_done', args.room);
       const r = await api<{ message: Message; allDone: Message | null }>(`/api/rooms/${enc(room)}/done`, { body: { sessionId: sid, summary } });
       return r.allDone ? `Marked done in #${room}. The whole room is done; the user has been told. Stop here.` : `Marked done in #${room}. Stop here unless someone mentions you.`;
     }
     case 'room_commit': {
-      const r = await api<{ commit: string; paths: string[]; insertions: number; deletions: number }>(`/api/sessions/${enc(sid)}/room-commit`, { body: { paths: args.paths, message: args.message } });
+      // A non-string message used to become the commit subject "[object Object]" (the hub String()s it), and a paths
+      // value that is not a list of strings reached the git layer as-is.
+      const paths = stringList('room_commit', 'paths', args.paths, true);
+      if (!paths.length) throw new Error('room_commit needs at least one path in "paths".');
+      const r = await api<{ commit: string; paths: string[]; insertions: number; deletions: number }>(`/api/sessions/${enc(sid)}/room-commit`, { body: { paths, message: stringArg('room_commit', 'message', args.message) } });
       return `Committed ${r.commit} (+${r.insertions}/-${r.deletions} lines):\n${r.paths.map((p) => `  ${p}`).join('\n')}`;
     }
     default:

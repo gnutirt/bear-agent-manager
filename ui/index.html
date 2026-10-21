@@ -3798,6 +3798,8 @@ function renderSettingsView() {
     general: `    <p class="lede">${t('settings.lede')}</p>
     <h2>${t('settings.language')}</h2>
     <div class="setbox"><label class="setrow"><span><b>${t('settings.language')}</b><small>${t('settings.language.hint')}</small></span><select data-set="language">${[['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']].map(([v, l]) => `<option value="${v}"${(st.language ?? 'auto') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
+    <h2>${t('settings.agentComms')}</h2>
+    <div class="setbox"><label class="setrow"><span><b>${t('settings.agentComms')}</b><small>${t('settings.agentComms.hint')}</small></span><select data-set="agentComms">${[['off', t('settings.agentComms.off')], ['terse', t('settings.agentComms.terse')]].map(([v, l]) => `<option value="${v}"${(st.agentComms ?? 'off') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
     <h2>${t('machine.title')}</h2>
     <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
       <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>

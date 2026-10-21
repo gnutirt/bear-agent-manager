@@ -99,6 +99,17 @@
       {
         "hooks": [
           {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "--no-warnings",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+              "hooks/waiter.ts"
+            ],
+            "asyncRewake": true,
+            "timeout": 604800
+          },
+          {
             "type": "http",
             "url": "http://127.0.0.1:7788/hooks/stop-failure",
             "timeout": 3

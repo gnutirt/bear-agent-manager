@@ -155,7 +155,9 @@ test('pathGuard (note [54]): path tools only inside the agent folder by realpath
   } catch (e) { if ((e as any)?.code !== 'EPERM') throw e; }
 });
 
-test('claude-api real CLI integration: the hub permission prompt blocks outside Read/Edit even with defaultMode auto', { skip: !hasClaudeCli }, async () => {
+test('claude-api real CLI integration: the hub permission prompt blocks outside Read/Edit even with defaultMode auto', {
+  skip: !hasClaudeCli ? 'Claude CLI is not installed' : process.platform === 'win32' ? 'Windows may keep the CLI/MCP temp working directory open (EPERM)' : false,
+}, async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-api-guard-cli-'));
   const cwd = path.join(sandbox, 'workspace'), configDir = path.join(sandbox, 'claude-config');
   const outside = path.join(sandbox, 'outside.txt'), marker = 'OUTSIDE_SENTINEL';

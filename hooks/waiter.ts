@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import type { Message } from '../hub/routing.ts';
+import type { AgentComms } from '../hub/settings.ts';
 import type { NoteLite } from '../shared/format.ts';
 import { api, ApiError, ensureHub, hubUp, sleep } from '../shared/client.ts';
 import { formatDelivery, isOneShotCommand, parentCommandLine, readInput, register, runContext } from './lib.ts';
@@ -51,15 +52,16 @@ if (!known) {
 // so a chat opened in VS Code and then Antigravity stays one session with one name.
 await register(input, { ide }).catch(() => {});
 
-if (input.hook_event_name === 'Stop') {
+const afterLimit = input.hook_event_name === 'StopFailure';
+if (input.hook_event_name === 'Stop' || afterLimit) {
   await api(`/api/sessions/${id}/status`, { body: { status: 'idle', activity: '' } }).catch(() => {});
 }
 
 while (Date.now() - started < LIFETIME_MS) {
-  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; superseded?: boolean };
+  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; agentComms?: AgentComms; superseded?: boolean };
   try {
     const left = Math.max(1, Math.min(50, Math.ceil((LIFETIME_MS - (Date.now() - started)) / 1000)));   // never poll past the idle limit
-    r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}`, { timeoutMs: 65_000 });
+    r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}${afterLimit ? '&afterLimit=1' : ''}`, { timeoutMs: 65_000 });
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       await register(input, { ide }).catch(() => {});
@@ -73,7 +75,7 @@ while (Date.now() - started < LIFETIME_MS) {
   if (r.superseded) process.exit(0);
   if (r.messages?.length) {
     await api(`/api/sessions/${id}/status`, { body: { status: 'busy', activity: 'reading room' } }).catch(() => {});
-    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? [], input.session_id));
+    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? [], input.session_id, r.agentComms));
     process.exit(2);
   }
 }

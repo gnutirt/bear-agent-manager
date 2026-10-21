@@ -15,13 +15,16 @@ const limitLine = (resetsAtSec: number) => JSON.stringify({
 
 async function stuckTab(resetsAtMs: number, settings: object = {}) {
   const order: string[] = [];
-  const h = await makeHub(undefined, () => { order.push('revive'); }, {
-    listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
-    kill: async () => { order.push('kill'); },
+  const pid = process.pid;
+  let procAlive = true;
+  let h: Awaited<ReturnType<typeof makeHub>>;
+  h = await makeHub(undefined, () => { order.push('revive'); }, {
+    listProcs: async () => procAlive ? [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }] : [],
+    kill: async () => { order.push('kill'); procAlive = false; h.hub.store.session('a1').pids = []; },
   });
   const tr = path.join(h.dir, 'alice.jsonl');
   fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'working' }] } }) + '\n' + limitLine(Math.floor(resetsAtMs / 1000)) + '\n');
-  await h.call('/api/sessions/register', { id: 'a1', cwd: h.dir, name: 'alice', transcript: tr, pid: 800 });
+  await h.call('/api/sessions/register', { id: 'a1', cwd: h.dir, name: 'alice', transcript: tr, pid, ide: 'vscode' });
   await h.call('/api/rooms/web/join', { sessionId: 'a1' });
   if (Object.keys(settings).length) await h.call('/api/settings', settings, { method: 'PUT' });
   await h.call('/api/rooms/web/messages', { text: '@alice go on' });
@@ -118,21 +121,24 @@ test('an old limit line with no queued message is handled once across repeated u
   } finally { await restarted.close(); }
 });
 
-test('a live IDE tab is never terminated by limit recovery even when it has queued work', async () => {
+test('a live IDE tab is terminated and resumed when closeLimitedTab allows limit recovery', async () => {
   const operations: string[] = [];
-  const h = await makeHub(undefined, () => { operations.push('revive'); }, {
-    listProcs: async () => [{ pid: process.pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
-    kill: async () => { operations.push('kill'); },
+  const pid = process.pid;
+  let procAlive = true;
+  let h: Awaited<ReturnType<typeof makeHub>>;
+  h = await makeHub(undefined, () => { operations.push('revive'); }, {
+    listProcs: async () => procAlive ? [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }] : [],
+    kill: async () => { operations.push('kill'); procAlive = false; h.hub.store.session('ide-tab').pids = []; },
   });
   try {
     const tr = path.join(h.dir, 'tab.jsonl');
     fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
-    await h.call('/api/sessions/register', { id: 'ide-tab', cwd: h.dir, name: 'ide-tab', transcript: tr, pid: process.pid, ide: 'vscode' });
+    await h.call('/api/sessions/register', { id: 'ide-tab', cwd: h.dir, name: 'ide-tab', transcript: tr, pid, ide: 'vscode' });
     await h.call('/api/rooms/web/join', { sessionId: 'ide-tab' });
     await h.call('/api/rooms/web/messages', { text: '@ide-tab continue' });
-    await until(() => !!h.hub.store.session('ide-tab').limitHandled, 5_000, 'the live IDE tab limit to be acknowledged');
-    assert.deepEqual(operations, []);
-    assert.equal(h.hub.store.pending('ide-tab').wake, true, 'queued work remains available');
+    await until(() => operations.length >= 2, 5_000, 'the stuck tab to be terminated and resumed');
+    assert.deepEqual(operations, ['kill', 'revive']);
+    assert.ok(h.hub.store.session('ide-tab').limitHandled);
   } finally { await h.hub.close(); }
 });
 
@@ -154,5 +160,34 @@ test('a waiter left from an earlier turn does not swallow the wake of a chat tha
     assert.deepEqual(await waiting, { superseded: true }, 'the stale waiter is let go, not handed the message');
     await until(() => order.length >= 2, 10_000, 'kill and revive');
     assert.deepEqual(order, ['kill', 'revive']);
+  } finally { await h.hub.close(); }
+});
+
+test('the StopFailure waiter receives the next @ after a 429 instead of being superseded', async () => {
+  const order: string[] = [];
+  const h = await makeHub(undefined, () => { order.push('revive'); }, {
+    listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { order.push('kill'); },
+  });
+  try {
+    const tr = path.join(h.dir, 'after-limit.jsonl');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() + 3600_000) / 1000)) + '\n');
+    await h.call('/api/sessions/register', { id: 'after-limit', cwd: h.dir, name: 'alice', transcript: tr, pid: 800 });
+    await h.call('/api/rooms/web/join', { sessionId: 'after-limit' });
+    const failed = await fetch(`${h.hub.url}/hooks/stop-failure`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'after-limit', error: 'rate_limit', transcript_path: tr }),
+    });
+    assert.equal(failed.status, 200);
+    const waiting = fetch(`${h.hub.url}/api/sessions/after-limit/wait?timeout=10&afterLimit=1`, { headers: { 'x-room-token': h.hub.token } }).then((r) => r.json());
+    await until(() => h.hub.waiting('after-limit'), 15_000, 'the StopFailure waiter to wait');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    h.hub.store.session('after-limit').limited!.until = Date.now() - 1;
+    h.hub.store.save();
+    await h.call('/api/rooms/web/messages', { text: '@alice continue after reset' });
+    const delivered = await waiting;
+    assert.ok(delivered.messages.some((m: any) => /continue after reset/.test(m.text)), 'the new @ reaches the waiting tab');
+    assert.notEqual(delivered.superseded, true);
+    assert.deepEqual(order, [], 'a fresh waiter lets the tab handle the next turn; no background revive competes with it');
   } finally { await h.hub.close(); }
 });

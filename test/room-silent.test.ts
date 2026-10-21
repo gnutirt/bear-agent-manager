@@ -53,6 +53,9 @@ test('an @ asked before a clear/resume names the session the hub knows after the
     const posted = await call<any>('/api/rooms/r/messages', { text: '@alice start' });
     assert.deepEqual(posted.message.wake, ['old']);
 
+    // Real order of the two hooks: SessionEnd of the old chat, then SessionStart(clear) of the new id. A chat that still
+    // lives is never taken over, so without the end the hub would treat 'old' as a living colleague.
+    await fetch(`${hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'old' }) });
     await call('/api/sessions/register', { id: 'new', cwd: 'C:/proj', source: 'clear' });
     const msgs = await call<any[]>('/api/rooms/r/messages?limit=20');
     assert.deepEqual(msgs.find((m) => m.id === posted.message.id)?.wake, ['new'], 'wake follows the alias');

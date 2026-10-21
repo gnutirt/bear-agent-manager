@@ -247,8 +247,9 @@ test('corrupt state.json is set aside and rooms are rebuilt from jsonl', () => {
   assert.ok(fs.readdirSync(dir).some((f) => f.startsWith('state.json.bad-')));
 });
 
-test('/clear inherits rooms and name from the user-named session in the same cwd', () => {
+test('/clear inherits rooms and name from the user-named session in the same cwd that just ended', () => {
   const { st, fw } = setup();
+  st.markEnded(fw.id);   // SessionEnd runs before SessionStart(source=clear); a chat that still lives is never taken over
   const next = st.register({ id: 'eeee5555', cwd: fw.cwd, source: 'clear' });
   assert.equal(next.name, 'fw');
   assert.ok('proj' in next.rooms);

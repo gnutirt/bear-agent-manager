@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Message } from '../hub/routing.ts';
 import { HOME } from './config.ts';
+import type { AgentComms } from '../hub/settings.ts';
 
 export function activityFor(tool = '', input: Record<string, unknown> = {}): string {
   const pick = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : '');
@@ -29,10 +30,14 @@ export const attachmentLines = (m: Message, home = HOME) =>
  * Text handed to a woken Claude: new messages (long ones trimmed) plus room notes that changed.
  * With forSid, a message that did not wake that session (no @ to it, not from the user or hub, not in a room it leads) is one line: about half of what agents received was such chatter.
  */
-export function formatDelivery(messages: Message[], notes: Record<string, NoteLite[]> = {}, leadOf: string[] = [], forSid?: string): string {
+export function formatDelivery(messages: Message[], notes: Record<string, NoteLite[]> = {}, leadOf: string[] = [], forSid?: string, agentComms: AgentComms = 'off'): string {
   const shown = messages.slice(-MAX_SHOWN);
   const head = messages.length > shown.length ? ` (last ${shown.length} of ${messages.length})` : '';
   const lines = [`[bear-agent-manager] New messages${head}:`];
+  // One optional style, not a language switch: agents may mix English and Vietnamese (room note [65]); what costs tokens
+  // is the greetings-and-recap prose, so 'terse' asks for short status/handoff lines and keeps full sentences where a
+  // person or a decision is involved.
+  if (agentComms === 'terse') lines.push('Agent posts: BAMshort — short status/handoff lines, English or Vietnamese or mixed, no greetings; verb + path:line + result. Full sentences only for @you, decisions and contracts. Keep @names, paths and commit hashes as ^sha.');
   let room = '';
   let trimmed = false, short = false;
   for (const m of shown) {
@@ -60,7 +65,9 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     for (const n of list) lines.push(`  [${n.id}] ${n.text.replace(/\n/g, ' ')} (${n.by})`);
   }
   for (const r of leadOf) {
-    lines.push(`You are the lead (★) of #${r}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
+    lines.push(agentComms === 'terse'
+      ? `Lead #${r}: delegate actionable user requests with room_tasks add (one job per task; fromMsg = message id; owner = best-fit member). Track with room_tasks list; collect results, update room notes, then report one summary to @you. Handle only work with no suitable member.`
+      : `You are the lead (★) of #${r}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
   }
   if (trimmed) lines.push('Some messages were trimmed; use room_read to see them in full.');
   if (short) lines.push('One-line messages did not mention you; use room_read only if you need one in full.');

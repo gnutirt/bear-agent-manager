@@ -18,6 +18,7 @@ export type Session = {
   ide?: Ide;                     // editor the session runs in, '' until known
   notesSeen?: Record<string, number>; // room -> notesAt last delivered to this session
   ended?: boolean;               // SessionEnd seen: the tab is closed, safe to resume in the background
+  endedAt?: number;              // when ended was set
   configDir?: string;            // CLAUDE_CONFIG_DIR of the claude process ('' = default ~/.claude)
   prompts?: number;              // user prompts seen by the UserPromptSubmit hook (0 = next one is the first)
   title?: string;                // chat title shown on the editor tab (ai-title / custom-title)
@@ -28,7 +29,7 @@ export type Session = {
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
-  deafMsgId?: number;            // newest waiting message the "X is not reading" notice was already posted for: one notice per message, not one per sweep
+  deafSince?: number;            // when the room was told this chat stopped reading: one notice per deaf stretch, cleared when the chat is seen alive again
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
@@ -52,6 +53,7 @@ type State = {
   budgetAlerts?: Record<string, string>;   // paid-provider budget notices already posted: profile id -> Vietnam-local date
   skillUse?: { agent: string; skill: string; ts: number; room: string }[];   // newest 500 Skill tool calls (which agent really used which skill)
   leadOpened?: string[];   // rooms the hub already opened a lead terminal for by itself (T19: once per room)
+  lastMsgId?: number;      // newest message id ever handed out: ids must keep growing even after every room is deleted
 };
 
 export const ROOM_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
@@ -254,14 +256,62 @@ export class Store {
     renameRetry(`${file}.tmp`, file);
   }
 
+  /** The newest message id ever handed out, not the newest one still in memory: deleting every room must not make ids
+   *  start again at 1, or a live session whose cursor is ~300 would never see them (pending() filters id > cursor). */
   private lastId(): number {
-    return this.messages.at(-1)?.id ?? 0;
+    return Math.max(this.state.lastMsgId ?? 0, this.messages.at(-1)?.id ?? 0);
+  }
+
+  /** A fresh message id, remembered in state.json so it keeps growing across restarts and room deletions. */
+  private newId(): number {
+    const id = this.lastId() + 1;
+    this.state.lastMsgId = id;
+    return id;
   }
 
   resolve(id: string): string {
     let cur = id;
     for (let i = 0; i < 20 && this.state.aliases[cur]; i++) cur = this.state.aliases[cur];
     return cur;
+  }
+
+  /**
+   * Every id that resolves to this session, its own id first. A `clear`/`resume` merges an old id into the new one, but a
+   * background claude the hub started under the old id keeps writing for it: a guard that looks only at the new id would
+   * start a second claude on the same agent (two turns, two answers in the room under one name).
+   */
+  idsFor(id: string): string[] {
+    const target = this.resolve(id), out = [target];
+    for (const from of Object.keys(this.state.aliases)) if (this.resolve(from) === target) out.push(from);
+    return out;
+  }
+
+  /**
+   * The chat a clear/resume continues.
+   *
+   * A chat that still lives is never taken over: several named agents share one repo folder, and picking the newest
+   * session of the folder regardless of state made a /clear of one agent inherit the name, rooms and cursor of a living
+   * colleague and delete that colleague from the hub (its tab kept running while the hub sent its messages to someone
+   * else). Living means the hub holds a waiter or a background turn for it, its claude pid still runs, or it was seen
+   * less than STALE_MS ago; a chat already marked ended/offline is gone unless one of those says a process lives on.
+   *
+   * The exception is the same claude process: /clear keeps the pid, so SessionEnd may reach the hub after SessionStart
+   * and the old id still looks alive — but it is the very tab that just cleared, not a colleague. A resume that names
+   * the same transcript wins over guessing by folder; otherwise the only gone chat of the folder continues, and with
+   * none or several there is no way to tell which one this is, so the new id keeps its own name.
+   */
+  private continuedFrom(input: { cwd: string; source?: string; pid?: number; transcript?: string }, live: (id: string) => boolean, now: number): Session | undefined {
+    if (!input.cwd) return undefined;   // a registration without a folder says nothing about which chat it continues
+    const sameProc = (o: Session) => !!input.pid && (o.pid === input.pid || (o.pids ?? []).some((p) => p.pid === input.pid));
+    const alive = (o: Session) => live(o.id) || ((!o.ended && o.status !== 'offline')
+      && ((!!o.pid && pidAlive(o.pid)) || now - o.lastSeen < STALE_MS));
+    const gone = Object.values(this.state.sessions).filter((o) => o.cwd === input.cwd && (sameProc(o) || !alive(o)));
+    if (!gone.length) return undefined;
+    if (input.source === 'resume' && input.transcript) {
+      const same = gone.filter((o) => o.transcript === input.transcript);
+      if (same.length === 1) return same[0];
+    }
+    return gone.length === 1 ? gone[0] : undefined;
   }
 
   session(id: string): Session {
@@ -341,25 +391,35 @@ export class Store {
     this.save();
   }
 
-  register(input: { id: string; cwd: string; name?: string; source?: string; configDir?: string; transcript?: string; ctx?: number; pid?: number }): Session {
+  /** `live` tells whether the hub still holds a waiter or a background turn for an id: such a chat is never taken over. */
+  register(input: { id: string; cwd: string; name?: string; source?: string; configDir?: string; transcript?: string; ctx?: number; pid?: number }, live: (id: string) => boolean = () => false): Session {
     if (!input.id) throw new StoreError(400, 'id required');
     const t = this.now();
     let s = this.state.sessions[this.resolve(input.id)];
+    let aliased = false;
     if (!s) {
-      let aliased = false;
       s = { id: input.id, name: '', userNamed: false, cwd: input.cwd ?? '', rooms: {}, status: 'idle', activity: '', lastSeen: t, cursor: this.lastId() };
       if (input.source === 'clear' || input.source === 'resume') {
-        const prev = Object.values(this.state.sessions)
-          .filter((o) => o.cwd === input.cwd && o.userNamed)
-          .sort((a, b) => b.lastSeen - a.lastSeen)[0];
+        // A clear/resume continues a chat that is gone; it must never take over a chat that still lives (see continuedFrom).
+        const prev = this.continuedFrom(input, live, t);
         if (prev) {
           s.name = prev.name;
           s.userNamed = true;
           s.rooms = prev.rooms;
           s.cursor = prev.cursor;
-          // The chat is the same one with a new id: a message already reported as "not reading" must not be reported
+          // The chat is the same one with a new id: a stretch already reported as "not reading" must not be reported
           // again. Without this every /clear or resume of a stuck tab posted the same notice to the room once more.
-          s.deafMsgId = prev.deafMsgId;
+          s.deafSince = prev.deafSince;
+          // What the chat is (its JSONL, its account, the claudes that registered for it) follows it too: losing the
+          // transcript made the new id un-resumable, and losing the pids let the hub start a twin claude.
+          s.pids = prev.pids;
+          s.transcript = prev.transcript;
+          s.ctx = prev.ctx;
+          s.configDir = prev.configDir;
+          s.ide = prev.ide;
+          s.notesSeen = prev.notesSeen;
+          s.topics = prev.topics;
+          s.turnTopic = prev.turnTopic;
           delete this.state.sessions[prev.id];
           this.state.aliases[prev.id] = s.id;
           aliased = true;
@@ -371,6 +431,8 @@ export class Store {
     }
     s.status = 'idle';
     s.ended = false;
+    s.endedAt = undefined;
+    if (!aliased) s.deafSince = undefined;   // a hook just ran for this chat: it is alive and reading again
     if (input.configDir !== undefined) {
       if (s.configDir !== input.configDir) s.limited = undefined;   // switched account: the old one's limit does not apply here
       s.configDir = input.configDir;
@@ -401,6 +463,7 @@ export class Store {
     s.status = status;
     s.activity = String(activity).slice(0, 80);
     s.lastSeen = this.now();
+    s.deafSince = undefined;   // a hook (or the hub) just saw this chat work: a later silence is a new notice
     this.save();
     return s;
   }
@@ -414,9 +477,14 @@ export class Store {
 
   markEnded(id: string): Session {
     const s = this.session(id);
+    // SessionEnd can reach the hub after the SessionStart of the /clear that replaced this id. That end belongs to the old
+    // chat: applying it to the id it was merged into would call the chat that just started "closed" (and the hub would try
+    // to resume a tab that is open). The current id is the only one whose end matters.
+    if (id !== s.id && this.state.aliases[id]) return s;
     s.status = 'offline';
     s.activity = '';
     s.ended = true;
+    s.endedAt = this.now();
     this.save();
     return s;
   }
@@ -426,6 +494,8 @@ export class Store {
     s.lastSeen = this.now();
     if (s.status === 'offline') s.status = 'idle';
     s.ended = false;
+    s.endedAt = undefined;
+    s.deafSince = undefined;   // a waiter or a prompt just reached this chat
   }
 
   createRoom(name: string): Room {
@@ -545,7 +615,7 @@ export class Store {
     const room = existing ?? this.dmRoom(s.id);
     if (!existing) this.hideDm(room.name);
     const name = room.name;
-    const message: Message = { id: this.lastId() + 1, room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `[tab] ${who}: ${text}`, ts: this.now(), wake: [], kind: 'mirror' };
+    const message: Message = { id: this.newId(), room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `[tab] ${who}: ${text}`, ts: this.now(), wake: [], kind: 'mirror' };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${name}.jsonl`), JSON.stringify(message) + '\n');
     this.save();
@@ -555,7 +625,7 @@ export class Store {
   /** Hub notice in the room: wakes nobody and leaves the loop guard alone. */
   postSystem(roomName: string, text: string, topic?: string, sys: SysMeta = { type: 'info', level: 'info' }, as?: { name: string; id: string }, wake: string[] = []): Message {
     this.room(roomName);
-    const message: Message = { id: this.lastId() + 1, room: roomName, from: as?.name ?? 'bear-agent-manager', fromId: as?.id ?? null, mentions: [], text, ts: this.now(), wake, kind: 'system', sys, ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
+    const message: Message = { id: this.newId(), room: roomName, from: as?.name ?? 'bear-agent-manager', fromId: as?.id ?? null, mentions: [], text, ts: this.now(), wake, kind: 'system', sys, ...(topic && topic !== 'chung' && TOPIC.test(topic) ? { topic } : {}) };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${roomName}.jsonl`), JSON.stringify(message) + '\n');
     this.save();
@@ -597,7 +667,7 @@ export class Store {
     // message it was handed (users asked in #x expect the answer in #x); `topic: 'chung'` keeps it in #chung.
     const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted ?? (sender ? sender.turnTopic?.[roomName] : undefined)) || undefined;
     const message: Message = {
-      id: this.lastId() + 1, room: roomName, from: sender?.name ?? (sys ? 'bear-agent-manager' : 'you'), fromId: sender?.id ?? null,
+      id: this.newId(), room: roomName, from: sender?.name ?? (sys ? 'bear-agent-manager' : 'you'), fromId: sender?.id ?? null,
       mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}), ...(sys ? { sys } : {}),
     };
     if (!sender) { room.agentWakeStreak = 0; room.paused = false; room.done = []; }
@@ -825,22 +895,33 @@ export class Store {
   }
 
   /**
-   * "Deaf" tabs: alive (not ended/offline), no waiter, and an @-message has waited longer than `minMs`. A busy tab only
-   * counts once it has been silent that long too (a long tool sends no hook). Returns the oldest waiting message per session.
+   * "Deaf" tabs: alive (not ended/offline), no waiter, and an @-message has waited longer than `minMs`. One notice per
+   * deaf stretch, not one per message (Session.deafSince): the sweep runs every 30 s, and every new @ on a tab that was
+   * already reported used to post the same warning to the room again, so four stuck tabs filled the chat with them
+   * (2026-10-21: each of them was reported three times in twenty messages). A sign of life clears the marker, so a chat
+   * that wakes and goes deaf again is reported once more.
    */
   deaf(isConnected: (id: string) => boolean, minMs: number, now = this.now()): { session: Session; msg: Message }[] {
     const out: { session: Session; msg: Message }[] = [];
+    let dirty = false;
     for (const s of Object.values(this.state.sessions)) {
-      if (s.ended || s.status === 'offline' || isConnected(s.id) || (s.status === 'busy' && now - s.lastSeen < minMs)) continue;
-      const msg = this.pending(s.id).messages.find((m) =>
-        m.id > (s.deafMsgId ?? 0) && m.wake.some((w) => this.resolve(w) === s.id));
-      if (!msg || now - msg.ts <= minMs) continue;
-      // One notice per message: the sweep runs every 30 s and the same dead tab kept re-notifying the user for hours.
-      if (s.deafMsgId && msg.id <= s.deafMsgId) continue;
-      s.deafMsgId = msg.id;
+      if (isConnected(s.id)) {
+        if (s.deafSince) { s.deafSince = undefined; dirty = true; }   // seen alive again: the next silence is a new notice
+        continue;
+      }
+      // A closed chat is not deaf (deliver revives it); its marker stays, so a /clear or resume of the same chat does not
+      // report the same stretch again.
+      if (s.ended || s.status === 'offline' || s.deafSince) continue;
+      const msg = this.pending(s.id).messages.find((m) => m.wake.some((w) => this.resolve(w) === s.id));
+      // Count from the later of the message and the last sign of life: a tab that answered a permission prompt a minute
+      // ago is not deaf yet, however old the message it has not read is. A long tool sends no hook, so `busy` alone is
+      // no sign of life either.
+      if (!msg || now - Math.max(msg.ts, s.lastSeen) <= minMs) continue;
+      s.deafSince = now;
+      dirty = true;
       out.push({ session: s, msg });
     }
-    if (out.length) this.save();
+    if (dirty) this.save();
     return out;
   }
 
@@ -857,12 +938,12 @@ export class Store {
       const pids = [...new Set([...(s.pids ?? []).map((x) => x.pid), ...(s.pid ? [s.pid] : [])])];   // a tab and a background wake can both exist: one living pid is enough
       if (s.status !== 'offline' && pids.length && now - s.lastSeen < MAX_PID_QUIET_MS) {
         if (pids.some((p) => isAlive(p))) continue;
-        s.status = 'offline'; s.activity = ''; s.ended = true; changed.push(s);
+        s.status = 'offline'; s.activity = ''; s.ended = true; s.endedAt = now; changed.push(s);
         continue;
       }
       if (s.status !== 'offline' && now - s.lastSeen > STALE_MS) { s.status = 'offline'; s.activity = ''; changed.push(s); }
       // A tab killed before the hub knew its pid sends no SessionEnd: after 5 quiet minutes with no living pid, call it ended so deliver() can revive it.
-      if (s.status === 'offline' && !s.ended && now - s.lastSeen > ENDED_QUIET_MS && !pids.some((p) => isAlive(p))) { s.ended = true; if (!changed.includes(s)) changed.push(s); }
+      if (s.status === 'offline' && !s.ended && now - s.lastSeen > ENDED_QUIET_MS && !pids.some((p) => isAlive(p))) { s.ended = true; s.endedAt = now; if (!changed.includes(s)) changed.push(s); }
       if (s.status === 'offline' && Object.keys(s.rooms).length === 0 && now - s.lastSeen > PRUNE_MS) delete this.state.sessions[s.id];
     }
     if (changed.length) this.save();

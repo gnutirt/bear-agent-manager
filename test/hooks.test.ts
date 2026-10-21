@@ -73,6 +73,19 @@ test('formatDelivery tells a room lead how to coordinate', () => {
   assert.match(text, /@name/);
 });
 
+test('formatDelivery applies optional BAMshort guidance only when enabled', () => {
+  const message = [{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: [], text: 'ship it', ts: 0, wake: ['s1'] }];
+  const base = formatDelivery(message, {}, ['proj']);
+  const terse = formatDelivery(message, {}, ['proj'], undefined, 'terse');
+  assert.doesNotMatch(base, /Agent posts:/);
+  assert.match(terse, /Agent posts: BAMshort/);
+  assert.match(terse, /Full sentences only for @you, decisions and contracts/);
+  assert.doesNotMatch(terse, /MCP/);
+  const baseLead = base.split('\n').find((line) => line.startsWith('You are the lead'));
+  const terseLead = terse.split('\n').find((line) => line.startsWith('Lead #proj:'));
+  assert.ok(baseLead && terseLead && terseLead.length < baseLead.length, 'terse shortens the lead handoff text');
+});
+
 test('session-start never registers; it only reminds a known member of its rooms', async () => {
   const { hub, call, env: e } = await env();
   try {
@@ -162,6 +175,65 @@ test('waiter exits 2 with the message on stderr when mentioned', async () => {
     assert.match(r.stderr, /you: @fw flash the board/);
     assert.equal((await call<any>('/api/sessions/s1')).session.status, 'busy');
   } finally { await hub.close(); }
+});
+
+test('waiter applies the saved agent communication style to new deliveries', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/settings', { agentComms: 'terse' }, { method: 'PUT' });
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    await call('/api/sessions/s1/rename', { name: 'fw' });
+    await call('/api/rooms/proj/join', { sessionId: 's1' });
+    const w = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
+    await until(() => hub.waiting('s1'), 15_000, 'the waiter to wait');
+    await call('/api/rooms/proj/messages', { text: '@fw check this' });
+    const r = await w.done;
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /Agent posts: BAMshort/);
+  } finally { await hub.close(); }
+});
+
+test('StopFailure waiter marks idle and identifies its post-limit poll', async () => {
+  let waitUrl = '';
+  const statuses: object[] = [];
+  const server = createServer((req, res) => {
+    const json = (status: number, body: object) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    if (req.url === '/api/sessions/s1') return json(200, { session: { id: 's1' } });
+    if (req.url === '/api/sessions/s1/status' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => { statuses.push(JSON.parse(body)); json(200, {}); });
+      return;
+    }
+    if (req.url?.startsWith('/api/sessions/s1/wait')) {
+      waitUrl = req.url;
+      return json(200, {
+        messages: [{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: ['fw'], text: '@fw retry', ts: Date.now(), wake: ['s1'] }],
+        notes: {}, lead: [],
+      });
+    }
+    return json(404, { error: 'not found' });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-waiter-limit-'));
+  const w = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'StopFailure' }, {
+    BEAR_AGENT_HOME: home,
+    BEAR_AGENT_PORT: String(address.port),
+  });
+  try {
+    const result = await w.done;
+    assert.equal(result.code, 2);
+    assert.match(waitUrl, /[?&]afterLimit=1(?:&|$)/);
+    assert.deepEqual(statuses, [{ status: 'idle', activity: '' }, { status: 'busy', activity: 'reading room' }]);
+  } finally {
+    if (w.child.exitCode === null) w.child.kill();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test('waiter re-registers after a 404 from its long poll and retries delivery', async () => {

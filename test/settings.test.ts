@@ -12,6 +12,17 @@ test('defaults: workers on, everything automatic off, no skill rules', () => {
   assert.deepEqual([d.autoJobs.handoff.enabled, d.autoJobs.digest.enabled, d.autoJobs.notes.enabled, d.autoJobs.maxRunsPerDay], [false, false, false, 10]);
   assert.deepEqual(d.agentSkills, {});
   assert.deepEqual(d.compact.thresholds, { enabled: true, lead: 200_000, member: 100_000, background: 100_000 });
+  assert.equal(d.agentComms, 'off');
+});
+
+test('agentComms: optional style is validated and preserved by unrelated patches', () => {
+  let s = patchSettings(defaultSettings(4), { agentComms: 'terse' });
+  assert.equal(s.agentComms, 'terse');
+  s = patchSettings(s, { workerCap: 3 });
+  assert.equal(s.agentComms, 'terse');
+  assert.equal(patchSettings(s, { agentComms: 'unknown' }).agentComms, 'terse');
+  assert.equal(patchSettings(defaultSettings(4), { agentComms: 'en' }).agentComms, 'terse');
+  assert.equal(patchSettings(defaultSettings(4), { agentComms: 'en-terse' }).agentComms, 'terse');
 });
 
 test('compact.thresholds: patch validates and clamps, partial patch keeps the rest', () => {

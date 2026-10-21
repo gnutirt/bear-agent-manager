@@ -98,6 +98,47 @@ test('room_note / room_set_name / room_done take strings only, and a wrong type 
   } finally { await hub.close(); }
 });
 
+test('the remaining tools refuse a wrong argument type before the hub sees it', async () => {
+  const { hub, call } = await makeHub();
+  const api = apiFor(hub.url, hub.token);
+  try {
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    await callTool(api, 's1', 'room_set_name', { name: 'fw' });
+    await callTool(api, 's1', 'room_join', { room: 'proj' });
+    const bad: [string, Record<string, unknown>, RegExp][] = [
+      ['room_join', {}, /room_join needs "room" as a string; got nothing/],
+      ['room_leave', { room: { a: 1 } }, /room_leave needs "room" as a string; got object/],
+      ['room_send', { text: 'x', room: 42 }, /room_send needs "room" as a string; got number/],
+      ['room_send', { text: 'x', topic: {} }, /room_send needs "topic" as a string; got object/],
+      ['room_send', { text: 'x', replyTo: 'abc' }, /room_send needs "replyTo" as a number; got string/],
+      ['room_send', { text: 'x', attachments: 'a.txt' }, /room_send needs "attachments" as an array of strings; got string/],
+      ['room_read', { limit: {} }, /room_read needs "limit" as a number; got object/],
+      ['room_topics', { topic: 't', follow: 'yes' }, /room_topics needs "follow" as a boolean; got string/],
+      ['room_topics', { topic: 't' }, /pass "follow"/],
+      ['room_topics', { follow: true }, /needs "topic" with "follow"/],
+      ['room_tasks', { action: 'add' }, /room_tasks needs "title" as a string; got nothing/],
+      ['room_tasks', { action: 'add', title: 'x', after: 3 }, /room_tasks needs "after" as an array of numbers; got number/],
+      ['room_tasks', { action: 'update', id: 'x', status: 'done' }, /room_tasks needs "id" as a number; got string/],
+      ['room_tasks', { action: 'update', id: 1, status: 42 }, /room_tasks needs "status" as a string; got number/],
+      ['room_note_remove', {}, /room_note_remove needs "id" as a number; got nothing/],
+      ['room_commit', { paths: ['a.ts'] }, /room_commit needs "message" as a string; got nothing/],
+      ['room_commit', { paths: 'a.ts', message: 'm' }, /room_commit needs "paths" as an array of strings; got string/],
+      ['room_commit', { paths: [{}], message: 'm' }, /room_commit needs "paths" as an array of strings; got a non-string item/],
+      ['room_commit', { paths: [], message: 'm' }, /at least one path/],
+    ];
+    for (const [tool, args, re] of bad) await assert.rejects(callTool(api, 's1', tool, args), re, `${tool} ${JSON.stringify(args)}`);
+    // nothing reached the hub: no message, no task, no note
+    assert.match(await callTool(api, 's1', 'room_read', {}), /no messages yet/);
+    assert.match(await callTool(api, 's1', 'room_tasks', {}), /no tasks yet/);
+    assert.match(await callTool(api, 's1', 'room_notes', {}), /no notes yet/);
+    // the legal calls still work
+    assert.match(await callTool(api, 's1', 'room_send', { text: 'hi' }), /Sent to #proj/);
+    assert.match(await callTool(api, 's1', 'room_tasks', { action: 'add', title: 'do it', owner: 'fw', after: [] }), /Added task #1/);
+    assert.match(await callTool(api, 's1', 'room_tasks', { action: 'update', id: 1, status: 'done', commit: 'abc1234' }), /now done/);
+    assert.match(await callTool(api, 's1', 'room_topics', {}), /Topics of #proj/);
+  } finally { await hub.close(); }
+});
+
 test('stdio server speaks MCP: initialize, tools/list, tools/call, unknown method', async () => {
   const { hub, call, dir } = await makeHub();
   try {

@@ -73,7 +73,7 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
 
 export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
 export type Hub = { url: string; port: number; token: string; store: Store; waiting(id: string): boolean; close(): Promise<void> };   // waiting: a long-poll waiter is registered for the session (tests wait for it instead of sleeping)
-type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean };   // headless: the waiter of a background wake, not of a tab
+type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean; afterLimit?: boolean };   // headless: the waiter of a background wake, not of a tab   // afterLimit: built by the StopFailure hook, so it is waiting on the turn that died on the usage limit
 
 /** Which kinds of claude are alive for a chat: a background one (hub wake, headless) and/or one with a tab or terminal. */
 export function liveKinds(pids: Session['pids'], alive: (pid: number) => boolean = pidAlive): { bg: boolean; tab: boolean } {
@@ -181,7 +181,6 @@ const WORKER_HISTORY_MS = 24 * 3600_000;
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const runRevive = opts.revive ?? spawnRevive;
   const runCompact = opts.compactRevive ?? spawnCompact;
-  const autoRevive = opts.autoRevive ?? process.env.BEAR_AGENT_REVIVE === '1';
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
   // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
@@ -201,6 +200,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
   const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
+  // Resuming a closed or limit-killed chat is the default (2026-10-21: the real hub ran with BEAR_AGENT_REVIVE unset, which
+  // meant off, so deliver() never unstuck or revived anything and every wake fix #89/#121/#130 was dead code). Settings >
+  // Agent: agents.autoRevive; BEAR_AGENT_REVIVE=0/1 still forces it off/on (tests, a hub that must never spawn claude).
+  const autoRevive = opts.autoRevive ?? (process.env.BEAR_AGENT_REVIVE === '0' ? false : process.env.BEAR_AGENT_REVIVE === '1' || loadSettings(opts.dir, envCap).agents.autoRevive);
   // I3: every text the hub writes into a room (or hands to an agent) follows settings.language
   const lang = (): Lang => resolveLang(loadSettings(opts.dir, envCap).language);
   // Each hub notice is a translated string; the key it came from gives its kind and level (sys), so the UI can draw
@@ -582,7 +585,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   function deliverTo(res: http.ServerResponse, sid: string, messages: Message[]) {
     if (messages.length) consume(sid, messages[messages.length - 1].id);
-    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid) });
+    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms });
   }
 
   // Every wake is a full turn that re-reads the session's whole context, so a burst of messages
@@ -705,13 +708,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         return;
       }
-      if (s.ide && tabHolds(s)) {
-        markLimitHandled(s, marker);
-        return;
-      }
-      if (!cfg.closeLimitedTab) {
-        markLimitHandled(s, marker);
-        say(tr('sys.limit.stuck', { name: s.name }));
+      // A tab still holds the chat: a background resume would give the same JSONL two writers, so that tab has to go
+      // first. With closeLimitedTab (the default) the user allowed exactly that, so the stuck process is stopped and the
+      // chat comes back in the background. With that setting off the wake must not be dropped in silence (2026-10-21: the
+      // room's @ stayed unread for hours and only typing in the tab helped): the room is told once, and because the
+      // marker is NOT marked handled, the next @ after the user closes the tab revives the chat by itself.
+      if (s.ide && tabHolds(s) && !cfg.closeLimitedTab) {
+        if (s.limitNotice !== marker) {
+          s.limitNotice = marker;
+          store.save();
+          say(tr('sys.limit.stuck', { name: s.name }));
+        }
         return;
       }
       markLimitHandled(s, marker);
@@ -731,8 +738,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
     const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
-    // store.deaf() owns the "already reported" marker (Session.deafMsgId): a map here used to forget a session as soon as
-    // one sweep found it busy/asleep, and the same message was reported again minutes later, sweep after sweep.
+    // store.deaf() owns the "already reported" marker (Session.deafSince): one notice per deaf stretch. A map here used to
+    // forget a session as soon as one sweep found it busy/asleep, and the same stretch was reported again, sweep after sweep.
     for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
       try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
@@ -750,13 +757,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
-      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id))) consume(st.id, p.messages[p.messages.length - 1].id);
+      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id, loadSettings(opts.dir, envCap).agentComms))) consume(st.id, p.messages[p.messages.length - 1].id);
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
     // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
-    // tab at 02:12). Drop that waiter and unstick the chat instead.
-    if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript) && !limitHandled(st)) {
+    // tab at 02:12). Drop that waiter and unstick the chat instead. A waiter the StopFailure hook built (afterLimit) is
+    // the exception: Claude Code is waiting on it right now, so it IS the way back for this turn.
+    if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript) && !limitHandled(st) && !waiters.get(sid)?.afterLimit) {
       const w = waiters.get(sid);
       if (w) { clearTimeout(w.timer); waiters.delete(sid); json(w.res, 200, { superseded: true }); }
       void unstick(st);
@@ -858,8 +866,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     const p = store.pending(s.id);
     const delivery = p.messages.length
-      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id)
-      : formatDelivery([], takeNotes(s.id), leadRooms(s.id)).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
+      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id, loadSettings(opts.dir, envCap).agentComms)
+      : formatDelivery([], takeNotes(s.id), leadRooms(s.id), undefined, loadSettings(opts.dir, envCap).agentComms).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
     const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
@@ -903,9 +911,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
         if (api && !failure) apiState.delete(api.id);
         reviving.delete(s.id);
-        if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
+        // A message that arrived while this turn ran met revive()'s "already running" guard. A provider agent has no Stop
+        // hook and no waiter, so nothing else would ever hand it over: drain its queue here, one turn at a time, instead
+        // of leaving the message unread until the next one is posted. A tab agent has a waiter, and chaining a revive
+        // there would put two claudes on one chat.
+        const more = !!api && !failure && !waiters.has(s.id) && store.pending(s.id).wake;
+        if (!waiters.has(s.id) && !more) emitSession(store.markEnded(s.id));
         const owed = compactAfter.get(s.id);
         if (owed) { compactAfter.delete(s.id); void compactTaskOwner(...owed); }
+        if (more) setImmediate(() => {
+          if (!waiters.has(s.id) && !reviving.has(s.id) && store.pending(s.id).wake && !revive(s.id)) emitSession(store.markEnded(s.id));
+        });
       });
     return true;
   }
@@ -1016,6 +1032,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function wait(id: string, url: URL, res: http.ServerResponse) {
     const sid = store.session(id).id;
     const headless = url.searchParams.get('headless') === '1';
+    const afterLimit = url.searchParams.get('afterLimit') === '1';   // the StopFailure hook says this waiter waits on the turn that died on the limit
     const tab = waiters.get(sid);
     if (headless && tab && !tab.headless) return json(res, 200, { superseded: true });   // a tab already waits: the background process steps aside and ends
     if (!headless) tabCameUp(sid);
@@ -1031,7 +1048,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (waiters.get(sid)?.res === res) waiters.delete(sid);
       json(res, 200, { messages: [] });
     }, seconds * 1000);
-    waiters.set(sid, { res, timer, headless });
+    waiters.set(sid, { res, timer, headless, afterLimit });
     cannotTold.delete(sid);
     res.on('close', () => {
       if (waiters.get(sid)?.res === res) { clearTimeout(timer); waiters.delete(sid); }
@@ -1187,7 +1204,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const pend = store.pending(sid);
         if (pend.wake && pend.messages.length) {
           consume(sid, pend.messages[pend.messages.length - 1].id);
-          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid) } });
+          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms) } });
         }
         break;
       }
@@ -1999,7 +2016,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/sessions/register') {
       const b = await readBody(req);
       if (b.headless !== true && b.id) { try { tabCameUp(store.session(String(b.id)).id); } catch { /* unknown session yet */ } }
-      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir !== undefined ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined });
+      // A clear/resume never takes over a chat the hub is still running: a waiter, a background turn or a claude the hub
+      // spawned all mean that id is alive (store.continuedFrom).
+      let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir !== undefined ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined },
+        (x) => waiters.has(x) || reviving.has(x) || bgRunning(x) || liveChat.has(x) || copilotAgents().some((c) => c.isRunning(x)));
       if (Number.isInteger(b.pid) && b.pid > 0) {
         s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
         store.save();
@@ -2068,7 +2088,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const s = store.session(id);
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
-        const hasReportedPendingMessage = s.deafMsgId !== undefined && store.pending(s.id).messages.some((msg) => msg.id === s.deafMsgId);
+        const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
         if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
         stopRevive(s.id);   // never two claude processes on one session
         openTab(s);
@@ -2211,7 +2231,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const pend = store.pending(sid);
         const consumeNow = url.searchParams.get('consume') === '1' && pend.wake && pend.messages.length > 0;
         if (consumeNow) consume(sid, pend.messages[pend.messages.length - 1].id);
-        return json(res, 200, { wake: pend.wake, messages: pend.wake ? pend.messages : [], notes: consumeNow ? takeNotes(sid) : {} });
+        return json(res, 200, { wake: pend.wake, messages: pend.wake ? pend.messages : [], notes: consumeNow ? takeNotes(sid) : {}, agentComms: loadSettings(opts.dir, envCap).agentComms });
       }
     }
 

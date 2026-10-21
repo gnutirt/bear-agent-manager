@@ -44,6 +44,7 @@ test('resume moves the existing private chat to the resolved session and merges 
   st.createRoom('dm-new-id');
   st.state.rooms['dm-new-id'].dm = 'new-id';
   st.save();
+  st.markEnded(old.id);   // SessionEnd of the chat that was resumed; a chat that still lives is never taken over
 
   const resumed = st.register({ id: 'new-id', cwd: path.join('D:', 'x'), source: 'resume' });
   assert.equal(st.resolve(old.id), resumed.id);
