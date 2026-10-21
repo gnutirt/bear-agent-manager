@@ -20,6 +20,8 @@
 - **Multiple agent backends**: optionally run a signed-in Copilot SDK agent or configure provider-backed Claude API profiles. Configure providers, models and per-agent permissions in Settings.
 - **Workers and skills**: delegate large reading or cleanup jobs to workers; manage per-agent skill rules and install skills from the bundled library.
 - **Usage and accounts**: see context estimates, Claude account usage, worker tokens and run history. Shared Claude accounts can switch a background wake to an available account when configured.
+- **Flow tab**: a room's agents by workflow tier (2–5 per room) with live message flow; assign tiers and tasks from the graph.
+- **Automatic compaction**: every 10 minutes the hub compacts offline chats that are past their role's context threshold and not held by a tab, waiter or background process. A chat can also be compacted when its task is done.
 - **Live UI** in a browser, app window, or VS Code / Antigravity panel. Choose light, gray or dark themes and English or Vietnamese.
 
 | Shared room | Tasks |
@@ -152,6 +154,7 @@ Room behavior, provider keys, permissions and account options are configured in 
 Every wake is a model turn and may consume substantial context. The **Token** tab shows estimates and provider usage where available; estimates are not invoices. The defaults are designed to avoid unnecessary agent-to-agent wakes:
 
 - untagged agent messages wake nobody, and the lead absorbs untagged traffic;
+- with `agentComms: 'terse'` (Settings) agents write to each other in BAMshort: short status/handoff lines, slang abbreviations and fixed status emoji, no greetings. Messages to you stay in full sentences;
 - a room message an agent starts with `~` is a status line: it is stored and readable (`room_read`), but it wakes nobody, is not routed to the lead and does not count towards the agent-to-agent wake limit. Use it for a short handover or "still working" note;
 - bursts are batched, and long messages are trimmed in deliveries (`room_read` has the full text);
 - the UI shows context estimates and previews which agents a message will wake;
@@ -194,8 +197,8 @@ It refuses when the index already holds other staged files, prints the diffstat 
 
 ```bash
 npm run release -- patch          # or minor, major, or an exact X.Y.Z
-git push origin HEAD v0.10.1      # the script never pushes
-gh release create v0.10.1 --title v0.10.1 --notes-file .git/release-notes-v0.10.1.md
+git push origin HEAD v0.11.0      # the script never pushes
+gh release create v0.11.0 --title v0.11.0 --notes-file .git/release-notes-v0.11.0.md
 ```
 
 A release runs the whole test suite and `npm run smoke`, and writes nothing (no version, no tag) when either is red. `--skip-smoke="reason"` skips only the smoke test and records the reason in the CHANGELOG. Hubs ask GitHub for the latest release at most every 6 hours (off with `updates.check: false`) and show "update available".
@@ -230,6 +233,8 @@ No license is currently provided for this repository. Reuse, modification and re
 - **Nhiều loại agent**: bật agent Copilot SDK đã đăng nhập hoặc cấu hình profile Claude dùng API của nhà cung cấp. Cấu hình provider, model và quyền từng agent trong Cài đặt.
 - **Worker và skill**: giao việc đọc nhiều/dọn dẹp cho worker; quản lý rule skill từng agent và cài skill từ thư viện đi kèm.
 - **Theo dõi usage và tài khoản**: xem ước tính context, usage Claude theo tài khoản, token worker và lịch sử chạy. Có thể chuyển lượt đánh thức nền sang tài khoản Claude dùng chung còn hạn mức.
+- **Tab Luồng**: agent của phòng xếp theo tầng workflow (2–5 tầng mỗi phòng), tin nhắn chạy theo thời gian thực; gán tầng và giao việc ngay trên đồ thị.
+- **Tự compact**: cứ 10 phút hub compact các chat đang offline đã vượt ngưỡng context theo vai trò và không bị tab, waiter hay tiến trình nền giữ. Chat cũng có thể được compact khi việc của nó xong.
 - **Giao diện trực tiếp** trên trình duyệt, cửa sổ app, hoặc panel VS Code / Antigravity. Có giao diện sáng, xám, tối, tiếng Anh và tiếng Việt.
 
 | Phòng chung | Việc |
@@ -350,6 +355,7 @@ Biến môi trường xem bảng ở [phần tiếng Anh](#configuration) (`BEAR
 Mỗi lần đánh thức là một lượt chạy model và có thể tiêu thụ nhiều context. Tab **Token** hiện ước tính và usage provider nếu có; số liệu ước tính không phải hoá đơn. Mặc định được thiết kế để tránh đánh thức agent không cần thiết:
 
 - tin agent không gắn tên không đánh thức ai, trưởng phòng nhận các tin không gắn tên;
+- bật `agentComms: 'terse'` (Cài đặt) thì agent nói với nhau bằng BAMshort: dòng trạng thái/bàn giao ngắn, lóng viết tắt và emoji trạng thái cố định, không chào hỏi. Tin gửi cho bạn vẫn viết đủ câu;
 - tin trong phòng mà agent bắt đầu bằng `~` là dòng trạng thái: vẫn được lưu và đọc được (`room_read`), nhưng không đánh thức ai, không chuyển về trưởng phòng và không tính vào giới hạn agent đánh thức nhau. Dùng cho câu bàn giao ngắn hoặc "vẫn đang làm";
 - tin dồn dập được gom lại, tin dài bị cắt bớt khi giao (`room_read` có bản đầy đủ);
 - UI hiện ước tính context và cho biết agent nào sẽ được đánh thức;
