@@ -148,7 +148,8 @@ test('Q1 after: a task waits (blocked) until every task it names is done, then t
     assert.equal((await call<any[]>('/api/rooms/r/tasks?owner=other'))[0].status, 'blocked', 'still waits for B');
     await call(`/api/rooms/r/tasks/${b.id}`, { sessionId: 'c1', status: 'done' });
     assert.equal((await call<any[]>('/api/rooms/r/tasks?owner=other'))[0].status, 'todo');
-    const m = await last();
+    const m = (await call<any[]>('/api/rooms/r/messages?limit=20')).find((x) => /^@other Việc #3: C/.test(x.text));
+    assert.ok(m, 'the newly unblocked task is assigned even though the lead audit notice is posted afterward');
     assert.match(m.text, /^@other Việc #3: C/);
     assert.deepEqual(m.wake, ['d1']);
     // a dependency that is already done does not block, and a deleted one is ignored

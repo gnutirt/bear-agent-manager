@@ -533,9 +533,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = apiProfiles();
     for (const p of profiles) if (p.enabled && !apiLimited(p) && !apiBudgetUntil(p)) apiStart(p);
     for (const s of Object.values(store.state.sessions)) {
-      if (s.ended || !isBackground(s.id)) continue;
+      const ids = store.idsFor(s.id);   // a turn started before a clear/resume runs under the old id
+      if (s.ended || !ids.some((x) => isBackground(x))) continue;
       const p = profiles.find((x) => normAgent(x.name) === normAgent(s.name));
-      if (p && !p.enabled) { stopRevive(s.id); emitSession(store.markEnded(s.id)); }
+      if (p && !p.enabled) { for (const x of ids) stopRevive(x); emitSession(store.markEnded(s.id)); }
     }
   }
   function setApiEnabled(id: string, on: boolean) {
@@ -559,8 +560,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const before = store.session(sid).cursor;
     store.consume(sid, upTo);
     // Only a message of the user counts: agents' mentions of each other often need no answer, and relaying those
-    // turns posted the agent's private reasoning as noise.
-    const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.includes(sid)).pop();
+    // turns posted the agent's private reasoning as noise. An @all wakes every member, so a turn each of them leaves in
+    // its own chat is not an answer the room asked for: relay only a DM or a message that also names this session.
+    const me = store.session(sid).name.toLowerCase();
+    const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.includes(sid)
+      && (m.room.startsWith('dm-') || !m.mentions.includes('all') || m.mentions.includes(me))).pop();
     if (asked) relayWatch.set(sid, { at: Date.now(), room: asked.room });
     emitSession(store.session(sid));
   }
@@ -726,7 +730,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
-    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
+    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
     // store.deaf() owns the "already reported" marker (Session.deafMsgId): a map here used to forget a session as soon as
     // one sweep found it busy/asleep, and the same message was reported again minutes later, sweep after sweep.
     for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
@@ -834,13 +838,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (Object.keys(s.rooms).some((r) => store.state.rooms[r]?.lead === s.id)) return 'lead';
     return s.ide ? 'member' : 'background';
   }
+  /** A background claude of this session, under its current id or an id it was aliased from (clear/resume). */
+  const bgRunning = (id: string) => store.idsFor(id).some((x) => isBackground(x));
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
     if (apiProfileOf(s)) attachTranscript(s);
-    // isBackground: a claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing
-    // this transcript; a second `claude --resume` on the same session would give the JSONL two writers.
-    if (reviving.has(s.id) || waiters.has(s.id) || isBackground(s.id) || !hasTranscript(s)) return false;
+    // A claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing this transcript; a
+    // second `claude --resume` on the same session would give the JSONL two writers. The alias check matters: a turn
+    // started before a clear/resume lives under the old id, and looking only at the new one started a twin agent.
+    if (reviving.has(s.id) || waiters.has(s.id) || bgRunning(s.id) || !hasTranscript(s)) return false;
     if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = apiProfileOf(s);
@@ -2275,8 +2282,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const selfFreed = freed.some((t) => t.id === task.id);
         if (selfFreed) task.status = 'todo';
         emitTasks();
-        if (freed.length) for (const t of freed) if (t.owner) assign(t);
-        if (!selfFreed && task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
+        // The completion is announced before the task it frees is handed out: the newest message of the room is then the
+        // one that woke the next owner, and the room reads "B done, C assigned" in that order (a test and the UI's
+        // "last message" both read the edge that just happened).
         if (task.status === 'done' && before.status !== 'done') {
           try {
             broadcast('msg', postSys(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
@@ -2284,6 +2292,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           } catch { /* room gone */ }
           afterTaskDone(room, task);
         }
+        if (freed.length) for (const t of freed) if (t.owner) assign(t);
+        if (!selfFreed && task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
         if ((task.status === 'done' || task.status === 'blocked') && before.status !== task.status) void compactTaskOwner(room, task).catch(() => {});
         return json(res, 200, task);
       }
@@ -2554,7 +2564,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const sweeper = setInterval(() => {
     // A running background claude counts as alive even without a waiter: provider agents use `--bare` (no hooks, so no
     // pid in the session and no waiter), and judging them by silence marked them offline/ended in the middle of a turn.
-    for (const s of store.sweep((id) => waiters.has(id) || reviving.has(id) || isBackground(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
+    for (const s of store.sweep((id) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
     let changedPause = false;
     for (const [key, pause] of Object.entries(store.state.usagePaused ?? {})) {
       if (pause.until > Date.now()) continue;

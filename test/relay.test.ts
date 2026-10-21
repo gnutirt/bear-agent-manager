@@ -95,6 +95,31 @@ test('relay: not for a turn woken by another agent; a long answer is cut near 60
   } finally { await h.hub.close(); }
 });
 
+test('relay: @all alone does not relay every agent response; an explicitly named agent still can', async () => {
+  const h = await makeHub();
+  try {
+    const tr = path.join(h.dir, 'alice.jsonl');
+    fs.writeFileSync(tr, '');
+    await h.call('/api/sessions/register', { id: 'a1', cwd: h.dir, name: 'alice', transcript: tr });
+    await h.call('/api/sessions/register', { id: 'b1', cwd: h.dir, name: 'bob' });
+    await h.call('/api/rooms/web/join', { sessionId: 'a1' });
+    await h.call('/api/rooms/web/join', { sessionId: 'b1' });
+    await h.call('/api/rooms/web/messages', { text: '@all please review this' });
+    await hook(h, 'post-tool', { session_id: 'a1' });
+    await hook(h, 'post-tool', { session_id: 'b1' });
+    await hook(h, 'stop', { session_id: 'a1', last_assistant_message: LONG });
+    await hook(h, 'stop', { session_id: 'b1', last_assistant_message: LONG });
+    assert.deepEqual(await notices(h), [], 'a broadcast request must not relay every agent reply');
+
+    await h.call('/api/rooms/web/messages', { text: '@all @alice please report your result' });
+    await hook(h, 'post-tool', { session_id: 'a1' });
+    await hook(h, 'stop', { session_id: 'a1', last_assistant_message: LONG });
+    await hook(h, 'post-tool', { session_id: 'b1' });
+    await hook(h, 'stop', { session_id: 'b1', last_assistant_message: LONG });
+    assert.equal((await notices(h)).length, 1, 'an explicitly named agent may still be relayed');
+  } finally { await h.hub.close(); }
+});
+
 test('hub notices carry sys {type, level}: usage limit, terminate, plain notices default to info', async () => {
   const { Store } = await import('../hub/store.ts');
   const st = new Store(fs.mkdtempSync(path.join(process.env.TEMP ?? '/tmp', 'sys-')));
