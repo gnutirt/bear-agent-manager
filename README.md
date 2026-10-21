@@ -152,6 +152,7 @@ Room behavior, provider keys, permissions and account options are configured in 
 Every wake is a model turn and may consume substantial context. The **Token** tab shows estimates and provider usage where available; estimates are not invoices. The defaults are designed to avoid unnecessary agent-to-agent wakes:
 
 - untagged agent messages wake nobody, and the lead absorbs untagged traffic;
+- a room message an agent starts with `~` is a status line: it is stored and readable (`room_read`), but it wakes nobody, is not routed to the lead and does not count towards the agent-to-agent wake limit. Use it for a short handover or "still working" note;
 - bursts are batched, and long messages are trimmed in deliveries (`room_read` has the full text);
 - the UI shows context estimates and previews which agents a message will wake;
 - account usage limits and background account switching are surfaced in the room and Settings.
@@ -186,6 +187,8 @@ node scripts/safe-commit.mjs "message" path/one path/two
 ```
 
 It refuses when the index already holds other staged files, prints the diffstat of what it commits, and lists every other changed file as "not part of this commit". Agents in a room use the `room_commit` tool instead, which does the same from a scratch index built on the current HEAD.
+
+**Writing about commits in a room.** Write a commit hash as `^sha` (short hash), not `@sha`: `@` is a mention and would wake an agent that happens to carry that name.
 
 **Releasing.** `package.json` holds the version (semver), and a test keeps `.claude-plugin/plugin.json` on the same number. Every change goes under `## Unreleased` in `CHANGELOG.md`.
 
@@ -347,6 +350,7 @@ Biến môi trường xem bảng ở [phần tiếng Anh](#configuration) (`BEAR
 Mỗi lần đánh thức là một lượt chạy model và có thể tiêu thụ nhiều context. Tab **Token** hiện ước tính và usage provider nếu có; số liệu ước tính không phải hoá đơn. Mặc định được thiết kế để tránh đánh thức agent không cần thiết:
 
 - tin agent không gắn tên không đánh thức ai, trưởng phòng nhận các tin không gắn tên;
+- tin trong phòng mà agent bắt đầu bằng `~` là dòng trạng thái: vẫn được lưu và đọc được (`room_read`), nhưng không đánh thức ai, không chuyển về trưởng phòng và không tính vào giới hạn agent đánh thức nhau. Dùng cho câu bàn giao ngắn hoặc "vẫn đang làm";
 - tin dồn dập được gom lại, tin dài bị cắt bớt khi giao (`room_read` có bản đầy đủ);
 - UI hiện ước tính context và cho biết agent nào sẽ được đánh thức;
 - giới hạn usage và chuyển tài khoản khi chạy nền được thể hiện trong phòng và Cài đặt.
@@ -355,7 +359,7 @@ Mẹo: chọn chat có context nhỏ làm trưởng phòng, compact phiên lớn
 
 ## Phát triển
 
-Các lệnh (`npm test`, `npm run smoke`, `scripts/demo-hub.mjs`, `scripts/screenshot.mjs`…), cách commit khi nhiều agent cùng sửa một cây (`scripts/safe-commit.mjs` hoặc công cụ `room_commit`) và cách release xem ở [phần tiếng Anh](#development). Ảnh trong README này chụp từ `scripts/demo-hub.mjs`, dữ liệu mẫu.
+Các lệnh (`npm test`, `npm run smoke`, `scripts/demo-hub.mjs`, `scripts/screenshot.mjs`…), cách commit khi nhiều agent cùng sửa một cây (`scripts/safe-commit.mjs` hoặc công cụ `room_commit`) và cách release xem ở [phần tiếng Anh](#development). Khi viết về commit trong phòng, viết hash dạng `^sha` (hash ngắn), đừng viết `@sha`: `@` là gọi tên và sẽ đánh thức agent trùng tên. Ảnh trong README này chụp từ `scripts/demo-hub.mjs`, dữ liệu mẫu.
 
 Tài liệu song ngữ: chat riêng, profile Copilot, quyền theo agent ở [`docs/copilot-profiles-and-dm.md`](docs/copilot-profiles-and-dm.md); agent claude-api, chat trực tiếp, gương tab và việc tự chạy ở [`docs/live-chat-api-agents-tasks.md`](docs/live-chat-api-agents-tasks.md).
 

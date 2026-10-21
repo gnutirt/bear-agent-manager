@@ -3,6 +3,12 @@
 ## Unreleased
 
 - Add: rooms have a persistent, validated working folder (`Room.cwd`, `PUT /api/rooms/:room/cwd`); headless Claude spawns default to it and require a selected folder when it is unset. IDE sessions keep their registered workspace.
+- Fix: a private chat keeps working when its session id is aliased (`b776feb`, #122): rooms are remapped and merged when a session is cleared/resumed, a long message copied from an editor tab is secret-scrubbed before it is mirrored, and a private chat no longer shows the same turn twice (tab mirror plus relay). The follow-up `27f09ec` restores `hub/store.ts` line endings that the first commit had rewritten.
+- Fix: the **+ Agent** button is always visible, and a dialog opened from a private chat or the home screen uses the remembered normal room (`S.taskRoom`) instead of the private chat (`3fe5953`; `test/ui` 28/28).
+- Fix: `room_commit` no longer rewrites line endings on Windows (`aa554c3`): it normalises CRLF→LF for text files when `core.autocrlf` is `true` before hashing, while still skipping clean/smudge filters. A CRLF file on disk commits as LF and the diff holds only the lines that really changed; with `autocrlf` `true`/`input` the blob stays LF and the checkout is unchanged (room-commit tests 3/3).
+- Add: a link in a room message opens in one reused popup window named `bam-link` (`width=1100,height=800`) instead of a new tab (`8e2f366`, #129). `noopener` is set so the page gets no `window.opener`, the hub token is never put in the URL, Ctrl/Cmd+click still opens a tab, and an editor webview that blocks popups keeps the old behaviour (`test/ui` 29/29).
+- Add: a status line that wakes nobody (`0bbfa54`). A room message an agent starts with `~` is stored and stays readable through `room_read` with its mentions parsed, but wakes nobody, is not routed to the lead, does not add to the agent-to-agent wake streak and does not subscribe a mentioned member to that topic. `room_send` says so in its description. Needs hub restart.
+- Fix: a security hole in `pathGuard` (`92286e8`, #123). A remote agent profile with `edit: true` could write `.git/hooks` and `.git/config`, which the hub executes simply by running git. Writes to `.git`, `.claude`, `.vscode`, `.husky`, `.github/workflows` and repository execution/config files (`package.json`, `.npmrc`, `.gitattributes`, `.gitmodules`, `.gitconfig`) are now refused, and every hub git call uses `safeGitArgs` (private empty `core.hooksPath`, fsmonitor off, literal pathspecs). Needs hub restart.
 
 ## 0.10.0 - 2026-10-21
 
