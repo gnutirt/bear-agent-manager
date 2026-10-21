@@ -21,6 +21,7 @@ async function stuckTab(resetsAtMs: number, settings: object = {}) {
   h = await makeHub(undefined, () => { order.push('revive'); }, {
     listProcs: async () => procAlive ? [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }] : [],
     kill: async () => { order.push('kill'); procAlive = false; h.hub.store.session('a1').pids = []; },
+    isAlive: (checkPid: number) => checkPid === pid && procAlive,
   });
   const tr = path.join(h.dir, 'alice.jsonl');
   fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'working' }] } }) + '\n' + limitLine(Math.floor(resetsAtMs / 1000)) + '\n');
@@ -78,7 +79,7 @@ test('closeLimitedTab off: the tab is left alone and @you is told to type in it'
   } finally { await h.hub.close(); }
 });
 
-test('an old limit line with no queued message is handled once across repeated usage sweeps and restarts', async () => {
+test('an old limit line with no queued message is not handled across repeated usage sweeps and restarts', async () => {
   const operations: string[] = [];
   const h = await makeHub(20, () => { operations.push('revive'); }, {
     listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
@@ -92,7 +93,7 @@ test('an old limit line with no queued message is handled once across repeated u
     const s = h.hub.store.session('stale');
     h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() - 1, configDirs: [path.join(h.dir, '.claude')], swept: false } };
     h.hub.store.save();
-    await until(() => !!s.limitHandled, 5_000, 'the stale limit line to be marked handled');
+    await new Promise((resolve) => setTimeout(resolve, 200));
     for (let i = 0; i < 4; i++) {
       h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() - 1, configDirs: [path.join(h.dir, '.claude')], swept: false } };
       h.hub.store.save();
@@ -101,7 +102,7 @@ test('an old limit line with no queued message is handled once across repeated u
     const messages = h.hub.store.history('web').filter((m) => m.kind === 'system');
     assert.equal(messages.length, 0, 'no recovery notice or kill/revive is needed without queued work');
     assert.deepEqual(operations, []);
-    assert.equal(h.hub.store.state.sessions.stale.limitHandled, limitErrorMarker(s.transcript));
+    assert.equal(h.hub.store.state.sessions.stale.limitHandled, undefined, 'no queued message means no recovery was handled');
   } finally { await h.hub.close(); }
   const restarted = await startHub({
     dir: h.dir, port: 0, sweepMs: 20, revive: () => { operations.push('revive'); }, batchMs: 0, autoRevive: true,
@@ -129,6 +130,7 @@ test('a live IDE tab is terminated and resumed when closeLimitedTab allows limit
   h = await makeHub(undefined, () => { operations.push('revive'); }, {
     listProcs: async () => procAlive ? [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }] : [],
     kill: async () => { operations.push('kill'); procAlive = false; h.hub.store.session('ide-tab').pids = []; },
+    isAlive: (checkPid: number) => checkPid === pid && procAlive,
   });
   try {
     const tr = path.join(h.dir, 'tab.jsonl');
@@ -139,6 +141,58 @@ test('a live IDE tab is terminated and resumed when closeLimitedTab allows limit
     await until(() => operations.length >= 2, 5_000, 'the stuck tab to be terminated and resumed');
     assert.deepEqual(operations, ['kill', 'revive']);
     assert.ok(h.hub.store.session('ide-tab').limitHandled);
+  } finally { await h.hub.close(); }
+});
+
+test('limit recovery waits for a killed IDE pid to disappear before reviving', async () => {
+  const operations: { action: string; at: number }[] = [];
+  const pid = 81_001;
+  const killedAt: number[] = [];
+  const h = await makeHub(undefined, () => { operations.push({ action: 'revive', at: Date.now() }); }, {
+    listProcs: async () => [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { operations.push({ action: 'kill', at: Date.now() }); killedAt.push(Date.now()); },
+    isAlive: (checkPid: number) => checkPid === pid && Date.now() - (killedAt[0] ?? 0) < 300,
+  });
+  try {
+    const tr = path.join(h.dir, 'delayed-kill.jsonl');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    await h.call('/api/sessions/register', { id: 'delayed-kill', cwd: h.dir, name: 'delayed-kill', transcript: tr, pid, ide: 'vscode' });
+    await h.call('/api/rooms/web/join', { sessionId: 'delayed-kill' });
+    await h.call('/api/rooms/web/messages', { text: '@delayed-kill continue after reset' });
+    await until(() => operations.some((op) => op.action === 'revive'), 5_000, 'revive after the killed tab exits');
+    const kill = operations.find((op) => op.action === 'kill');
+    const revive = operations.find((op) => op.action === 'revive');
+    assert.ok(kill && revive);
+    assert.ok(revive.at - kill.at >= 300, `revive started only ${revive.at - kill.at}ms after kill`);
+    assert.equal(h.hub.store.session('delayed-kill').ended, true);
+  } finally { await h.hub.close(); }
+});
+
+test('limit recovery does not mark a still-live tab ended or revive over it after kill timeout', async () => {
+  const operations: string[] = [];
+  const pid = 81_002;
+  const h = await makeHub(undefined, () => { operations.push('revive'); }, {
+    listProcs: async () => [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { operations.push('kill'); },
+    isAlive: (checkPid: number) => checkPid === pid,
+  });
+  try {
+    const tr = path.join(h.dir, 'never-dies.jsonl');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    await h.call('/api/sessions/register', { id: 'never-dies', cwd: h.dir, name: 'never-dies', transcript: tr, pid, ide: 'vscode' });
+    await h.call('/api/rooms/web/join', { sessionId: 'never-dies' });
+    const started = Date.now();
+    await h.call('/api/rooms/web/messages', { text: '@never-dies continue after reset' });
+    await until(async () => (await h.call<any[]>('/api/rooms/web/messages?limit=20'))
+      .some((m) => m.kind === 'system' && /never-dies/.test(m.text) && /pid|процесс|заверш/i.test(m.text)),
+    12_000, 'the room to be told the tab could not be terminated');
+    assert.ok(Date.now() - started < 12_000, 'termination polling is bounded even when the test worker is under load');
+    assert.deepEqual(operations, ['kill']);
+    const session = h.hub.store.session('never-dies');
+    assert.notEqual(session.ended, true, 'a live tab must not be marked ended');
+    assert.equal(session.limitHandled, undefined, 'the unhandled limit remains eligible for a later retry');
+    const notices = h.hub.store.history('web').filter((m) => m.kind === 'system' && /never-dies/.test(m.text));
+    assert.equal(notices.length, 1, 'one actionable failure notice is posted');
   } finally { await h.hub.close(); }
 });
 

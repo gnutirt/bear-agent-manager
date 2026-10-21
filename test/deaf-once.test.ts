@@ -34,6 +34,43 @@ test('a deaf tab is reported once per deaf stretch, not once per message', () =>
   assert.deepEqual(st.deaf(() => false, TEN_MIN), [], 'a new message in the same stretch is not announced again');
 });
 
+test('deaf(only) reports just the chat whose message could not be handed over', () => {
+  const dir = tmp();
+  let now = 1_000_000;
+  const st = new Store(dir, () => now);
+  // The name is what an @ matches: with the default names ('a', 'b') the two mentions below would wake nobody.
+  st.register({ id: 'd3', name: 'd3', cwd: path.join('D:', 'a') });
+  st.register({ id: 'd4', name: 'd4', cwd: path.join('D:', 'b') });
+  st.join('d3', 'r'); st.join('d4', 'r');
+  st.post('r', null, '@d3 first');
+  st.post('r', null, '@d4 hello');
+
+  const told = st.deaf(() => false, -Infinity, undefined, 'd3');   // -Infinity: a message the owner just sent must be reported at once (see the <= floor above)
+  assert.deepEqual(told.map((x) => x.session.id), ['d3'], 'the other chat is left for the 10-minute sweeper');
+  assert.equal(st.session('d3').deafSince, now);
+  assert.equal(st.session('d4').deafSince, undefined);
+
+  st.post('r', null, '@d3 second');
+  assert.deepEqual(st.deaf(() => false, -Infinity, undefined, 'd3'), [], 'one notice per deaf stretch also holds for the immediate path');
+  assert.equal(st.deaf(() => false, -Infinity, undefined, 'd4').length, 1, 'another chat keeps its own stretch');
+});
+
+test('the immediate path reports a private-chat message, never a shared-room @', () => {
+  const dir = tmp();
+  const now = 1_000_000;
+  const st = new Store(dir, () => now);
+  st.register({ id: 'd5', name: 'd5', cwd: path.join('D:', 'a') });
+  st.join('d5', 'r');
+  st.post('r', null, '@d5 shared question');
+  assert.deepEqual(st.deaf(() => false, -Infinity, undefined, 'd5', true), [], 'a shared-room @ is left to the 10-minute sweeper');
+  assert.equal(st.session('d5').deafSince, undefined, 'and the sweeper can still report it: the immediate path marks nothing');
+
+  st.dmRoom('d5');
+  const dm = st.post('dm-d5', null, 'anh ơi');
+  const told = st.deaf(() => false, -Infinity, undefined, 'd5', true);
+  assert.deepEqual(told.map((x) => x.msg.id), [dm.message.id], 'the owner hears at once in the private chat');
+});
+
 test('a chat that is seen alive again is reported once when it goes deaf again', () => {
   const dir = tmp();
   let now = 1_000_000;

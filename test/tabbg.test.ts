@@ -45,8 +45,9 @@ test('End kills every claude that registered for the chat (tab and background), 
   const idle = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], { stdio: 'ignore' });   // a live pid that is not a claude
   const [tabPid, bgPid, otherPid] = [process.pid, process.ppid, idle.pid!];
   const killed: number[] = [];
+  const alive = new Set([tabPid, bgPid]);
   const procs: any[] = [tabPid, bgPid].map((pid) => ({ pid, ppid: 1, name: 'claude.exe', cmd: '"C:/x/claude.exe" --resume tb3', started: 1 })).concat([{ pid: otherPid, ppid: 1, name: 'node.exe', cmd: 'node x.js', started: 1 }] as any);
-  const { hub, call } = await makeHub(undefined, undefined, { listProcs: async () => procs, kill: async (pid: number) => { killed.push(pid); } });
+  const { hub, call } = await makeHub(undefined, undefined, { listProcs: async () => procs, kill: async (pid: number) => { killed.push(pid); alive.delete(pid); }, isAlive: (pid: number) => alive.has(pid) });
   try {
     await call('/api/sessions/register', { id: 'tb3', cwd: 'C:/tabbg3', pid: tabPid });
     await call('/api/sessions/register', { id: 'tb3', cwd: 'C:/tabbg3', pid: bgPid, headless: true });

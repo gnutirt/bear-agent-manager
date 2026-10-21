@@ -29,6 +29,7 @@ export type Session = {
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
+  limitKilled?: boolean;         // ... and it counts only when the recovery really happened (a kill the hub waited for, or a move to another account): a marker saved by an older build must not block a later @ (#130 follow-up)
   deafSince?: number;            // when the room was told this chat stopped reading: one notice per deaf stretch, cleared when the chat is seen alive again
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
@@ -130,6 +131,7 @@ export class Store {
     this.migrateNames();
     this.migrateDmAliases();
     this.evictDmStrangers();
+    this.dropUnprovenLimits();
   }
 
   private dmOwner(room: Room): string | undefined {
@@ -235,6 +237,21 @@ export class Store {
     }
     for (const r of Object.values(this.state.rooms)) {
       if (r.name.startsWith('dm-') && r.lead && this.dmOwner(r) !== this.resolve(r.lead)) { r.lead = null; changed = true; }
+    }
+    if (changed) this.save();
+  }
+
+  /**
+   * A limit marker is only trusted with the proof that its recovery really happened (`limitKilled`). The build before
+   * #130 marked a limit as handled when an IDE tab held the chat and then did nothing, so after the reset every @ skipped
+   * unstick for good and five agents stayed down (lead, 2026-10-21). At load, drop every marker without that proof, so
+   * the next @ after the restart really tries again; the notice already posted (`limitNotice`) stays.
+   */
+  private dropUnprovenLimits(): void {
+    let changed = false;
+    for (const s of Object.values(this.state.sessions)) {
+      if (s.limitHandled !== undefined && s.limitKilled !== true) { delete s.limitHandled; changed = true; }
+      if (s.limitKilled !== undefined && s.limitKilled !== true) { delete s.limitKilled; changed = true; }
     }
     if (changed) this.save();
   }
@@ -899,12 +916,14 @@ export class Store {
    * deaf stretch, not one per message (Session.deafSince): the sweep runs every 30 s, and every new @ on a tab that was
    * already reported used to post the same warning to the room again, so four stuck tabs filled the chat with them
    * (2026-10-21: each of them was reported three times in twenty messages). A sign of life clears the marker, so a chat
-   * that wakes and goes deaf again is reported once more.
+   * that wakes and goes deaf again is reported once more. A floor below zero (`-Infinity`) reports a message the caller
+   * has just failed to hand over, without waiting for the sweep.
    */
-  deaf(isConnected: (id: string) => boolean, minMs: number, now = this.now()): { session: Session; msg: Message }[] {
+  deaf(isConnected: (id: string) => boolean, minMs: number, now = this.now(), only?: string, dmOnly = false): { session: Session; msg: Message }[] {
     const out: { session: Session; msg: Message }[] = [];
     let dirty = false;
     for (const s of Object.values(this.state.sessions)) {
+      if (only && s.id !== only) continue;   // deliver() asks about the one chat that just got a message it cannot hand over
       if (isConnected(s.id)) {
         if (s.deafSince) { s.deafSince = undefined; dirty = true; }   // seen alive again: the next silence is a new notice
         continue;
@@ -912,7 +931,10 @@ export class Store {
       // A closed chat is not deaf (deliver revives it); its marker stays, so a /clear or resume of the same chat does not
       // report the same stretch again.
       if (s.ended || s.status === 'offline' || s.deafSince) continue;
-      const msg = this.pending(s.id).messages.find((m) => m.wake.some((w) => this.resolve(w) === s.id));
+      // dmOnly (the immediate path of deliver): only a message the owner typed into this agent's private chat is reported
+      // at once. A shared-room @ waits for the sweeper: a tab between two long-polls has no waiter for a few milliseconds,
+      // and calling that deaf would raise a false alarm on every message posted in the gap.
+      const msg = this.pending(s.id).messages.find((m) => (!dmOnly || m.room.startsWith('dm-')) && m.wake.some((w) => this.resolve(w) === s.id));
       // Count from the later of the message and the last sign of life: a tab that answered a permission prompt a minute
       // ago is not deaf yet, however old the message it has not read is. A long tool sends no hook, so `busy` alone is
       // no sign of life either.

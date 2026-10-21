@@ -600,6 +600,7 @@ export const en: Record<string, string> = {
   'sys.wake.compacted': '{name} was compacted before waking ({size}).',
   'sys.wake.blocked': 'account {account} is out of quota until {until}, a wake-up is booked for after that',
   'sys.terminated': '{name}: claude was ended from the hub.',
+  'sys.terminate.stuck': '@you {name}: its process did not stop within 5 seconds (pid {pids}), so the background wake was not started. Close the tab of {name} and send the message again.',
   'sys.stop.api': '{name}: the turn stopped on an API error ({err}).',
   'sys.compact.tabConfirm': 'The IDE tab of {name} will be closed (VS Code shows "exited with code 1") and reopened after the compact. Send confirm:true to agree.',
   'sys.apiagent.limited': '{name}: provider {provider} hit its quota or rate limit. Paused until {at}; its messages are kept. Retry in Settings to try sooner.',

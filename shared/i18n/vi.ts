@@ -600,6 +600,7 @@ export const vi: Record<string, string> = {
   'sys.wake.compacted': '{name} được compact trước khi gọi dậy ({size}).',
   'sys.wake.blocked': 'tài khoản {account} hết hạn mức tới {until}, đã hẹn đánh thức sau đó',
   'sys.terminated': '{name}: claude đã được kết thúc từ hub.',
+  'sys.terminate.stuck': '@you {name}: tiến trình chưa dừng sau 5 giây (pid {pids}) nên chưa mở lại lượt nền. Đóng tab của {name} rồi gửi lại tin.',
   'sys.stop.api': '{name}: lượt bị dừng bởi lỗi API ({err}).',
   'sys.compact.tabConfirm': 'Tab IDE của {name} sẽ bị đóng (VS Code báo "exited with code 1") rồi tự mở lại sau compact. Gửi confirm:true để đồng ý.',
   'sys.apiagent.limited': '{name}: nhà cung cấp {provider} hết hạn mức hoặc giới hạn tốc độ. Tạm dừng đến {at}; tin vẫn được giữ. Bấm Thử lại trong Cài đặt để thử sớm hơn.',

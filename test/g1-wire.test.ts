@@ -37,8 +37,10 @@ test('ownDirtyFiles: narrows a dirty list to this session\'s own edits; no reada
 
 test('G1: GET /api/sessions/:id/git, terminate/compact refuse a dirty folder without force', async () => {
   const kills: number[] = [];
+  const alive = new Set([4242]);
   const h = await makeHub(undefined, () => {}, {
-    listProcs: async () => [{ pid: 4242, cmd: 'claude.exe', started: 0 }], kill: async (pid: number) => { kills.push(pid); },
+    listProcs: async () => [{ pid: 4242, cmd: 'claude.exe', started: 0 }], kill: async (pid: number) => { kills.push(pid); alive.delete(pid); },
+    isAlive: (pid: number) => alive.has(pid),
     compactRevive: async () => 0,
   });
   try {
@@ -71,9 +73,11 @@ test('G1: GET /api/sessions/:id/git, terminate/compact refuse a dirty folder wit
 
 test('#20: a dirty file only another agent wrote (shared working tree) does not block this one\'s end/compact; one of its own still does', async () => {
   const kills: number[] = [];
+  const alive = new Set([5151, 5152]);
   const h = await makeHub(undefined, () => {}, {
     listProcs: async () => [{ pid: 5151, cmd: 'claude.exe', started: 0 }, { pid: 5152, cmd: 'claude.exe', started: 0 }],
-    kill: async (pid: number) => { kills.push(pid); },
+    kill: async (pid: number) => { kills.push(pid); alive.delete(pid); },
+    isAlive: (pid: number) => alive.has(pid),
   });
   try {
     const repo = path.join(h.dir, 'repo2');

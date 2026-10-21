@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeHub } from './helpers.ts';
+import { makeHub, until } from './helpers.ts';
 
 test('a ~ status line from an agent is stored but wakes nobody, even with an @ inside', async () => {
   const { hub, call } = await makeHub();
@@ -72,5 +72,56 @@ test('a ~ line with no mention does not wake a live lead either', async () => {
     await call('/api/rooms/r/lead', { sessionId: 'l' });
     const r = await call<any>('/api/rooms/r/messages', { sessionId: 'a', text: '~ 🔧 still working' });
     assert.deepEqual(r.message.wake, []);
+  } finally { await hub.close(); }
+});
+
+test('a DM message an open tab cannot take is reported at once, once per deaf stretch', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'tab', cwd: 'C:/proj' });
+    await call('/api/sessions/tab/rename', { name: 'alice' });
+    const dm = await call<any>('/api/rooms/dm/tab', {});
+    const notices = async () => (await call<any[]>(`/api/rooms/${dm.name}/messages?limit=50`)).filter((m) => m.kind === 'system' && m.sys?.type === 'tab');
+
+    await call(`/api/rooms/${dm.name}/messages`, { text: 'anh ơi' });
+    const first = await notices();
+    assert.equal(first.length, 1, 'the owner hears at once that the chat cannot take the message');
+    assert.match(first[0].text, /alice/);
+
+    await call(`/api/rooms/${dm.name}/messages`, { text: 'còn đó không?' });
+    assert.equal((await notices()).length, 1, 'the same deaf stretch is not announced again');
+  } finally { await hub.close(); }
+});
+
+test('a short answer in a private chat is relayed; the same answer in a shared room is not', async () => {
+  const { hub, call } = await makeHub();
+  // The waiter has to be open when the message is posted: handing the message over is what arms the relay watch.
+  const openWaiter = async (id: string) => {
+    const pending = fetch(`${hub.url}/api/sessions/${id}/wait?timeout=5`, { headers: { 'x-room-token': hub.token } }).then((r) => r.json());
+    await until(() => hub.waiting(id), 5000, `a waiter for ${id}`);
+    return { pending };
+  };
+  const stop = () => fetch(`${hub.url}/hooks/stop`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'tab', last_assistant_message: 'Xong' }) });
+  try {
+    await call('/api/sessions/register', { id: 'tab', cwd: 'C:/proj' });
+    await call('/api/sessions/tab/rename', { name: 'alice' });
+    const dm = await call<any>('/api/rooms/dm/tab', {});
+
+    const { pending: dmWait } = await openWaiter('tab');
+    const asked = await call<any>(`/api/rooms/${dm.name}/messages`, { text: 'chạy test giúp anh' });
+    assert.deepEqual(asked.message.wake, ['tab'], 'the owner message wakes the agent');
+    const got = await dmWait;
+    assert.equal(got.messages?.length, 1, 'the waiter was handed the owner message (this is what arms the relay watch)');
+    await stop();
+    const relayed = (await call<any[]>(`/api/rooms/${dm.name}/messages?limit=50`)).filter((m) => m.sys?.type === 'relay');
+    assert.deepEqual(relayed.map((m) => m.text), ['Xong'], 'the four-character answer is the answer: it reaches the private chat');
+
+    await call('/api/rooms/r/join', { sessionId: 'tab' });
+    const { pending: sharedWait } = await openWaiter('tab');
+    await call('/api/rooms/r/messages', { text: '@alice làm tiếp' });
+    await sharedWait;
+    await stop();
+    const shared = (await call<any[]>('/api/rooms/r/messages?limit=50')).filter((m) => m.sys?.type === 'relay');
+    assert.deepEqual(shared, [], 'a shared room keeps the 40-character floor, so short replies stay out of it');
   } finally { await hub.close(); }
 });

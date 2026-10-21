@@ -90,6 +90,8 @@ function json(res: http.ServerResponse, code: number, data: unknown): void {
   res.end(JSON.stringify(data));
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 async function readBody(req: http.IncomingMessage): Promise<any> {
   let size = 0;
   const chunks: Buffer[] = [];
@@ -140,6 +142,8 @@ export type HubOptions = {
   /** Process table source and killer for workers (stubbed in tests). */
   listProcs?: () => Promise<Proc[]>;
   kill?: (pid: number) => Promise<void>;
+  /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
+  isAlive?: (pid: number) => boolean;
   /** Ends the hub process for POST /api/restart (a hook starts the next one); stubbed in tests. */
   exit?: () => void;
   /** Max workers running at once on this machine; the cheap API's rate limit is shared (default 6). */
@@ -199,6 +203,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // ---- workers (worker / osin runs): process scan + status log ----
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
+  const isAlive = opts.isAlive ?? pidAlive;
   const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
   // Resuming a closed or limit-killed chat is the default (2026-10-21: the real hub ran with BEAR_AGENT_REVIVE unset, which
   // meant off, so deliver() never unstuck or revived anything and every wake fix #89/#121/#130 was dead code). Settings >
@@ -224,7 +229,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     ['sys.wake.cannot', { type: 'wake', level: 'warn' }],
     ['sys.wake.compactFailed', { type: 'compact', level: 'error' }], ['sys.wake.compacted', { type: 'compact', level: 'done' }],
     ['sys.wake.', { type: 'wake', level: 'info' }],
-    ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }],
+    ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }], ['sys.terminate.stuck', { type: 'tab', level: 'error' }],
     ['sys.plugin.failed', { type: 'update', level: 'error' }], ['sys.plugin.', { type: 'update', level: 'info' }],
     ['sys.tab.deaf', { type: 'tab', level: 'warn' }],
     ['sys.tab.', { type: 'tab', level: 'info' }], ['sys.lead.', { type: 'lead', level: 'info' }],
@@ -549,7 +554,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     broadcast('settings', next);
   }
 
-  /** Advances a session's delivery cursor and tells the UI (read receipts). */
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
   const relayText = (text: string, more: string) => {
     const flat = text.replace(/\n{3,}/g, '\n\n').trim();
@@ -559,6 +563,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   };
   // Safety net (relay): sessions handed a message of the user, with the room and time, until their turn's Stop hook.
   const relayWatch = new Map<string, { at: number; room: string }>();
+  /** Advances a session's delivery cursor and tells the UI (read receipts). */
   function consume(sid: string, upTo: number) {
     const before = store.session(sid).cursor;
     store.consume(sid, upTo);
@@ -568,7 +573,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const me = store.session(sid).name.toLowerCase();
     const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.includes(sid)
       && (m.room.startsWith('dm-') || !m.mentions.includes('all') || m.mentions.includes(me))).pop();
-    if (asked) relayWatch.set(sid, { at: Date.now(), room: asked.room });
+    if (asked) relayWatch.set(sid, { at: store.now(), room: asked.room });   // the same clock as Message.ts: a test that injects one must not compare two
     emitSession(store.session(sid));
   }
 
@@ -641,11 +646,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // ---- D2: move an agent whose account ran out to another account (chats must be shared) ----
   const offerTold = new Map<string, string>();   // session -> account already offered (one offer per target)
   const pctOf = (a?: AccountUsage) => Math.round(Math.max(a?.fiveHour?.pct ?? 0, a?.sevenDay?.pct ?? 0));
-  /** Resume the session on the account in `to`: stop what is left of it, then a background run with that config dir. */
-  async function switchSession(s: Session, to: string, note: string, continueInBam = false) {
+  /** Resume the session on the account in `to`: stop what is left of it, then a background run with that config dir. False when a live claude still holds the chat. */
+  async function switchSession(s: Session, to: string, note: string, continueInBam = false): Promise<boolean> {
     if (tabHolds(s) && !continueInBam) throw new StoreError(409, tr('sys.switch.tabConfirm'));
     const live = tabHolds(s) || (!s.ended && s.status !== 'offline');
-    if (live) { try { await terminateSession(s); } catch { if (!s.pid || !pidAlive(s.pid)) emitSession(store.markEnded(s.id)); else throw new StoreError(409, `${s.name}: its claude (pid ${s.pid}) could not be stopped`); } }
+    if (live) {
+      let dead = false;
+      try { dead = await terminateSession(s); }
+      catch { if (claudePids(s).some(isAlive)) throw new StoreError(409, `${s.name}: its claude (pid ${claudePids(s).join(', ')}) could not be stopped`); emitSession(store.markEnded(s.id)); dead = true; }
+      if (!dead) return false;   // a live claude still holds the chat; terminateSession already told the room
+    }
     stopRevive(s.id);
     const cur = store.session(s.id);
     carrySessionDirs(cur.configDir || path.join(usageHome, '.claude'), to, cur.id);   // B2: rewind history and todos come along
@@ -653,6 +663,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr(continueInBam ? 'sys.switch.doneBam' : 'sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
     emitSession(cur);
     if (!continueInBam) revive(cur.id);
+    return true;
   }
   /** Still limited: auto mode switches now (true), ask mode posts one offer with a Switch action (false: the wake is still booked). */
   async function trySwitch(s: Session, cfg: ReturnType<typeof loadSettings>): Promise<boolean> {
@@ -668,7 +679,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       return false;
     }
-    if (cfg.accountSwitch.mode === 'auto') { await switchSession(s, to, note); return true; }
+    if (cfg.accountSwitch.mode === 'auto') return switchSession(s, to, note);   // a tab that would not die is NOT a handled limit
     if (offerTold.get(s.id) !== to) {
       offerTold.set(s.id, to);
       for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.offer', { name: s.name, to: pick.target.label, note }), undefined, { type: 'wake', level: 'warn', agent: s.name, action: { kind: 'switch', session: s.id, to } })); emitRoom(r); } catch { /* room gone */ } }
@@ -681,20 +692,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const p = store.pending(s.id);
     return p.wake && p.messages.length > 0;
   };
-  const limitHandled = (s: Session, marker = limitErrorMarker(s.transcript)) => !!marker && s.limitHandled === marker;
-  const markLimitHandled = (s: Session, marker: string) => { s.limitHandled = marker; store.save(); };
+  // The marker counts only when the kill that recovered it really happened (limitKilled): older builds set
+  // limitHandled in a branch that stopped nothing ("the tab is open, just mark it"), and those chats never ran
+  // again — every later @ saw a handled marker and skipped unstick (2026-10-21: four agents sat silent after a reset).
+  const limitHandled = (s: Session, marker = limitErrorMarker(s.transcript)) => !!marker && s.limitHandled === marker && s.limitKilled === true;
+  const markLimitHandled = (s: Session, marker: string) => { s.limitHandled = marker; s.limitKilled = true; store.save(); };
   /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
   async function unstick(s: Session) {
     if (unsticking.has(s.id)) return;
     const marker = limitErrorMarker(s.transcript);
     if (!marker || limitHandled(s, marker)) return;
+    // Nothing waits: nothing was killed either, so this marker must NOT be called handled — a message that arrives later
+    // (the next @) has to run this path again. The 30 s sweeper may re-read the transcript tail; that is cheaper than a
+    // chat that never runs again because a marker without a kill said it was done (lead, 2026-10-21).
+    if (!pendingLimit(s)) return;
     unsticking.add(s.id);
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     try {
-      if (!pendingLimit(s)) {
-        markLimitHandled(s, marker);
-        return;
-      }
       const cfg = loadSettings(opts.dir, envCap);
       const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
       if (until > Date.now()) {
@@ -721,12 +735,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         return;
       }
-      markLimitHandled(s, marker);
-      try { await terminateSession(s); }
+      // The marker is set only once the process is really gone: setting it on a failed kill would make every later @ skip
+      // unstick, so the chat could never recover even after the user closed the tab by hand (#130).
+      let dead = false;
+      try { dead = await terminateSession(s); }
       catch (e) {
-        if (s.pid && pidAlive(s.pid)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return; }
+        // Any known pid still alive means the tab is still there: say so and leave the marker unhandled for a later @.
+        if (claudePids(s).some(isAlive)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return; }
         emitSession(store.markEnded(s.id));   // the process is already gone
+        dead = true;
       }
+      if (!dead) return;   // terminateSession told the room why; the marker stays, so the next @ tries again
+      markLimitHandled(s, marker);
       say(tr('sys.limit.unstuck', { name: s.name }));
       deliver(s.id);   // ended now: the normal wake path revives it
     } finally { unsticking.delete(s.id); }
@@ -737,13 +757,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
-    const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
     // store.deaf() owns the "already reported" marker (Session.deafSince): one notice per deaf stretch. A map here used to
     // forget a session as soon as one sweep found it busy/asleep, and the same stretch was reported again, sweep after sweep.
     for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
       try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
   }
+  /** Every way a chat can read its messages right now: a waiter, a background turn, a live chat or an agent of the hub. */
+  const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
   function deliver(sid: string, directUser = false) {
     const st = store.session(sid);
     const api = apiProfileOf(st);
@@ -778,6 +799,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
           cannotTold.add(sid);
           for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }), undefined, { type: 'wake', level: 'warn', agent: st.name })); emitRoom(r); } catch { /* room gone */ } }
+        }
+      } else if (!st.ended && st.status !== 'busy') {
+        // A tab that holds the chat and has no waiter cannot be woken from outside: its last turn died without reaching the
+        // Stop hook (or without leaving a quota marker). The message would sit unread until the 10-minute sweeper; a message
+        // the owner typed into a private chat must say so at once, once per deaf stretch (notes [72], [76]). A busy tab is
+        // *expected* to have no waiter (its next PostToolUse/Stop hands the message over), so it is left to the sweeper;
+        // otherwise every DM typed while the agent works would raise a false alarm. The floor is -Infinity: `deaf` reports
+        // a message older than the floor, and this message is brand new.
+        for (const { session: ds, msg } of store.deaf(isConn, -Infinity, undefined, st.id, true)) {
+          try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: ds.name }), undefined, { type: 'tab', level: 'warn', agent: ds.name })); emitRoom(msg.room); } catch { /* room gone */ }
         }
       }
       return;
@@ -826,7 +857,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
   /** B4: a live claude with a tab or terminal (any editor) holds the chat; the hub starts or opens nothing next to it. */
-  const tabHolds = (s: Session) => liveKinds(s.pids).tab;
+  const tabHolds = (s: Session) => liveKinds(s.pids, isAlive).tab;
   const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
   /** T-W: opens the tab of an offline member; the user presses Enter once. */
   function openTab(s: Session) {
@@ -1002,10 +1033,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return tr('sys.wake.blocked', { account: acc.label, until: clock(until, { day: 'numeric', month: 'numeric' }) }) + (why ? ` ${why}` : '');
   }
 
-  /** T-B: stops the claude process of a session (its tab dies) and marks the session ended; 409 when we cannot be sure the pid is that claude. */
-  async function terminateSession(s: Session) {
+  /** Every claude pid the hub knows for a chat: its tab and/or a background wake. */
+  const claudePids = (s: Session) => [...new Set([...(s.pids ?? []).map((x) => x.pid), ...(s.pid ? [s.pid] : [])])];
+  /**
+   * T-B: stops the claude process of a session (its tab dies) and marks the session ended; throws 409 when we cannot be sure
+   * the pid is that claude. Resolves false when a pid was told to stop but is still alive after 5 s: the chat is NOT marked
+   * ended (a live process still writes its transcript) and the room is told why.
+   */
+  async function terminateSession(s: Session): Promise<boolean> {
     // A chat can have two claudes (its tab and a background wake): every pid that registered for it and is still a claude of this chat goes
-    const known = [...new Set([...(s.pids ?? []).map((x) => x.pid), ...(s.pid ? [s.pid] : [])])];
+    const known = claudePids(s);
     if (!known.length) throw new StoreError(409, `${s.name}: pid of its claude is unknown (it is sent by the hooks; reopen the chat once)`);
     const procs = await listProcs(), isClaude = (cmd: string) => /(^|[\\/"\s])claude(\.exe)?"?(\s|$)/i.test(cmd);
     const victims = known.filter((pid) => { const p = procs.find((x) => x.pid === pid); return p && isClaude(p.cmd) && !(p.started && p.started > s.lastSeen + 5000); });
@@ -1014,12 +1051,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       throw new StoreError(409, !first || !isClaude(first.cmd) ? `${s.name}: pid ${known[known.length - 1]} is not a running claude` : `${s.name}: pid ${known[known.length - 1]} started after this session was last seen (pid reused)`);
     }
     for (const pid of victims) await killProc(pid);
+    // taskkill returning only means it has asked: Windows can still list the pid for a few hundred more ms, and deliver()
+    // then calls revive() while tabHolds() still sees a live tab and refuses the wake — the tab was killed, the message
+    // stayed unread and nobody retried (#130). Wait for the pids to really disappear (note [79]).
+    let alive = victims.filter(isAlive);
+    for (let i = 0; i < 50 && alive.length; i++) { await sleep(100); alive = alive.filter(isAlive); }
+    if (alive.length) {
+      const why = tr('sys.terminate.stuck', { name: s.name, pids: alive.join(', ') });
+      for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, why)); emitRoom(r); } catch { /* room gone */ } }
+      return false;
+    }
     stopRevive(s.id);
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
     emitSession(store.markEnded(s.id));
     for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.terminated', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
     setImmediate(() => runArchive(s.id));
+    return true;
   }
 
   /** A tab of the member opened by hand while its background wake still runs: two claudes on one chat. The background one goes. */
@@ -1160,7 +1208,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!w || !loadSettings(opts.dir, envCap).relayChat) break;
         if (store.messages.some((m) => m.fromId === sess.id && m.ts >= w.at)) break;
         const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
-        if (text.length < 40) break;
+        // A short answer in a private chat ("Xong", "Đã sửa") is the answer; the 40-char floor only keeps shared rooms
+        // free of noise (note [77]).
+        if (!text || (text.length < 40 && !w.room.startsWith('dm-'))) break;
         const short = relayText(text, tr('sys.relay.more', { name: sess.name }));
         try { broadcast('msg', store.postRelay(w.room, sess.id, short, sess.turnTopic?.[w.room])); emitRoom(w.room); } catch { /* room gone */ }
         break;
@@ -2129,14 +2179,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
         const tabOpen = tabHolds(s);
         if (tabOpen && (b.confirm !== true || b.continueInBam !== true)) return json(res, 409, { error: tr('sys.switch.tabConfirm'), confirm: true, tabOpen: true });
-        await switchSession(s, to, tr('sys.switch.byUser'), b.continueInBam === true);
+        if (!await switchSession(s, to, tr('sys.switch.byUser'), b.continueInBam === true)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s.name, pids: claudePids(s).join(', ') }) });
         return json(res, 200, { ok: true, configDir: to });
       }
       if (m === 'POST' && action === 'terminate') {
         const b = await readBody(req);
         const dirty = await dirtyUnlessForced(store.session(id), b.force === true);
         if (dirty) return json(res, 409, dirty);
-        await terminateSession(store.session(id));
+        const s0 = store.session(id);
+        if (!await terminateSession(s0)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s0.name, pids: claudePids(s0).join(', ') }) });
         return json(res, 200, { ok: true });
       }
       if (m === 'POST' && action === 'compact') {
@@ -2155,7 +2206,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (b.closeTab !== true) return json(res, 409, { error: tr('sys.compact.tabOpen', { name: s.name }), tabOpen: true });
           // An IDE tab dies with "exited with code 1" and is reopened after: the caller (the UI, never an agent) must confirm that.
           if (s.ide && b.confirm !== true) return json(res, 409, { error: tr('sys.compact.tabConfirm', { name: s.name }), tabOpen: true, confirm: true });
-          await terminateSession(s);
+          if (!await terminateSession(s)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s.name, pids: claudePids(s).join(', ') }) });
           reopenTab = !!s.ide;
         }
         const apiP = apiProfileOf(s);
@@ -2420,7 +2471,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         try { handoff = fs.readFileSync(path.join(opts.dir, 'handoffs', `${lead.id}.md`), 'utf8'); } catch { /* none yet */ }
         const open = openTasksText(opts.dir, room);
         if (open) handoff = `${tr('compact.tasks')}\n${open}\n\n${handoff.trim()}`.trim();
-        if (!lead.ended && lead.status !== 'offline') await terminateSession(lead);
+        if (!lead.ended && lead.status !== 'offline' && !await terminateSession(lead)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: lead.name, pids: claudePids(lead).join(', ') }) });
         store.setLead(room, null);
         emitRoom(room);
         openLead(room, lead.cwd || os.homedir(), false, { id: lead.id, handoff });
@@ -2584,7 +2635,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const sweeper = setInterval(() => {
     // A running background claude counts as alive even without a waiter: provider agents use `--bare` (no hooks, so no
     // pid in the session and no waiter), and judging them by silence marked them offline/ended in the middle of a turn.
-    for (const s of store.sweep((id) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
+    for (const s of store.sweep(isConn, Date.now(), isAlive)) emitSession(s);
     let changedPause = false;
     for (const [key, pause] of Object.entries(store.state.usagePaused ?? {})) {
       if (pause.until > Date.now()) continue;
