@@ -676,7 +676,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-node:hover .card{stroke:var(--hi)}.flow-node.sel .card{stroke:var(--hi);stroke-width:3}.flow-node.st-ask .card{stroke:var(--bad);stroke-width:2.5}
 .flow-node:focus-visible .card{stroke:var(--hi);stroke-width:3;stroke-dasharray:4 3}
 .flow-node .nm{fill:var(--fg);font:700 12px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .rl{fill:var(--muted);font:10.5px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .last{fill:var(--muted);font:9px "IBM Plex Sans",sans-serif;text-anchor:start}
-.flow-node .avatar{fill:var(--card)}.flow-node .ini{font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node .ini{font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
 .flow-node .ping{fill:none;stroke:var(--ok);stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0}
 @media(prefers-reduced-motion:no-preference){.flow-node.st-done .ping{animation:flow-ping 1.4s ease-out infinite}.flow-node.st-ask .dot,.flow .livedot{animation:flow-throb .8s ease-in-out infinite}.flow-node.st-error .card{animation:flow-shake .35s linear 2}.flow-feed li.new{animation:flow-slide .5s ease-out}}
 @media(prefers-reduced-motion:reduce){.flow-node .flow-spin{display:none}}
@@ -2531,7 +2531,11 @@ function queueFlow() {
 const FLOW_NODE_COLORS = ['#e8559a', '#6d5df0', '#0ea5e9', '#65a30d', '#e08a00', '#0d9488', '#3b82f6', '#a855f7', '#ea6a1f', '#06a6c4'];
 function flowHash(value) { let h = 2166136261; for (const c of String(value || '')) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
 function flowShort(value, limit = 24) { const text = String(value || ''); return text.length > limit ? `${text.slice(0, limit - 1)}…` : text; }
-const flowColor = (id) => FLOW_NODE_COLORS[flowHash(id) % FLOW_NODE_COLORS.length];
+let flowColorOrder = new Map();
+const flowColor = (id) => {
+  const index = flowColorOrder.get(id);
+  return FLOW_NODE_COLORS[index === undefined ? flowHash(id) % FLOW_NODE_COLORS.length : index % FLOW_NODE_COLORS.length];
+};
 const FLOW_STATES = {
   working: ['flow.state.working', '#fbbf24'], done: ['flow.state.done', '#34d399'],
   ask: ['flow.state.ask', '#f87171'], error: ['flow.state.error', '#fb923c'], idle: ['flow.state.idle', '#a8b0c4']
@@ -2566,7 +2570,9 @@ function flowNodes(roomInfo, messages) {
   for (const id of roomInfo?.members || []) add(id);
   add(roomInfo?.lead);
   for (const m of messages) { if (m.fromId) add(m.fromId, m.from); for (const id of m.wake || []) add(id); }
-  return [...map.values()];
+  const nodes = [...map.values()];
+  flowColorOrder = new Map(nodes.map((n, i) => [n.id, i]));
+  return nodes;
 }
 function flowEvents(messages, nodes) {
   const valid = new Set(nodes.map((n) => n.id));
@@ -2625,7 +2631,7 @@ function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live) {
     const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })} · ${latest}`;
     const dim = selected && n.id !== selected && ![...counts.values()].some((e) => (e.from === selected && e.to === n.id) || (e.to === selected && e.from === n.id));
     const spin = status === 'working' ? `<path class="flow-spin" d="M43 8a20 20 0 0 1 9 9" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 29 29" to="360 29 29" dur=".9s" repeatCount="indefinite"/></path>` : '';
-    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><rect class="card" x="0" y="0" width="168" height="58" rx="11"/><circle class="avatar-ring" cx="29" cy="29" r="23" fill="${flowColor(n.id)}"/><circle class="avatar" cx="29" cy="29" r="19"/><text class="ini" x="29" y="34" fill="${flowColor(n.id)}">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="58" y="21">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 12))}</text><text class="rl" x="58" y="37">${esc(flowShort(n.role || t('flow.role.agent'), 14))}</text><text class="last" x="58" y="51">${esc(latest)}</text><circle class="dot" cx="158" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="158" cy="10" r="5"/>${spin}</g>`;
+    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><rect class="card" x="0" y="0" width="168" height="58" rx="11"/><circle class="avatar" cx="29" cy="29" r="23" fill="${flowColor(n.id)}"/><text class="ini" x="29" y="34" fill="#fff">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="58" y="21">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 12))}</text><text class="rl" x="58" y="37">${esc(flowShort(n.role || t('flow.role.agent'), 14))}</text><text class="last" x="58" y="51">${esc(latest)}</text><circle class="dot" cx="158" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="158" cy="10" r="5"/>${spin}</g>`;
   }).join('');
   return `${cols}<g class="flow-edges">${edges}</g><g class="flow-nodes">${cards}</g><g id="flowDots" class="flow-fx"></g>`;
 }
