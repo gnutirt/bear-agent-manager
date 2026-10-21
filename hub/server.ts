@@ -53,6 +53,7 @@ import { ToolConsole } from './console.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
+import { createMcpHttpHandler } from './mcp-http.ts';
 
 export type { ReviveJob };
 
@@ -219,6 +220,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
   let port = opts.port;
+  let mcpHttp: ReturnType<typeof createMcpHttpHandler> | undefined;
 
   const broadcast = (event: string, data: unknown) => {
     const chunk = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -1732,6 +1734,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const url = new URL(req.url ?? '/', 'http://hub');
     const p = url.pathname;
     const m = req.method ?? 'GET';
+    if (p === '/mcp') {
+      if (!mcpHttp) return json(res, 503, { error: 'MCP endpoint is not ready' });
+      return mcpHttp(req, res);
+    }
     if (!allowedHost(req.headers.host)) return json(res, 403, { error: 'host not allowed' });
     const origin = req.headers.origin;
     if (origin && !allowedOrigin(origin)) return json(res, 403, { error: 'origin not allowed' });
@@ -2669,9 +2675,28 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(opts.port, '127.0.0.1', () => resolve());
+    server.listen(opts.port, '127.0.0.1', () => {
+      port = (server.address() as AddressInfo).port;
+      mcpHttp = createMcpHttpHandler({
+        port,
+        members: () => Object.values(store.state.sessions).flatMap((session) => {
+          const tokenHash = (session as Session & { mcpTokenHash?: string }).mcpTokenHash;
+          return tokenHash ? [{ id: session.id, tokenHash }] : [];
+        }),
+        api: async (p, init = {}) => {
+          const response = await fetch(`http://127.0.0.1:${port}${p}`, {
+            method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
+            headers: { 'content-type': 'application/json', 'x-room-token': token },
+            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error ?? `hub API returned ${response.status}`);
+          return data;
+        },
+      });
+      resolve();
+    });
   });
-  port = (server.address() as AddressInfo).port;
 
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
