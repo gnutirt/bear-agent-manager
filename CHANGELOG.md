@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.11.0 - 2026-10-21
+
 - Fix: worker prompts are read as UTF-8 and rejected if missing/empty; each Claude CLI call is time-bounded (120 s by default), and provider errors/timeouts fall through to the next model/provider instead of hanging the worker.
 - Fix: when a normal Claude session has a stale provider-only model override, the hub omits it, strips provider model/endpoint/auth-token env vars, and records output to a session-and-time-specific log; wake failures report only that process's output, not a concurrent turn's shared `revive.log` tail.
 - Add: every 10 minutes, the hub compacts saved conversations that are offline, beyond their role's context threshold and not held by a live tab, waiter or background process; room-history rewrites use atomic replacement, and tab mirrors are capped to the regular room-message size.
