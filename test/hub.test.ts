@@ -49,7 +49,7 @@ test('wait resolves when a waking message is posted and consumes it', async () =
     assert.equal(got.messages.length, 1);
     assert.equal(got.messages[0].from, 'fw');
     const again = await call<{ wake: boolean; messages: any[] }>('/api/sessions/s2/pending');
-    assert.deepEqual(again, { wake: false, messages: [], notes: {} });
+    assert.deepEqual(again, { wake: false, messages: [], notes: {}, agentComms: 'off' });
   } finally { await hub.close(); }
 });
 

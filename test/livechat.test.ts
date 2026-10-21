@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import { makeHub, until } from './helpers.ts';
-import { LiveChat, liveArgs, parseLine, type LiveEvent, type LiveSpawn } from '../hub/livechat.ts';
+import { LiveChat, MAX_CHAT_LOGS, liveArgs, parseLine, type LiveEvent, type LiveSpawn } from '../hub/livechat.ts';
 import type { ChildProcess } from 'node:child_process';
 
 // A fake `claude -p --input-format stream-json`: for each user line it streams init (once), two text deltas, the text block, a tool call and its result, and the result line.
@@ -107,6 +107,39 @@ test('LiveChat: an old child exiting after restart cannot stop the replacement',
   assert.deepEqual(seen.filter((ev) => ev.kind === 'stopped'), []);
   assert.equal(live.has('s1'), true);
   assert.doesNotThrow(() => children[0].stdin?.emit('error', new Error('EPIPE')));
+});
+
+test('LiveChat: the kept history is bounded, the oldest ended chat is dropped, a running chat is never dropped', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-live-'));
+  const children: ChildProcess[] = [];
+  const live = new LiveChat({
+    emit: () => {},
+    spawn: () => {
+      const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), kill: () => true }) as ChildProcess;
+      children.push(child);
+      return child;
+    },
+  });
+  // The chat on screen: still running, and the oldest entry in the history.
+  live.start({ id: 'run', cwd: dir, logDir: dir });
+  (children[0].stdout as PassThrough).write(JSON.stringify({ type: 'result', result: 'run' }) + '\n');
+  // Wait for that entry before the loop: the eviction count below assumes it is already the oldest entry (a stream may
+  // deliver the line on a later tick, which would leave one ended chat more in history than asserted).
+  await until(() => live.events('run').length === 1, 5_000, 'history of the running chat');
+  // One chat more than the cap: each one ends, so its 'stopped' event is what creates the history entry.
+  for (let i = 0; i <= MAX_CHAT_LOGS; i++) {
+    assert.equal(live.start({ id: `s${i}`, cwd: dir, logDir: dir }), true);
+    assert.equal(live.stop(`s${i}`), true);
+    children[i + 1].emit('exit', 0);
+  }
+  // stdout is a stream: the event lands on a later tick, and that push is what must not evict the running chat.
+  await until(() => live.events('run').length === 1, 5_000, 'history of the running chat');
+  assert.equal(live.has('run'), true, 'the running process is untouched');
+  assert.equal(live.events('run').length, 1, 'the running chat is never dropped, even as the oldest entry');
+  assert.equal(live.events('s0').length, 0, 'the oldest ended chat is dropped');
+  assert.equal(live.events('s1').length, 0, 'the next oldest ended chat is dropped');
+  assert.ok(live.events('s2').length > 0, 'the next one is still there');
+  assert.ok(live.events(`s${MAX_CHAT_LOGS}`).length > 0, 'the newest is kept');
 });
 
 test('hub live chat: start needs a saved chat, no open tab; send/stop; room @ goes into the live chat; a tab coming up stops it', async () => {

@@ -21,6 +21,7 @@ export type LiveSpawn = (cmd: string, args: string[], opts: SpawnOptions) => Chi
 
 const CLIP = 4000;       // one tool result or message in an event
 const KEEP = 200;        // events kept per session so a page that reconnects sees the recent chat
+export const MAX_CHAT_LOGS = 50;   // sessions whose history stays in RAM after their process ended
 const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a) ? `"${a}"` : a);
 const clip = (s: unknown) => { const t = typeof s === 'string' ? s : JSON.stringify(s ?? ''); return t.length > CLIP ? t.slice(0, CLIP) + '…' : t; };
 
@@ -59,10 +60,12 @@ export class LiveChat {
   private readonly log = new Map<string, LiveEvent[]>();
   private readonly spawnFn: LiveSpawn;
   private readonly emit: (sid: string, ev: LiveEvent) => void;
+  private readonly maxLogs: number;
 
-  constructor(opts: { emit: (sid: string, ev: LiveEvent) => void; spawn?: LiveSpawn }) {
+  constructor(opts: { emit: (sid: string, ev: LiveEvent) => void; spawn?: LiveSpawn; maxLogs?: number }) {
     this.emit = opts.emit;
     this.spawnFn = opts.spawn ?? ((cmd, args, o) => nodeSpawn(cmd, args, o));
+    this.maxLogs = Math.max(1, Math.floor(opts.maxLogs ?? MAX_CHAT_LOGS));
   }
 
   has(id: string): boolean { return this.procs.has(id); }
@@ -71,9 +74,22 @@ export class LiveChat {
   events(id: string): LiveEvent[] { return [...(this.log.get(id) ?? [])]; }
 
   private push(id: string, ev: LiveEvent): void {
-    const l = this.log.get(id) ?? [];
     // deltas are only for the live view: the finished text block that follows carries the same words
-    if (ev.kind !== 'delta') { l.push(ev); if (l.length > KEEP) l.splice(0, l.length - KEEP); this.log.set(id, l); }
+    if (ev.kind !== 'delta') {
+      let l = this.log.get(id);
+      if (!l) {
+        // History outlives the process on purpose (a reopened page shows the chat), but a hub that runs for days would
+        // otherwise keep 200 events of every session it ever chatted with. Drop the oldest ended chat to stay bounded:
+        // a running chat is never evicted, and maxBackground bounds how many of those there are.
+        if (this.log.size >= this.maxLogs) {
+          for (const key of this.log.keys()) if (!this.procs.has(key)) { this.log.delete(key); break; }
+        }
+        l = [];
+        this.log.set(id, l);
+      }
+      l.push(ev);
+      if (l.length > KEEP) l.splice(0, l.length - KEEP);
+    }
     this.emit(id, ev);
   }
 

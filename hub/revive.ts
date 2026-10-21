@@ -23,10 +23,10 @@ export function killTree(c: ChildProcess): void {
 /** Tests: pretend a background claude runs for this session. */
 export const adoptBackground = (id: string, child: ChildProcess): void => { live.set(id, child); };
 
-/** True while a background claude (a wake that stays alive) runs for this session. */
 /** How many background claudes run now (wakes that stay alive and agents created without an IDE). */
 export const countBackground = (): number => live.size;
 
+/** True while a background claude (a wake that stays alive) runs for this session. */
 export const isBackground = (id: string): boolean => live.has(id);
 
 /** Stops the background claude of a session (its tab is being opened, or the user ended it). */
@@ -86,6 +86,9 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
     windowsHide: true,
     stdio: ['pipe', log, log],
   });
+  // A write into a stdin whose process has just exited emits 'error' on the stream; unhandled, that takes the whole hub
+  // down (every room, not only this session) — the same hole as livechat/agents. The exit handler below reports it.
+  child.stdin?.on('error', () => { /* the exit handler below reports it */ });
   child.stdin?.end(text);
   if (idleMin) live.set(job.id, child);
   const timer = setTimeout(() => killTree(child), maxMs);
