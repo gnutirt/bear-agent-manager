@@ -576,7 +576,7 @@ test('Office M4: every office label is a dictionary key, en and vi carry the sam
     assert.equal(params((vi as Record<string, string>)[k]), params((en as Record<string, string>)[k]), `params differ for ${k}`);
   }
   // the module resolves labels through the page's t(), then GET /api/i18n, then nothing — never a local string
-  for (const s of ["typeof api.t === 'function'", "'/api/i18n'", 'I18N.dicts = d.dicts', 'I18N.lang = langOf(d.setting)', 'applyI18n(); hud(); paintDock();']) {
+  for (const s of ["typeof api.t === 'function'", "'/api/i18n'", 'I18N.dicts = d.dicts', 'I18N.lang = langOf(d.setting)', 'applyI18n(); hud(); paintDock();', 'setTimeout(loadI18n, 3000)']) {
     assert.ok(src.includes(s), `missing i18n plumbing: ${s}`);
   }
   const VN = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđĐ]/;

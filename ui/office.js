@@ -121,15 +121,17 @@
     const loadI18n = () => {
       if (I18N.dicts || typeof api.t === 'function' || typeof fetch !== 'function') return;
       const base = String(api.base ?? location.origin).replace(/\/+$/, '');
+      // Same retry rhythm as the page: the hub may still be starting when the tab is opened.
+      const again = () => { if (!I18N.dicts && root.isConnected) setTimeout(loadI18n, 3000); };
       fetch(base + '/api/i18n', { headers: api.token ? { 'x-room-token': String(api.token) } : {} })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
-          if (!d || !d.dicts) return;
+          if (!d || !d.dicts) { again(); return; }
           I18N.dicts = d.dicts; I18N.lang = langOf(d.setting);
           const p = $('of-panel'); if (p) p.dataset.id = '';   // rebuild the open panel so its labels use the dictionary
           applyI18n(); hud(); paintDock(); paintPanel();
         })
-        .catch(() => {});
+        .catch(again);
     };
     const pick = (a) => (a.length ? a[Math.floor(Math.random() * a.length)] : '');
     const t0 = performance.now() / 1000, now = () => performance.now() / 1000 - t0;
