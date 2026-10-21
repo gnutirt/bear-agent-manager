@@ -2061,7 +2061,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const s = store.session(id);
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
-        if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !deafTold.has(s.id)) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        const hasReportedPendingMessage = s.deafMsgId !== undefined && store.pending(s.id).messages.some((msg) => msg.id === s.deafMsgId);
+        if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
         stopRevive(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });
