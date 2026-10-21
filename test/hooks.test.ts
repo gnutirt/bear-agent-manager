@@ -118,6 +118,21 @@ test('session-start registers a resumed chat (transcript exists) right away', as
   } finally { await hub.close(); }
 });
 
+test('a BAM live chat registers as headless, so its own SessionStart is not taken for a new tab', async () => {
+  const h = await makeHub();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-live-'));
+  const tr = path.join(dir, 'live1.jsonl');
+  fs.writeFileSync(tr, JSON.stringify({ type: 'user', message: { content: 'hi' } }) + '\n');
+  try {
+    const e = { BEAR_AGENT_HOME: h.dir, BEAR_AGENT_PORT: String(h.hub.port), BEAR_AGENT_HEADLESS: '', BEAR_AGENT_LIVE: '1' };
+    const r = await runHook('session-start.ts', { session_id: 'live1', cwd: 'C:\\live', hook_event_name: 'SessionStart', source: 'resume', transcript_path: tr }, e).done;
+    assert.equal(r.code, 0);
+    const s = (await h.call<any>('/api/sessions/live1')).session;
+    assert.equal(s.bg, true, 'the live claude is a background process');
+    assert.equal(s.tab, false, 'a tab here would make the hub stop the live chat that just registered');
+  } finally { await h.hub.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('readTitle returns the latest custom title, else the latest AI title', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-title-'));
   const f = path.join(dir, 't.jsonl');
