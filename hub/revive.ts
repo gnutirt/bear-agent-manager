@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,43 @@ const MAX_COMPACT_MS = 10 * 60_000;
 // Background turns cannot ask the user for permissions: allow reading the repo and the room tools only.
 const TOOLS = ['mcp__plugin_bear-agent-manager_room', 'Read', 'Grep', 'Glob', 'LS'];
 
-/** `claude --resume <id> -p` with `text` on stdin, output appended to <logDir>/revive.log; resolves the exit code. */
+export type RunLog = { path: string; write(chunk: Buffer | string): Error | undefined; close(): void };
+
+/** Keep a per-attempt log for attribution while preserving the existing aggregate revive.log for diagnostics. */
+export function openRunLog(logDir: string, id: string, label: string, cwd: string, perm?: Perm): RunLog {
+  fs.mkdirSync(logDir, { recursive: true });
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'session';
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const runPath = path.join(logDir, `${label}-${safeId}-${stamp}-${crypto.randomUUID()}.log`);
+  const runFd = fs.openSync(runPath, 'a');
+  let aggregateFd: number;
+  try { aggregateFd = fs.openSync(path.join(logDir, 'revive.log'), 'a'); } catch (e) { fs.closeSync(runFd); throw e; }
+  const header = `\n${new Date().toISOString()} ${label} ${id} in ${cwd} [perm: ${perm?.mode ?? 'default'}${perm?.allow?.length ? ` +${perm.allow.length}` : ''}${perm?.deny?.length ? ` -${perm.deny.length}` : ''}]\n`;
+  try {
+    fs.writeSync(runFd, header);
+    fs.writeSync(aggregateFd, `${header.trimEnd()} log=${path.basename(runPath)}\n`);
+  } catch (e) {
+    fs.closeSync(runFd);
+    fs.closeSync(aggregateFd);
+    throw e;
+  }
+  return {
+    path: runPath,
+    write(chunk) {
+      let failure: Error | undefined;
+      for (const fd of [runFd, aggregateFd]) {
+        try { fs.writeSync(fd, chunk); } catch (e) { failure ??= e instanceof Error ? e : new Error(String(e)); }
+      }
+      return failure;
+    },
+    close() {
+      try { fs.closeSync(runFd); } catch { /* already closed */ }
+      try { fs.closeSync(aggregateFd); } catch { /* already closed */ }
+    },
+  };
+}
+
+/** `claude --resume <id> -p` with `text` on stdin, output in a per-attempt log and the aggregate revive.log. */
 const live = new Map<string, ChildProcess>();   // session id -> its background claude
 /** Kills a child and everything it started: on Windows the child is cmd.exe (shell: true) and plain kill() leaves claude.exe running. */
 export function killTree(c: ChildProcess): void {
@@ -71,14 +108,17 @@ const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a
 function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, perm?: Perm, model?: string, idleMin?: number): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
-  Object.assign(env, job.env);
+  if (job.env) Object.assign(env, job.env);
+  else {
+    delete env.ANTHROPIC_MODEL;
+    delete env.ANTHROPIC_BASE_URL;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  }
   delete env.BEAR_AGENT_HEADLESS;
   delete env.BEAR_AGENT_IDLE_MIN;
   // Stays alive after the answer: the Stop hook's waiter keeps waiting for room messages for idleMin minutes
   if (idleMin) { env.BEAR_AGENT_HEADLESS = '1'; env.BEAR_AGENT_IDLE_MIN = String(idleMin); }
-  fs.mkdirSync(job.logDir, { recursive: true });
-  const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
-  fs.writeSync(log, `\n${new Date().toISOString()} ${label} ${job.id} in ${job.cwd} [perm: ${perm?.mode ?? 'default'}${perm?.allow?.length ? ` +${perm.allow.length}` : ''}${perm?.deny?.length ? ` -${perm.deny.length}` : ''}]\n`);
+  const log = openRunLog(job.logDir, job.id, label, job.cwd, perm);
   const child = spawn('claude', [...claudeArgs(job.id, perm, model), ...(job.args ?? [])].map(shellArg), {
     cwd: fs.existsSync(job.cwd) ? job.cwd : undefined,
     env,
@@ -88,7 +128,7 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   });
   let outputError: Error | undefined;
   const recordOutput = (chunk: Buffer) => {
-    try { fs.writeSync(log, chunk); } catch (e) { outputError ??= e instanceof Error ? e : new Error(String(e)); }
+    outputError ??= log.write(chunk);
     job.onOutput?.(chunk.toString('utf8'));
   };
   child.stdout?.on('data', recordOutput);
@@ -108,8 +148,8 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
       ended = true;
       clearTimeout(timer);
       if (live.get(job.id) === child) live.delete(job.id);
-      try { fs.closeSync(log); } catch { /* already closed */ }
-      if (outputError) job.onOutput?.(`\n[hub could not write revive.log: ${outputError.message}]\n`);
+      log.close();
+      if (outputError) job.onOutput?.(`\n[hub could not write revive logs: ${outputError.message}]\n`);
       resolve(outputError ? 1 : code);
     };
     child.on('close', (code) => done(code ?? 1));

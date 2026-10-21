@@ -1,7 +1,5 @@
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import { adoptBackground, claudeArgs, forgetBackground, killTree, type Perm } from './revive.ts';
+import { adoptBackground, claudeArgs, forgetBackground, killTree, openRunLog, type Perm } from './revive.ts';
 
 // D3 (docs/superpowers/specs/2026-10-19-ide-independence-design.md): a new agent without any editor. The hub starts
 // `claude -p --session-id <uuid>` in the agent's folder with the intro on stdin; the Stop hook's waiter keeps it alive
@@ -20,16 +18,19 @@ export const agentArgs = (id: string, perm: Perm | undefined, model?: string) =>
 export function spawnAgent(job: AgentJob): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env, BEAR_AGENT_HEADLESS: '1', BEAR_AGENT_IDLE_MIN: String(job.idleMin) };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
-  Object.assign(env, job.env);
-  fs.mkdirSync(job.logDir, { recursive: true });
-  const log = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
-  fs.writeSync(log, `\n${new Date().toISOString()} new agent ${job.id} in ${job.cwd} [perm: ${job.perm?.mode ?? 'default'}]\n`);
+  if (job.env) Object.assign(env, job.env);
+  else {
+    delete env.ANTHROPIC_MODEL;
+    delete env.ANTHROPIC_BASE_URL;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  }
+  const log = openRunLog(job.logDir, job.id, 'new', job.cwd, job.perm);
   const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
     cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
   });
   let outputError: Error | undefined;
   const recordOutput = (chunk: Buffer) => {
-    try { fs.writeSync(log, chunk); } catch (e) { outputError ??= e instanceof Error ? e : new Error(String(e)); }
+    outputError ??= log.write(chunk);
     job.onOutput?.(chunk.toString('utf8'));
   };
   child.stdout?.on('data', recordOutput);
@@ -49,8 +50,8 @@ export function spawnAgent(job: AgentJob): Promise<number> {
       ended = true;
       clearTimeout(timer);
       forgetBackground(job.id, child);   // only this child: a newer agent for the same id keeps running
-      try { fs.closeSync(log); } catch { /* already closed */ }
-      if (outputError) job.onOutput?.(`\n[hub could not write revive.log: ${outputError.message}]\n`);
+      log.close();
+      if (outputError) job.onOutput?.(`\n[hub could not write revive logs: ${outputError.message}]\n`);
       resolve(outputError ? 1 : code);
     };
     child.on('close', (code) => done(code ?? 1));
