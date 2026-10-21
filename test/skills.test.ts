@@ -35,6 +35,8 @@ test('worker.ps1 reads providers.json, supports -Tier and logs usage', () => {
   for (const s of ['providers.json', '[ValidateSet("auto", "local", "free", "paid")][string]$Tier', 'usage = @{', 'exit 4', 'ANTHROPIC_AUTH_TOKEN']) {
     assert.ok(ps.includes(s), `worker.ps1 missing ${s}`);
   }
+  assert.ok(ps.includes('[ValidateRange(1, 900)][int]$CallTimeoutSec = 120'));
+  assert.ok(ps.includes('[IO.File]::ReadAllText($PromptFile, [Text.Encoding]::UTF8)'));
 });
 
 test('worker.ps1 -Tools none passes an empty tool list that survives PowerShell 5.1', () => {
@@ -44,7 +46,7 @@ test('worker.ps1 -Tools none passes an empty tool list that survives PowerShell 
 
 test('worker.ps1 pipes the prompt as UTF-8 (PowerShell 5.1 defaults to us-ascii and turns Vietnamese into ?)', () => {
   const ps = fs.readFileSync(path.join(SKILLS, 'worker', 'worker.ps1'), 'utf8');
-  const enc = ps.indexOf('$OutputEncoding = New-Object Text.UTF8Encoding($false)'), out = ps.indexOf('[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)'), pipe = ps.indexOf('$prompt | claude');
+  const enc = ps.indexOf('$OutputEncoding = New-Object Text.UTF8Encoding($false)'), out = ps.indexOf('[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)'), pipe = ps.indexOf('$prompt | & claude');
   assert.ok(enc > 0 && enc < pipe, 'UTF-8 $OutputEncoding must be set before the prompt is piped');
   assert.ok(out > 0 && out < pipe, "claude's stdout must be read as UTF-8 too (the hub starts worker.ps1 without a console)");
 });

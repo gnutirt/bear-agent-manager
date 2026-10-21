@@ -12,7 +12,8 @@ param(
     [ValidateSet("auto", "local", "free", "paid")][string]$Tier = "auto",
     [string]$Provider = "",                              # pin one provider id from providers.json
     [string]$Task = "",                                  # <=100-char summary for the board; default: first line of the prompt file
-    [string]$By = $env:CLAUDE_CODE_SESSION_ID            # who hired the worker (chat name or session id)
+    [string]$By = $env:CLAUDE_CODE_SESSION_ID,           # who hired the worker (chat name or session id)
+    [ValidateRange(1, 900)][int]$CallTimeoutSec = 120
 )
 
 # --- status log + machine-wide slot gate (Bear Agent Manager) ---
@@ -104,7 +105,15 @@ if (Test-Path $tokFile) {
         Start-Sleep 15
     }
 }
-$prompt = Get-Content -Raw $PromptFile
+if (-not (Test-Path -LiteralPath $PromptFile -PathType Leaf)) {
+    Write-Output "[worker] prompt file not found: $PromptFile"
+    exit 1
+}
+$prompt = [IO.File]::ReadAllText($PromptFile, [Text.Encoding]::UTF8)
+if ([string]::IsNullOrWhiteSpace($prompt)) {
+    Write-Output "[worker] prompt file is empty: $PromptFile"
+    exit 1
+}
 if (-not $Task) { $Task = (($prompt -split "`r?`n") | Where-Object { $_.Trim() } | Select-Object -First 1) }
 Log-Line @{ event = "start"; pid = $PID; kind = $Kind; dir = $Dir; task = (Short $Task 100); tools = $Tools; by = "$By"; skill = $skill; tier = $Tier }
 
@@ -125,6 +134,62 @@ New-Item -ItemType Directory -Force $env:CLAUDE_CONFIG_DIR | Out-Null
 Set-Location $Dir
 $quotaRx = '429|402|quota|rate.?limit|insufficient|balance|exceed|限额|余额|额度|墨点'
 
+function Invoke-Claude($Arguments, $Prompt, $TimeoutSec) {
+    # Run the CLI in a child PowerShell so a timeout can terminate its entire process tree,
+    # including a .cmd shim and the CLI process it starts.
+    $runner = @'
+$cliArgs = @(ConvertFrom-Json $env:BEAR_WORKER_CLI_ARGS)
+$OutputEncoding = New-Object Text.UTF8Encoding($false)
+[Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+$prompt = [Console]::In.ReadToEnd()
+$prompt | & claude @cliArgs
+exit $LASTEXITCODE
+'@
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($runner))
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = Join-Path $PSHOME "powershell.exe"
+    $psi.Arguments = "-NoProfile -NonInteractive -EncodedCommand $encoded"
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
+    $psi.StandardErrorEncoding = New-Object Text.UTF8Encoding($false)
+    $psi.EnvironmentVariables["BEAR_WORKER_CLI_ARGS"] = ConvertTo-Json -Compress -InputObject @($Arguments)
+    $proc = New-Object Diagnostics.Process
+    $proc.StartInfo = $psi
+    $started = $false
+    try {
+        $null = $proc.Start()
+        $started = $true
+        $stdout = $proc.StandardOutput.ReadToEndAsync()
+        $stderr = $proc.StandardError.ReadToEndAsync()
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Prompt)
+        $proc.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $proc.StandardInput.Close()
+        if (-not $proc.WaitForExit($TimeoutSec * 1000)) {
+            $taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
+            if (Test-Path $taskkill) { & $taskkill /PID $proc.Id /T /F *> $null }
+            else { $proc.Kill() }
+            $proc.WaitForExit()
+            return @{ output = $stdout.Result; stderr = $stderr.Result; exitCode = -1; timedOut = $true; error = "" }
+        }
+        $proc.WaitForExit()
+        return @{ output = $stdout.Result; stderr = $stderr.Result; exitCode = $proc.ExitCode; timedOut = $false; error = "" }
+    } catch {
+        if ($started -and -not $proc.HasExited) {
+            $taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
+            if (Test-Path $taskkill) { & $taskkill /PID $proc.Id /T /F *> $null }
+            else { $proc.Kill() }
+        }
+        return @{ output = ""; stderr = ""; exitCode = -1; timedOut = $false; error = $_.Exception.Message }
+    } finally {
+        $proc.Dispose()
+    }
+}
+
 $j = $null; $err = ""; $m = ""; $quota = $false
 foreach ($prov in $plan) {
     # Env set here lives only in this process. auth-token providers (OpenRouter) must not also send x-api-key:
@@ -143,15 +208,20 @@ foreach ($prov in $plan) {
     foreach ($m in $chain) {
         $hit = $false
         foreach ($v in "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL") { Set-Item "Env:$v" $m }
+        $cliArgs = @("-p", "--bare", "--model", $m) + $toolArgs + @("--strict-mcp-config", "--output-format", "json")
         for ($try = 1; $try -le 2; $try++) {
-            $out = $prompt | claude -p --bare --model $m @toolArgs --strict-mcp-config --output-format json 2>&1 | Out-String
-            $last = ($out.Trim() -split "`r?`n")[-1]
+            $out = Invoke-Claude $cliArgs $prompt $CallTimeoutSec
+            $jsonLines = @($out.output -split "`r?`n" | Where-Object { $_.Trim().StartsWith("{") })
+            $last = if ($jsonLines.Count) { $jsonLines[-1] } else { "" }
             try { $j = $last | ConvertFrom-Json } catch { $j = $null }
             # The JSON line goes out as pure ASCII (\uXXXX escapes): a caller reading our stdout with an OEM code page
             # (a plain PowerShell 5.1 console, Start-Job) would otherwise turn Vietnamese into mojibake.
             $ascii = [regex]::Replace($last, '[^\x00-\x7F]', { param($c) '\u{0:x4}' -f [int][char]$c.Value })
             if ($j -and -not $j.is_error) { Write-Output "[worker] provider=$($prov.id) model=$m"; Write-Output $ascii; Finish 0 $m $j "" }
-            $err = if ($j) { "$($j.api_error_status) $($j.result)" } else { $out }
+            $err = if ($out.timedOut) { "timed out after $($CallTimeoutSec)s" }
+                elseif ($out.error) { $out.error }
+                elseif ($j) { "$($j.api_error_status) $($j.result)" }
+                else { "$($out.stderr) $($out.output)" }
             if ($err -notmatch $quotaRx) { break }          # not a limit problem -> try next model
             if ($try -eq 1 -and $err -match '429|rate.?limit') { Start-Sleep 65; continue }  # RPM window, retry once
             $hit = $true; break
