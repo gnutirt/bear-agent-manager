@@ -667,7 +667,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start;min-width:0}
 .flow-canvas,.flow-info,.flow-bar{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
 .flow-canvas{overflow:auto;position:relative;max-height:72vh;touch-action:pan-x pan-y}
-.flow-svg{display:block;width:max(100%,760px);height:auto;touch-action:none;cursor:grab}
+.flow-svg{display:block;width:max(100%,760px);height:auto;touch-action:pan-x pan-y;cursor:default}
 .flow-svg.drag{cursor:grabbing}
 .flow-svg text,.flow-lanes-svg text{font-family:"IBM Plex Sans",system-ui,sans-serif}
 .flow-tier{fill:var(--tier);stroke:var(--line);stroke-width:1}
@@ -2604,7 +2604,7 @@ const FLOW_STATES = {
 const flowNow = () => Date.now();
 const flowName = (n) => n.id === 'you' ? t('flow.user') : n.name;
 function flowTierLayout(nodes, tiers) {
-  const tierCount = Math.max(2, ...Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9));
+  const tierCount = Math.max(5, ...Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9));
   const TX = Array.from({ length: tierCount }, (_, i) => 8 + i * 184);
   const rows = Array.from({ length: tierCount }, () => []), assigned = new Map();
   for (const n of nodes) {
@@ -2764,7 +2764,7 @@ function renderFlow() {
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
   const graphW = Math.max(760, L.W), lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
   const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
-  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg><div class="flow-tools"><button type="button" data-flow-zoom="in" aria-label="${esc(t('flow.zoomIn'))}">+</button><button type="button" data-flow-zoom="out" aria-label="${esc(t('flow.zoomOut'))}">−</button><button type="button" data-flow-zoom="reset">${t('flow.zoomReset')}</button></div></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
   const graph = el.querySelector('#flowGraph');
   graph.style.width = `max(100%, ${Math.round(graphW * .8)}px)`;
   flowPaintDots(events, cursor, S.flowSelected);
@@ -2861,10 +2861,6 @@ $('view-flow').addEventListener('pointermove', (e) => {
   }
   if (S.flowPan) {
     const p = S.flowPan; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < 4) return; p.moved = true;
-    const svg = p.svg;
-    S.flowZoom.x = p.ox + (e.clientX - p.x) * svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
-    S.flowZoom.y = p.oy + (e.clientY - p.y) * svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
-    svg.querySelector('#flowWorld')?.setAttribute('transform', `translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})`);
   }
 });
 $('view-flow').addEventListener('pointerup', (e) => {
@@ -2881,11 +2877,6 @@ $('view-flow').addEventListener('pointerup', (e) => {
   if (S.flowPan) { const p = S.flowPan; S.flowPan = null; if (!p.moved && e.target.closest('#flowGraph')) { S.flowSelected = null; renderFlow(); } else if (p.moved) renderFlow(); }
 });
 $('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; S.flowPan = null; renderFlow(); });
-$('view-flow').addEventListener('wheel', (e) => {
-  const svg = e.target.closest('#flowGraph'); if (!svg) return;
-  e.preventDefault(); const p = flowScreenPoint(svg, e.clientX, e.clientY);
-  flowZoomBy(e.deltaY < 0 ? 1.12 : .89, p.x, p.y);
-}, { passive: false });
 $('view-flow').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   const node = e.target.closest('[data-flow-node]');

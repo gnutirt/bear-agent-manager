@@ -72,7 +72,7 @@ export const en: Record<string, string> = {
   'office.stat.ask': 'Needs you',
   'office.stat.done': 'Done ✓',
   'office.stat.idle': 'Resting',
-  'office.stat.error': 'Error',
+  'office.stat.error': 'Rate limited',
   'office.stat.meet': 'In a meeting',
   'office.mock.lead': 'Coordinator',
   'office.mock.lead.role': 'Splits work, reviews',
