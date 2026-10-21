@@ -443,6 +443,7 @@ header .spacer{flex:1}
 #zoom .zbox.files{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .files .fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#zoom .files .fbar b{font-family:var(--mono);word-break:break-all}
 #zoom .files .medit{flex:1;min-height:55vh;border:1px solid var(--line);border-radius:8px;overflow:hidden}#zoom .files .medit pre{margin:0;height:100%;overflow:auto;padding:8px}
 #zoom .files [hidden]{display:none!important}
+.msg a.pathlink,.lmsg a.pathlink{font-family:var(--mono);font-size:.92em;word-break:break-all;text-decoration:underline dotted}#zoom .files .pimg{display:grid;place-items:center;padding:8px;background:var(--bg)}#zoom .files .pimg img{max-width:100%;max-height:68vh}
 #zoom .zbox.con{font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:8px;min-height:50vh}#zoom .con .fbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}#zoom .con p{margin:0}
 #zoom .conlist{flex:1;min-height:40vh;max-height:68vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:var(--mono);font-size:12.5px;line-height:1.45}
 #zoom .cent{padding:6px 0;border-bottom:1px solid var(--line)}#zoom .cent:last-child{border-bottom:0}#zoom .cent .chd{display:flex;gap:8px;align-items:center;color:var(--mute)}#zoom .cent .chd b{color:var(--text)}#zoom .cent .cst{margin-left:auto}
@@ -1058,9 +1059,12 @@ function inline(s) {
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+    .replace(/(^|[\s(,;])([A-Za-z]:[\\/][^\s<>"|?*&]*[^\s<>"|?*&.,;:)\]])/g, (m, p, path) => `${p}${pathChip(path)}`)
     .replace(/(^|[\s(,;])@([A-Za-z0-9_-]+)/g, (m, p, n) => `${p}<span class="mention${n.toLowerCase() === 'you' ? ' me' : ''}">@${n}</span>`);
-  return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[+i]}</code>`);
+  return s.replace(/\u0000(\d+)\u0000/g, (m, i) => /^[A-Za-z]:[\\/][^<>"|?*\r\n&]+$/.test(codes[+i].trim()) ? `<code>${pathChip(codes[+i].trim())}</code>` : `<code>${codes[+i]}</code>`);
 }
+/** #126: a Windows path in a message is a button; the click offers View / Open folder (the hub only serves a path that really appears in that message). */
+const pathChip = (path) => `<a href="#" class="pathlink" role="button" aria-haspopup="menu" data-path="${path}">${path}</a>`;
 const mdCache = new Map();
 function md(src) {
   const k = uiLang() + '\u0000' + src;
@@ -2183,6 +2187,37 @@ function openConsole() {
   zoom.querySelector('.zx').focus();
 }
 $('consoleBtn').onclick = openConsole;
+/** #126: click a path in a message: View (text in Monaco, image inline) or Open folder in Explorer. room + msgId travel with it. */
+function pathCtx(a) {
+  const el = a.closest('.msg[data-mid]');
+  return el ? { room: S.current, id: Number(el.dataset.mid), path: a.dataset.path } : null;
+}
+function pathMenu(a) {
+  const ctx = pathCtx(a);
+  if (!ctx) return toast(t('path.noMsg'));
+  openMenu(a, `<div class="label mono small">${esc(ctx.path)}</div><button class="item" role="menuitem" data-pa="view">${t('path.view')}</button><button class="item" role="menuitem" data-pa="reveal">${t('path.reveal')}</button>`, (m) => {
+    m.querySelector('[data-pa=view]').onclick = () => { closeMenu(); pathView(ctx); };
+    m.querySelector('[data-pa=reveal]').onclick = () => { closeMenu(); api('/api/path/reveal', ctx).then(() => { toast(t('path.revealed')); announce(t('path.revealed')); }, (e) => toast(t('path.fail', { err: e.message }))); };
+  });
+}
+function pathView(ctx) {
+  api(`/api/path/view?room=${enc(ctx.room)}&id=${ctx.id}&path=${enc(ctx.path)}`).then((r) => {
+    if (monacoEd) { monacoEd.dispose(); monacoEd = null; }
+    const body = r.kind === 'image' ? `<div class="medit pimg"><img src="data:${esc(r.mime || 'image/png')};base64,${esc(r.base64 || '')}" alt="${esc(ctx.path)}"></div>` : r.kind === 'text' ? '<div class="medit" id="medit"><pre></pre></div>' : `<div class="muted">${t('files.binary')}</div>`;
+    zoom.innerHTML = `<div class="zbox files" role="dialog" aria-modal="true" aria-label="${esc(ctx.path)}"><button class="zx" aria-label="${t('common.close')}">✕</button><div class="fbar"><b>${esc(ctx.path)}</b><button class="btn sm" id="pReveal">${t('path.reveal')}</button></div>${body}</div>`;
+    zoom.hidden = false;
+    zoom.querySelector('.zx').focus();
+    $('pReveal').onclick = () => api('/api/path/reveal', ctx).then(() => toast(t('path.revealed')), (e) => toast(t('path.fail', { err: e.message })));
+    if (r.kind !== 'text') return;
+    zoom.querySelector('#medit pre').textContent = r.content;
+    loadMonaco().then((m) => {
+      const host = $('medit'); if (!m || !host || !zoom.contains(host)) return;
+      host.innerHTML = '';
+      monacoEd = m.editor.create(host, { value: r.content, language: monacoLang(m, ctx.path), readOnly: true, automaticLayout: true, minimap: { enabled: false }, scrollBeyondLastLine: false, theme: isDarkUi() ? 'vs-dark' : 'vs', fontSize: 13, ariaLabel: ctx.path, domReadOnly: true });
+    });
+  }, (e) => toast(t('path.fail', { err: e.message })));
+}
+document.addEventListener('click', (e) => { const a = e.target.closest?.('a.pathlink'); if (a) { e.preventDefault(); pathMenu(a); } });
 /** S6: turns the read-only editor into an editable one with Save (button or Ctrl+S); a file changed on disk since it was opened asks before it is overwritten. */
 function editFile(sid, r, ed, m) {
   const bEdit = $('fEdit'), bSave = $('fSave'), st = $('fState'); let mtime = r.mtime, base = r.content;

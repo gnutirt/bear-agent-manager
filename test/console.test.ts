@@ -74,3 +74,14 @@ test('#112 phone header: Files, Console and Live chat move into a ⋯ menu under
     assert.ok(/#moreBtn\{display:none\}/.test(html), 'the ⋯ button is off on desktop');
   } finally { await hub.close(); }
 });
+
+test('#126 UI: a Windows path in a message is a button that offers View and Open folder, sending room + message id', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of ['const pathChip', 'class="pathlink"', 'function pathMenu', 'function pathView', '/api/path/view?room=', "'/api/path/reveal'", "t('path.view')", "t('path.reveal')", 'data:${esc(r.mime']) assert.ok(html.includes(s), `path links: missing ${s}`);
+    const view = html.slice(html.indexOf('function pathView'), html.indexOf("document.addEventListener('click', (e) => { const a = e.target.closest?.('a.pathlink')"));
+    assert.ok(!/\.innerHTML\s*=\s*r\.content|html\(r\.content|srcdoc/.test(view), 'file content is never put into the page as HTML (an .html file shows as source)');
+    assert.ok(/\{ room: S\.current, id: Number\(el\.dataset\.mid\), path: a\.dataset\.path \}/.test(html), 'room and message id go with the path');
+  } finally { await hub.close(); }
+});
