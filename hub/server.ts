@@ -841,7 +841,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function revive(sid: string): boolean {
     const s = store.session(sid);
     if (apiProfileOf(s)) attachTranscript(s);
-    if (reviving.has(s.id) || waiters.has(s.id) || !hasTranscript(s)) return false;
+    // isBackground: a claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing
+    // this transcript; a second `claude --resume` on the same session would give the JSONL two writers.
+    if (reviving.has(s.id) || waiters.has(s.id) || isBackground(s.id) || !hasTranscript(s)) return false;
     if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = apiProfileOf(s);
@@ -2269,8 +2271,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         const patch = { ...b, ...(b.owner !== undefined ? { owner: memberName(b.owner) } : {}) };
         const { task, before } = updateTask(opts.dir, room, id, patch);
+        // Editing the `after` list can make this task (or a task that waited for it) ready; nothing else moves
+        // blocked → todo except a dependency finishing or being deleted, so a shortened list would stay blocked.
+        const freed = unblockReady(opts.dir, room);
+        const selfFreed = freed.some((t) => t.id === task.id);
+        if (selfFreed) task.status = 'todo';
         emitTasks();
-        if (task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
+        if (freed.length) for (const t of freed) if (t.owner) assign(t);
+        if (!selfFreed && task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
         if (task.status === 'done' && before.status !== 'done') {
           try {
             broadcast('msg', postSys(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
