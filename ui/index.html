@@ -1553,7 +1553,7 @@ function renderHeader() {
   $('consoleBtn').hidden = !r || !ms.length;
   syncMore();
   $('membersBtn').hidden = $('inviteBtn').hidden = $('notesBtn').hidden = $('searchBtn').hidden = !r;
-  $('agentNewBtn').hidden = !r || !!r.dm;
+  $('agentNewBtn').hidden = false;
   $('membersCount').textContent = ms.length;
   $('banner').classList.toggle('show', !!r?.paused);
   $('text').disabled = !r;
@@ -3276,7 +3276,8 @@ function refreshAgentMetadata() {
   });
 }
 function openAgentDialog() {
-  S.agentDialog = { loading: true, kind: '', error: '' };
+  const currentRoom = room(S.current);
+  S.agentDialog = { loading: true, kind: '', error: '', room: currentRoom?.dm ? S.taskRoom : (currentRoom?.name || S.taskRoom) };
   zoomBack = null; closeMenu(); zoom.hidden = false;
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true"><p class="small muted">${t('agent.spawn.loading')}</p></div>`;
   Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts')]).then(([settings, providers, statuses, accounts]) => {
@@ -3303,7 +3304,7 @@ function renderAgentDialog() {
   if (!state) return;
   const providers = S.providers || [], profiles = S.settings?.agents?.profiles || [];
   const rooms = (S.rooms || []).filter((r) => !r.dm);
-  const room = rooms.find((r) => r.name === state.room)?.name || rooms.find((r) => r.name === S.current)?.name || rooms[0]?.name || 'bear-agent-manager';
+  const room = rooms.find((r) => r.name === state.room)?.name || rooms.find((r) => r.name === S.current)?.name || rooms.find((r) => r.name === S.taskRoom)?.name || rooms[0]?.name || 'bear-agent-manager';
   const roomInfo = rooms.find((r) => r.name === room);
   const roomOptions = rooms.length ? rooms.map((r) => `<option value="${esc(r.name)}"${r.name === room ? ' selected' : ''}>${esc(r.name)}</option>`).join('') : `<option value="${room}">${room}</option>`;
   const cwd = roomInfo?.cwd || '';

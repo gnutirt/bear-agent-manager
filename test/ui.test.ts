@@ -314,6 +314,20 @@ test('main screen agent spawn dialog offers folder, API, and Copilot agents with
   } finally { await hub.close(); }
 });
 
+test('+ Agent stays available on home and private chats and uses the last normal room', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'id="agentNewBtn"',
+      "$('agentNewBtn').hidden = false",
+      '.btn[hidden],button[hidden]{display:none!important}',
+      'room: currentRoom?.dm ? S.taskRoom : (currentRoom?.name || S.taskRoom)',
+      'rooms.find((r) => r.name === S.taskRoom)?.name',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('a view whose data fails to load says why instead of loading forever', async () => {
   const { hub } = await makeHub();
   try {
