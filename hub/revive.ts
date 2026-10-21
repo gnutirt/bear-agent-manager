@@ -77,7 +77,17 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   if (idleMin) live.set(job.id, child);
   const timer = setTimeout(() => killTree(child), maxMs);
   return new Promise((resolve) => {
-    const done = (code: number) => { clearTimeout(timer); if (live.get(job.id) === child) live.delete(job.id); fs.closeSync(log); resolve(code); };
+    // 'error' and 'exit' can both fire (a spawn that fails, or a process that cannot be killed); resolving twice would
+    // close the same log fd twice and throw inside an event handler, which takes the whole hub down.
+    let ended = false;
+    const done = (code: number) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      if (live.get(job.id) === child) live.delete(job.id);
+      try { fs.closeSync(log); } catch { /* already closed */ }
+      resolve(code);
+    };
     child.on('exit', (code) => done(code ?? 1));
     child.on('error', () => done(1));
   });

@@ -91,18 +91,27 @@ export class LiveChat {
       cwd: fs.existsSync(job.cwd) ? job.cwd : undefined, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', 'pipe', errLog],
     });
     this.procs.set(job.id, child);
+    // A write into a stdin whose process has just exited emits 'error' on the stream; unhandled, it would take the whole hub down
+    // (every room, not only this chat). send() checks destroyed, but the process can exit between the check and the write.
+    child.stdin?.on('error', () => { /* the exit handler below reports it */ });
     let buf = '';
+    const take = (line: string) => { if (line) for (const ev of parseLine(line)) this.push(job.id, ev); };
     child.stdout?.setEncoding('utf8').on('data', (chunk: string) => {
       buf += chunk;
       let i: number;
-      while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (line) for (const ev of parseLine(line)) this.push(job.id, ev); }
+      while ((i = buf.indexOf('\n')) >= 0) { take(buf.slice(0, i).trim()); buf = buf.slice(i + 1); }
     });
     let ended = false;
     const done = (code: number | null) => {
       if (ended) return;
       ended = true;
-      if (this.procs.get(job.id) === child) this.procs.delete(job.id);
+      const stillMine = this.procs.get(job.id) === child;
+      if (stillMine) this.procs.delete(job.id);
       try { fs.closeSync(errLog); } catch { /* already closed */ }
+      // Stopped and started again while this process was exiting: its events (and its death) belong to the old chat.
+      // Emitting 'stopped' here would make the hub mark the running chat ended and cancel its open permission requests.
+      if (!stillMine && this.procs.has(job.id)) return;
+      if (buf.trim()) { take(buf.trim()); buf = ''; }   // a last line that arrived without a trailing newline
       this.push(job.id, { kind: 'stopped', code });
     };
     child.on('exit', (code) => done(code));

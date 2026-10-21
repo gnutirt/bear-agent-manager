@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 import { makeHub, until } from './helpers.ts';
 import { LiveChat, liveArgs, parseLine, type LiveEvent, type LiveSpawn } from '../hub/livechat.ts';
+import type { ChildProcess } from 'node:child_process';
 
 // A fake `claude -p --input-format stream-json`: for each user line it streams init (once), two text deltas, the text block, a tool call and its result, and the result line.
 const FAKE = `
@@ -77,6 +80,33 @@ test('LiveChat: one long process per session; sends stream back as events; delta
   await until(() => seen.some((e) => e.kind === 'stopped'), 10_000, 'stopped event');
   assert.equal(live.stop('s1'), false);
   assert.ok(live.events('s1').some((e) => e.kind === 'stopped'), 'history survives the process');
+});
+
+test('LiveChat: an old child exiting after restart cannot stop the replacement', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-live-'));
+  const children: ChildProcess[] = [];
+  const seen: LiveEvent[] = [];
+  const live = new LiveChat({
+    emit: (_s, ev) => seen.push(ev),
+    spawn: () => {
+      const child = Object.assign(new EventEmitter(), {
+        stdin: new PassThrough(),
+        stdout: new PassThrough(),
+        kill: () => true,
+      }) as ChildProcess;
+      children.push(child);
+      return child;
+    },
+  });
+
+  live.start({ id: 's1', cwd: dir, logDir: dir });
+  live.stop('s1');
+  live.start({ id: 's1', cwd: dir, logDir: dir });
+  children[0].emit('exit', 0);
+
+  assert.deepEqual(seen.filter((ev) => ev.kind === 'stopped'), []);
+  assert.equal(live.has('s1'), true);
+  assert.doesNotThrow(() => children[0].stdin?.emit('error', new Error('EPIPE')));
 });
 
 test('hub live chat: start needs a saved chat, no open tab; send/stop; room @ goes into the live chat; a tab coming up stops it', async () => {
