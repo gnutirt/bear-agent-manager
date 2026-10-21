@@ -42,6 +42,15 @@ test('postMirror: private chat is created hidden, stays hidden, wakes nobody and
   assert.equal(st.history('dm-mir1').length, 4);
 });
 
+test('postMirror: oversized tab text is capped to the normal room-message limit', () => {
+  const st = new Store(fs.mkdtempSync(path.join(os.tmpdir(), 'ar-mirror-cap-')));
+  const s = st.register({ id: 'mirror-cap', cwd: path.join('D:', 'fw') });
+  const m = st.postMirror(s.id, 'user', 'x'.repeat(20_000));
+  assert.equal(m.text.length, 8000);
+  assert.ok(m.text.endsWith('...'));
+  assert.equal(st.history(m.room)[0].text, m.text);
+});
+
 test('tab mirror: a prompt typed in the tab and its answer reach the private chat; hub text, a private key and the off switch do not', async () => {
   const h = await makeHub();
   const hook = (event: string, body: object) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'm1', ...body }) });

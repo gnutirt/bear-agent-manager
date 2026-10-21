@@ -171,6 +171,43 @@ test('wake compact: a failed or crashed compaction still wakes the agent', async
   }
 });
 
+test('idle compact: compacts only ended sessions over their role threshold, never a live tab', async () => {
+  let now = Date.now();
+  const compacted: string[] = [];
+  const h = await makeHub(10, undefined, {
+    now: () => now,
+    idleCompactEveryMs: 10,
+    isAlive: (pid: number) => pid === 12345,
+    compactRevive: async (job: any) => {
+      compacted.push(job.id);
+      fs.appendFileSync(job.id === 'tab' ? path.join(h.dir, 'tab.jsonl') : path.join(h.dir, `${job.id}.jsonl`),
+        JSON.stringify({ type: 'system', subtype: 'compact_boundary', compactMetadata: { preTokens: 150_000, postTokens: 12_000 } }) + '\n');
+      return 0;
+    },
+  });
+  try {
+    for (const [id, ctx] of [['eligible', 150_000], ['below', 50_000], ['threshold', 100_000], ['tab', 150_000], ['running', 150_000]] as const) {
+      const tr = path.join(h.dir, `${id}.jsonl`);
+      fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: ctx } } }) + '\n');
+      await h.call('/api/sessions/register', { id, cwd: 'C:/fw', transcript: tr });
+      await h.call(`/api/sessions/${id}/rename`, { name: id });
+      await h.call('/api/rooms/proj/join', { sessionId: id });
+    }
+    for (const id of ['eligible', 'below', 'threshold', 'tab']) {
+      await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: id }) });
+    }
+    const tab = h.hub.store.session('tab');
+    tab.ide = 'vscode';
+    tab.pids = [{ pid: 12345, headless: false, at: now }];
+    h.hub.store.save();
+    await h.call('/api/sessions/running/status', { status: 'busy', activity: 'working' });
+
+    now += 20;
+    await until(() => compacted.length === 1, 5000, 'idle compaction');
+    assert.deepEqual(compacted, ['eligible']);
+  } finally { await h.hub.close(); }
+});
+
 test('a wake that fails leaves the messages unread and says so in the room', async () => {
   const h = await makeHub(undefined, () => 1);
   try {

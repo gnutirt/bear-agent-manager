@@ -218,7 +218,7 @@ export class Store {
     for (const room of rewrittenRooms) {
       if (!this.state.rooms[room]) continue;
       const history = this.messages.filter((message) => message.room === room);
-      fs.writeFileSync(path.join(this.dir, 'rooms', `${room}.jsonl`), history.map((message) => JSON.stringify(message)).join('\n') + (history.length ? '\n' : ''));
+      this.rewriteRoomLog(room, history.map((message) => JSON.stringify(message)).join('\n') + (history.length ? '\n' : ''));
     }
     if (changed) this.save();
     for (const room of removedRooms) {
@@ -634,7 +634,10 @@ export class Store {
     const room = existing ?? this.dmRoom(s.id);
     if (!existing) this.hideDm(room.name);
     const name = room.name;
-    const message: Message = { id: this.newId(), room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `[tab] ${who}: ${text}`, ts: this.now(), wake: [], kind: 'mirror' };
+    const prefix = `[tab] ${who}: `;
+    const maxText = MAX_TEXT - prefix.length;
+    const body = text.length > maxText ? `${text.slice(0, maxText - 3)}...` : text;
+    const message: Message = { id: this.newId(), room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `${prefix}${body}`, ts: this.now(), wake: [], kind: 'mirror' };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${name}.jsonl`), JSON.stringify(message) + '\n');
     this.save();
@@ -798,6 +801,13 @@ export class Store {
     return path.join(this.dir, 'rooms', `${room}.jsonl`);
   }
 
+  private rewriteRoomLog(room: string, contents: string): void {
+    const file = this.logFile(room);
+    const temp = `${file}.tmp-${process.pid}`;
+    fs.writeFileSync(temp, contents);
+    renameRetry(temp, file);
+  }
+
   renameRoom(from: string, to: string): Room {
     const r = this.state.rooms[from];
     if (!r) throw new StoreError(404, `unknown room ${from}`);
@@ -814,7 +824,7 @@ export class Store {
     // T19: "lead already opened by the hub" is keyed by room name; without this a renamed room gets a second lead tab.
     if (this.state.leadOpened?.includes(from)) this.state.leadOpened = [...new Set(this.state.leadOpened.map((x) => (x === from ? to : x)))];
     const lines = this.messages.filter((m) => m.room === to).map((m) => JSON.stringify(m) + '\n').join('');
-    fs.writeFileSync(this.logFile(to), lines);
+    this.rewriteRoomLog(to, lines);
     fs.rmSync(this.logFile(from), { force: true });
     delete this.state.rooms[from];
     r.name = to;

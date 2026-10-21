@@ -27,6 +27,17 @@ test('renameRoom moves members, history and the log file; survives reload', () =
   assert.throws(() => st.renameRoom('nope', 'x'), (e: StoreError) => e.status === 404);
 });
 
+test('room log rewrites use an atomic temp-file rename', () => {
+  const dir = tmp();
+  const st = new Store(dir);
+  st.createRoom('atomic');
+  st.post('atomic', null, 'preserve this line');
+  st.renameRoom('atomic', 'atomic-renamed');
+  const roomDir = path.join(dir, 'rooms');
+  assert.deepEqual(fs.readdirSync(roomDir).sort(), ['atomic-renamed.jsonl']);
+  assert.equal(new Store(dir).history('atomic-renamed')[0].text, 'preserve this line');
+});
+
 test('room working folders survive reload and can be cleared', () => {
   const dir = tmp();
   const st = new Store(dir);

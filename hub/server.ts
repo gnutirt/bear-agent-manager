@@ -123,6 +123,8 @@ export type HubOptions = {
   dir: string;
   port: number;
   sweepMs?: number;
+  /** Minimum interval between idle saved-chat compaction sweeps (default 10 minutes). */
+  idleCompactEveryMs?: number;
   deafMs?: number;   // C3: how long an @ may wait on a tab with no waiter before the room is told (default 10 min)
   revive?: (job: ReviveJob) => unknown;
   /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
@@ -183,6 +185,7 @@ export type HubOptions = {
 
 const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
+const IDLE_COMPACT_EVERY_MS = 10 * 60_000;
 const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
@@ -974,7 +977,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   /** Compacts the saved chat of a session that is not running (the caller holds `reviving`) and says how it went in its rooms. */
   async function compactSaved(s: Session, left: number, apiRun?: ReturnType<typeof apiJob>) {
-    const before = readContextTokens(s.transcript), model = loadSettings(opts.dir, envCap).agentModel[normAgent(s.name)];
+    const before = readContextTokens(s.transcript), cfg = loadSettings(opts.dir, envCap);
+    const configuredModel = cfg.agentModel[normAgent(s.name)];
+    const model = apiRun?.model ?? claudeCliModel(configuredModel, cfg.agents.profiles, configuredModel ? loadProviders(opts.dir, legacyKey) : []);
     emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
@@ -1012,6 +1017,35 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (store.pending(s.id).messages.length && revive(s.id)) return;   // e.g. the next task arrived while it compacted
       if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
     });
+  }
+
+  let lastIdleCompactAt = store.now();
+  async function compactIdleSessions() {
+    const cfg = loadSettings(opts.dir, envCap);
+    if (!cfg.compact.thresholds.enabled) return;
+    for (const s of Object.values(store.state.sessions)) {
+      if (s.status !== 'offline' || !s.ended || !hasTranscript(s) || isConn(s.id) || tabHolds(s) || copilotHolding(s.id)) continue;
+      const ctx = readContextTokens(s.transcript);
+      if (!ctx || ctx <= cfg.compact.thresholds[wakeRole(s)]) continue;
+      const api = apiProfileOf(s);
+      let apiRun: ReturnType<typeof apiJob> | undefined;
+      if (api) {
+        if (!api.enabled || apiLimited(api) || apiBudgetUntil(api)) continue;
+        try { apiRun = apiJob(api, cfg, s.id); } catch (error) {
+          console.error(`[compact] could not prepare idle compact for ${s.id}:`, error);
+          continue;
+        }
+      }
+      if (isConn(s.id) || tabHolds(s)) continue;
+      reviving.add(s.id);
+      void compactSaved(s, 0, apiRun).catch((error) => {
+        console.error(`[compact] idle compact failed for ${s.id}:`, error);
+      }).finally(() => {
+        reviving.delete(s.id);
+        if (store.pending(s.id).messages.length && revive(s.id)) return;
+        if (!waiters.has(s.id)) emitSession(store.markEnded(s.id));
+      });
+    }
   }
 
   /** Account out of usage (a window at 100%): waking an agent on it only burns the turn. Books a wake-up for the reset and says why. */
@@ -2673,6 +2707,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const sweeper = setInterval(() => {
     const now = store.now();
+    if (now - lastIdleCompactAt >= (opts.idleCompactEveryMs ?? IDLE_COMPACT_EVERY_MS)) {
+      lastIdleCompactAt = now;
+      void compactIdleSessions().catch((error) => console.error('[compact] idle sweep failed:', error));
+    }
     for (const s of Object.values(store.state.sessions)) {
       if (s.afterLimitDelivered && now - s.afterLimitDelivered.at >= 60_000) {
         void recoverAfterLimitDelivery(s).catch((error) => console.error(`[usage] failed after-limit fallback for ${s.id}:`, error));
