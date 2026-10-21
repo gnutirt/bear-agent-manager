@@ -34,10 +34,10 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
   const shown = messages.slice(-MAX_SHOWN);
   const head = messages.length > shown.length ? ` (last ${shown.length} of ${messages.length})` : '';
   const lines = [`[bear-agent-manager] New messages${head}:`];
-  // One optional style, not a language switch: agents may mix English and Vietnamese (room note [65]); what costs tokens
-  // is the greetings-and-recap prose, so 'terse' asks for short status/handoff lines and keeps full sentences where a
-  // person or a decision is involved.
-  if (agentComms === 'terse') lines.push('Agent posts: BAMshort — short status/handoff lines, English or Vietnamese or mixed, no greetings; verb + path:line + result. Full sentences only for @you, decisions and contracts. Keep @names, paths and commit hashes as ^sha.');
+  // One optional style, not a language switch: agents may mix English and Vietnamese (room note [83]); what costs tokens
+  // is the greetings-and-recap prose, so 'terse' asks for BAMshort: one short status/handoff line, the dialect in
+  // docs/bamshort.md, and keeps full sentences where a person or a decision is involved.
+  if (agentComms === 'terse') lines.push('Agent posts: BAMshort — 1 line, no greetings: verb + path:line + result, VN/EN slang ok, fixed emoji ✅done ❌fail ⚠️waiting ⏳running 🚫blocked 👀review ❓ask 🔁retry; keep @name and ^sha; Full sentences only for @you, decisions and contracts. Glossary: docs/bamshort.md.');
   let room = '';
   let trimmed = false, short = false;
   for (const m of shown) {
