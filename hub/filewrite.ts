@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { StoreError } from './store.ts';
 import { isSecretFile } from './localai.ts';
 import { inside } from './files.ts';
+import { gitWithInput, safeGitArgs, safeGitEnv } from './git.ts';
 
 // S6: write one text file and commit exactly the named paths, inside an agent's folder. Same walls as the read view (folder, .git, secrets).
 /** A write that lost to a change on disk: 409 plus the disk mtime so the editor can offer reload or overwrite. */
@@ -56,7 +57,7 @@ export function writeFileSafe(cwd: string, rel: string, content: unknown, mtime:
 }
 
 function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<string> {
-  return new Promise((resolve, reject) => execFile('git', ['-C', cwd, ...args], { timeout: 30_000, windowsHide: true, maxBuffer: 1 << 20, env: { ...process.env, ...env } },
+  return new Promise((resolve, reject) => execFile('git', safeGitArgs(cwd, args), { timeout: 30_000, windowsHide: true, maxBuffer: 1 << 20, env: safeGitEnv(env) },
     (e, out, err) => e ? reject(new Error(String(err || e.message).trim().split('\n').slice(-3).join(' ').slice(0, 300))) : resolve(out)));
 }
 
@@ -86,6 +87,8 @@ export async function commitPaths(cwd: string, paths: unknown, message: unknown,
     const env = { GIT_INDEX_FILE: idx };
     let baseHead: string | undefined;
     try { baseHead = (await git(root, ['rev-parse', '--verify', 'HEAD'])).trim(); } catch { /* an unborn branch has no HEAD yet */ }
+    const objectFormat = (await git(root, ['rev-parse', '--show-object-format']).catch(() => 'sha1')).trim();
+    const zeroOid = '0'.repeat(objectFormat === 'sha256' ? 64 : 40);
     if (options.refuseStagedPaths) {
       const staged = (await git(root, ['diff', '--cached', '--name-only', '-z', '--', ...list])).split('\0').filter(Boolean);
       if (staged.length) throw new StoreError(409, `requested paths already have staged changes: ${staged.join(', ')}`);
@@ -96,7 +99,23 @@ export async function commitPaths(cwd: string, paths: unknown, message: unknown,
     if (baseHead) await git(root, ['read-tree', 'HEAD'], env);
     else await git(root, ['read-tree', '--empty'], env);
     if (await currentHead() !== baseHead) throw new StoreError(409, 'HEAD changed while preparing this commit; retry');
-    await git(root, ['add', '-A', '--', ...list], env);
+    const indexInfo: Buffer[] = [];
+    for (const rel of list) {
+      const file = path.join(root, ...rel.split('/'));
+      let st: fs.Stats;
+      try { st = fs.lstatSync(file); }
+      catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+        indexInfo.push(Buffer.from(`0 ${zeroOid}\t${rel}\0`, 'utf8'));
+        continue;
+      }
+      if (!st.isFile() && !st.isSymbolicLink()) throw new StoreError(400, `${rel} is not a file`);
+      const mode = st.isSymbolicLink() ? '120000' : st.mode & 0o111 ? '100755' : '100644';
+      const content = st.isSymbolicLink() ? Buffer.from(fs.readlinkSync(file), 'utf8') : fs.readFileSync(file);
+      const oid = (await gitWithInput(root, ['hash-object', '-w', '--no-filters', '--stdin'], content, 30_000, 1 << 20, env)).trim();
+      indexInfo.push(Buffer.from(`${mode} ${oid}\t${rel}\0`, 'utf8'));
+    }
+    await gitWithInput(root, ['update-index', '-z', '--index-info'], Buffer.concat(indexInfo), 30_000, 1 << 20, env);
     const staged = (await git(root, ['diff', '--cached', '--name-only', '-z', ...(baseHead ? [baseHead] : []), '--'], env)).split('\0').filter(Boolean);
     const requested = new Set(list.map(pathKey));
     const outside = staged.filter((p) => !requested.has(pathKey(p)));
@@ -108,7 +127,7 @@ export async function commitPaths(cwd: string, paths: unknown, message: unknown,
     const committed = (await git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', commit])).split('\0').filter(Boolean);
     const unexpected = committed.filter((p) => !requested.has(pathKey(p)));
     if (unexpected.length) throw new StoreError(409, `commit ${commit} changed paths outside the request: ${unexpected.join(', ')}`);
-    const numstat = (await git(root, ['show', '--format=', '--numstat', '-z', commit])).split('\0').filter(Boolean);
+    const numstat = (await git(root, ['show', '--no-ext-diff', '--no-textconv', '--format=', '--numstat', '-z', commit])).split('\0').filter(Boolean);
     let insertions = 0, deletions = 0;
     for (const entry of numstat) {
       const first = entry.indexOf('\t'), second = entry.indexOf('\t', first + 1);

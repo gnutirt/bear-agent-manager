@@ -85,6 +85,13 @@ export function apiPerm(p: AgentProfile, prov: Provider, own: Perm): Perm {
 
 const PATH_ARGS: Record<string, string[]> = { Read: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'], Write: ['file_path'], NotebookEdit: ['notebook_path'], Grep: ['path'], Glob: ['path', 'pattern'], LS: ['path'] };
 const WRITES = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+const PROTECTED_WRITE_DIRS = new Set(['.git', '.claude', '.vscode', '.husky']);
+const PROTECTED_WRITE_FILES = new Set(['.gitattributes', '.gitmodules', '.gitconfig', '.npmrc', 'package.json']);
+function protectedWritePath(rel: string): boolean {
+  const parts = rel.split('/').map((part) => part.toLowerCase());
+  return parts.some((part) => PROTECTED_WRITE_DIRS.has(part) || PROTECTED_WRITE_FILES.has(part)) ||
+    parts.some((part, i) => part === '.github' && parts[i + 1] === 'workflows');
+}
 /** The real path of p, also when it does not exist yet (a file Write creates): its nearest existing folder resolved, the rest appended. */
 function realOf(p: string): string {
   const rest: string[] = [];
@@ -97,7 +104,7 @@ function realOf(p: string): string {
 
 /**
  * Note [54]: may an agent on a provider off this machine run this tool call? Only path tools, only inside its folder (by realpath, so a link or
- * `..` out of it is refused), never a secrets file, writes only with canEdit. Anything else (WebFetch, Task, …) is refused.
+ * `..` out of it is refused), never a secrets file or protected execution/config files, writes only with canEdit. Anything else is refused.
  */
 export function pathGuard(cwd: string, tool: string, input: any, canEdit: boolean): { allow: boolean; message?: string } {
   const no = (message: string) => ({ allow: false, message });
@@ -117,7 +124,9 @@ export function pathGuard(cwd: string, tool: string, input: any, canEdit: boolea
     }
     const rel = path.relative(root, realOf(path.resolve(root, v)));
     if (rel.startsWith('..') || path.isAbsolute(rel)) return no(`${input[k]} is outside the agent folder ${cwd}`);
-    if (rel && isSecretFile(rel.split(path.sep).join('/'))) return no(`${input[k]} looks like a secrets file`);
+    const normalized = rel.split(path.sep).join('/');
+    if (WRITES.has(tool) && protectedWritePath(normalized)) return no(`${input[k]} is protected hub or repository configuration`);
+    if (normalized && isSecretFile(normalized)) return no(`${input[k]} looks like a secrets file`);
   }
   return { allow: true };
 }

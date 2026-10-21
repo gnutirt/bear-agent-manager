@@ -3,6 +3,7 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeGitArgs, safeGitEnv } from './git.ts';
 
 export type WorktreeState = { cwd: string; repo: boolean; branch: string; dirty: number; files: string[]; checkedAt: number; error?: string };
 type Run = (cwd: string) => Promise<string>;   // stdout of the git command, rejects when git fails (not a repo, timeout...)
@@ -13,7 +14,7 @@ const TIMEOUT_MS = 5_000;
 
 type GitError = Error & { code?: string | number; stderr?: string };
 const runGit: Run = (cwd) => new Promise((resolve, reject) => {
-  execFile('git', ['-C', cwd, 'status', '--porcelain=v1', '-b'], { timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+  execFile('git', safeGitArgs(cwd, ['status', '--porcelain=v1', '-b']), { timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 4 * 1024 * 1024, env: safeGitEnv() }, (err, stdout, stderr) => {
     if (err) {
       (err as GitError).stderr = String(stderr);
       reject(err);

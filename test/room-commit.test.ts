@@ -75,33 +75,34 @@ test('room_commit is a first-class MCP tool and commits exact requested paths', 
   }
 });
 
-test('room_commit refuses a HEAD change that happens while git commit runs', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-room-commit-race-'));
-  const hooks = path.join(root, 'hooks'), noHooks = path.join(root, 'no-hooks');
-  fs.mkdirSync(hooks); fs.mkdirSync(noHooks);
+test('room_commit does not run repository hooks or clean filters', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-room-commit-safe-git-'));
+  const hooks = path.join(root, 'hooks');
+  fs.mkdirSync(hooks);
   fs.writeFileSync(path.join(root, 'file.txt'), 'before\n');
   git(root, 'init', '-q');
+  git(root, 'config', 'user.name', 'Room Commit Test');
+  git(root, 'config', 'user.email', 'room-commit@example.test');
   git(root, 'add', 'file.txt');
   git(root, 'commit', '-q', '-m', 'initial');
-  fs.writeFileSync(path.join(root, 'file.txt'), 'candidate change\n');
-  fs.writeFileSync(path.join(hooks, 'pre-commit'), [
+  const hook = path.join(hooks, 'pre-commit');
+  fs.writeFileSync(hook, [
     '#!/bin/sh',
-    'unset GIT_INDEX_FILE',
-    'git -C "$ROOM_COMMIT_TEST_REPO" -c core.hooksPath="$ROOM_COMMIT_TEST_REPO/no-hooks" -c user.name="Race Test" -c user.email=race@example.test commit --allow-empty -m concurrent',
+    'printf ran > hook-ran.txt',
     '',
   ].join('\n'));
-  fs.chmodSync(path.join(hooks, 'pre-commit'), 0o755);
+  fs.chmodSync(hook, 0o755);
   git(root, 'config', 'core.hooksPath', hooks);
-  const old = process.env.ROOM_COMMIT_TEST_REPO;
-  process.env.ROOM_COMMIT_TEST_REPO = root.replace(/\\/g, '/');
+  fs.writeFileSync(path.join(root, '.gitattributes'), 'file.txt filter=reject\n');
+  git(root, 'config', 'filter.reject.clean', 'false');
+  fs.writeFileSync(path.join(root, 'file.txt'), 'candidate change\n');
   try {
-    await assert.rejects(commitPaths(root, ['file.txt'], 'candidate'), (e: any) => e.status === 409 && /git commit failed/.test(e.message));
-    assert.equal(git(root, 'log', '-1', '--format=%s'), 'concurrent');
-    assert.equal(git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'), '');
+    const result = await commitPaths(root, ['file.txt'], 'candidate');
+    assert.equal(git(root, 'log', '-1', '--format=%s'), 'candidate');
+    assert.deepEqual(result.paths, ['file.txt']);
+    assert.equal(fs.existsSync(path.join(root, 'hook-ran.txt')), false, 'repo pre-commit hook was not executed');
     assert.equal(fs.readFileSync(path.join(root, 'file.txt'), 'utf8'), 'candidate change\n');
   } finally {
-    if (old === undefined) delete process.env.ROOM_COMMIT_TEST_REPO;
-    else process.env.ROOM_COMMIT_TEST_REPO = old;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

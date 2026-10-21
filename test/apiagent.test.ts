@@ -136,6 +136,12 @@ test('pathGuard (note [54]): path tools only inside the agent folder by realpath
   assert.equal(ok('Write', { file_path: path.join(cwd, 'src', 'new', 'c.ts') }), true, 'a new file inside');
   assert.equal(ok('Write', { file_path: path.join(cwd, 'src', 'c.ts') }, false), false, 'no edit: no write');
   assert.equal(ok('Edit', { file_path: path.join(out, 'b.txt') }), false);
+  for (const file of ['.git/hooks/pre-commit', '.git/config', '.claude/settings.json', '.vscode/tasks.json', '.husky/pre-commit',
+    '.github/workflows/ci.yml', '.gitattributes', '.gitmodules', '.gitconfig', '.npmrc', 'package.json']) {
+    assert.equal(ok('Write', { file_path: file }), false, `${file} is protected from remote-agent writes`);
+    assert.equal(ok('Edit', { file_path: file }), false, `${file} is protected from remote-agent edits`);
+  }
+  assert.equal(ok('Read', { file_path: '.git/config' }), true, 'repository metadata remains readable');
   assert.equal(ok('Grep', { pattern: 'x' }), true, 'no path = the folder');
   assert.equal(ok('Grep', { pattern: 'x', path: out }), false);
   assert.equal(ok('Glob', { pattern: '**/*.ts' }), true);

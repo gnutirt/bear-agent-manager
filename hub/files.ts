@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { StoreError } from './store.ts';
 import { isSecretFile } from './localai.ts';
+import { safeGitArgs, safeGitEnv } from './git.ts';
 
 // S5: read-only file tree, file view and git diff for an agent's folder. Never writes; never leaves the folder; never shows secrets.
 const MAX_VIEW = 1024 * 1024, MAX_DIFF = 512 * 1024, MAX_ENTRIES = 2000;
@@ -50,7 +51,7 @@ export function readFileView(cwd: string, rel: string): { path: string; size: nu
 }
 
 const git = (cwd: string, args: string[]) => new Promise<string>((resolve, reject) =>
-  execFile('git', ['-C', cwd, ...args], { maxBuffer: MAX_DIFF * 2, timeout: 15_000, windowsHide: true }, (e, out) => e ? reject(e) : resolve(out)));
+  execFile('git', safeGitArgs(cwd, args), { maxBuffer: MAX_DIFF * 2, timeout: 15_000, windowsHide: true, env: safeGitEnv() }, (e, out) => e ? reject(e) : resolve(out)));
 
 /** Changed files (secrets left out) when rel is empty, else the diff of one file against HEAD. */
 export async function gitView(cwd: string, rel: string): Promise<{ changes?: { status: string; path: string }[]; path?: string; diff?: string; truncated?: boolean }> {
@@ -63,7 +64,7 @@ export async function gitView(cwd: string, rel: string): Promise<{ changes?: { s
     }
     const t = inside(root, rel);
     blocked(t.rel);
-    const diff = await git(root, ['diff', 'HEAD', '--no-color', '--', t.rel]);
+    const diff = await git(root, ['diff', 'HEAD', '--no-color', '--no-ext-diff', '--no-textconv', '--', t.rel]);
     return { path: t.rel, diff: diff.slice(0, MAX_DIFF), truncated: diff.length > MAX_DIFF };
   } catch (e) {
     if (e instanceof StoreError) throw e;

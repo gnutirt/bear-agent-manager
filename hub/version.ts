@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeGitArgs, safeGitEnv } from './git.ts';
 
 // V1 (docs/superpowers/specs/2026-10-18-versioning-updates-design.md): the hub knows its own version, the
 // version of the plugin copies Claude Code runs the hooks from, and the latest GitHub release of its repo.
@@ -71,7 +72,7 @@ export function pluginCopies(configDirs: string[], name = 'bear-agent-manager'):
 }
 
 const git = (root: string, args: string[]) => new Promise<string>((resolve, reject) =>
-  execFile('git', ['-C', root, ...args], { windowsHide: true, timeout: 10_000 }, (err, out) => (err ? reject(err) : resolve(String(out)))));
+  execFile('git', safeGitArgs(root, args), { windowsHide: true, timeout: 10_000, env: safeGitEnv() }, (err, out) => (err ? reject(err) : resolve(String(out)))));
 /** Whether `git merge --ff-only` could update root: a git checkout of this repo with no uncommitted changes. */
 export async function gitState(root: string, slug: string | null): Promise<GitState> {
   try { await git(root, ['rev-parse', '--is-inside-work-tree']); } catch { return { git: false, remoteOk: false, clean: false }; }
