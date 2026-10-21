@@ -249,6 +249,9 @@ test('revive: a mentioned session that ended is resumed in the background, once'
 
 test('revive: a provider-only stale model is omitted and failures use this run output, not the shared log tail', async () => {
   const jobs: any[] = [];
+  const warnings: string[] = [];
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
   const h = await makeHub(undefined, (job: any) => {
     jobs.push(job);
     job.onOutput?.('session-specific unrecognized_model\n');
@@ -265,6 +268,7 @@ test('revive: a provider-only stale model is omitted and failures use this run o
     await until(async () => (await h.call<any>('/api/sessions/provider-model')).session.status === 'offline');
     assert.equal(jobs.length, 1);
     assert.equal(jobs[0].model, undefined);
+    assert.ok(warnings.some((line) => line.includes('ignoring provider-only model "deepseek-flash"')));
     const pending = await h.call<any>('/api/sessions/provider-model/pending');
     assert.equal(pending.wake, true);
     assert.equal(pending.messages[0].text, '@fw please resume');
@@ -272,7 +276,7 @@ test('revive: a provider-only stale model is omitted and failures use this run o
     const failure = messages.find((m) => m.kind === 'system' && /unrecognized_model/.test(m.text));
     assert.ok(failure);
     assert.doesNotMatch(failure.text, /unrelated provider error/);
-  } finally { await h.hub.close(); }
+  } finally { console.warn = warn; await h.hub.close(); }
 });
 
 test('revive: never for sessions that only went quiet; manual revive route works for them', async () => {

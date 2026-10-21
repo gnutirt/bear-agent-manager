@@ -44,6 +44,8 @@ test('revive and compact spawn Claude with an isolated executable and append run
   process.env.ANTHROPIC_MODEL = 'deepseek-flash';
   process.env.ANTHROPIC_BASE_URL = 'https://provider.example';
   process.env.ANTHROPIC_AUTH_TOKEN = 'test-provider-token';
+  let grandchildLog: string | undefined;
+  let grandchildUntil = 0;
   try {
     let output = '';
     assert.equal(await spawnRevive({ id: 'revive-fixture', cwd: dir, text: 'synthetic prompt', logDir: dir, onOutput: (chunk) => { output += chunk; } }), 0);
@@ -76,6 +78,23 @@ test('revive and compact spawn Claude with an isolated executable and append run
     const runLog = fs.readdirSync(dir).find((name) => name.startsWith('revive-revive-fixture-'));
     assert.ok(runLog, 'the attempt has a session-and-time-specific log');
     assert.match(fs.readFileSync(path.join(dir, runLog), 'utf8'), /revive-stderr/);
+
+    const grandchildMs = 4000;
+    fs.writeFileSync(command, process.platform === 'win32'
+      ? `@echo off\r\nstart "" /b node -e "setTimeout(()=>console.log('grandchild-finished'),${grandchildMs})"\r\nexit /b 0\r\n`
+      : `#!/bin/sh\nnode -e 'setTimeout(()=>console.log("grandchild-finished"),${grandchildMs})' &\nexit 0\n`);
+    if (process.platform !== 'win32') fs.chmodSync(command, 0o755);
+    grandchildUntil = Date.now() + grandchildMs + 250;
+    const started = Date.now();
+    assert.equal(await spawnRevive({ id: 'grandchild-fixture', cwd: dir, text: 'synthetic prompt', logDir: dir }), 0);
+    assert.ok(Date.now() - started < 2500, 'a descendant holding the inherited log handle must not delay the exited CLI');
+    grandchildLog = fs.readdirSync(dir).find((name) => name.startsWith('revive-grandchild-fixture-'));
+    assert.ok(grandchildLog);
+    assert.doesNotMatch(fs.readFileSync(path.join(dir, grandchildLog), 'utf8'), /grandchild-finished/, 'the descendant still holds the log handle after the CLI exits');
+    while (!fs.readFileSync(path.join(dir, grandchildLog), 'utf8').includes('grandchild-finished')) {
+      if (Date.now() > grandchildUntil + 1000) throw new Error('the log-holding descendant did not finish');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   } finally {
     if (oldPath === undefined) delete process.env.PATH;
     else process.env.PATH = oldPath;
@@ -83,6 +102,7 @@ test('revive and compact spawn Claude with an isolated executable and append run
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+    if (grandchildUntil > Date.now()) await new Promise((resolve) => setTimeout(resolve, grandchildUntil - Date.now()));
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -191,6 +191,18 @@ const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(B
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const runRevive = opts.revive ?? spawnRevive;
   const runCompact = opts.compactRevive ?? spawnCompact;
+  const warnedDroppedCliModels = new Set<string>();
+  const cliModelFor = (name: string, model: string | undefined, cfg: ReturnType<typeof loadSettings>) => {
+    const cliModel = claudeCliModel(model, cfg.agents.profiles, model ? loadProviders(opts.dir) : []);
+    if (model && !cliModel) {
+      const key = `${normAgent(name)}\0${model}`;
+      if (!warnedDroppedCliModels.has(key)) {
+        warnedDroppedCliModels.add(key);
+        console.warn(`[revive] ${name}: ignoring provider-only model "${model}" for a Claude CLI session`);
+      }
+    }
+    return cliModel;
+  };
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
   // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
@@ -925,7 +937,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let compacted = false;
     const perm = apiRun?.perm ?? permFor(cfg, s.name);
     const configuredModel = cfg.agentModel[normAgent(s.name)];
-    const model = apiRun?.model ?? claudeCliModel(configuredModel, cfg.agents.profiles, configuredModel ? loadProviders(opts.dir, legacyKey) : []);
+    const model = apiRun?.model ?? cliModelFor(s.name, configuredModel, cfg);
     const job = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(model ? { model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
     const tellRooms = (text: string) => {
       for (const r of Object.keys(store.session(s.id).rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } }
@@ -979,7 +991,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   async function compactSaved(s: Session, left: number, apiRun?: ReturnType<typeof apiJob>) {
     const before = readContextTokens(s.transcript), cfg = loadSettings(opts.dir, envCap);
     const configuredModel = cfg.agentModel[normAgent(s.name)];
-    const model = apiRun?.model ?? claudeCliModel(configuredModel, cfg.agents.profiles, configuredModel ? loadProviders(opts.dir, legacyKey) : []);
+    const model = apiRun?.model ?? cliModelFor(s.name, configuredModel, cfg);
     emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
