@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { makeHub } from './helpers.ts';
+
+const readOffice = () => readFile(new URL('../ui/office.js', import.meta.url), 'utf8');
 
 test('UI page has rooms, running-sessions list, chat, presence strip, composer and SSE wiring', async () => {
   const { hub } = await makeHub();
@@ -472,4 +475,111 @@ test('settings sub-tabs, Claude usage first in the Token tab, text button to mak
     assert.ok(html.includes("<div class=\"vw\">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}"), 'Usage tab: Claude, Copilot and paid providers come before the worker token KPIs');
     for (const x of ["'/api/paid-usage'", 'data-tab="tokens" data-i18n="tab.usage"', 'function copilotUsageBlock', 'function paidUsageBlock']) assert.ok(html.includes(x), `Usage tab: missing ${x}`);
   } finally { await hub.close(); }
+});
+
+/* ---------- Office M4 (#148): mount/unmount, no-WebGL fallback, paused loop, reduced motion, i18n ---------- */
+
+test('Office M4: the tab mounts into a scoped root and unmounts every listener, timer and GPU resource it made', async () => {
+  const src = await readOffice();
+  for (const s of [
+    'window.mountOffice = mountOffice',
+    'window.unmountOffice = unmountOffice',
+    'if (!el || !el.appendChild) throw new Error',
+    'unmountOffice();',                                  // mounting twice never leaves a ghost tab behind
+    'const $ = (id) => root.querySelector(\'#\' + id);', // ids are looked up inside the mounted root, never the page
+    'if (!active) return;',
+    'const { root, stop } = active;',
+    'active = null;',
+    'root.remove()',
+    "removeEventListener('keydown', onKey)",
+    "removeEventListener('keyup', onKeyUp)",
+    "removeEventListener('resize', resize)",
+    "document.removeEventListener('visibilitychange', onVisible)",
+    'if (ro) ro.disconnect()',
+    'stopLive()',
+    'mqDark.removeEventListener(\'change\', onDarkChange)',
+    'renderer.dispose()',
+    'renderer.forceContextLoss',
+  ]) assert.ok(src.includes(s), `missing mount/unmount step: ${s}`);
+  assert.ok(!src.includes('document.getElementById'), 'an id lookup on document would collide with the hub page');
+});
+
+test('Office M4: without WebGL or three.js the HUD and chat stay alive and the scene is replaced by an explanation', async () => {
+  const src = await readOffice();
+  const { vi } = await import('../shared/i18n/vi.ts');
+  const { en } = await import('../shared/i18n/en.ts');
+  for (const s of [
+    'const THREE = window.THREE;',
+    "const why = !THREE ? T('threeMissing') : !THREE.OrbitControls ? T('orbitMissing') : '';",
+    'try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { renderer = undefined; }',
+    "fallback.textContent = why || T('webglFallback')",
+    // the fallback path still wires the simulation/live data and the chat; only the canvas is gone
+    '// No WebGL / no three.js: keep the HUD and chat alive, explain the scene.',
+    'paintDock(); paintPanel();',
+    'stopLive = startLive(); loadI18n();',
+  ]) assert.ok(src.includes(s), `missing fallback behavior: ${s}`);
+  for (const k of ['office.threeMissing', 'office.orbitMissing', 'office.webglFallback']) {
+    assert.ok(vi[k], `vi missing ${k}`);
+    assert.ok(en[k], `en missing ${k}`);
+  }
+  const css = await readFile(new URL('../ui/office.css', import.meta.url), 'utf8');
+  assert.ok(css.includes('.office #of-fallback{position:absolute;inset:0;display:none'), 'the fallback starts hidden until JS shows it');
+  assert.ok(/\.office #of-fallback\{[^}]*pointer-events:none/.test(css), 'the fallback layer must not swallow clicks on the dock and panel');
+});
+
+test('Office M4: the render loop pauses while the page or the tab pane is hidden and resumes when it shows', async () => {
+  const src = await readOffice();
+  const frame = src.slice(src.indexOf('function frame()'), src.indexOf('hud(); stopLive = startLive();'));
+  const pause = frame.indexOf('if (document.hidden || !shown())');
+  assert.ok(pause >= 0, 'frame() must return early while hidden');
+  assert.ok(frame.indexOf('requestAnimationFrame(frame)') > pause, 'no frame is scheduled after the pause check');
+  assert.ok(frame.includes('running = false; last = now(); return;'));
+  for (const s of [
+    'const shown = () => root.isConnected && root.getClientRects().length > 0;',
+    "document.addEventListener('visibilitychange', onVisible);",
+    "const onVisible = () => { if (document.hidden) { running = false; cancelAnimationFrame(raf); } else { if (live) liveRefresh(); start(); } };",
+    'ro = new ResizeObserver(() => { resize(); start(); });',   // the tab bar shows the pane again
+    'if (dead || refreshing || document.hidden) return;',        // live refresh skips work while hidden too
+  ]) assert.ok(src.includes(s), `missing pause/resume step: ${s}`);
+});
+
+test('Office M4: prefers-reduced-motion removes the bobbing, typing and walking flourishes', async () => {
+  const src = await readOffice();
+  for (const s of [
+    "const mqReduce = mq('(prefers-reduced-motion:reduce)');",
+    'const reduced = mqReduce.matches;',
+    "typeof matchMedia === 'function'",
+    'dt * (reduced ? 9 : 5)',
+    'typing && !reduced',
+    '(reduced ? 0 : Math.sin(t * 7) * .4)',
+    '(reduced ? 0 : Math.sin(t * 4) * .15)',
+    'cube.position.y = 1.6 + (reduced ? 0 : Math.sin(t * 2) * .08);',
+  ]) assert.ok(src.includes(s), `missing reduced-motion step: ${s}`);
+});
+
+test('Office M4: every office label is a dictionary key, en and vi carry the same keys and params, nothing Vietnamese is hard-coded', async () => {
+  const src = await readOffice();
+  const { vi } = await import('../shared/i18n/vi.ts');
+  const { en } = await import('../shared/i18n/en.ts');
+  const used = new Set<string>();
+  for (const m of src.matchAll(/\bT\('([\w.]+)'/g)) used.add('office.' + m[1]);
+  for (const m of src.matchAll(/\blist\('([\w.]+)'\)/g)) used.add('office.' + m[1]);
+  for (const m of src.matchAll(/data-of="([\w.]+)"/g)) used.add('office.' + m[1]);
+  for (const m of src.matchAll(/'(stat\.[a-z]+)'/g)) used.add('office.' + m[1]);
+  for (const k of ['themeAuto', 'themeLight', 'themeDark']) used.add('office.' + k);
+  assert.ok(used.size > 70, `expected the whole office surface, found ${used.size} keys`);
+  assert.deepEqual([...used].filter((k) => !(k in vi)), [], 'keys used by office.js but missing from vi.ts');
+  assert.deepEqual([...used].filter((k) => !(k in en)), [], 'keys used by office.js but missing from en.ts');
+  const params = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+  for (const k of Object.keys(vi).filter((x) => x.startsWith('office.'))) {
+    assert.ok(k in en, `en missing ${k}`);
+    assert.equal(params((vi as Record<string, string>)[k]), params((en as Record<string, string>)[k]), `params differ for ${k}`);
+  }
+  // the module resolves labels through the page's t(), then GET /api/i18n, then nothing — never a local string
+  for (const s of ["typeof api.t === 'function'", "'/api/i18n'", 'I18N.dicts = d.dicts', 'I18N.lang = langOf(d.setting)', 'applyI18n(); hud(); paintDock();']) {
+    assert.ok(src.includes(s), `missing i18n plumbing: ${s}`);
+  }
+  const VN = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđĐ]/;
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+  assert.deepEqual(code.split('\n').filter((l) => VN.test(l)).map((l) => l.trim().slice(0, 80)), [], 'hard-coded Vietnamese in office.js');
 });

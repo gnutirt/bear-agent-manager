@@ -18,6 +18,8 @@
  *   fetchJson(path, init?) => Promise<any>               optional: the page's own authenticated fetch helper
  *   events   (cb) => unsubscribe                         optional: the page's own SSE subscriber;
  *                                                       default EventSource('/api/events?token=…')
+ *   t        (key, params?) => string                    optional: the page's own t(); without it the module reads GET /api/i18n once at mount
+ *   lang     'vi' | 'en'                                 optional: language before the dictionary arrives (default: navigator.language)
  *
  * Expects window.THREE and THREE.OrbitControls (r128 UMD, vendored under ui/vendor/). Without WebGL, or without those
  * two files, the HUD and chat still render and an explanation replaces the scene — never a blank tab.
@@ -27,48 +29,48 @@
 (function () {
   'use strict';
 
-  const ST = { working: ['Đang làm', '#f5a524'], ask: ['Chờ bạn', '#ef4444'], done: ['Xong ✓', '#34d399'], idle: ['Đang nghỉ', '#94a3b8'], error: ['Lỗi', '#fb923c'], meet: ['Đang họp', '#60a5fa'] };
+  // Every office label is a key of shared/i18n (office.*). The page may inject its t(); without it this module
+  // reads GET /api/i18n once at mount, so the markup below never carries a language of its own.
+  const ST = { working: ['stat.working', '#f5a524'], ask: ['stat.ask', '#ef4444'], done: ['stat.done', '#34d399'], idle: ['stat.idle', '#94a3b8'], error: ['stat.error', '#fb923c'], meet: ['stat.meet', '#60a5fa'] };
   const TOOLS = ['Edit ui/index.html', 'Read hub/server.ts', 'Bash npm test', 'Grep "flowTiers"', 'Write test/ui.test.ts', 'Playwright screenshot'];
-  const WORKTXT = ['Sửa bố cục thẻ', 'Viết test cho luồng này', 'Gộp hai hàm giống nhau', 'Đọc lại yêu cầu', 'Kiểm lỗi hub treo', 'Dọn log cũ'];
-  const ASKTXT = ['Giữ hay bỏ phần này?', 'Chọn cách nào đây?', 'Cần bạn duyệt trước khi sửa'];
-  const DONETXT = ['Xong, đã commit', 'Test xanh hết', 'Đã gửi báo cáo'];
-  const MOCK = [
-    { id: 'lead', h: 'dieu-phoi', n: 'Điều phối', r: 'Phân việc, duyệt', tier: 2, c: '#7c6cf6' },
-    { id: 'ui', h: 'giao-dien', n: 'Giao diện', r: 'Màn hình, kiểm bằng ảnh', tier: 3, c: '#2fb4ee' },
-    { id: 'core', h: 'loi-hub', n: 'Lõi hub', r: 'Logic, API', tier: 3, c: '#7bbf1e' },
-    { id: 'res', h: 'nghien-cuu', n: 'Nghiên cứu', r: 'Đọc repo, tìm lỗi', tier: 3, c: '#f0a020' },
-    { id: 'qa', h: 'kiem-thu', n: 'Kiểm thử', r: 'Chạy test, xác nhận', tier: 3, c: '#18b3a3' },
-    { id: 'w1', h: 'tho-a', n: 'Thợ code A', r: 'Viết code theo spec', tier: 4, c: '#4f8ff7' },
-    { id: 'w2', h: 'tho-b', n: 'Thợ code B', r: 'Viết code theo spec', tier: 4, c: '#b36cf0' },
-    { id: 'w3', h: 'tho-doc', n: 'Thợ đọc', r: 'Đọc file lớn, tóm tắt', tier: 5, c: '#f27a3a' },
-    { id: 'w4', h: 'tho-don', n: 'Thợ dọn', r: 'Dọn log, hồ sơ', tier: 5, c: '#26c2de' },
+  // The demo roster is fixture data too: names, roles and the simulated chat come from the dictionary.
+  const mockAgents = (T) => [
+    { id: 'lead', h: 'dieu-phoi', n: T('mock.lead'), r: T('mock.lead.role'), tier: 2, c: '#7c6cf6' },
+    { id: 'ui', h: 'giao-dien', n: T('mock.ui'), r: T('mock.ui.role'), tier: 3, c: '#2fb4ee' },
+    { id: 'core', h: 'loi-hub', n: T('mock.core'), r: T('mock.core.role'), tier: 3, c: '#7bbf1e' },
+    { id: 'res', h: 'nghien-cuu', n: T('mock.res'), r: T('mock.res.role'), tier: 3, c: '#f0a020' },
+    { id: 'qa', h: 'kiem-thu', n: T('mock.qa'), r: T('mock.qa.role'), tier: 3, c: '#18b3a3' },
+    { id: 'w1', h: 'tho-a', n: T('mock.w1'), r: T('mock.code.role'), tier: 4, c: '#4f8ff7' },
+    { id: 'w2', h: 'tho-b', n: T('mock.w2'), r: T('mock.code.role'), tier: 4, c: '#b36cf0' },
+    { id: 'w3', h: 'tho-doc', n: T('mock.w3'), r: T('mock.w3.role'), tier: 5, c: '#f27a3a' },
+    { id: 'w4', h: 'tho-don', n: T('mock.w4'), r: T('mock.w4.role'), tier: 5, c: '#26c2de' },
   ];
-
+  // data-of keys are filled by applyI18n(), so a dictionary that arrives a moment later can still paint the chrome.
   const TEMPLATE = `
 <div class="stars" aria-hidden="true"></div>
 <div id="of-stage"></div>
 <div id="of-tags" aria-hidden="true"></div>
 <div class="top">
-  <div><h1>Bear Agent Office</h1><p class="sub">Kéo để xoay, cuộn để zoom, bấm vào một người để xem họ làm gì và nhắn riêng.</p></div>
+  <div><h1>Bear Agent Office</h1><p class="sub" data-of="sub"></p></div>
   <div class="pills">
-    <span class="pill"><i style="background:#f5a524"></i>Đang làm <b id="of-nWork">0</b></span>
-    <span class="pill"><i style="background:#ef4444"></i>Chờ bạn <b id="of-nNeed">0</b></span>
-    <span class="pill"><i style="background:#94a3b8"></i>Nghỉ <b id="of-nNap">0</b></span>
-    <button id="of-bMeet" aria-pressed="false">Họp<kbd>M</kbd></button>
-    <button id="of-bWalk" aria-pressed="false">Đi dạo<kbd>F</kbd></button><button id="of-bOver">Toàn cảnh<kbd>O</kbd></button>
-    <button id="of-bTheme" aria-label="Đổi ngày hoặc đêm">Tự động</button>
+    <span class="pill"><i style="background:#f5a524"></i><span data-of="pill.working"></span> <b id="of-nWork">0</b></span>
+    <span class="pill"><i style="background:#ef4444"></i><span data-of="pill.ask"></span> <b id="of-nNeed">0</b></span>
+    <span class="pill"><i style="background:#94a3b8"></i><span data-of="pill.idle"></span> <b id="of-nNap">0</b></span>
+    <button id="of-bMeet" aria-pressed="false"><span data-of="meet"></span><kbd>M</kbd></button>
+    <button id="of-bWalk" aria-pressed="false"><span data-of="walk"></span><kbd>F</kbd></button><button id="of-bOver"><span data-of="overview"></span><kbd>O</kbd></button>
+    <button id="of-bTheme" data-of="themeAuto"></button>
   </div>
 </div>
-<section class="dock" id="of-dock" aria-label="Chat phòng">
-  <header><b>#phòng-chung</b><button id="of-bMem" aria-expanded="false" aria-controls="of-roster" style="padding:0 9px"><span id="of-mem"></span> ▾</button><button id="of-bDock" aria-label="Thu gọn hoặc mở chat" style="padding:0 9px">▾</button></header>
+<section class="dock" id="of-dock">
+  <header><b>#<span id="of-roomName" data-of="roomMock"></span></b><button id="of-bMem" aria-expanded="false" aria-controls="of-roster" style="padding:0 9px"><span id="of-mem"></span> ▾</button><button id="of-bDock" style="padding:0 9px">▾</button></header>
   <div class="roster" id="of-roster" hidden></div>
   <div class="msgs" id="of-msgs" aria-live="polite"></div>
-  <form class="compose" id="of-form" autocomplete="off"><div class="sugg" id="of-sugg" hidden></div><input id="of-inp" placeholder="Nhắn cả phòng, gõ @ để gọi một agent" aria-label="Tin nhắn"><button type="submit" style="background:var(--hi);color:var(--onhi);border-color:var(--hi)">Gửi</button></form>
+  <form class="compose" id="of-form" autocomplete="off"><div class="sugg" id="of-sugg" hidden></div><input id="of-inp"><button type="submit" style="background:var(--hi);color:var(--onhi);border-color:var(--hi)" data-of="send"></button></form>
 </section>
-<aside class="panel" id="of-panel" hidden aria-label="Chi tiết agent"></aside>
+<aside class="panel" id="of-panel" hidden></aside>
 <div class="toast" id="of-toast" hidden role="status"></div>
-<div class="hint">Phím: F đi dạo · M họp · O toàn cảnh · C chat · Esc đóng</div>
-<div id="of-fallback">Trình duyệt này không bật được WebGL nên không vẽ được cảnh 3D.</div>`;
+<div class="hint" data-of="hint"></div>
+<div id="of-fallback"></div>`;
 
   let active = null;
 
@@ -77,6 +79,21 @@
     unmountOffice();
     api = api || {};
 
+    /* ---------- i18n (#148) ---------- */
+    const langOf = (s) => (s === 'vi' || s === 'en' ? s : (/^vi\b/i.test(String((typeof navigator !== 'undefined' && navigator.language) || '')) ? 'vi' : 'en'));
+    const I18N = { lang: langOf(api.lang), dicts: null };
+    const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
+    /** An office.* key: the page's own t() wins, then GET /api/i18n, then empty (nothing is hard-coded here). */
+    const T = (key, vars) => {
+      const k = 'office.' + key;
+      let s = typeof api.t === 'function' ? api.t(k, vars || {}) || '' : '';
+      if (!s && I18N.dicts) s = (I18N.dicts[I18N.lang] || {})[k] ?? (I18N.dicts.vi || {})[k] ?? '';
+      return s ? fill(s, vars) : '';
+    };
+    const list = (key) => T(key).split('|').map((x) => x.trim()).filter(Boolean);
+    const st = (key) => [T(ST[key][0]), ST[key][1]];
+    const locale = () => (I18N.lang === 'en' ? 'en-GB' : 'vi-VN');
+
     const root = document.createElement('div');
     root.className = 'office';
     root.innerHTML = TEMPLATE;
@@ -84,9 +101,39 @@
 
     const $ = (id) => root.querySelector('#' + id);
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    /** Paints the static chrome; also runs again when the dictionary arrives after the first paint. */
+    function applyI18n() {
+      root.querySelectorAll('[data-of]').forEach((node) => { const v = T(node.getAttribute('data-of')); if (v) node.textContent = v; });
+      const attr = (sel, name, key) => { const v = T(key), node = root.querySelector(sel); if (v && node) node.setAttribute(name, v); };
+      attr('#of-dock', 'aria-label', 'dockAria');
+      attr('#of-bDock', 'aria-label', 'dockToggle');
+      attr('#of-bTheme', 'aria-label', 'themeAria');
+      attr('#of-panel', 'aria-label', 'panelAria');
+      const inp = $('of-inp'), ph = T('composePh'), aria = T('composeAria');
+      if (ph) inp.placeholder = ph;
+      if (aria) inp.setAttribute('aria-label', aria);
+      const th = T(['themeAuto', 'themeLight', 'themeDark'][Number(root.dataset.themeI) || 0]);
+      if (th) $('of-bTheme').textContent = th;
+      const fb = $('of-fallback'), fv = T('webglFallback');   // a specific "three.js missing" line set later wins
+      if (fb && !fb.textContent && fv) fb.textContent = fv;
+    }
+    applyI18n();
+    const loadI18n = () => {
+      if (I18N.dicts || typeof api.t === 'function' || typeof fetch !== 'function') return;
+      const base = String(api.base ?? location.origin).replace(/\/+$/, '');
+      fetch(base + '/api/i18n', { headers: api.token ? { 'x-room-token': String(api.token) } : {} })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || !d.dicts) return;
+          I18N.dicts = d.dicts; I18N.lang = langOf(d.setting);
+          const p = $('of-panel'); if (p) p.dataset.id = '';   // rebuild the open panel so its labels use the dictionary
+          applyI18n(); hud(); paintDock(); paintPanel();
+        })
+        .catch(() => {});
+    };
+    const pick = (a) => (a.length ? a[Math.floor(Math.random() * a.length)] : '');
     const t0 = performance.now() / 1000, now = () => performance.now() / 1000 - t0;
-    const fmtT = (s) => { const d = new Date(Date.now() - (now() - s) * 1000); return d.toLocaleTimeString('vi-VN', { hour12: false }); };
+    const fmtT = (s) => { const d = new Date(Date.now() - (now() - s) * 1000); return d.toLocaleTimeString(locale(), { hour12: false }); };
 
     /* ---------- live hub mode (#147) ---------- */
     const live = typeof api.room === 'string' && api.room.trim() ? {
@@ -114,7 +161,7 @@
     };
 
     /* ---------- agents ---------- */
-    const initialAgents = Array.isArray(api.agents) && api.agents.length ? api.agents : (live ? [] : MOCK);
+    const initialAgents = Array.isArray(api.agents) && api.agents.length ? api.agents : (live ? [] : mockAgents(T));
     const AG = initialAgents.map((a, i) => ({
       id: String(a.id ?? 'a' + i), h: String(a.handle ?? a.h ?? a.id ?? 'a' + i), n: String(a.name ?? a.n ?? a.id ?? 'a' + i),
       r: String(a.role ?? a.r ?? ''), tier: Number(a.tier) || 3, c: String(a.color ?? a.c ?? '#7c6cf6'),
@@ -132,15 +179,15 @@
 
     /* ---------- simulation ---------- */
     function startWork(a, from) {
-      a.state = 'working'; a.until = now() + 9 + Math.random() * 9; a.tool = pick(TOOLS); const txt = pick(WORKTXT); a.bub = txt; a.bubUntil = now() + 3.5;
+      a.state = 'working'; a.until = now() + 9 + Math.random() * 9; a.tool = pick(TOOLS); const txt = pick(list('sim.work')); a.bub = txt; a.bubUntil = now() + 3.5;
       const src = from || (a.tier > 3 ? pick(AG.filter((x) => x.tier === 3)) : by.lead) || a;
-      post(src.id, [a.id], txt); alog(a, 'Nhận việc: ' + txt);
+      post(src.id, [a.id], txt); alog(a, T('log.tookTask', { t: txt }));
     }
     function finish(a) {
       const r = Math.random();
-      if (r < .2) { a.state = 'ask'; a.askedAt = now(); a.until = now() + 60; const t = pick(ASKTXT); a.bub = t; a.bubUntil = now() + 4; post(a.id, ['you'], t, { ask: a.id }); alog(a, 'Hỏi bạn: ' + t); toast(a, a.n + ' đang chờ bạn'); }
-      else if (r < .28) { a.state = 'error'; a.until = now() + 6; a.bub = 'Test đỏ ở 2 chỗ'; a.bubUntil = now() + 3.5; post(a.id, ['lead'], 'Test đỏ ở 2 chỗ'); alog(a, 'Lỗi: test đỏ'); }
-      else { a.state = 'done'; a.until = now() + 5; const t = pick(DONETXT); a.bub = t; a.bubUntil = now() + 3.5; post(a.id, ['lead'], t); alog(a, t); a.ctx = Math.min(96, a.ctx + 6); }
+      if (r < .2) { a.state = 'ask'; a.askedAt = now(); a.until = now() + 60; const txt = pick(list('sim.ask')); a.bub = txt; a.bubUntil = now() + 4; post(a.id, ['you'], txt, { ask: a.id }); alog(a, T('log.askedYou', { t: txt })); toast(a, T('toast.waiting', { name: a.n })); }
+      else if (r < .28) { a.state = 'error'; a.until = now() + 6; a.bub = T('sim.redTest'); a.bubUntil = now() + 3.5; post(a.id, ['lead'], T('sim.redTest')); alog(a, T('log.error')); }
+      else { a.state = 'done'; a.until = now() + 5; const txt = pick(list('sim.done')); a.bub = txt; a.bubUntil = now() + 3.5; post(a.id, ['lead'], txt); alog(a, txt); a.ctx = Math.min(96, a.ctx + 6); }
     }
     function step() {
       if (paused || !simulated) return; const t = now();
@@ -149,18 +196,18 @@
         if (a.state === 'working') { if (t > a.until) finish(a); else if (Math.random() < .2) { a.tool = pick(TOOLS); } }
         else if (a.state === 'error' && t > a.until) startWork(a);
         else if (a.state === 'done' && t > a.until) { a.state = 'idle'; a.until = t + 4 + Math.random() * 8; }
-        else if (a.state === 'ask' && t > a.until) { a.state = 'idle'; a.until = t + 3; post('sys', [], a.n + ' không được trả lời, quay về nghỉ'); }
+        else if (a.state === 'ask' && t > a.until) { a.state = 'idle'; a.until = t + 3; post('sys', [], T('msg.unanswered', { name: a.n })); }
       });
       const idle = AG.filter((a) => a.state === 'idle' && t > a.until);
       if (busy < 5 && idle.length && Math.random() < .55) startWork(pick(idle));
-      if (Math.random() < .18) { const x = pick(AG), others = AG.filter((z) => z !== x); if (!others.length) return; const y = pick(others); const tx = pick(['Cho mình xem file này', 'Cần bạn xem giúp', 'Đã xong phần của mình']); x.bub = tx; x.bubUntil = now() + 3; post(x.id, [y.id], tx); }
+      if (Math.random() < .18) { const x = pick(AG), others = AG.filter((z) => z !== x); if (!others.length) return; const y = pick(others); const tx = pick(list('sim.chat')); x.bub = tx; x.bubUntil = now() + 3; post(x.id, [y.id], tx); }
     }
     // start with a lively office — mock only: real agents must not be given invented states
     if (simulated) {
       [['ui', 'working'], ['core', 'working'], ['res', 'working'], ['w1', 'working'], ['qa', 'ask'], ['w3', 'done']].forEach(([id, s], i) => {
         const a = by[id]; if (!a) return;
         if (s === 'working') startWork(a);
-        else if (s === 'ask') { a.state = 'ask'; a.askedAt = now() - i; a.until = now() + 60; a.bub = 'Giữ hay bỏ phần này?'; a.bubUntil = now() + 4; post(a.id, ['you'], a.bub, { ask: a.id }); }
+        else if (s === 'ask') { a.state = 'ask'; a.askedAt = now() - i; a.until = now() + 60; a.bub = list('sim.ask')[0] || ''; a.bubUntil = now() + 4; post(a.id, ['you'], a.bub, { ask: a.id }); }
         else { a.state = 'done'; a.until = now() + 5; }
       });
       AG.filter((a) => a.state === 'idle').forEach((a) => { a.until = now() + 3 + Math.random() * 10; });
@@ -169,14 +216,14 @@
 
     /* ---------- chat UI ---------- */
     const mentionize = (txt) => esc(txt).replace(/@([a-z0-9-]+)/g, (m, h) => `<u>@${h}</u>`);
-    const nameOf = (id) => id === 'you' ? 'Bạn' : id === 'sys' ? 'Hệ thống' : by[id] ? by[id].n : id;
+    const nameOf = (id) => id === 'you' ? T('you') : id === 'sys' ? T('sys') : by[id] ? by[id].n : id;
     const colOf = (id) => id === 'you' ? 'var(--hi)' : by[id] ? by[id].c : '#999';
     function msgHtml(m) {
-      const to = m.to && m.to.length ? m.to.map((i) => '@' + (i === 'you' ? 'bạn' : (by[i] ? by[i].h : i))).join(' ') : '';
+      const to = m.to && m.to.length ? m.to.map((i) => '@' + (i === 'you' ? T('youLower') : (by[i] ? by[i].h : i))).join(' ') : '';
       const body = (to ? `<u>${esc(to)}</u> ` : '') + mentionize(m.text);
       const opts = live
-        ? `<button data-ans="${m.ask}" data-r="allow">Cho phép</button><button data-ans="${m.ask}" data-r="deny">Từ chối</button>`
-        : `<button data-ans="${m.ask}" data-r="Giữ nguyên">Giữ nguyên</button><button data-ans="${m.ask}" data-r="Làm cách khác">Làm cách khác</button>`;
+        ? `<button data-ans="${m.ask}" data-r="allow">${esc(T('perm.allow'))}</button><button data-ans="${m.ask}" data-r="deny">${esc(T('perm.deny'))}</button>`
+        : `<button data-ans="${m.ask}" data-r="${esc(T('perm.keep'))}">${esc(T('perm.keep'))}</button><button data-ans="${m.ask}" data-r="${esc(T('perm.other'))}">${esc(T('perm.other'))}</button>`;
       const ans = m.ask && by[m.ask] && by[m.ask].state === 'ask' ? `<div class="opts">${opts}</div>` : '';
       return `<div class="m ${m.from === 'you' ? 'you' : ''} ${m.ask ? 'ask' : ''}"><div class="h"><i style="background:${colOf(m.from)}"></i><b>${esc(nameOf(m.from))}</b> ${fmtT(m.t)}</div><div class="t">${body}${ans}</div></div>`;
     }
@@ -185,11 +232,11 @@
       el.innerHTML = list.slice(-60).map(msgHtml).join('') || `<div class="empty">${emptyTxt}</div>`;
       if (stick) el.scrollTop = el.scrollHeight;
     }
-    const paintDock = () => paintMsgs($('of-msgs'), CHAT.filter((m) => !m.dm), live ? 'Phòng chưa có tin nào.' : 'Chưa có tin nào.');
+    const paintDock = () => paintMsgs($('of-msgs'), CHAT.filter((m) => !m.dm), live ? T('empty.liveRoom') : T('empty.room'));
     function answer(id, r) {
       if (live) return liveAnswer(id, r);   // the ask map, not the drawn state, decides
       const a = by[id]; if (!a || a.state !== 'ask') return;
-      post('you', [id], r); alog(a, 'Bạn trả lời: ' + r); a.state = 'working'; a.until = now() + 8; a.tool = pick(TOOLS); a.bub = 'Nhận: ' + r; a.bubUntil = now() + 3; chatDirty = panelDirty = true;
+      post('you', [id], r); alog(a, T('log.yourAnswer', { r })); a.state = 'working'; a.until = now() + 8; a.tool = pick(TOOLS); a.bub = T('log.got', { r }); a.bubUntil = now() + 3; chatDirty = panelDirty = true;
     }
     root.addEventListener('click', (e) => { const b = e.target.closest('[data-ans]'); if (b) { answer(b.dataset.ans, b.dataset.r); } });
 
@@ -200,7 +247,7 @@
       inp.addEventListener('input', () => {
         const m = /@([a-z0-9-]*)$/.exec(inp.value.slice(0, inp.selectionStart));
         if (!m) { close(); return; }
-        items = [{ h: 'all', n: 'Cả phòng', c: '#999' }].concat(AG).filter((a) => a.h.startsWith(m[1]) || (a.n || '').toLowerCase().startsWith(m[1])); idx = 0;
+        items = [{ h: 'all', n: T('mention.all'), c: '#999' }].concat(AG).filter((a) => a.h.startsWith(m[1]) || (a.n || '').toLowerCase().startsWith(m[1])); idx = 0;
         if (!items.length) { close(); return; }
         sugg.innerHTML = items.map((a, i) => `<button type="button" data-i="${i}" aria-selected="${i === 0}"><i style="background:${a.c}"></i>@${esc(a.h)} <span class="empty">${esc(a.n)}</span></button>`).join(''); sugg.hidden = false;
       });
@@ -222,20 +269,20 @@
       post('you', to, clean);
       if (typeof api.onSend === 'function') { try { api.onSend(clean, to.slice()); } catch (e) { console.error('[office] onSend failed', e); } }
       if (!simulated) return;
-      if (!to.length) { post('sys', [], 'Gõ @ rồi chọn tên để gọi một agent.'); return; }
+      if (!to.length) { post('sys', [], T('msg.needMention')); return; }
       to.forEach((id, k) => setTimeout(() => {
         if (!active || active.root !== root) return;
         const a = by[id]; if (!a) return;
         if (a.state === 'idle' || a.state === 'done' || a.state === 'ask') { a.state = 'working'; a.until = now() + 10; a.tool = pick(TOOLS); }
-        a.bub = 'Nhận rồi'; a.bubUntil = now() + 3; alog(a, 'Bạn nhắn: ' + txt.slice(0, 60));
-        setTimeout(() => { if (!active || active.root !== root) return; post(id, ['you'], 'Đã nhận, đang làm.'); }, 1400 + k * 300);
+        a.bub = T('msg.ack'); a.bubUntil = now() + 3; alog(a, T('log.youSaid', { t: txt.slice(0, 60) }));
+        setTimeout(() => { if (!active || active.root !== root) return; post(id, ['you'], T('msg.gotIt')); }, 1400 + k * 300);
       }, 500 + k * 250));
     }
     mountComposer($('of-form'), $('of-inp'), $('of-sugg'), null);
     $('of-bDock').onclick = () => { $('of-dock').classList.toggle('closed'); };
     function paintRoster() {
       const r = $('of-roster'); if (r.hidden) return;
-      const html = AG.map((a) => { const S = ST[meeting && a.state !== 'ask' ? 'meet' : a.state]; return `<button data-id="${esc(a.id)}"><i style="background:${S[1]}"></i><b>${esc(a.n)}</b><span>${esc(a.r)}</span><em>${S[0]}</em></button>`; }).join('');
+      const html = AG.map((a) => { const S = st(meeting && a.state !== 'ask' ? 'meet' : a.state); return `<button data-id="${esc(a.id)}"><i style="background:${S[1]}"></i><b>${esc(a.n)}</b><span>${esc(a.r)}</span><em>${esc(S[0])}</em></button>`; }).join('');
       if (r.dataset.sig === html) return; r.dataset.sig = html; r.innerHTML = html;
       r.querySelectorAll('button').forEach((b) => { b.onclick = () => { setRoster(false); setFocus(b.dataset.id); }; });
     }
@@ -248,25 +295,25 @@
       const p = $('of-panel'), a = focus && by[focus];
       if (!a) { p.hidden = true; return; }
       p.hidden = false;
-      const S = ST[meeting && a.state !== 'ask' ? 'meet' : a.state];
+      const S = st(meeting && a.state !== 'ask' ? 'meet' : a.state);
       if (!p.dataset.id || p.dataset.id !== a.id) {
         p.dataset.id = a.id;
-        p.innerHTML = `<header><div><div class="kick" id="of-pk"></div><h2>${esc(a.n)}</h2><span class="stchip" id="of-pst"></span></div><button id="of-pclose" aria-label="Đóng">✕</button></header>
-    <div class="tabs" role="tablist"><button class="tab" role="tab" data-tab="chat">Chat</button><button class="tab" role="tab" data-tab="act">Hoạt động</button><button class="tab" role="tab" data-tab="det">Chi tiết</button></div><div class="pbody" id="of-pb"></div>`;
+        p.innerHTML = `<header><div><div class="kick" id="of-pk"></div><h2>${esc(a.n)}</h2><span class="stchip" id="of-pst"></span></div><button id="of-pclose" aria-label="${esc(T('panel.close'))}">✕</button></header>
+    <div class="tabs" role="tablist"><button class="tab" role="tab" data-tab="chat">${esc(T('panel.tabChat'))}</button><button class="tab" role="tab" data-tab="act">${esc(T('panel.tabAct'))}</button><button class="tab" role="tab" data-tab="det">${esc(T('panel.tabDet'))}</button></div><div class="pbody" id="of-pb"></div>`;
         $('of-pclose').onclick = closeFocus;
         p.querySelectorAll('.tab').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; buildBody(); panelDirty = true; }; });
         buildBody();
       }
-      $('of-pk').textContent = 'Tầng ' + a.tier + ' · ' + a.r; const st = $('of-pst'); st.textContent = S[0]; st.style.background = S[1];
+      $('of-pk').textContent = T('panel.tier', { n: a.tier, r: a.r }); const chip = $('of-pst'); chip.textContent = S[0]; chip.style.background = S[1];
       p.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
-      if (tab === 'chat') { paintMsgs($('of-pm'), CHAT.filter((m) => live ? m.dm === a.id : (m.from === a.id || (m.to || []).includes(a.id))), 'Chưa có tin nào với ' + esc(a.n) + '.'); }
-      else if (tab === 'act') { $('of-pb').firstChild.innerHTML = (a.state === 'working' && a.tool ? `<div style="border-color:var(--hi)">▶ ${esc(a.tool)}</div>` : '') + a.log.map((l) => `<div>${fmtT(l.t)} ${esc(l.txt)}</div>`).join('') || '<div>Chưa có hoạt động</div>'; }
-      else { $('of-pb').firstChild.innerHTML = `<dl><dt>Tầng</dt><dd>${a.tier}</dd><dt>Vai trò</dt><dd>${esc(a.r)}</dd><dt>Gọi bằng</dt><dd>@${esc(a.h)}</dd><dt>Trạng thái</dt><dd>${S[0]}</dd></dl><div><div class="empty">Cửa sổ ngữ cảnh ${a.ctx}%</div><div class="meter"><i style="width:${a.ctx}%"></i></div></div>`; }
+      if (tab === 'chat') { paintMsgs($('of-pm'), CHAT.filter((m) => live ? m.dm === a.id : (m.from === a.id || (m.to || []).includes(a.id))), esc(T('empty.dm', { name: a.n }))); }
+      else if (tab === 'act') { $('of-pb').firstChild.innerHTML = (a.state === 'working' && a.tool ? `<div style="border-color:var(--hi)">▶ ${esc(a.tool)}</div>` : '') + a.log.map((l) => `<div>${fmtT(l.t)} ${esc(l.txt)}</div>`).join('') || `<div>${esc(T('empty.act'))}</div>`; }
+      else { $('of-pb').firstChild.innerHTML = `<dl><dt>${esc(T('panel.detailTier'))}</dt><dd>${a.tier}</dd><dt>${esc(T('panel.detailRole'))}</dt><dd>${esc(a.r)}</dd><dt>${esc(T('panel.detailHandle'))}</dt><dd>@${esc(a.h)}</dd><dt>${esc(T('panel.detailState'))}</dt><dd>${esc(S[0])}</dd></dl><div><div class="empty">${esc(T('panel.ctx', { n: a.ctx }))}</div><div class="meter"><i style="width:${a.ctx}%"></i></div></div>`; }
     }
     function buildBody() {
       const a = by[focus], pb = $('of-pb');
       if (!a) return;
-      if (tab === 'chat') { pb.className = 'pbody'; pb.innerHTML = `<div class="msgs" id="of-pm" aria-live="polite"></div><form class="compose" id="of-pf" autocomplete="off"><div class="sugg" id="of-ps" hidden></div><input id="of-pi" placeholder="Nhắn riêng cho ${esc(a.n)}" aria-label="Tin nhắn riêng"><button type="submit" style="background:var(--hi);color:var(--onhi);border-color:var(--hi)">Gửi</button></form>`; mountComposer($('of-pf'), $('of-pi'), $('of-ps'), () => focus); }
+      if (tab === 'chat') { pb.className = 'pbody'; const ph = esc(T('panel.composePh', { name: a.n })); pb.innerHTML = `<div class="msgs" id="of-pm" aria-live="polite"></div><form class="compose" id="of-pf" autocomplete="off"><div class="sugg" id="of-ps" hidden></div><input id="of-pi" placeholder="${ph}" aria-label="${ph}"><button type="submit" style="background:var(--hi);color:var(--onhi);border-color:var(--hi)">${esc(T('send'))}</button></form>`; mountComposer($('of-pf'), $('of-pi'), $('of-ps'), () => focus); }
       else { pb.className = 'pbody single'; pb.innerHTML = `<div class="${tab === 'act' ? 'act' : 'det'}"></div>`; }
     }
 
@@ -275,7 +322,7 @@
     function toast(a, txt) { const t = $('of-toast'); t.textContent = '✋ ' + txt; t.hidden = false; toastFor = a.id; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000); }
     $('of-toast').onclick = () => { if (toastFor) setFocus(toastFor); $('of-toast').hidden = true; };
     function toastMsg(t) { const e = $('of-toast'); e.textContent = t; e.hidden = false; toastFor = null; clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.hidden = true; }, 3500); }
-    function hud() { const c = { w: 0, n: 0, z: 0 }; AG.forEach((a) => { if (a.state === 'working' || a.state === 'error') c.w++; else if (a.state === 'ask') c.n++; else c.z++; }); $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nNap').textContent = c.z; $('of-mem').textContent = AG.length + ' agent'; paintRoster(); }
+    function hud() { const c = { w: 0, n: 0, z: 0 }; AG.forEach((a) => { if (a.state === 'working' || a.state === 'error') c.w++; else if (a.state === 'ask') c.n++; else c.z++; }); $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nNap').textContent = c.z; $('of-mem').textContent = T('hud.mem', { n: AG.length }) || String(AG.length); paintRoster(); }
 
     /* ---------- live hub data (#147): real sessions, states, room chat, DM, permission asks ---------- */
     const enc = encodeURIComponent;
@@ -325,29 +372,29 @@
         const a = by[from];
         // History loaded on the first refresh must not pop a stale bubble or invent a state; the state law above decides.
         if (Date.now() - Number(m.ts || 0) < 90_000) { a.bub = String(m.text ?? '').slice(0, 60); a.bubUntil = now() + 4; }
-        alog(a, m.kind === 'system' ? mm.text : 'msg: ' + mm.text.slice(0, 60));
+        alog(a, m.kind === 'system' ? mm.text : T('log.msg', { t: mm.text.slice(0, 60) }));
       }
       chatDirty = panelDirty = true;
     }
 
     function liveAnswer(id, r) {
-      const req = asks.get(id); if (!req) { toastMsg('Yêu cầu này đã được trả lời hoặc hết hạn.'); return; }
+      const req = asks.get(id); if (!req) { toastMsg(T('perm.gone')); return; }
       hubJson(`/api/permissions/${enc(req.id)}`, { method: 'POST', body: { allow: r === 'allow' } })
         .then(() => { asks.delete(id); if (by[id]) by[id].state = 'working'; liveRefresh(); })
-        .catch((e) => toastMsg('Không trả lời được: ' + e.message));
+        .catch((e) => toastMsg(T('perm.fail', { err: e.message })));
     }
 
     function liveSend(txt, scope) {
       const a = scope && by[scope];
       const sendTo = (room) => hubJson(`/api/rooms/${enc(room)}/messages`, { method: 'POST', body: { text: txt } })
         .then((res) => { if (res && res.message) ingest({ ...res.message, room }, a ? a.id : null); })
-        .catch((e) => toastMsg('Gửi lỗi: ' + e.message));
+        .catch((e) => toastMsg(T('sendFail', { err: e.message })));
       if (!a) return sendTo(live.room);
       const room = dmOf.get(a.id);
       if (room) return sendTo(room);
       return hubJson(`/api/rooms/dm/${enc(a.id)}`, { method: 'POST' })
         .then((r) => { dmOf.set(a.id, r.name); return sendTo(r.name); })
-        .catch((e) => toastMsg('Chưa mở được chat riêng: ' + e.message));
+        .catch((e) => toastMsg(T('dmFail', { err: e.message })));
     }
 
     /** The private chat of one agent: its room and its last messages, loaded when the panel opens. */
@@ -383,8 +430,8 @@
           const before = old.get(id);
           if (before && before.id === p.id) continue;
           const a = by[id]; if (!a) continue;
-          post(id, ['you'], 'Xin quyền dùng ' + p.tool, { ask: id });   // in the room dock: the person can answer without opening the agent
-          a.askedAt = now(); alog(a, 'Xin quyền: ' + p.tool);
+          post(id, ['you'], T('perm.ask', { tool: p.tool }), { ask: id });   // in the room dock: the person can answer without opening the agent
+          a.askedAt = now(); alog(a, T('log.perm', { tool: p.tool }));
         }
         (msgs || []).slice().sort((x, y) => x.ts - y.ts).forEach((m) => ingest(m));
         (rooms || []).forEach((r) => { if (r.dm && by[r.dm]) dmOf.set(r.dm, r.name); });
@@ -424,11 +471,11 @@
 
     /* ---------- three scene ---------- */
     const THREE = window.THREE;
-    const why = !THREE ? 'Không tải được three.js (ui/vendor/three.min.js).' : !THREE.OrbitControls ? 'Không tải được OrbitControls (ui/vendor/OrbitControls.js).' : '';
+    const why = !THREE ? T('threeMissing') : !THREE.OrbitControls ? T('orbitMissing') : '';
     let renderer;
     if (!why) { try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { renderer = undefined; } }
     const fallback = $('of-fallback');
-    if (!renderer) { fallback.textContent = why || 'Trình duyệt này không bật được WebGL nên không vẽ được cảnh 3D.'; fallback.style.display = 'grid'; }
+    if (!renderer) { fallback.textContent = why || T('webglFallback'); fallback.style.display = 'grid'; }
 
     let setFocus = () => {}, closeFocus = () => {};
     let raf = 0, running = true, goal = null, walk = false;
@@ -474,7 +521,7 @@
       box(8, 2, .2, 0x160b24, -7.5, 5.6, -14.6, scene, false).material = new THREE.MeshBasicMaterial({ map: neon.t });
       const wall = canvasTex(512, 256, () => {}); const wallMesh = box(8.5, 4.2, .2, 0x0b1220, 5, 4.6, -14.6, scene, false); wallMesh.material = new THREE.MeshBasicMaterial({ map: wall.t });
       function paintWall() {
-        const x = wall.x; x.fillStyle = '#0a1222'; x.fillRect(0, 0, 512, 256); x.fillStyle = '#35e0a1'; x.font = '700 20px Consolas,monospace'; x.fillText('LUỒNG TRỰC TIẾP', 16, 30); x.font = '16px Consolas,monospace';
+        const x = wall.x; x.fillStyle = '#0a1222'; x.fillRect(0, 0, 512, 256); x.fillStyle = '#35e0a1'; x.font = '700 20px Consolas,monospace'; x.fillText(T('wall.title'), 16, 30); x.font = '16px Consolas,monospace';
         CHAT.slice(-8).forEach((m, i) => { x.fillStyle = by[m.from] ? by[m.from].c : '#ffd166'; x.fillText((nameOf(m.from) + ': ' + m.text).slice(0, 38), 16, 62 + i * 24); }); wall.t.needsUpdate = true;
       }
       // string lights
@@ -586,9 +633,9 @@
       setFocus = (id) => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); focus = id; meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); const a = by[id]; $('of-panel').dataset.id = ''; panelDirty = true; chatDirty = true; if (live) liveDm(id); if (a) focusOn(a); };
       closeFocus = () => { focus = null; $('of-panel').hidden = true; $('of-panel').dataset.id = ''; flyTo(meeting ? MEET : HOME); };
       $('of-bOver').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); closeFocus(); flyTo(HOME); };
-      $('of-bMeet').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = !meeting; $('of-bMeet').setAttribute('aria-pressed', meeting); if (meeting) { focus = null; $('of-panel').hidden = true; flyTo(MEET); post('sys', [], 'Họp cả phòng: mọi agent về bàn họp.'); } else flyTo(HOME); };
-      $('of-bTheme').onclick = () => { themeI = (themeI + 1) % 3; const m = ['', 'light', 'dark'][themeI]; m ? root.setAttribute('data-theme', m) : root.removeAttribute('data-theme'); $('of-bTheme').textContent = ['Tự động', 'Ban ngày', 'Ban đêm'][themeI]; applyTheme(); };
-      function setWalk(on) { walk = on; $('of-bWalk').setAttribute('aria-pressed', on); if (on) { meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); if (focus) closeFocus(); flyTo({ p: new THREE.Vector3(-3, 5.5, 18), t: new THREE.Vector3(-3, 2.2, 6) }); setTimeout(() => { if (walk) goal = null; }, 1800); toastMsg('Đi dạo: W A S D để đi, kéo chuột để quay đầu'); } else flyTo(HOME); }
+      $('of-bMeet').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = !meeting; $('of-bMeet').setAttribute('aria-pressed', meeting); if (meeting) { focus = null; $('of-panel').hidden = true; flyTo(MEET); post('sys', [], T('msg.meeting')); } else flyTo(HOME); };
+      $('of-bTheme').onclick = () => { themeI = (themeI + 1) % 3; const m = ['', 'light', 'dark'][themeI]; m ? root.setAttribute('data-theme', m) : root.removeAttribute('data-theme'); root.dataset.themeI = String(themeI); $('of-bTheme').textContent = T(['themeAuto', 'themeLight', 'themeDark'][themeI]); applyTheme(); };
+      function setWalk(on) { walk = on; $('of-bWalk').setAttribute('aria-pressed', on); if (on) { meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); if (focus) closeFocus(); flyTo({ p: new THREE.Vector3(-3, 5.5, 18), t: new THREE.Vector3(-3, 2.2, 6) }); setTimeout(() => { if (walk) goal = null; }, 1800); toastMsg(T('toast.walk')); } else flyTo(HOME); }
       $('of-bWalk').onclick = () => setWalk(!walk);
       const isDark = () => { const d = root.getAttribute('data-theme'); return d ? d === 'dark' : mqDark.matches; };
       applyTheme = () => { const d = isDark(); hemi.intensity = d ? .5 : .6; sun.intensity = d ? .5 : .55; hemi.color.set(d ? 0xaab4ff : 0xffffff); sun.color.set(d ? 0xffd9b0 : 0xfff4e0); };
@@ -658,7 +705,7 @@
           // tag
           v3.copy(p); v3.y = 3.5; v3.project(cam);
           if (v3.z > 1) { a.tg.style.display = 'none'; } else { a.tg.style.display = ''; a.tg.style.transform = `translate(${(v3.x * .5 + .5) * W}px,${(-v3.y * .5 + .5) * H}px) translate(-50%,-100%)`; }
-          const key = meeting && a.state !== 'ask' ? 'meet' : a.state, S = ST[key];
+          const key = meeting && a.state !== 'ask' ? 'meet' : a.state, S = st(key);
           let chip = S[0]; if (a.state === 'ask') chip += ' · ' + Math.floor(t - a.askedAt) + 's';
           if (a.cache.chip !== chip) { a.cache.chip = chip; a.tChip.textContent = chip; a.tChip.style.background = S[1]; }
           const tool = a.state === 'working' && !meeting ? '▸ ' + a.tool : ''; if (a.cache.tool !== tool) { a.cache.tool = tool; a.tTool.textContent = tool; a.tTool.style.display = tool ? '' : 'none'; }
@@ -684,7 +731,7 @@
         }
         ctl.update(); renderer.render(scene, cam);
       }
-      hud(); stopLive = startLive(); frame();
+      hud(); stopLive = startLive(); frame(); loadI18n();
       // Pause the loop while the tab is hidden; restart it when the page comes back.
       const onVisible = () => { if (document.hidden) { running = false; cancelAnimationFrame(raf); } else { if (live) liveRefresh(); start(); } };
       document.addEventListener('visibilitychange', onVisible);
@@ -704,7 +751,7 @@
     // No WebGL / no three.js: keep the HUD and chat alive, explain the scene.
     applyTheme(); hud(); chatDirty = false; panelDirty = false;
     paintDock(); paintPanel();
-    stopLive = startLive();
+    stopLive = startLive(); loadI18n();
     active = { root, stop: () => stopLive(), unmount: unmountOffice };
     return active;
   }

@@ -91,7 +91,7 @@
 .office .toast{position:absolute;left:50%;top:max(70px,calc(env(safe-area-inset-top,0px) + 70px));transform:translateX(-50%);background:var(--bubble);color:var(--bubblefg);border-radius:14px;padding:6px 14px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;max-width:90vw}
 .office .toast[hidden]{display:none}
 .office .hint{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));font-size:12px;color:var(--muted);background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:2px 10px;pointer-events:none}
-.office #of-fallback{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:24px}
+.office #of-fallback{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:24px;pointer-events:none;font-weight:700;color:var(--fg)}
 @media(prefers-reduced-motion:no-preference){.office .panel,.office .dock{animation:of-rise .35s ease-out}}
 @keyframes of-rise{from{opacity:0;transform:translateY(10px)}}
 @media(max-width:760px){
