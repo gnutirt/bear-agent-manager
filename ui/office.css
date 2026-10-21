@@ -1,0 +1,104 @@
+/* Bear Agent Office — styles ported from docs/design/office3d-demo.html (#145).
+   Everything is scoped under .office so the tab can live inside ui/index.html without touching the hub's own rules.
+   Ids are prefixed with of- so they never collide with the hub UI. Values below are copied from the approved demo. */
+.office{
+  --glass:rgba(255,255,255,.86);--glass2:rgba(238,242,250,.95);--fg:#1b2238;--muted:#5b6585;--line:rgba(30,40,80,.16);
+  --hi:#d97706;--onhi:#fff;--ok:#059669;--bad:#dc2626;--title:#1b2238;--titleglow:rgba(255,255,255,.9);
+  --bubble:#fff;--bubblefg:#1b2238;
+  --sky:linear-gradient(180deg,#bfe3ff 0%,#e9f4ff 55%,#fff3dc 100%);--stars:none;
+  --display:"Fredoka","Nunito",system-ui,sans-serif;--body:"Nunito",system-ui,sans-serif;
+  position:relative;width:100%;height:100%;overflow:hidden;font:14px/1.45 var(--body);color:var(--fg);background:var(--sky);
+}
+.office *,.office *::before,.office *::after{box-sizing:border-box}
+@media(prefers-color-scheme:dark){.office:not([data-theme="light"]){
+  --glass:rgba(22,27,52,.84);--glass2:rgba(30,37,70,.96);--fg:#eef1fb;--muted:#aab3cf;--line:rgba(255,255,255,.14);
+  --hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff7b7b;--title:#d8ff6a;--titleglow:rgba(120,255,80,.55);
+  --bubble:#fff;--bubblefg:#14192a;
+  --sky:radial-gradient(ellipse at 20% 0%,#3b2a6b 0%,#1a1538 45%,#0b1024 100%);color-scheme:dark}}
+.office[data-theme="dark"]{
+  --glass:rgba(22,27,52,.84);--glass2:rgba(30,37,70,.96);--fg:#eef1fb;--muted:#aab3cf;--line:rgba(255,255,255,.14);
+  --hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff7b7b;--title:#d8ff6a;--titleglow:rgba(120,255,80,.55);
+  --bubble:#fff;--bubblefg:#14192a;
+  --sky:radial-gradient(ellipse at 20% 0%,#3b2a6b 0%,#1a1538 45%,#0b1024 100%);color-scheme:dark}
+.office #of-stage{position:absolute;inset:0}
+.office #of-stage canvas{display:block;width:100%;height:100%}
+.office .stars{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background:
+ radial-gradient(1.5px 1.5px at 12% 22%,#fff,transparent),radial-gradient(1px 1px at 28% 8%,#fff,transparent),radial-gradient(1.5px 1.5px at 47% 17%,#cfe,transparent),
+ radial-gradient(1px 1px at 63% 6%,#fff,transparent),radial-gradient(1.5px 1.5px at 81% 14%,#fff,transparent),radial-gradient(1px 1px at 91% 31%,#fff,transparent),
+ radial-gradient(1px 1px at 6% 61%,#fff,transparent),radial-gradient(1.5px 1.5px at 94% 72%,#fff,transparent),radial-gradient(1px 1px at 38% 88%,#fff,transparent),radial-gradient(1px 1px at 73% 91%,#fff,transparent)}
+.office[data-theme="dark"] .stars{opacity:.9}
+@media(prefers-color-scheme:dark){.office:not([data-theme="light"]) .stars{opacity:.9}}
+.office #of-tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.office .tag{position:absolute;left:0;top:0;will-change:transform;text-align:center;white-space:nowrap;display:grid;justify-items:center;gap:3px;font-weight:700}
+.office .tag .say{background:var(--bubble);color:var(--bubblefg);border-radius:12px;padding:3px 10px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .35s;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.office .tag .say.on{opacity:1}
+.office .tag .nm{display:inline-flex;align-items:center;gap:6px;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:1px 10px 1px 7px;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.office .tag .nm i{width:9px;height:9px;border-radius:50%}
+.office .tag .chip{border-radius:999px;padding:0 9px;font-size:11px;font-weight:800;color:#14192a}
+.office .tag.sel .nm{border-color:var(--hi);box-shadow:0 0 0 2px var(--hi)}
+.office .tag .tool{font:600 11px ui-monospace,Consolas,monospace;background:rgba(10,14,28,.78);color:#dbe3ff;border-radius:6px;padding:0 7px}
+.office .top{position:absolute;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:max(12px,env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+.office .top>*{pointer-events:auto}
+.office h1{margin:0;font:700 32px/1 var(--display);color:var(--title);text-shadow:0 0 14px var(--titleglow),0 2px 0 rgba(0,0,0,.25);letter-spacing:.5px}
+.office .sub{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:42ch}
+.office .pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.office .pill{display:inline-flex;align-items:center;gap:7px;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:3px 13px;font-weight:700;font-size:13px;backdrop-filter:blur(6px)}
+.office .pill i{width:10px;height:10px;border-radius:50%}
+.office .pill b{font-variant-numeric:tabular-nums}
+.office button{font:inherit;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:4px 12px;cursor:pointer;backdrop-filter:blur(6px)}
+.office button:hover{border-color:var(--hi)}
+.office button:focus-visible,.office input:focus-visible,.office .tab:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+.office button[aria-pressed=true]{background:var(--hi);color:var(--onhi);border-color:var(--hi)}
+.office kbd{font:700 10px var(--body);border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-left:6px;opacity:.7}
+.office .dock{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));width:360px;height:min(40vh,340px);background:var(--glass);border:1px solid var(--line);border-radius:16px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;backdrop-filter:blur(8px);overflow:hidden}
+.office .dock header,.office .panel header{padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}
+.office .dock header b{font:700 15px var(--display)}
+.office .msgs{overflow:auto;padding:8px 12px;display:grid;gap:7px;align-content:start;min-height:0}
+.office .m{display:grid;gap:1px;font-size:13px}
+.office .m .h{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11.5px}
+.office .m .h i{width:9px;height:9px;border-radius:50%;flex:none}
+.office .m .h b{color:var(--fg)}
+.office .m .t{overflow-wrap:anywhere}
+.office .m .t u{text-decoration:none;font-weight:800;color:var(--hi)}
+.office .m.you .t{background:var(--hi);color:var(--onhi);border-radius:10px;padding:2px 9px;justify-self:end}
+.office .m.you .h{justify-content:flex-end}
+.office .m.ask .t{border:1.5px solid var(--bad);border-radius:10px;padding:5px 9px;background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.office .m .opts{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.office .m .opts button{padding:1px 10px;font-size:12px}
+.office .empty{color:var(--muted);font-size:13px}
+.office .compose{position:relative;border-top:1px solid var(--line);padding:8px;display:flex;gap:6px}
+.office .compose input{flex:1;min-width:0;font:inherit;color:var(--fg);background:var(--glass2);border:1px solid var(--line);border-radius:10px;padding:5px 10px}
+.office .sugg{position:absolute;left:8px;bottom:100%;margin-bottom:4px;background:var(--glass2);border:1px solid var(--line);border-radius:10px;padding:4px;display:grid;max-height:180px;overflow:auto;min-width:200px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.office .sugg button{text-align:left;border:0;background:transparent;border-radius:6px;padding:2px 8px;display:flex;gap:8px;align-items:center;backdrop-filter:none}
+.office .sugg button[aria-selected=true],.office .sugg button:hover{background:var(--hi);color:var(--onhi)}
+.office .sugg i{width:9px;height:9px;border-radius:50%}
+.office .panel{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:max(64px,calc(env(safe-area-inset-top,0px) + 64px));bottom:max(16px,env(safe-area-inset-bottom,0px));width:380px;background:var(--glass);border:1px solid var(--line);border-radius:16px;display:grid;grid-template-rows:auto auto minmax(0,1fr);backdrop-filter:blur(8px);overflow:hidden}
+.office .panel[hidden]{display:none}
+.office .panel h2{margin:0;font:700 19px var(--display)}
+.office .panel .kick{font-size:11.5px;color:var(--muted);font-weight:700}
+.office .stchip{display:inline-block;border-radius:999px;padding:0 10px;font-size:12px;font-weight:800;color:#14192a}
+.office .tabs{display:flex;border-bottom:1px solid var(--line)}
+.office .tab{flex:1;padding:7px 0;text-align:center;font-weight:700;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;background:none;border-radius:0;border-top:0;border-left:0;border-right:0}
+.office .tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--hi)}
+.office .pbody{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
+.office .pbody.single{grid-template-rows:minmax(0,1fr)}
+.office .act{overflow:auto;padding:10px 12px;display:grid;gap:5px;align-content:start;font:12.5px ui-monospace,Consolas,monospace}
+.office .act div{border-left:3px solid var(--line);padding-left:8px}
+.office .det{overflow:auto;padding:12px;display:grid;gap:10px;align-content:start}
+.office .det dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.office .det dt{color:var(--muted)}.office .det dd{margin:0;font-weight:700}
+.office .meter{height:10px;border-radius:6px;background:var(--line);overflow:hidden}.office .meter i{display:block;height:100%;background:var(--ok)}
+.office .toast{position:absolute;left:50%;top:max(70px,calc(env(safe-area-inset-top,0px) + 70px));transform:translateX(-50%);background:var(--bubble);color:var(--bubblefg);border-radius:14px;padding:6px 14px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;max-width:90vw}
+.office .toast[hidden]{display:none}
+.office .hint{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));font-size:12px;color:var(--muted);background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:2px 10px;pointer-events:none}
+.office #of-fallback{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:24px}
+@media(prefers-reduced-motion:no-preference){.office .panel,.office .dock{animation:of-rise .35s ease-out}}
+@keyframes of-rise{from{opacity:0;transform:translateY(10px)}}
+@media(max-width:760px){
+  .office h1{font-size:24px}.office .sub{display:none}
+  .office .dock{left:0;right:0;bottom:0;width:auto;height:46vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .office .dock.closed{height:auto}.office .dock.closed .msgs,.office .dock.closed .compose{display:none}
+  .office .panel{left:0;right:0;top:auto;bottom:0;width:auto;height:62vh;border-radius:16px 16px 0 0}
+  .office .hint{display:none}
+}
+
