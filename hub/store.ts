@@ -715,7 +715,12 @@ export class Store {
     for (const s of Object.values(this.state.sessions)) {
       if (from in s.rooms) { s.rooms[to] = s.rooms[from]; delete s.rooms[from]; }
       if (s.notesSeen && from in s.notesSeen) { s.notesSeen[to] = s.notesSeen[from]; delete s.notesSeen[from]; }
+      // Per-room bookkeeping follows the name too: a stale turnTopic sends the next answer to the old room's topic and
+      // the new name starts with none at all.
+      if (s.turnTopic && from in s.turnTopic) { s.turnTopic[to] = s.turnTopic[from]; delete s.turnTopic[from]; }
     }
+    // T19: "lead already opened by the hub" is keyed by room name; without this a renamed room gets a second lead tab.
+    if (this.state.leadOpened?.includes(from)) this.state.leadOpened = [...new Set(this.state.leadOpened.map((x) => (x === from ? to : x)))];
     const lines = this.messages.filter((m) => m.room === to).map((m) => JSON.stringify(m) + '\n').join('');
     fs.writeFileSync(this.logFile(to), lines);
     fs.rmSync(this.logFile(from), { force: true });
