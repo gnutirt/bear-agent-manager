@@ -172,6 +172,7 @@ export const en: Record<string, string> = {
   'flow.moveTier': 'Move to tier',
   'flow.addTier': 'Add tier',
   'flow.addTierHint': 'Select an agent first; adding a tier moves it to the new tier.',
+  'flow.scrollHint': 'Swipe horizontally to view the other tiers',
   'flow.live': 'Live',
   'flow.now': 'Now',
   'flow.replayWindow': 'Replay · last 5 minutes',

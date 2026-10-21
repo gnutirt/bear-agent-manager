@@ -172,6 +172,7 @@ export const vi: Record<string, string> = {
   'flow.moveTier': 'Chuyển tầng',
   'flow.addTier': 'Thêm tầng',
   'flow.addTierHint': 'Chọn agent trước; thêm tầng sẽ chuyển agent đó lên tầng mới.',
+  'flow.scrollHint': 'Vuốt ngang để xem các tầng còn lại',
   'flow.live': 'Trực tiếp',
   'flow.now': 'Bây giờ',
   'flow.replayWindow': 'Phát lại · 5 phút gần nhất',
