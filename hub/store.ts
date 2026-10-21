@@ -125,7 +125,91 @@ export class Store {
     }
     this.messages.sort((a, b) => a.id - b.id);
     this.migrateNames();
+    this.migrateDmAliases();
     this.evictDmStrangers();
+  }
+
+  private dmOwner(room: Room): string | undefined {
+    const id = room.dm ?? (room.name.startsWith('dm-') ? room.name.slice(3) : '');
+    const owner = id ? this.resolve(id) : '';
+    return this.state.sessions[owner] ? owner : undefined;
+  }
+
+  private dmRoomsFor(sessionId: string): Room[] {
+    const id = this.resolve(sessionId);
+    return Object.values(this.state.rooms).filter((room) =>
+      (room.dm && this.resolve(room.dm) === id) ||
+      (!room.dm && room.name.startsWith('dm-') && this.resolve(room.name.slice(3)) === id));
+  }
+
+  private migrateDmAliases(): void {
+    const owners = new Set<string>();
+    const rewrittenRooms = new Set<string>();
+    const removedRooms = new Set<string>();
+    let changed = false;
+    for (const message of this.messages) {
+      const resolved = message.fromId ? this.resolve(message.fromId) : '';
+      if (resolved && this.state.sessions[resolved] && message.fromId !== resolved) {
+        message.fromId = resolved;
+        rewrittenRooms.add(message.room);
+        changed = true;
+      }
+    }
+    for (const room of Object.values(this.state.rooms)) {
+      const owner = this.dmOwner(room);
+      if (owner) owners.add(owner);
+    }
+    for (const owner of owners) {
+      const rooms = this.dmRoomsFor(owner);
+      if (!rooms.length) continue;
+      const ranked = rooms.map((room) => ({
+        room,
+        count: this.messages.filter((message) => message.room === room.name).length,
+      })).sort((a, b) => b.count - a.count || a.room.createdAt - b.room.createdAt);
+      const primary = ranked[0].room;
+      const names = new Set(rooms.map((room) => room.name));
+      const history = this.messages.filter((message) => names.has(message.room));
+      let historyChanged = false;
+      for (const message of history) {
+        if (message.room !== primary.name) { message.room = primary.name; changed = true; historyChanged = true; rewrittenRooms.add(primary.name); }
+        if (message.fromId && this.resolve(message.fromId) === owner && message.fromId !== owner) {
+          message.fromId = owner;
+          changed = true;
+          historyChanged = true;
+        }
+      }
+      if (primary.dm !== owner) { primary.dm = owner; changed = true; }
+      if (rooms.length > 1) {
+        const hidden = rooms.every((room) => room.dmHidden === true);
+        if (primary.dmHidden !== hidden) { primary.dmHidden = hidden; changed = true; }
+        for (const room of rooms) {
+          if (room === primary) continue;
+          delete this.state.rooms[room.name];
+          removedRooms.add(room.name);
+          changed = true;
+        }
+      }
+      const member = this.state.sessions[owner];
+      if (member) {
+        const cursors = rooms.map((room) => member.rooms[room.name]).filter((cursor) => Number.isInteger(cursor));
+        const cursor = cursors.length ? Math.min(...cursors) : this.lastId();
+        const membershipChanged = rooms.some((room) => room.name !== primary.name && room.name in member.rooms) || member.rooms[primary.name] !== cursor;
+        for (const room of rooms) delete member.rooms[room.name];
+        member.rooms[primary.name] = cursor;
+        if (membershipChanged) changed = true;
+      }
+      if (historyChanged || rooms.length > 1) rewrittenRooms.add(primary.name);
+    }
+    for (const room of rewrittenRooms) {
+      if (!this.state.rooms[room]) continue;
+      const history = this.messages.filter((message) => message.room === room);
+      fs.writeFileSync(path.join(this.dir, 'rooms', `${room}.jsonl`), history.map((message) => JSON.stringify(message)).join('\n') + (history.length ? '\n' : ''));
+    }
+    if (changed) this.save();
+    for (const room of removedRooms) {
+      const file = path.join(this.dir, 'rooms', `${room}.jsonl`);
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
   }
 
   /** A private chat `dm-<id>` belongs to the user and session <id> only: drop anyone else who got in before this rule existed. */
@@ -133,11 +217,12 @@ export class Store {
     let changed = false;
     for (const s of Object.values(this.state.sessions)) {
       for (const room of Object.keys(s.rooms)) {
-        if (room.startsWith('dm-') && room !== `dm-${s.id}`) { delete s.rooms[room]; changed = true; }
+        const dm = this.state.rooms[room];
+        if (room.startsWith('dm-') && (dm ? this.dmOwner(dm) : this.resolve(room.slice(3))) !== s.id) { delete s.rooms[room]; changed = true; }
       }
     }
     for (const r of Object.values(this.state.rooms)) {
-      if (r.name.startsWith('dm-') && r.lead && r.name !== `dm-${r.lead}`) { r.lead = null; changed = true; }
+      if (r.name.startsWith('dm-') && r.lead && this.dmOwner(r) !== this.resolve(r.lead)) { r.lead = null; changed = true; }
     }
     if (changed) this.save();
   }
@@ -251,6 +336,7 @@ export class Store {
     const t = this.now();
     let s = this.state.sessions[this.resolve(input.id)];
     if (!s) {
+      let aliased = false;
       s = { id: input.id, name: '', userNamed: false, cwd: input.cwd ?? '', rooms: {}, status: 'idle', activity: '', lastSeen: t, cursor: this.lastId() };
       if (input.source === 'clear' || input.source === 'resume') {
         const prev = Object.values(this.state.sessions)
@@ -263,9 +349,11 @@ export class Store {
           s.cursor = prev.cursor;
           delete this.state.sessions[prev.id];
           this.state.aliases[prev.id] = s.id;
+          aliased = true;
         }
       }
       this.state.sessions[s.id] = s;
+      if (aliased) this.migrateDmAliases();
       if (!s.name) s.name = this.claimName(input.name && SESSION_NAME.test(input.name) ? input.name : defaultName(s.cwd), s.id);
     }
     s.status = 'idle';
@@ -336,7 +424,9 @@ export class Store {
 
   join(id: string, room: string): Session {
     const s = this.session(id);
-    if (room.startsWith('dm-') && room !== `dm-${s.id}`) {
+    const existing = this.state.rooms[room];
+    const owner = existing ? this.dmOwner(existing) : (room.startsWith('dm-') ? this.resolve(room.slice(3)) : undefined);
+    if (room.startsWith('dm-') && owner !== s.id) {
       throw new StoreError(403, `#${room} là chat riêng của user với một agent, không vào được; muốn nói với agent đó thì @ trong phòng chung / #${room} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     this.createRoom(room);
@@ -348,13 +438,17 @@ export class Store {
   /** The private 1:1 chat between the user and one agent: room `dm-<session id>` (by id, so a rename keeps it). Idempotent; reopening unhides it. */
   dmRoom(sessionId: string): Room {
     const s = this.session(sessionId);   // 404 for an unknown session
-    const name = `dm-${s.id}`;
+    const name = this.dmRoomsFor(s.id)[0]?.name ?? `dm-${s.id}`;
     this.join(s.id, name);
     const r = this.state.rooms[name];
     r.dm = s.id;
     delete r.dmHidden;
     this.save();
     return r;
+  }
+
+  privateRoom(sessionId: string): Room | undefined {
+    return this.dmRoomsFor(sessionId)[0];
   }
 
   /** Closing a private chat hides it; the history stays and dmRoom() brings it back. */
@@ -434,8 +528,10 @@ export class Store {
    */
   postMirror(sessionId: string, who: 'user' | 'agent', text: string): Message {
     const s = this.session(sessionId);
-    const name = `dm-${s.id}`;
-    if (!this.state.rooms[name]) { this.dmRoom(s.id); this.hideDm(name); }
+    const existing = this.privateRoom(s.id);
+    const room = existing ?? this.dmRoom(s.id);
+    if (!existing) this.hideDm(room.name);
+    const name = room.name;
     const message: Message = { id: this.lastId() + 1, room: name, from: who === 'user' ? 'you' : s.name, fromId: who === 'user' ? null : s.id, mentions: [], text: `[tab] ${who}: ${text}`, ts: this.now(), wake: [], kind: 'mirror' };
     this.messages.push(message);
     fs.appendFileSync(path.join(this.dir, 'rooms', `${name}.jsonl`), JSON.stringify(message) + '\n');
@@ -460,7 +556,8 @@ export class Store {
     if (!body && !attachments?.length) throw new StoreError(400, 'empty message');
     if (body.length > MAX_TEXT) throw new StoreError(413, `message longer than ${MAX_TEXT} chars`);
     const sender = fromId === null ? null : this.session(fromId);
-    if (sender && roomName.startsWith('dm-') && roomName !== `dm-${sender.id}`) {
+    const roomOwner = this.state.rooms[roomName] ? this.dmOwner(this.state.rooms[roomName]) : (roomName.startsWith('dm-') ? this.resolve(roomName.slice(3)) : undefined);
+    if (sender && roomName.startsWith('dm-') && roomOwner !== sender.id) {
       throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);

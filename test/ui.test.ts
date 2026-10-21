@@ -99,6 +99,8 @@ test('T38: private chat per agent — popup button, dm rooms split from the room
       'id="dmSec"', 'id="dms"',
       'data-dm="${esc(s.id)}"', "t('members.chatDm')",
       "api(`/api/rooms/dm/${enc(b.dataset.dm)}`",
+      "const dmFor = (sid) => S.rooms.find((r) => r.dm === sid)",
+      "Math.abs(x.ts - m.ts) <= 2000",
       "S.rooms.filter((r) => !r.dm)", "S.rooms.filter((r) => r.dm && !r.dmHidden)",
       "api(`/api/rooms/${enc(r.name)}/hide`",
     ]) assert.ok(html.includes(s), `missing ${s}`);

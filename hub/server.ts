@@ -1059,7 +1059,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!text || isHubText(text) || reviving.has(sid) || !loadSettings(opts.dir, envCap).mirrorTabs) return;
       const clean = scrubSecrets(text);
       if (clean === null) return;
-      const m = store.postMirror(sid, 'user', relayText(clean, tr('sys.relay.more', { name: store.session(sid).name })));
+      const m = store.postMirror(sid, 'user', clean);
       mirroring.set(sid, { ts: m.ts, last: '', answered: false, at: Date.now() });
       broadcast('msg', m); emitRoom(m.room);
     } catch { /* a mirror never breaks a prompt */ }
@@ -1069,13 +1069,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!cur) return;
     try {
       // The agent already answered in its own DM room this turn (e.g. room_send via MCP): don't also auto-mirror it.
-      const dm = `dm-${sess.id}`;
-      if (store.messages.some((m) => m.room === dm && m.fromId === sess.id && m.kind !== 'mirror' && m.ts >= cur.ts)) { mirroring.delete(sess.id); return; }
+      const dm = store.privateRoom(sess.id)?.name;
+      if (dm && store.messages.some((m) => m.room === dm && m.fromId === sess.id && m.kind !== 'mirror' && m.ts >= cur.ts)) { mirroring.delete(sess.id); return; }
       const text = String(b.last_assistant_message ?? '').trim() || readLastAssistantText(String(b.transcript_path ?? sess.transcript ?? ''));
       const clean = text ? scrubSecrets(text) : null;
       if (!clean || clean === cur.last) return;   // the entry stays: a later Stop of the same turn may carry the real answer
       cur.last = clean; cur.answered = true; cur.at = Date.now();
-      const m = store.postMirror(sess.id, 'agent', relayText(clean, tr('sys.relay.more', { name: sess.name })));
+      const m = store.postMirror(sess.id, 'agent', clean);
       broadcast('msg', m); emitRoom(m.room);
     } catch { /* ignore */ }
   }

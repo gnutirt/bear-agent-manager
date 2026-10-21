@@ -1707,18 +1707,23 @@ const isRelayOf = (m, sid) => m.sys?.type === 'relay' && m.fromId === sid;
 /** A turn typed in the agent's own tab arrives as "[tab] user: ...": the prefix is noise, the badge already names the editor. */
 const msgText = (m) => m.kind === 'mirror' ? String(m.text).replace(/^\[tab\]\s+(?:user|agent):\s*/, '') : m.text;
 const dmAsked = new Set();
+const dmFor = (sid) => S.rooms.find((r) => r.dm === sid);
 /** An agent that answered in its own tab gets a private chat with you (created once, idempotent on the hub), where that answer is shown. */
 function ensureDm(sid) {
-  if (!sid || room('dm-' + sid) || dmAsked.has(sid) || !S.sessions[sid]) return;
+  if (!sid || dmFor(sid) || dmAsked.has(sid) || !S.sessions[sid]) return;
   dmAsked.add(sid);
   api(`/api/rooms/dm/${enc(sid)}`, {}).catch(() => dmAsked.delete(sid));
 }
-const dmOf = (sid) => { const d = room('dm-' + sid); return d && !d.dmHidden ? d : null; };
+const dmOf = (sid) => { const d = dmFor(sid); return d && !d.dmHidden ? d : null; };
 function logMessages(r = S.current) {
   const own = S.messages[r] || [], sid = room(r)?.dm;
   if (!sid) return own.some((m) => m.sys?.type === 'relay' && m.fromId) ? own.filter((m) => !(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) : own;   // a relayed answer goes to its private chat, not the group
   const extra = [];
-  for (const [k, list] of Object.entries(S.messages)) if (k !== r && !room(k)?.dm) for (const m of list) if (isRelayOf(m, sid)) extra.push(m);
+  for (const [k, list] of Object.entries(S.messages)) if (k !== r && !room(k)?.dm) for (const m of list) {
+    if (!isRelayOf(m, sid)) continue;
+    const mirrored = own.some((x) => x.kind === 'mirror' && x.fromId === sid && Math.abs(x.ts - m.ts) <= 2000);
+    if (!mirrored) extra.push(m);
+  }
   return extra.length ? [...own, ...extra].sort((a, b) => a.id - b.id) : own;
 }
 const logSigOf = () => `${S.current}|${logMessages().length}|${S.sysMode}|` + Object.values(S.sessions).map((x) => `${x.id}${x.name}${x.status}${x.ide}${x.title}${x.bg ? 1 : 0}${x.tab ? 1 : 0}`).join(',');
@@ -1904,7 +1909,7 @@ function connect() {
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
     if (m.sys?.type === 'relay' && m.fromId) ensureDm(m.fromId);
     if (m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId)) {
-      const d = 'dm-' + m.fromId;
+      const d = dmOf(m.fromId).name;
       if (S.current === d) queueLog(); else { S.unread[d] = (S.unread[d] || 0) + 1; renderRooms(); }
     }
     if (m.room === S.current && S.around !== m.room && !(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) {

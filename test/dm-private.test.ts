@@ -31,3 +31,29 @@ test('load: strangers already inside a dm-* room are removed', () => {
   assert.deepEqual(Object.keys(again.state.sessions[b.id].rooms).filter((r) => r.startsWith('dm-')), []);
   assert.ok('dm-aaa1' in again.state.sessions[a.id].rooms);
 });
+
+test('resume moves the existing private chat to the resolved session and merges an empty duplicate', () => {
+  const dir = tmp();
+  const st = new Store(dir);
+  const old = st.register({ id: 'old-id', cwd: path.join('D:', 'x') });
+  st.rename(old.id, 'alice');
+  st.join(old.id, 'web');
+  st.post('web', old.id, 'shared reply');
+  const oldDm = st.dmRoom(old.id);
+  st.post(oldDm.name, old.id, 'existing private reply');
+  st.createRoom('dm-new-id');
+  st.state.rooms['dm-new-id'].dm = 'new-id';
+  st.save();
+
+  const resumed = st.register({ id: 'new-id', cwd: path.join('D:', 'x'), source: 'resume' });
+  assert.equal(st.resolve(old.id), resumed.id);
+  assert.equal(st.state.rooms[oldDm.name].dm, resumed.id);
+  assert.equal(st.dmRoom(resumed.id).name, oldDm.name, 'keeps the room with history instead of the empty duplicate');
+  assert.equal(st.state.rooms['dm-new-id'], undefined);
+  assert.equal(st.history(oldDm.name).filter((m) => m.kind !== 'system').length, 1);
+  assert.equal(st.history('web')[0].fromId, resumed.id, 'old relay/member IDs also resolve in shared-room history');
+  assert.ok(oldDm.name in resumed.rooms);
+
+  const again = new Store(dir);
+  assert.equal(again.dmRoom(resumed.id).name, oldDm.name, 'the migrated room identity persists across restart');
+});

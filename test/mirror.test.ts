@@ -106,11 +106,16 @@ test('tab mirror (#122): a tab whose hooks still send an aliased session id gets
   try {
     await h.call('/api/sessions/register', { id: 'old-tab', cwd: 'C:/fw' });
     await h.call('/api/sessions/old-tab/rename', { name: 'lead' });
+    const oldDm = await h.call<any>('/api/rooms/dm/old-tab', {});
     await h.call('/api/sessions/register', { id: 'new-id', cwd: 'C:/fw', source: 'resume' });   // the tab resumed: old-tab becomes an alias of new-id, yet its hooks may still send old-tab
     assert.equal(h.hub.store.resolve('old-tab'), 'new-id');
     await hook('prompt', { prompt: 'fix the wakeup bug' });
-    await hook('stop', { last_assistant_message: 'Fixed, see the room.' });
-    const dm = (await h.call<any[]>('/api/rooms/dm-new-id/messages?after=0')).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
-    assert.deepEqual(dm, ['[tab] user: fix the wakeup bug', '[tab] agent: Fixed, see the room.']);
+    const fullAnswer = 'Complete response. '.repeat(100).trim();
+    await hook('stop', { last_assistant_message: fullAnswer });
+    const room = h.hub.store.roomInfo(oldDm.name);
+    const dm = (await h.call<any[]>(`/api/rooms/${oldDm.name}/messages?after=0`)).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+    assert.equal(room.dm, 'new-id', 'existing DM now identifies the resolved session');
+    assert.deepEqual(dm, ['[tab] user: fix the wakeup bug', `[tab] agent: ${fullAnswer}`], 'DM keeps full secret-filtered text');
+    assert.equal(h.hub.store.state.rooms['dm-new-id'], undefined, 'does not create a second room for the resumed id');
   } finally { await h.hub.close(); }
 });
