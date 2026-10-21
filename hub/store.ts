@@ -556,6 +556,9 @@ export class Store {
     if (!body && !attachments?.length) throw new StoreError(400, 'empty message');
     if (body.length > MAX_TEXT) throw new StoreError(413, `message longer than ${MAX_TEXT} chars`);
     const sender = fromId === null ? null : this.session(fromId);
+    // note [65]: a lead `~` marks a status line of an agent: it is stored and readable but wakes nobody (an explicit
+    // signal, not a guess from the message length). User messages never carry the marker.
+    const silent = !!sender && body.startsWith('~');
     const roomOwner = this.state.rooms[roomName] ? this.dmOwner(this.state.rooms[roomName]) : (roomName.startsWith('dm-') ? this.resolve(roomName.slice(3)) : undefined);
     if (sender && roomName.startsWith('dm-') && roomOwner !== sender.id) {
       throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
@@ -589,15 +592,17 @@ export class Store {
       else if (sender.id !== lead.id && !room.paused) wake = [lead.id];
     }
     // A report that only wakes the lead does not count: the lead's own replies still do, so a lead↔agent loop stays bounded.
-    if (sender && wake.some((id) => id !== room.lead)) {
+    if (sender && !silent && wake.some((id) => id !== room.lead)) {
       room.agentWakeStreak++;
       if (room.agentWakeStreak > LOOP_LIMIT) { room.paused = true; wake = []; }
     }
-    message.wake = wake;
+    message.wake = silent ? [] : wake;
     if (message.topic) {   // following a topic: sending into it, or being @-ed in it
       const follow = (s: Session) => { if (!s.topics?.includes(message.topic!)) (s.topics ??= []).push(message.topic!); };
       if (sender) follow(sender);
-      for (const mem of members) if (message.mentions.includes('all') || message.mentions.includes(mem.name.toLowerCase())) follow(mem);
+      // A `~` status line wakes nobody, so it must not subscribe anyone either: otherwise a "@name" written in it
+      // silently pulls that member into the topic and fills its next turn with messages it never asked for.
+      if (!silent) for (const mem of members) if (message.mentions.includes('all') || message.mentions.includes(mem.name.toLowerCase())) follow(mem);
     }
     const names = new Set(members.map((m) => m.name.toLowerCase()));
     const unknownMentions = message.mentions.filter((n) => n !== 'all' && n !== 'you' && !names.has(n));
@@ -772,7 +777,9 @@ export class Store {
     // newest one from someone else. Hub notices do not count (they are always in #chung).
     const woke: Record<string, string> = {}, seen: Record<string, string> = {};
     for (const m of this.messages) {
-      if (m.id <= s.cursor || m.id > upTo || m.fromId === s.id || m.kind === 'system' || !(m.room in s.rooms)) continue;
+      // mirror = one of the agent's own tab turns copied into its private chat: pending() never hands it over, so it
+      // must not decide which topic the next answer goes to either.
+      if (m.id <= s.cursor || m.id > upTo || m.fromId === s.id || m.kind === 'system' || m.kind === 'mirror' || !(m.room in s.rooms)) continue;
       seen[m.room] = m.topic ?? 'chung';
       if (m.wake.includes(s.id)) woke[m.room] = m.topic ?? 'chung';
     }
