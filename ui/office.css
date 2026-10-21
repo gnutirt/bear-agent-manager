@@ -102,3 +102,11 @@
   .office .hint{display:none}
 }
 
+/* The hub's global header/.empty/.meter rules leak in; reset them inside the office (dock header was 118px tall). */
+.office header{min-height:0;background:none;gap:8px}
+.office .empty{margin:0;max-width:none;text-align:left;padding:0}
+.office .meter{margin:0}
+.office .dock header,.office .panel header{padding:7px 12px}
+.office .dock{background:color-mix(in srgb,var(--glass2) 96%,transparent);box-shadow:0 8px 28px rgba(10,14,40,.28)}
+.office .sub{color:var(--fg);text-shadow:0 0 6px var(--titleglow),0 0 2px var(--titleglow)}
+.office .m .h{font-size:12px}
