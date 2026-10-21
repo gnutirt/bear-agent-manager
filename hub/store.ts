@@ -27,6 +27,7 @@ export type Session = {
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
+  apiRetry?: number;             // #159: turns in a row that died on a transient API error and were retried; a turn that ends normally clears it
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
   limitKilled?: boolean;         // ... and it counts only when the recovery really happened (a kill the hub waited for, or a move to another account): a marker saved by an older build must not block a later @ (#130 follow-up)

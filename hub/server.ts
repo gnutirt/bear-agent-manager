@@ -132,6 +132,7 @@ export type HubOptions = {
   /** Minimum interval between idle saved-chat compaction sweeps (default 10 minutes). */
   idleCompactEveryMs?: number;
   deafMs?: number;   // C3: how long an @ may wait on a tab with no waiter before the room is told (default 10 min)
+  apiRetryMs?: number[];   // #159: waits before each automatic retry of a turn that died on a transient API error (default 30 s, 2 min, 5 min)
   revive?: (job: ReviveJob) => unknown;
   /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
   compactRevive?: (job: CompactJob) => Promise<number> | number;
@@ -192,6 +193,7 @@ export type HubOptions = {
 const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
 const IDLE_COMPACT_EVERY_MS = 10 * 60_000;
+const API_RETRY_MS = [30_000, 2 * 60_000, 5 * 60_000];
 const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
@@ -1271,6 +1273,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
         const sess = store.session(id), w = relayWatch.get(sess.id);
         relayWatch.delete(sess.id);
+        sess.apiRetry = undefined;
         mirrorAgent(sess, b);
         if (!w || !loadSettings(opts.dir, envCap).relayChat) break;
         if (w.room === store.privateRoom(sess.id)?.name && mirroring.has(sess.id)) break;   // the tab mirror already posts a DM answer
@@ -1287,6 +1290,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A turn that ended in an API error never reaches the Stop hook, so the agent is in no waiter: say why and book the wake.
         const sess = store.session(id), err = String(b.error ?? '');
         const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
+        if (err === 'server_error' || err === 'overloaded') {
+          // #159: a transient error: wake the same chat again after a backoff; only the last failure goes to @you
+          const waits = opts.apiRetryMs ?? API_RETRY_MS, n = sess.apiRetry ?? 0;
+          if (n < waits.length) {
+            sess.apiRetry = n + 1;
+            (store.state.wakeAt ??= {})[`r:${sess.id}`] = { at: Date.now() + waits[n], tries: 0 };
+            store.save();
+            scheduleWake(`r:${sess.id}`);
+            say(tr('sys.stop.apiRetry', { name: sess.name, err, sec: Math.round(waits[n] / 1000), n: n + 1, max: waits.length }));
+          } else {
+            sess.apiRetry = undefined;
+            say(tr('sys.stop.apiGiveup', { name: sess.name, err, max: waits.length }));
+          }
+          status('idle', '');
+          break;
+        }
         if (err !== 'rate_limit') { say(tr('sys.stop.api', { name: sess.name, err: err || tr('sys.stop.unknown') })); status('idle', ''); break; }
         const q = quotaResetFromTranscript(String(b.transcript_path ?? sess.transcript ?? ''));
         const hhmm = q ? clock(q.until) : '';
@@ -1415,15 +1434,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   async function fireWake(key: string) {
     const have = store.state.wakeAt ?? {}, e = have[key];
     if (!e) return;
-    if (key.startsWith('s:')) {   // one session stopped by its limit (StopFailure): ask it to continue, as the user
+    if (key.startsWith('s:') || key.startsWith('r:')) {   // one session stopped by its limit (s:) or a transient API error (r:, #159): ask it to continue, as the user
       delete have[key];
       const s = store.state.sessions[key.slice(2)];
-      if (s) { delete s.limited; }
+      if (s && key.startsWith('s:')) { delete s.limited; }
       store.save();
       if (!s) return;
       for (const r of Object.keys(s.rooms)) {
         try {
-          const posted = store.post(r, null, tr('sys.wake.resume', { name: s.name }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
+          const posted = store.post(r, null, tr(key.startsWith('r:') ? 'sys.wake.apiRetry' : 'sys.wake.resume', { name: s.name }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));

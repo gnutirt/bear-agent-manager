@@ -213,3 +213,33 @@ test('StopFailure rate_limit: reads the reset from the transcript, marks the ses
     assert.ok(h.hub.store.history('proj').some((m) => /lỗi API \(overloaded\)/.test(m.text)));
   } finally { await h.hub.close(); }
 });
+
+test('StopFailure server_error: retries the same chat with backoff, tells @you only after the last try (#159)', async () => {
+  const h = await makeHub(undefined, undefined, { apiRetryMs: [20, 20] });
+  const fail = (error: string) => fetch(`${h.hub.url}/hooks/stop-failure`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'rt1', error }) });
+  const texts = () => h.hub.store.history('proj').map((m) => m.text);
+  const count = (re: RegExp) => texts().filter((t) => re.test(t)).length;
+  try {
+    await h.call('/api/sessions/register', { id: 'rt1', cwd: 'C:/fw' });
+    await h.call('/api/sessions/rt1/rename', { name: 'alice' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'rt1' });
+    await fail('server_error');
+    assert.ok(texts().some((t) => /alice: .*lỗi API \(server_error\), tự chạy lại .*lần 1\/2/.test(t)));
+    await until(() => count(/^@alice lượt trước dừng vì lỗi API/) === 1, 3000, 'the first retry wake');
+    assert.ok(h.hub.store.history('proj').find((m) => /^@alice lượt trước/.test(m.text))!.wake.includes('rt1'), 'the retry wakes the same chat');
+    await fail('overloaded');
+    await until(() => count(/^@alice lượt trước dừng vì lỗi API/) === 2, 3000, 'the second retry wake');
+    await fail('server_error');
+    assert.ok(texts().some((t) => /^@you alice: .*đã tự chạy lại 2 lần/.test(t)), 'the last failure goes to @you');
+    assert.equal(h.hub.store.state.wakeAt?.['r:rt1'], undefined, 'no retry is booked after giving up');
+    assert.equal(h.hub.store.session('rt1').apiRetry, undefined, 'the counter starts over');
+
+    await fail('authentication_failed');
+    assert.ok(texts().some((t) => /alice: lượt bị dừng bởi lỗi API \(authentication_failed\)\.$/.test(t)));
+    assert.equal(h.hub.store.state.wakeAt?.['r:rt1'], undefined, 'an auth error is not retried');
+
+    await fail('server_error');
+    await fetch(`${h.hub.url}/hooks/stop`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'rt1' }) });
+    assert.equal(h.hub.store.session('rt1').apiRetry, undefined, 'a turn that ends normally clears the counter');
+  } finally { await h.hub.close(); }
+});
