@@ -3202,12 +3202,14 @@ function accountBlock(st) {
   const multi = A.accounts.filter((a) => a.exists).length > 1;
   const plan = S.sharePlan;
   const planHtml = plan ? `<div class="aplan"><b>${t('ac.share.planTitle')}</b><ul>${plan.plan.length ? plan.plan.map((x) => `<li>${x.do === 'rename' ? t('ac.share.rename', { from: esc(x.from || ''), to: esc(x.to || '') }) : x.do === 'link' ? t('ac.share.link', { path: esc(x.path || '') }) : t('ac.share.unlink', { path: esc(x.path || '') })}</li>`).join('') : `<li>${t('ac.share.noPlan')}</li>`}</ul><p class="small pwarn">${t('ac.share.warn')}</p><div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="shareCancel">${t('ac.cancel')}</button>${plan.plan.length ? `<button type="button" class="btn primary" id="shareConfirm">${t('ac.share.confirm')}</button>` : ''}</div>${plan.error ? `<p class="small bad">${esc(plan.error)}</p>` : ''}</div>` : '';
-  const rooms = S.rooms.map((r) => r.name);
+  const rooms = S.rooms.filter((r) => !r.dm);
   const ask = S.agentAsk;
+  const selectedRoom = ask?.body.room || (rooms.find((r) => r.name === S.current)?.name || rooms[0]?.name || '');
+  const selectedRoomInfo = rooms.find((r) => r.name === selectedRoom);
   const acctOpts = `<option value="">${t('ac.agent.auto')}</option>` + A.accounts.filter((a) => a.exists).map((a) => `<option value="${esc(a.dir)}">${esc(a.label)}</option>`).join('');
   const askPermMode = ask ? (st.permissions?.perAgent?.[normAgent(ask.body.name)]?.mode || st.permissions?.default?.mode || 'bypass') : '';
   const askAccountLabel = ask ? (ask.body.account ? (A.accounts.find((a) => a.dir === ask.body.account)?.label || ask.body.account) : t('ac.agent.auto')) : '';
-  const agent = `<form class="tform" id="agentNew"><input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}"><div class="row" style="display:flex;gap:6px"><input name="cwd" placeholder="${t('ac.agent.cwd')}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" value="${esc(ask?.body.cwd || '')}" style="flex:1"><button type="button" class="btn sm" id="cwdBrowse">${t('ac.agent.browse')}</button></div><select name="room" aria-label="${t('ac.agent.room')}">${rooms.map((r) => `<option${r === S.current ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select><select name="account" aria-label="${t('ac.agent.account')}">${acctOpts}</select><textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea><div class="row"><button class="btn primary">${t('ac.agent.create')}</button></div></form>${ask ? `<div class="aplan"><b>${t('ac.agent.reviewTitle')}</b><ul class="small">
+  const agent = `<form class="tform" id="agentNew"><input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}"><div class="row" style="display:flex;gap:6px"><input name="cwd" placeholder="${t('ac.agent.cwd')}" ${selectedRoomInfo?.cwd ? '' : 'required'} spellcheck="false" aria-label="${t('ac.agent.cwd')}" value="${esc(ask?.body.cwd ?? selectedRoomInfo?.cwd ?? '')}" style="flex:1"><button type="button" class="btn sm" id="cwdBrowse">${t('ac.agent.browse')}</button></div><label class="inline"><input name="setRoomCwd" type="checkbox"${ask ? (ask.body.setRoomCwd ? ' checked' : '') : (!selectedRoomInfo?.cwd ? ' checked disabled' : '')}>${t('agent.spawn.setRoomFolder')}</label><select name="room" id="agentRoom" aria-label="${t('ac.agent.room')}">${rooms.map((r) => `<option${r.name === selectedRoom ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select><select name="account" aria-label="${t('ac.agent.account')}">${acctOpts}</select><textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea><div class="row"><button class="btn primary">${t('ac.agent.create')}</button></div></form>${ask ? `<div class="aplan"><b>${t('ac.agent.reviewTitle')}</b><ul class="small">
       <li>${esc(t('ac.agent.reviewRoom', { room: ask.body.room }))}</li>
       <li>${esc(t('ac.agent.reviewAccount', { account: askAccountLabel }))}</li>
       <li>${esc(t('ac.agent.reviewPerm', { perm: PMODE[askPermMode] || askPermMode }))}${askPermMode === 'bypass' ? ` <span class="pfree">${t('perm.free.badge')}</span>` : ''}</li>
@@ -3296,9 +3298,10 @@ function renderAgentDialog() {
   if (!state) return;
   const providers = S.providers || [], profiles = S.settings?.agents?.profiles || [];
   const rooms = (S.rooms || []).filter((r) => !r.dm);
-  const room = rooms.find((r) => r.name === S.current)?.name || rooms[0]?.name || 'bear-agent-manager';
+  const room = rooms.find((r) => r.name === state.room)?.name || rooms.find((r) => r.name === S.current)?.name || rooms[0]?.name || 'bear-agent-manager';
+  const roomInfo = rooms.find((r) => r.name === room);
   const roomOptions = rooms.length ? rooms.map((r) => `<option value="${esc(r.name)}"${r.name === room ? ' selected' : ''}>${esc(r.name)}</option>`).join('') : `<option value="${room}">${room}</option>`;
-  const cwd = Object.values(S.sessions || {}).find((s) => s.cwd)?.cwd || '';
+  const cwd = roomInfo?.cwd || '';
   const accounts = (S.acct?.accounts || []).filter((a) => a.exists);
   const accountOptions = `<option value="">${t('ac.agent.auto')}</option>${accounts.map((a) => `<option value="${esc(a.dir)}">${esc(a.label)}</option>`).join('')}`;
   const error = state.error ? `<p class="aspawn-error" role="alert">${esc(state.error)}</p>` : '';
@@ -3313,7 +3316,8 @@ function renderAgentDialog() {
   } else if (!state.loading && state.kind === 'folder') {
     content = `<form class="tform" data-agent-folder>
       <input name="name" placeholder="${t('ac.agent.name')}" maxlength="32" required aria-label="${t('ac.agent.name')}">
-      <div class="row"><input name="cwd" placeholder="${t('ac.agent.cwd')}" value="${esc(cwd)}" required spellcheck="false" aria-label="${t('ac.agent.cwd')}" style="flex:1"><button type="button" class="btn sm" data-agent-browse>${t('ac.agent.browse')}</button></div>
+      <div class="row"><input name="cwd" placeholder="${t('ac.agent.cwd')}" value="${esc(cwd)}" ${roomInfo?.cwd ? '' : 'required'} spellcheck="false" aria-label="${t('ac.agent.cwd')}" style="flex:1"><button type="button" class="btn sm" data-agent-browse>${t('ac.agent.browse')}</button></div>
+      <label class="inline"><input name="setRoomCwd" type="checkbox"${roomInfo?.cwd ? '' : ' checked disabled'}>${t('agent.spawn.setRoomFolder')}</label>
       <select name="room" aria-label="${t('ac.agent.room')}">${roomOptions}</select>
       <select name="account" aria-label="${t('ac.agent.account')}">${accountOptions}</select>
       <textarea name="prompt" rows="2" placeholder="${t('ac.agent.prompt')}" aria-label="${t('ac.agent.prompt')}"></textarea>
@@ -3349,6 +3353,16 @@ function renderAgentDialog() {
   zoom.querySelectorAll('[data-agent-back]').forEach((b) => b.addEventListener('click', () => { if (state.needConfirm) { state.needConfirm = false; state.body = undefined; } else state.kind = ''; state.error = ''; renderAgentDialog(); }));
   const confirm = zoom.querySelector('[data-agent-confirm]');
   if (confirm) confirm.addEventListener('click', () => createAgent({ ...state.body, confirm: true }, true));
+  const folderRoom = zoom.querySelector('[data-agent-folder] [name=room]');
+  if (folderRoom) folderRoom.addEventListener('change', () => {
+    state.room = folderRoom.value;
+    const info = rooms.find((r) => r.name === state.room);
+    const input = folderRoom.form.elements.namedItem('cwd');
+    input.value = info?.cwd || '';
+    input.required = !info?.cwd;
+    folderRoom.form.elements.namedItem('setRoomCwd').checked = !info?.cwd;
+    folderRoom.form.elements.namedItem('setRoomCwd').disabled = !info?.cwd;
+  });
   const browse = zoom.querySelector('[data-agent-browse]');
   if (browse) browse.addEventListener('click', () => {
     const form = browse.closest('form');
@@ -3358,7 +3372,7 @@ function renderAgentDialog() {
   if (folderForm) folderForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-    createAgent({ name: get('name'), cwd: get('cwd'), room: get('room'), ...(get('account') ? { account: get('account') } : {}), ...(get('prompt') ? { prompt: get('prompt') } : {}) }, true);
+    createAgent({ name: get('name'), cwd: get('cwd'), room: get('room'), setRoomCwd: f.elements.namedItem('setRoomCwd').checked, ...(get('account') ? { account: get('account') } : {}), ...(get('prompt') ? { prompt: get('prompt') } : {}) }, true);
   });
   const apiForm = zoom.querySelector('[data-agent-api]');
   if (apiForm) {
@@ -3541,6 +3555,15 @@ async function saveProvider(form) {
 }
 for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('change', (e) => {
+    if (e.target.id === 'agentRoom') {
+      const room = S.rooms.find((r) => r.name === e.target.value);
+      const form = e.target.closest('form');
+      form.elements.namedItem('cwd').value = room?.cwd || '';
+      form.elements.namedItem('cwd').required = !room?.cwd;
+      form.elements.namedItem('setRoomCwd').checked = !room?.cwd;
+      form.elements.namedItem('setRoomCwd').disabled = !room?.cwd;
+      return;
+    }
     const profileToggle = e.target.closest('[data-profile-enabled]');
     if (profileToggle) {
       const id = profileToggle.dataset.profileEnabled;
@@ -3596,7 +3619,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     }
     if (e.target.id !== 'agentNew') return;
     e.preventDefault();
-    const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
+    const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, setRoomCwd: f.setRoomCwd.checked, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
     S.agentAsk = { body };
     renderSettingsView();
   });

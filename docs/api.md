@@ -22,6 +22,8 @@
 |--------|------|--------|-----------|
 | GET | `/api/machine` |  | có |
 | POST | `/api/machine/export` | `withKeys` | có |
+| GET | `/api/path/view` |  | có |
+| POST | `/api/path/reveal` | `room`, `id`, `path` | có |
 | GET | `/api/settings` |  | có |
 
 ## skill library (S1): filter by role / words / license, installed per Claude account
@@ -51,7 +53,7 @@
 | POST | `/api/permissions/ask` | `session`, `tool`, `input` | có |
 | GET | `/api/permissions` |  | có |
 | GET | `/api/agent-profiles` |  | có |
-| POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `prompt` | có |
+| POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `setRoomCwd`, `prompt` | có |
 | GET | `/api/version` |  | có |
 | POST | `/api/version/check` |  | có |
 | GET | `/api/i18n` |  | có |
@@ -86,6 +88,7 @@
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
 | POST | `/api/rooms/dm/:param` |  | có |
+| PUT | `/api/rooms/:room/cwd` | `cwd` | có |
 | POST | `/api/rooms/:room/join` | `sessionId` | có |
 | POST | `/api/rooms/:room/leave` | `sessionId` | có |
 | POST | `/api/rooms/:room/clear-lead` | `force` | có |

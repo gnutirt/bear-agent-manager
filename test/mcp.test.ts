@@ -28,7 +28,7 @@ test('tool list has the room tools with object schemas', () => {
 });
 
 test('join, send (default room), read, who, typo warning', async () => {
-  const { hub, call } = await makeHub();
+  const { hub, call, dir } = await makeHub();
   const api = apiFor(hub.url, hub.token);
   try {
     await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
@@ -38,6 +38,7 @@ test('join, send (default room), read, who, typo warning', async () => {
     await assert.rejects(callTool(api, 's1', 'room_send', { text: 'hi' }), /not in any room/);
     assert.match(await callTool(api, 's1', 'room_join', { room: 'proj' }), /Joined #proj/);
     await callTool(api, 's2', 'room_join', { room: 'proj' });
+    await call('/api/rooms/proj/cwd', { cwd: dir }, { method: 'PUT' });
     assert.match(await callTool(api, 's1', 'room_send', { text: '@web ping' }), /Woke 1/);
     assert.match(await callTool(api, 's1', 'room_send', { text: 'just noting' }), /no one was woken/i);
     assert.match(await callTool(api, 's1', 'room_send', { text: '@web re', replyTo: 1 }), /Woke 1/);
@@ -46,6 +47,7 @@ test('join, send (default room), read, who, typo warning', async () => {
     assert.match(await callTool(api, 's2', 'room_read', {}), /fw: @web ping/);
     const who = await callTool(api, 's2', 'room_who', {});
     assert.match(who, /You are "web"/);
+    assert.ok(who.includes(`working folder: ${dir}`));
     assert.match(who, /fw — idle/);
     assert.match(await callTool(api, 's1', 'room_note', { text: 'HLP/1 on port 8765' }), /Saved note \[1\] in #proj/);
     assert.match(await callTool(api, 's2', 'room_notes', {}), /\[1\] HLP\/1 on port 8765 \(fw\)/);

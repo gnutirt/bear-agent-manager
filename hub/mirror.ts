@@ -3,7 +3,7 @@
 /** A hub delivery or a background wake (the room text, not something typed in the tab). */
 export const isHubText = (prompt: string): boolean =>
   /^\s*\[bear-agent-manager\]/.test(prompt) ||
-  /^\s*<(task-notification|system-reminder)>/.test(prompt) ||
+  /^\s*<(task-notification|system-reminder|browser_instruction)>/.test(prompt) ||
   prompt.includes('[bear-agent-manager] New messages');
 
 const BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;

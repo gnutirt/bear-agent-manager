@@ -22,6 +22,7 @@ export type Session = {
   prompts?: number;              // user prompts seen by the UserPromptSubmit hook (0 = next one is the first)
   title?: string;                // chat title shown on the editor tab (ai-title / custom-title)
   titleNamed?: boolean;          // name already derived from the title once
+  prevName?: string;             // the name before the last change; the next delivery tells the agent, then clears it
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
@@ -37,10 +38,10 @@ export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
 const IDES = new Set<string>(['vscode', 'antigravity', 'cursor', 'cli']);
 const IDE_SUFFIX: Record<Ide, string> = { '': '', vscode: '', antigravity: '-ag', cursor: '-cursor', cli: '-cli' };
 export type Note = { id: number; text: string; by: string; byId: string | null; ts: number };
-export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[]; dm?: string; dmHidden?: boolean };
+export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; cwd?: string; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[]; dm?: string; dmHidden?: boolean };
 const MAX_NOTE = 1000;
 const MAX_NOTES = 60;
-export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null; dm?: string; dmHidden?: boolean };
+export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null; cwd?: string; dm?: string; dmHidden?: boolean };
 type State = {
   sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
   autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
@@ -186,12 +187,29 @@ export class Store {
     return name;
   }
 
+  /** Changes a session's name; the old one is kept (the first one, if it changes twice before a delivery) so the agent is told. */
+  private setName(s: Session, name: string): void {
+    if (s.name && s.name !== name) s.prevName = s.prevName ?? s.name;
+    s.name = name;
+    if (s.prevName === s.name) s.prevName = undefined;   // renamed back before it was told
+  }
+
+  /** The one-time "your name changed" line for a session, or undefined; clears it. */
+  takeRenamed(id: string): { from: string; to: string } | undefined {
+    const s = this.state.sessions[this.resolve(id)];
+    if (!s?.prevName) return undefined;
+    const r = { from: s.prevName, to: s.name };
+    s.prevName = undefined;
+    this.save();
+    return r;
+  }
+
   /** Like uniqueName, but an offline, auto-named holder gives the name up to the new session. */
   private claimName(base: string, selfId: string): string {
     const lower = base.toLowerCase();
     const holder = Object.values(this.state.sessions).find((s) => s.id !== selfId && s.name.toLowerCase() === lower);
     if (holder && holder.status === 'offline' && !holder.userNamed && !RESERVED.has(lower)) {
-      holder.name = this.uniqueName(`${base}-${holder.id.slice(0, 4).toLowerCase()}`, holder.id);
+      this.setName(holder, this.uniqueName(`${base}-${holder.id.slice(0, 4).toLowerCase()}`, holder.id));
       return base;
     }
     return this.uniqueName(base, selfId);
@@ -213,7 +231,7 @@ export class Store {
     s.title = t;
     if (!s.userNamed && !s.titleNamed) {
       const slug = slugTitle(t);
-      if (slug && !RESERVED.has(slug)) { s.name = this.claimName(slug, s.id); s.titleNamed = true; }
+      if (slug && !RESERVED.has(slug)) { this.setName(s, this.claimName(slug, s.id)); s.titleNamed = true; }
     }
     this.save();
     return s;
@@ -270,7 +288,7 @@ export class Store {
     const s = this.session(id);
     if (!SESSION_NAME.test(name ?? '')) throw new StoreError(400, 'name must be 1-32 letters, digits, - or _');
     if (this.nameTaken(name, s.id)) throw new StoreError(409, `name "${name}" is taken or reserved`);
-    s.name = name;
+    this.setName(s, name);
     s.userNamed = true;
     this.save();
     return s;
@@ -370,6 +388,14 @@ export class Store {
     return r;
   }
 
+  setRoomCwd(room: string, cwd: string | undefined): Room {
+    const r = this.room(room);
+    if (cwd === undefined) delete r.cwd;
+    else r.cwd = cwd;
+    this.save();
+    return r;
+  }
+
   members(room: string): Session[] {
     return Object.values(this.state.sessions).filter((s) => room in s.rooms);
   }
@@ -377,7 +403,7 @@ export class Store {
   roomInfo(room: string): RoomInfo {
     const r = this.state.rooms[room];
     if (!r) throw new StoreError(404, `unknown room ${room}`);
-    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null, ...(r.dm ? { dm: r.dm, dmHidden: r.dmHidden === true } : {}) };
+    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null, ...(r.cwd ? { cwd: r.cwd } : {}), ...(r.dm ? { dm: r.dm, dmHidden: r.dmHidden === true } : {}) };
   }
 
   /** A member finished its part: posts "✅ Xong: …"; when every live member (lead excepted) is done, adds one system line. */

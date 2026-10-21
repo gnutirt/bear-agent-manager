@@ -27,6 +27,19 @@ test('renameRoom moves members, history and the log file; survives reload', () =
   assert.throws(() => st.renameRoom('nope', 'x'), (e: StoreError) => e.status === 404);
 });
 
+test('room working folders survive reload and can be cleared', () => {
+  const dir = tmp();
+  const st = new Store(dir);
+  st.createRoom('web');
+  st.setRoomCwd('web', path.join('D:', 'repos', 'web'));
+  assert.equal(st.roomInfo('web').cwd, path.join('D:', 'repos', 'web'));
+  const again = new Store(dir);
+  assert.equal(again.roomInfo('web').cwd, path.join('D:', 'repos', 'web'));
+  again.setRoomCwd('web', undefined);
+  assert.equal(again.roomInfo('web').cwd, undefined);
+  assert.equal(new Store(dir).roomInfo('web').cwd, undefined);
+});
+
 test('deleteRoom removes the room, its members and its history (archived on disk)', () => {
   const dir = tmp();
   const st = new Store(dir);

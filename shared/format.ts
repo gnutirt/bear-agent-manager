@@ -17,6 +17,8 @@ const MAX_SHOWN = 20;
 const MAX_MSG = 1500;
 const SHORT = 100;   // chars of a message shown to members it did not mention
 export type NoteLite = { id: number; text: string; by: string };
+/** Reserved key in the notes map of a delivery: "<new>\t<old>" of a session that was renamed. Never a room name. */
+export const RENAMED_KEY = '*renamed';
 
 const size = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 /** A1: one line per attachment with its absolute path, so the agent opens it with Read only when it needs it (never inlined). */
@@ -49,6 +51,11 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     lines.push(...attachmentLines(m));
   }
   for (const [r, list] of Object.entries(notes)) {
+    if (r === RENAMED_KEY) {
+      const [to, from] = (list[0]?.text ?? '').split('\t');
+      if (to && from) lines.push(`Your name in Bear Agent Manager is now @${to} (it was @${from}). Mentions of @${from} no longer reach you; answer to @${to}.`);
+      continue;
+    }
     lines.push(`Room notes #${r}, new or changed (agreements everyone in the room relies on; room_notes lists all):`);
     for (const n of list) lines.push(`  [${n.id}] ${n.text.replace(/\n/g, ' ')} (${n.by})`);
   }

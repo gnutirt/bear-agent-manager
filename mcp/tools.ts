@@ -3,7 +3,7 @@ import { attachmentLines } from '../shared/format.ts';
 
 export type Api = <T = any>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>;
 type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: string; activity: string };
-type RoomInfo = { name: string; paused: boolean; members: string[]; lead?: string | null };
+type RoomInfo = { name: string; paused: boolean; members: string[]; lead?: string | null; cwd?: string };
 
 const obj = (properties: Record<string, object>, required: string[] = []) =>
   ({ type: 'object', properties, required, additionalProperties: false });
@@ -47,7 +47,7 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       const byId = new Map(sessions.map((x) => [x.id, x]));
       const lines = [`You are "${s.name}".`];
       for (const r of rooms.filter((x) => s.rooms.includes(x.name))) {
-        lines.push(`#${r.name}${r.paused ? ' (paused by loop guard)' : ''}:`);
+        lines.push(`#${r.name}${r.paused ? ' (paused by loop guard)' : ''}${r.cwd ? ` (working folder: ${r.cwd})` : ''}:`);
         for (const id of r.members) {
           const m = byId.get(id);
           if (m) lines.push(`  ${m.id === r.lead ? '★ ' : ''}${m.name}${m.id === r.lead ? ' (lead)' : ''}${m.id === s.id ? ' (you)' : ''} — ${m.status}${m.activity ? ' · ' + m.activity : ''} — ${m.cwd}`);

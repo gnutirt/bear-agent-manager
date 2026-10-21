@@ -97,7 +97,9 @@ test('post returns unknownMentions; history and rooms list work', async () => {
     const r = await call<any>('/api/rooms/proj/messages', { text: '@fww check' });
     assert.deepEqual(r.unknownMentions, ['fww']);
     const hist = await call<any[]>('/api/rooms/proj/messages?after=0');
-    assert.equal(hist.length, 1);
+    // #124: the user's post plus one hub card saying there is no @fww in the room
+    assert.equal(hist.length, 2);
+    assert.equal(hist[1].kind, 'system');
     const rooms = await call<any[]>('/api/rooms');
     assert.deepEqual(rooms.map((x) => [x.name, x.members.length]), [['proj', 2]]);
   } finally { await hub.close(); }

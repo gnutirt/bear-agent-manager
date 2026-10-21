@@ -53,6 +53,10 @@ test('autoLead: off never opens; terminal opens once per room, the joiner from t
     await h.call('/api/rooms/fw/open-lead', {});
     assert.equal(opened.length, 2);
     assert.equal(cwd(opened[1]), 'C:\\elsewhere');
+
+    await h.call('/api/rooms/off/cwd', { cwd: h.dir }, { method: 'PUT' });
+    await h.call('/api/rooms/off/open-lead', {});
+    assert.equal(cwd(opened[2]), h.dir, 'with no IDE member, the manual lead opens in the room folder');
   } finally { await h.hub.close(); }
 
   // The once-per-room lock survives a restart.

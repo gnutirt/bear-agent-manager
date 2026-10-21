@@ -158,7 +158,7 @@ export function extractRoutes(sourceText) {
   }
   scanBlock('tm', /\/api\/rooms\/[^\/]+\/tasks/, '/api/rooms/:room/tasks', /!\s*sub\b/);
   scanBlock('mm', /\/api\/rooms\/[^\/]+\/notes/, '/api/rooms/:room/notes', /!\s*mm\[2\]/);
-  scanBlock('mm', /join\|leave\|resume\|messages\|rename\|delete\|lead\|clear-lead\|done\|open-lead\|topics\|days/, '/api/rooms/:room', /!\s*action\b/);
+  scanBlock('mm', /join\|leave\|resume\|messages\|rename\|delete\|lead\|clear-lead\|done\|open-lead\|topics\|days\|hide\|cwd/, '/api/rooms/:room', /!\s*action\b/);
 
   // --- Files block ---
   const fmDecl = lines.findIndex((l) => l.includes('fm = p.match') && /\/api\/rooms\/[^\/]+\/files/.test(l));

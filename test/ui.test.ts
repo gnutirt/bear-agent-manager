@@ -119,6 +119,22 @@ test('T36: new-agent form — folder picker button, review step shows account/pe
   } finally { await hub.close(); }
 });
 
+test('Room.cwd: both headless spawn forms default to the selected room folder and can update it', async () => {
+  const { hub, call, dir } = await makeHub();
+  try {
+    await call('/api/rooms', { name: 'repo' });
+    await call('/api/rooms/repo/cwd', { cwd: dir }, { method: 'PUT' });
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'selectedRoomInfo?.cwd',
+      'roomInfo?.cwd',
+      'name="setRoomCwd"',
+      "t('agent.spawn.setRoomFolder')",
+      "form.elements.namedItem('cwd').value = room?.cwd || ''",
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
 test('bug: private-chat entry reachable from the running-agents sidebar too, and room/DM rows show a pointer cursor', async () => {
   const { hub } = await makeHub();
   try {

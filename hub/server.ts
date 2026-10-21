@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
+import { mentionedFile, viewMentioned, revealFile } from './pathview.ts';
 import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
 import { hasRates, paidProfileUsage, paidUsageForDay } from './paidusage.ts';
 import { summarize } from './tokens.ts';
@@ -33,7 +34,7 @@ import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTE
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
-import { activityFor, formatDelivery } from '../shared/format.ts';
+import { activityFor, formatDelivery, RENAMED_KEY } from '../shared/format.ts';
 import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
@@ -165,6 +166,8 @@ export type HubOptions = {
   usageHome?: string;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
+  /** Tests: stands in for launching the file manager on "reveal". */
+  reveal?: (cmd: string, args: string[]) => void;
   openFolder?: (dir: string) => void;
   browseFolder?: (start?: string) => Promise<string | null>;   // tests stub it so no real dialog pops up
   runClaudeCli?: Run;   // tests: no real `claude plugin update`
@@ -566,6 +569,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function takeNotes(sid: string) {
     const notes = store.unseenNotes(sid);
     if (Object.keys(notes).length) store.markNotesSeen(sid, Object.keys(notes));
+    const renamed = store.takeRenamed(sid);   // rides with the notes so every delivery path (hook, live chat, wake) carries it
+    if (renamed) return { ...notes, [RENAMED_KEY]: [{ id: 0, text: `${renamed.to}\t${renamed.from}`, by: 'hub' }] };
     return notes;
   }
 
@@ -1044,8 +1049,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   /** B1: sessions whose current turn was typed in the tab (every Stop of that turn mirrors its answer). ts: the mirrored prompt line; last: the last answer mirrored (a Stop the waiter blocks is followed by more Stops); at: last activity. */
   const mirroring = new Map<string, { ts: number; last: string; answered: boolean; at: number }>();
-  function mirrorUser(sid: string, prompt: unknown) {
-    const cur = mirroring.get(sid), text0 = String(prompt ?? '').trim();
+  function mirrorUser(raw: string, prompt: unknown) {
+    // #122: keyed by the resolved session, as mirrorAgent reads it: a resumed tab's hooks keep sending its old (aliased) id
+    const sid = store.resolve(raw), cur = mirroring.get(sid), text0 = String(prompt ?? '').trim();
     // Hub text (a delivery, a wake) in the middle of a tab turn that has not been answered yet must not drop the entry.
     if (!(text0 && isHubText(text0) && cur && !cur.answered && Date.now() - cur.at < 30 * 60_000)) mirroring.delete(sid);
     try {
@@ -1646,6 +1652,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       })();
       return json(res, 202, { started: true, dir });
     }
+    // #125: view / reveal a file whose absolute path is quoted in a chat message (room + id name the message that permits it)
+    if (m === 'GET' && p === '/api/path/view') {
+      const f = mentionedFile(store.messages, url.searchParams.get('room') ?? '', url.searchParams.get('id'), url.searchParams.get('path'));
+      return json(res, 200, viewMentioned(f));
+    }
+    if (m === 'POST' && p === '/api/path/reveal') {
+      const b = await readBody(req), f = mentionedFile(store.messages, String(b.room ?? ''), b.id, b.path);
+      revealFile(f.real, opts.reveal);
+      return json(res, 200, { ok: true, path: f.real });
+    }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...loadSettings(opts.dir, envCap), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
     // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
     const libDir = () => opts.skillLibraryDir ?? path.join(ROOT, 'skill-library');
@@ -1806,19 +1822,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
       const b = await readBody(req);
       const name = String(b.name ?? '').trim(), room = String(b.room ?? ''), asked = String(b.cwd ?? '');
-      store.room(room);
+      const roomState = store.room(room);
+      if (!asked.trim() && !roomState.cwd) throw new StoreError(400, `#${room} needs a working folder before spawning a background agent`);
       // The real path of an absolute local folder, so a link cannot stand in for a known folder (root/home are allowed only with confirm, never as "known")
       let cwd: string;
-      try { cwd = resolveWorkspace(asked, true); } catch (e) { throw new StoreError(400, (e as Error).message); }
+      try { cwd = resolveWorkspace(asked.trim() || roomState.cwd, true); } catch (e) { throw new StoreError(400, (e as Error).message); }
       const cfgA = loadSettings(opts.dir, envCap);
       if (Math.max(countBackground(), reviving.size) >= cfgA.agents.maxBackground) throw new StoreError(429, `${cfgA.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
-      const known = !isWideWorkspace(cwd) && Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } });
+      const roomFolderKnown = !!roomState.cwd && (() => { try { return fs.realpathSync(roomState.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } })();
+      const known = !isWideWorkspace(cwd) && (roomFolderKnown || Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } }));
       if (!known && b.confirm !== true) return json(res, 409, { error: tr('sys.agent.newFolder', { cwd }), needConfirm: true });
       const configDir = b.account ? accountDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase()) : undefined;
       if (b.account && !configDir) throw new StoreError(400, 'account must be a Claude config dir of this machine');
       const id = crypto.randomUUID();
       store.register({ id, cwd, ...(configDir ? { configDir } : {}) });
       try { store.rename(id, name); store.join(id, room); } catch (e) { store.forget(id); throw e; }
+      if ((!roomState.cwd || b.setRoomCwd === true) && !isWideWorkspace(cwd)) { store.setRoomCwd(room, cwd); emitRoom(room); }
       const cfg = loadSettings(opts.dir, envCap), perm = permFor(cfg, name), model = cfg.agentModel[normAgent(name)];
       const text = `${tr('agent.intro', { name, room })}${b.prompt ? `\n\n${String(b.prompt).slice(0, 4000)}` : ''}`;
       reviving.add(id);   // counts as a background run: no second spawn while it lives
@@ -2324,10 +2343,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       broadcast('rooms', Object.keys(store.state.rooms).sort().map((x) => store.roomInfo(x)));
       return json(res, 200, store.roomInfo(r.name));
     }
-    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|clear-lead|done|open-lead|topics|days|hide)$/);
+    mm = p.match(/^\/api\/rooms\/([^/]+)\/(join|leave|resume|messages|rename|delete|lead|clear-lead|done|open-lead|topics|days|hide|cwd)$/);
     if (mm) {
       const room = decodeURIComponent(mm[1]);
       const action = mm[2];
+      if (m === 'PUT' && action === 'cwd') {
+        const b = await readBody(req);
+        if (typeof b.cwd !== 'string') throw new StoreError(400, 'cwd must be a string');
+        const asked = b.cwd.trim();
+        let cwd: string | undefined;
+        if (asked) {
+          try { cwd = resolveWorkspace(asked); } catch (e) { throw new StoreError(400, (e as Error).message); }
+        }
+        store.setRoomCwd(room, cwd);
+        emitRoom(room);
+        return json(res, 200, store.roomInfo(room));
+      }
       if (m === 'POST' && (action === 'join' || action === 'leave')) {
         const b = await readBody(req);
         const wasLead = store.state.rooms[room]?.lead === store.session(String(b.sessionId ?? '')).id;
@@ -2356,10 +2387,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         return json(res, 200, { ok: true, handoff: !!handoff.trim() });
       }
       if (m === 'POST' && action === 'open-lead') {
-        // Manual button: works with autoLead off, no once-only lock. Folder: the lead's, else a member's, else home.
+        // Manual button: works with autoLead off, no once-only lock. Prefer an existing member's IDE folder; otherwise use the room folder.
         const r = store.room(room);
         const from = (r.lead && store.state.sessions[r.lead]) || store.members(room)[0];
-        openLead(room, from?.cwd || os.homedir(), false);
+        openLead(room, from?.cwd || r.cwd || os.homedir(), false);
         return json(res, 200, { ok: true });
       }
       if (m === 'POST' && (action === 'rename' || action === 'delete')) {
@@ -2418,6 +2449,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         broadcast('msg', r.message);
         emitRoom(room);
         for (const id of r.message.wake) deliver(store.resolve(id), !b.sessionId);
+        if (!b.sessionId && r.unknownMentions.length) {   // the user tagged a name nobody has: say so (nobody is woken, no lead fallback)
+          broadcast('msg', postSys(room, tr('sys.mention.unknown', { names: r.unknownMentions.map((n) => '"' + n + '"').join(', '), room }), r.message.topic, { type: 'info', level: 'warn' }));
+          emitRoom(room);
+        }
         if (r.message.text.length >= autoSettings().digest.minChars) startAutoJobs([{ kind: 'digest', room, messageId: r.message.id, text: r.message.text }]);
         return json(res, 200, r);
       }

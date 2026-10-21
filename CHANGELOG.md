@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add: rooms have a persistent, validated working folder (`Room.cwd`, `PUT /api/rooms/:room/cwd`); headless Claude spawns default to it and require a selected folder when it is unset. IDE sessions keep their registered workspace.
+
 ## 0.10.0 - 2026-10-21
 
 - Add: read-only file tree, file view and git diff in a private chat (#68, S5): header button "Files"; `GET /api/sessions/:id/{files,file,diff}` stay inside the agent folder (symlinks resolved), hide `.git`, refuse secrets files (`isSecretFile`), cap a view at 1 MB. Needs hub restart.

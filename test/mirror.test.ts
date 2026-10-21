@@ -20,6 +20,7 @@ test('scrubSecrets: tokens and key=value credentials are redacted, a private key
   assert.equal(isHubText('<task-notification>\n<summary>Stop hook feedback</summary>\n<system-reminder>Stop hook blocking error from command "Stop": [bear-agent-manager] New messages'), true);
   assert.equal(isHubText('  <system-reminder>something unrelated</system-reminder>'), true);
   assert.equal(isHubText('please fix the <system-reminder> tag in this file'), false);
+  assert.equal(isHubText('<browser_instruction># Claude in Chrome browser automation'), true, 'injected by the Chrome extension, not typed');
 });
 
 test('postMirror: private chat is created hidden, stays hidden, wakes nobody and is never delivered to the agent', () => {
@@ -96,5 +97,20 @@ test('tab mirror: a Stop the waiter blocked does not end the mirroring; the real
     await hook('stop', { last_assistant_message: 'working on it' });                     // same text: no duplicate
     await hook('stop', { last_assistant_message: 'All 12 tests pass.' });                // the real answer
     assert.deepEqual(await dm(), ['[tab] user: run the tests', '[tab] agent: working on it', '[tab] agent: All 12 tests pass.']);
+  } finally { await h.hub.close(); }
+});
+
+test('tab mirror (#122): a tab whose hooks still send an aliased session id gets its answer mirrored, not only the prompt', async () => {
+  const h = await makeHub();
+  const hook = (event: string, body: object) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'old-tab', ...body }) });
+  try {
+    await h.call('/api/sessions/register', { id: 'old-tab', cwd: 'C:/fw' });
+    await h.call('/api/sessions/old-tab/rename', { name: 'lead' });
+    await h.call('/api/sessions/register', { id: 'new-id', cwd: 'C:/fw', source: 'resume' });   // the tab resumed: old-tab becomes an alias of new-id, yet its hooks may still send old-tab
+    assert.equal(h.hub.store.resolve('old-tab'), 'new-id');
+    await hook('prompt', { prompt: 'fix the wakeup bug' });
+    await hook('stop', { last_assistant_message: 'Fixed, see the room.' });
+    const dm = (await h.call<any[]>('/api/rooms/dm-new-id/messages?after=0')).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+    assert.deepEqual(dm, ['[tab] user: fix the wakeup bug', '[tab] agent: Fixed, see the room.']);
   } finally { await h.hub.close(); }
 });
