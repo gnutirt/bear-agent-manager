@@ -75,6 +75,28 @@ test('room_commit is a first-class MCP tool and commits exact requested paths', 
   }
 });
 
+test('room_commit normalizes CRLF text for core.autocrlf without broad line-ending diffs', async () => {
+  for (const mode of ['true', 'input']) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-room-commit-eol-'));
+    try {
+      fs.writeFileSync(path.join(root, 'file.txt'), 'keep\nold\n');
+      git(root, 'init', '-q');
+      git(root, 'config', 'core.autocrlf', mode);
+      git(root, 'add', 'file.txt');
+      git(root, 'commit', '-q', '-m', 'initial');
+      fs.writeFileSync(path.join(root, 'file.txt'), 'keep\r\nnew\r\n');
+
+      const result = await commitPaths(root, ['file.txt'], 'normalized');
+
+      assert.deepEqual([result.insertions, result.deletions], [1, 1], `${mode} changes only the real line`);
+      assert.equal(git(root, 'show', 'HEAD:file.txt'), 'keep\nnew');
+      assert.equal(fs.readFileSync(path.join(root, 'file.txt'), 'utf8'), 'keep\r\nnew\r\n', 'the checkout is not rewritten');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test('room_commit does not run repository hooks or clean filters', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-room-commit-safe-git-'));
   const hooks = path.join(root, 'hooks');

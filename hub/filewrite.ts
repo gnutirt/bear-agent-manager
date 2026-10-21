@@ -67,6 +67,13 @@ const pathKey = (p: string) => {
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 };
 
+function gitBlobContent(content: Buffer, normalizeEol: boolean): Buffer {
+  if (!normalizeEol || content.includes(0)) return content;
+  const text = content.toString('utf8');
+  if (!Buffer.from(text, 'utf8').equals(content)) return content;
+  return Buffer.from(text.replace(/\r\n/g, '\n'), 'utf8');
+}
+
 /** Commits only the named paths: a scratch index built from HEAD gets those paths and nothing else, so what others staged never goes in. */
 export async function commitPaths(cwd: string, paths: unknown, message: unknown, options: CommitPathOptions = {}): Promise<{ commit: string; paths: string[]; insertions: number; deletions: number }> {
   const msg = typeof message === 'string' ? message.trim() : '';
@@ -85,6 +92,8 @@ export async function commitPaths(cwd: string, paths: unknown, message: unknown,
   try {
     try { await git(root, ['rev-parse', '--git-dir']); } catch { throw new StoreError(409, 'this folder is not a git repository (or git is not available)'); }
     const env = { GIT_INDEX_FILE: idx };
+    const autoCrlf = (await git(root, ['config', '--get', 'core.autocrlf']).catch(() => '')).trim().toLowerCase();
+    const normalizeEol = autoCrlf === 'true' || autoCrlf === 'input';
     let baseHead: string | undefined;
     try { baseHead = (await git(root, ['rev-parse', '--verify', 'HEAD'])).trim(); } catch { /* an unborn branch has no HEAD yet */ }
     const objectFormat = (await git(root, ['rev-parse', '--show-object-format']).catch(() => 'sha1')).trim();
@@ -111,7 +120,9 @@ export async function commitPaths(cwd: string, paths: unknown, message: unknown,
       }
       if (!st.isFile() && !st.isSymbolicLink()) throw new StoreError(400, `${rel} is not a file`);
       const mode = st.isSymbolicLink() ? '120000' : st.mode & 0o111 ? '100755' : '100644';
-      const content = st.isSymbolicLink() ? Buffer.from(fs.readlinkSync(file), 'utf8') : fs.readFileSync(file);
+      const content = st.isSymbolicLink()
+        ? Buffer.from(fs.readlinkSync(file), 'utf8')
+        : gitBlobContent(fs.readFileSync(file), normalizeEol);
       const oid = (await gitWithInput(root, ['hash-object', '-w', '--no-filters', '--stdin'], content, 30_000, 1 << 20, env)).trim();
       indexInfo.push(Buffer.from(`${mode} ${oid}\t${rel}\0`, 'utf8'));
     }
