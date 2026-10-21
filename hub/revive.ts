@@ -44,7 +44,8 @@ export function claudeArgs(id: string, perm: Perm | undefined, model?: string): 
   const mode = perm?.mode ?? 'default';
   if (mode === 'bypass') a.push('--dangerously-skip-permissions');
   else {
-    if (mode === 'acceptEdits' || mode === 'plan') a.push('--permission-mode', mode);
+    // always explicit: the account's settings.json defaultMode (2026-10-21: "auto") otherwise wins, approves every tool and never asks the prompt tool
+    a.push('--permission-mode', mode === 'acceptEdits' || mode === 'plan' ? mode : 'default');
     a.push('--allowedTools', ...(perm?.guarded ? [] : TOOLS), ...(perm?.allow ?? []));
   }
   if (perm?.deny?.length) a.push('--disallowedTools', ...perm.deny);
