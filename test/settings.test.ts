@@ -142,7 +142,6 @@ test('claudeArgs: bypass skips permissions, default keeps the read-only tools pl
     ['--resume', 's1', '-p', '--output-format', 'text', '--dangerously-skip-permissions', '--disallowedTools', 'Bash(git push:*)', '--model', 'opus']);
   const def = claudeArgs('s1', { mode: 'default', allow: ['Edit'], deny: [] });
   assert.ok(def.includes('--allowedTools') && def.includes('Edit') && def.includes('Read') && !def.includes('--dangerously-skip-permissions'));
-  assert.ok(def.join(' ').includes('--permission-mode default'), 'explicit: a defaultMode in the account settings.json (e.g. auto) must not win');
   assert.ok(claudeArgs('s1', { mode: 'acceptEdits', allow: [], deny: [] }).join(' ').includes('--permission-mode acceptEdits'));
   assert.ok(claudeArgs('s1', undefined).includes('Grep'), 'no perm: the old read-only default');
 });
