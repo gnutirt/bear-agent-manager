@@ -64,8 +64,11 @@ test('hooks.json and plugin.json start everything through the shim', () => {
   const cmds = Object.values<any>(hooks).flatMap((list) => list.flatMap((g: any) => g.hooks)).filter((h: any) => h.type === 'command');
   assert.ok(cmds.length >= 2);
   for (const h of cmds) assert.equal(h.args[1], '${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs', JSON.stringify(h.args));
-  assert.deepEqual(cmds.map((h: any) => h.args[2]).sort(), ['hooks/session-start.ts', 'hooks/waiter.ts', 'hooks/waiter.ts']);
+  assert.deepEqual(cmds.map((h: any) => h.args[2]).sort(), ['hooks/session-start.ts', 'hooks/waiter.ts', 'hooks/waiter.ts', 'hooks/waiter.ts']);
   assert.ok(hooks.StopFailure[0].hooks.some((h: any) => h.type === 'command' && h.asyncRewake));
+  // #158: a /compact or /clear runs no turn (no Stop hook): SessionStart must start the waiter or the tab goes deaf
+  const after = hooks.SessionStart.find((g: any) => g.matcher === 'compact|clear');
+  assert.ok(after?.hooks.some((h: any) => h.args?.[2] === 'hooks/waiter.ts' && h.asyncRewake && h.timeout === 604800));
   // no hook registered twice (the same event+matcher+target)
   const seen = new Set<string>();
   for (const [ev, list] of Object.entries<any>(hooks)) for (const g of list) for (const h of g.hooks) {

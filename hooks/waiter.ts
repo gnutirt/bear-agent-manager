@@ -25,6 +25,9 @@ if (!input?.session_id) {
   if (input) note('bear-agent-manager: waiter: hook input has no session_id; no waiter started');
   process.exit(0);
 }
+// #158: a /compact or /clear runs no turn, so no Stop hook starts a waiter and the tab goes deaf; SessionStart starts it
+// instead. A background wake (hub/revive.ts sets BEAR_AGENT_IDLE_MIN) already gets one from every Stop.
+if (input.hook_event_name === 'SessionStart' && idleMin > 0) process.exit(0);
 const id = encodeURIComponent(input.session_id);
 const started = Date.now();
 

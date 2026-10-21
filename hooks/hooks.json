@@ -14,6 +14,22 @@
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "compact|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "--no-warnings",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/shim.mjs",
+              "hooks/waiter.ts"
+            ],
+            "asyncRewake": true,
+            "timeout": 604800
+          }
+        ]
       }
     ],
     "Stop": [

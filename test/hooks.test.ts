@@ -177,6 +177,24 @@ test('waiter exits 2 with the message on stderr when mentioned', async () => {
   } finally { await hub.close(); }
 });
 
+test('#158: after /compact (no turn, no Stop) the SessionStart waiter keeps the tab wakeable; a headless one leaves it to Stop', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/sessions/register', { id: 's1', cwd: 'C:\\fw' });
+    await call('/api/sessions/s1/rename', { name: 'fw' });
+    await call('/api/rooms/proj/join', { sessionId: 's1' });
+    const headless = await runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'SessionStart', source: 'compact' }, { ...e, BEAR_AGENT_IDLE_MIN: '5' }).done;
+    assert.equal(headless.code, 0);
+    assert.equal(hub.waiting('s1'), false);
+    const w = runHook('waiter.ts', { session_id: 's1', cwd: 'C:\\fw', hook_event_name: 'SessionStart', source: 'compact' }, e);
+    await until(() => hub.waiting('s1'), 15_000, 'the waiter to wait');
+    await call('/api/rooms/proj/messages', { text: '@fw wake up' });
+    const r = await w.done;
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /you: @fw wake up/);
+  } finally { await hub.close(); }
+});
+
 test('waiter applies the saved agent communication style to new deliveries', async () => {
   const { hub, call, env: e } = await env();
   try {
