@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adoptBackground, claudeArgs, isBackground, killTree, stopRevive, type Perm } from './revive.ts';
+import { adoptBackground, claudeArgs, forgetBackground, killTree, type Perm } from './revive.ts';
 
 // D3 (docs/superpowers/specs/2026-10-19-ide-independence-design.md): a new agent without any editor. The hub starts
 // `claude -p --session-id <uuid>` in the agent's folder with the intro on stdin; the Stop hook's waiter keeps it alive
@@ -27,11 +27,24 @@ export function spawnAgent(job: AgentJob): Promise<number> {
   const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
     cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', log, log],
   });
+  // A claude that dies at once (bad key, provider down) closes its stdin first; the write then emits 'error',
+  // and an unhandled one takes the whole hub down, every room with it.
+  child.stdin?.on('error', () => { /* the exit handler below reports it */ });
   child.stdin?.end(job.text);
   adoptBackground(job.id, child);   // stopRevive / isBackground / "Mở tab" treat it like any background agent
   const timer = setTimeout(() => killTree(child), MAX_RUN_MS);
   return new Promise((resolve) => {
-    const done = (code: number) => { clearTimeout(timer); if (isBackground(job.id)) stopRevive(job.id); fs.closeSync(log); resolve(code); };
+    // 'exit' and 'error' can both fire; a second run would close the same log fd twice (EBADF thrown inside an
+    // event handler) and kill whatever background child holds this id by then.
+    let ended = false;
+    const done = (code: number) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      forgetBackground(job.id, child);   // only this child: a newer agent for the same id keeps running
+      try { fs.closeSync(log); } catch { /* already closed */ }
+      resolve(code);
+    };
     child.on('exit', (code) => done(code ?? 1));
     child.on('error', () => done(1));
   });

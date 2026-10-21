@@ -38,6 +38,19 @@ export function stopRevive(id: string): boolean {
   return true;
 }
 
+/**
+ * Forgets (and kills) the background claude of a session, but only while it is still `child`.
+ * A process that is exiting late must never kill the newer one that took its place: after `stopRevive` + a new
+ * spawn for the same session id, the old child's 'exit' event arrives when `live` already holds the new child.
+ */
+export function forgetBackground(id: string, child?: ChildProcess): boolean {
+  const cur = live.get(id);
+  if (!cur || (child && cur !== child)) return false;
+  live.delete(id);
+  killTree(cur);
+  return true;
+}
+
 /** Arguments of `claude --resume <id> -p`: the permission mode and tool lists of the agent (no perm: read-only default plus the room tools). */
 export function claudeArgs(id: string, perm: Perm | undefined, model?: string): string[] {
   const a = ['--resume', id, '-p', '--output-format', 'text'];
