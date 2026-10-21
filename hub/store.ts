@@ -154,6 +154,15 @@ export class Store {
         rewrittenRooms.add(message.room);
         changed = true;
       }
+      // wake keeps session ids chosen at post time. After a clear/resume alias they still name the old id, so the relay
+      // guard (consume) and the UI graph would miss that wake; rewrite them to the id the session has now.
+      const old = Array.isArray(message.wake) ? message.wake : [];
+      const wake = old.map((w) => this.resolve(w));
+      if (wake.some((w, i) => w !== old[i])) {
+        message.wake = wake;
+        rewrittenRooms.add(message.room);
+        changed = true;
+      }
     }
     for (const room of Object.values(this.state.rooms)) {
       const owner = this.dmOwner(room);
@@ -564,7 +573,13 @@ export class Store {
       throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);
-    if (sender) sender.lastSeen = this.now();
+    // Posting proves the session is alive. A provider agent runs `--bare` (no hooks) and its pid is not in the session
+    // record, so sweep() judges it by silence and can call it offline in the middle of a long turn; the first room_send
+    // of that turn puts it back.
+    if (sender) {
+      sender.lastSeen = this.now();
+      if (sender.status === 'offline') { sender.status = 'idle'; sender.ended = false; }
+    }
 
     let reply: Pick<Message, 'replyTo' | 'replyQuote'> = {};
     if (replyTo != null) {
@@ -713,7 +728,14 @@ export class Store {
   /** Removes the room for everyone; its log is moved to trash/ rather than destroyed. */
   deleteRoom(room: string): void {
     if (!this.state.rooms[room]) throw new StoreError(404, `unknown room ${room}`);
-    for (const s of Object.values(this.state.sessions)) delete s.rooms[room];
+    for (const s of Object.values(this.state.sessions)) {
+      delete s.rooms[room];
+      // Per-room bookkeeping must go too: a room recreated under the same name would otherwise inherit a stale
+      // turnTopic (the first answer lands in an old topic) and a notesSeen newer than the new room's notesAt
+      // (its notes would never be announced).
+      if (s.turnTopic && room in s.turnTopic) delete s.turnTopic[room];
+      if (s.notesSeen && room in s.notesSeen) delete s.notesSeen[room];
+    }
     this.messages = this.messages.filter((m) => m.room !== room);
     if (fs.existsSync(this.logFile(room))) {
       fs.mkdirSync(path.join(this.dir, 'trash'), { recursive: true });

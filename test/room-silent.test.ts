@@ -44,6 +44,21 @@ test('a ~ line does not pull the @-ed member into the topic it was written in', 
   } finally { await hub.close(); }
 });
 
+test('an @ asked before a clear/resume names the session the hub knows after the id is aliased', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'old', cwd: 'C:/proj' });
+    await call('/api/sessions/old/rename', { name: 'alice' });
+    await call('/api/rooms/r/join', { sessionId: 'old' });
+    const posted = await call<any>('/api/rooms/r/messages', { text: '@alice start' });
+    assert.deepEqual(posted.message.wake, ['old']);
+
+    await call('/api/sessions/register', { id: 'new', cwd: 'C:/proj', source: 'clear' });
+    const msgs = await call<any[]>('/api/rooms/r/messages?limit=20');
+    assert.deepEqual(msgs.find((m) => m.id === posted.message.id)?.wake, ['new'], 'wake follows the alias');
+  } finally { await hub.close(); }
+});
+
 test('a ~ line with no mention does not wake a live lead either', async () => {
   const { hub, call } = await makeHub();
   try {

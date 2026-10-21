@@ -2253,8 +2253,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (tm[3] === 'delete') {
           if (!isLead) throw new StoreError(403, 'only the room lead deletes tasks');
           deleteTask(opts.dir, room, id);
+          // A deleted dependency counts as done (tasks.ts pending()); without this, its dependents would stay blocked
+          // for good: nothing else moves a task to todo except another task finishing.
+          const freed = unblockReady(opts.dir, room);
+          if (freed.length) for (const t of freed) if (t.owner) assign(t);
           emitTasks();
-          return json(res, 200, { ok: true });
+          return json(res, 200, { ok: true, unblocked: freed.map((t) => t.id) });
         }
         const cur = listTasks(opts.dir, room).find((x) => x.id === id);
         if (!cur) throw new StoreError(404, `task #${id} not found`);
@@ -2542,7 +2546,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   };
 
   const sweeper = setInterval(() => {
-    for (const s of store.sweep((id) => waiters.has(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
+    // A running background claude counts as alive even without a waiter: provider agents use `--bare` (no hooks, so no
+    // pid in the session and no waiter), and judging them by silence marked them offline/ended in the middle of a turn.
+    for (const s of store.sweep((id) => waiters.has(id) || reviving.has(id) || isBackground(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id))) emitSession(s);
     let changedPause = false;
     for (const [key, pause] of Object.entries(store.state.usagePaused ?? {})) {
       if (pause.until > Date.now()) continue;
