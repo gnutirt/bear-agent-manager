@@ -61,10 +61,15 @@ test('tasks use grouped status sections with a completed checklist and an undo w
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['class="tstatusbar"', 'data-task-jump="${s}"', 'id="task-${s}"', 'TCOLS.map(sec)', 'role="checkbox"', "label: t('task.undo')", 'ms: 6000']) {
+    for (const s of ['class="tstatusbar"', 'data-task-jump="${s}"', 'id="task-${s}"', 'TGROUPS.map(sec)', 'role="checkbox"', "label: t('task.undo')", 'ms: 6000']) {
       assert.ok(html.includes(s), `missing ${s}`);
     }
-    assert.ok(html.indexOf("const TCOLS = ['todo', 'doing', 'blocked', 'done']") < html.indexOf('TCOLS.map(sec)'), 'status groups are ordered from open work to completed');
+    assert.ok(html.indexOf("const TGROUPS = ['unassigned', 'assigned', 'doing', 'blocked', 'done']") < html.indexOf('TGROUPS.map(sec)'), 'status groups are ordered from open work to completed');
+    const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
+    // #149: a todo with an owner was handed out (agent may have forgotten to claim) — shown as "Đã giao", not lumped with unowned work.
+    assert.ok(html.includes("const tgroup = (x) => x.status === 'todo' ? (x.owner ? 'assigned' : 'unassigned') : x.status;"));
+    assert.equal(vi['task.col.unassigned'], 'Chưa giao'); assert.equal(vi['task.col.assigned'], 'Đã giao'); assert.equal(vi['task.blocked'], 'Bị chặn');
+    for (const k of ['task.col.unassigned', 'task.col.assigned']) assert.ok(en[k], `en missing ${k}`);
   } finally { await hub.close(); }
 });
 
@@ -253,7 +258,7 @@ test('UI tabs have their views', async () => {
   } finally { await hub.close(); }
 });
 
-test('Flow tab draws room wake edges, live room state, attention and an accessible timeline without a graph dependency', async () => {
+test('Flow tab ports the tiered room graph, replay controls, task actions and responsive pan/zoom', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -261,33 +266,38 @@ test('Flow tab draws room wake edges, live room state, attention and an accessib
       "function loadFlow()",
       "function renderFlow()",
       "api(`/api/rooms/${enc(r)}/messages?limit=300`)",
-      'for (const to of m.wake || [])',
-      'function flowSprite',
-      'function flowLayout(nodes, now, narrow)',
+      'for (const id of m.wake || [])',
       'function flowPulse',
-      'const flowReduced',
-      "flow.zone.busy",
-      'class="flow-hud"',
+      'class="flow-main"',
+      'id="flowInfo" aria-live="polite"',
       "es.addEventListener('msg'",
       "es.addEventListener('tasks'",
       "es.addEventListener('session'",
-      "'flow-tier-svg' : 'flowgraph'",
       'function flowTierLayout(nodes, tiers)',
-      'function flowTierWorld(L, ctx)',
-      'function flowLaneTimeline(nodes, messages, cursor, selectedMsg)',
+      'function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live)',
+      'function flowLaneTimeline(nodes, events, cursor, selectedMsg, selected)',
       'data-flow-tier-node=',
       'data-flow-tier-select',
       'data-flow-add-tier',
-      'data-flow-style="graph"',
-      'id="flowReplaySlider"',
+      'data-flow-filter=',
+      'id="flowSeek"',
+      'id="flowPlay"',
+      'id="flowSpeed"',
       'data-flow-task-open',
       'id="flowTaskForm"',
       'api(`/api/rooms/${enc(S.flowRoom)}/tasks`, { title, detail, owner: agent })',
       'role="button"',
       'data-flow-message=',
-      'id="flowReplay"',
+      'data-flow-theme',
+      "e.target.closest('[data-flow-theme]')",
+      'circle class="avatar"',
+      'function flowHash(value)',
+      '.flow-svg{display:block;width:max(100%,760px)',
+      'data-edge="${esc(key)}" d="${gm.d}" stroke="${flowColor(e.from)}"',
+      'function flowScreenPoint',
       'prefers-reduced-motion'
     ]) assert.ok(html.includes(s), `missing Flow behavior: ${s}`);
+    assert.ok(!html.includes('flowSprite') && !html.includes('flow.office'), 'the unapproved pixel-office view must be removed');
   } finally { await hub.close(); }
 });
 

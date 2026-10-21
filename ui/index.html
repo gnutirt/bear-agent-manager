@@ -652,100 +652,67 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
-.flowbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-.flowbar select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text)}
-.flowstats{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
-.flowstat{border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--panel);font-size:12px;color:var(--mute)}
-.flowgrid{display:grid;grid-template-columns:minmax(170px,210px) minmax(0,1fr) minmax(220px,270px);gap:12px;align-items:start}
-.flowbox{min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
-.flowbox h2{display:flex;align-items:center;gap:8px;margin:0;padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px}
-.flowbox h2 small{margin-left:auto;color:var(--mute);font-weight:500}
-.flowattention{padding:6px;display:grid;gap:3px;max-height:62vh;overflow:auto}
-.flow-attn{display:flex;align-items:flex-start;gap:8px;text-align:left;padding:8px;border-radius:8px;font-size:12px;color:var(--text)}
-.flow-attn:hover{background:var(--hover)}
-.flow-attn .flow-attn-dot{flex:none;width:8px;height:8px;margin-top:4px;border-radius:50%;background:var(--waiting)}
-.flow-attn.blocked .flow-attn-dot{background:var(--busy)}
-.flow-attn.unread .flow-attn-dot{background:var(--accent)}
-.flow-attn span:last-child{min-width:0;overflow-wrap:anywhere}
-.flow-empty{padding:16px;color:var(--mute);font-size:12.5px}
-.flowgrid.town{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"world world" "attn insp"}.flowgrid.town .flowcenter{grid-area:world}.flowgrid.town .flow-attnbox{grid-area:attn}.flowgrid.town .flow-inspector{grid-area:insp}@media(max-width:700px){.flowgrid.town{grid-template-columns:minmax(0,1fr);grid-template-areas:"world" "attn" "insp"}}
-.flowcenter{background:#121829;border-color:#0a0f1d;overflow:hidden}
-.flow-hud{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 14px;background:#0c1222;color:#dfe6f7;font-size:12.5px}
-.flow-hudchip{display:inline-flex;align-items:center;gap:6px}.flow-hudchip i{width:10px;height:10px;background:#8a93a8;box-shadow:inset -2px -2px 0 rgba(0,0,0,.35)}.flow-hudchip b{font-variant-numeric:tabular-nums}
-.flow-hudchip[data-k=busy] i{background:#ffb547}.flow-hudchip[data-k=need] i{background:#ff6b6b}.flow-hudchip[data-k=idle] i{background:#3ec9a7}.flow-hudchip[data-k=off] i{background:#5d6b85}
-.flowgraph-wrap{overflow:auto;max-height:72vh;padding:10px;background:#121829}
-.flowgraph{display:block;width:100%;height:auto;font-family:var(--mono)}
-.flow-hint{margin:0;padding:8px 14px 10px;background:#0c1222;color:#a9b4cc;font-size:12px}
-.flow-wall{stroke:#0a0f1d;stroke-width:3}
-.flow-zhead{fill:#0c1222}.flow-ztitle{fill:#e8ecf7;font-size:13px;font-weight:700;letter-spacing:.2px}.flow-zcount{fill:#a9b4cc;font-size:12px}
-.flow-node{cursor:pointer;outline:none}.flow-hit{fill:transparent;stroke:transparent;stroke-width:2}
-.flow-node:hover .flow-hit{fill:rgba(255,255,255,.06)}
-.flow-node:focus-visible .flow-hit{stroke:#fff;stroke-dasharray:4 3}
-.flow-node.is-sel .flow-hit{fill:rgba(255,209,102,.14);stroke:#ffd166}
-.flow-desk{fill:#7b5a3c}.flow-desk2{fill:#a07a53}
-.flow-monb{fill:#161b2b;stroke:#05070d;stroke-width:1}
-.flow-name{fill:#f1f4fc;font-size:11px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px;stroke-linejoin:round}
-.flow-lim{fill:#ff9d8f;font-size:9px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px}
-.flow-z{fill:#c9d3ea;font-size:5px;font-weight:700}
-.flow-node[data-status=offline] .flow-sprite{opacity:.55}
-.flow-bang circle{fill:#ff6b6b;stroke:#0a0f1d;stroke-width:1.5}.flow-bang text{fill:#fff;font-size:11px;font-weight:700}
-.flow-bubble rect{fill:#f7f9ff;stroke:#0a0f1d;stroke-width:1.5}.flow-bubble text{fill:#14192a;font-size:9.5px;font-weight:600}
-.flow-arc{fill:none;stroke:#ffd166;stroke-width:2;stroke-dasharray:5 4}
-.flow-arcg.mine .flow-arc{stroke-width:2.6;stroke-dasharray:none}
-.flow-pill rect{fill:#0c1222;stroke:#ffd166;stroke-width:1.2}.flow-ac{fill:#ffe9a8;font-size:10.5px;font-weight:700}
-.flow-fx{pointer-events:none}
-@keyframes flowtype{0%,100%{opacity:1}50%{opacity:.45}}
-@keyframes flowbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
-@media (prefers-reduced-motion:no-preference){.flow-mon[data-status=busy] .flow-scr{animation:flowtype 1.1s steps(2,end) infinite}.flow-node[data-status=waiting] .flow-bang{animation:flowbob .9s ease-in-out infinite}}
-.flow-detail{padding:12px;display:grid;gap:8px;font-size:12.5px}
-.flow-detail h3{margin:0;font-size:14px}
-.flow-detail p{margin:0;color:var(--mute);overflow-wrap:anywhere}
-.flow-detail ul{margin:0;padding-left:18px;display:grid;gap:5px}
-.flow-detail li{overflow-wrap:anywhere}
-.flow-detail .btn{justify-self:start}
-.flow-timeline{margin-top:12px}
-.flow-ticks{display:flex;align-items:stretch;gap:3px;padding:10px;overflow-x:auto;min-height:42px}
-.flow-tick{flex:none;width:5px;min-height:22px;border-radius:3px;background:var(--accent);opacity:.72;padding:0}
-.flow-tick:hover,.flow-tick[aria-pressed=true]{opacity:1;outline:2px solid var(--accent);outline-offset:2px}
-.flow-msg{padding:0 12px 12px;color:var(--mute);font-size:12px;overflow-wrap:anywhere}
-@media(max-width:1050px){.flowgrid{grid-template-columns:minmax(150px,190px) minmax(0,1fr)}.flow-inspector{grid-column:1/-1}.flow-detail{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:start}.flow-detail h3{grid-column:1/-1}}
-@media(max-width:650px){.flowgrid{grid-template-columns:minmax(0,1fr)}.flow-inspector{grid-column:auto}.flowattention{display:flex;max-height:none;overflow-x:auto}.flow-attn{min-width:180px}.flowstats{margin-left:0}.flowgraph-wrap{max-height:55vh}}
-.flow-style,.flow-replay-control,.flow-tier-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.flow-style [aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:700}
-.flow-replay-control{min-width:min(100%,320px)}.flow-replay-control label{font-size:12px;color:var(--mute)}.flow-replay-control input{width:min(220px,45vw);accent-color:var(--accent)}
-.flowcenter{background:var(--panel);border-color:var(--line)}
-.flowgraph-wrap{background:var(--panel)}
-.flow-tier-tools{padding:8px 12px 0}.flow-tier-tools span{font-size:12px;color:var(--mute)}
-.flow-tier-svg{display:block;width:100%;min-width:660px;height:auto;font-family:var(--font,system-ui,sans-serif)}
-.flow-tier-column{fill:color-mix(in srgb,var(--panel) 92%,var(--accent));stroke:var(--line);stroke-width:1}
-.flow-tier-heading{fill:var(--text);font-size:14px;font-weight:700}
-.flow-tier-card{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
-.flow-tier-node{cursor:grab;outline:none;touch-action:none}.flow-tier-node:active{cursor:grabbing}
-.flow-tier-node:hover .flow-tier-card,.flow-tier-node.is-sel .flow-tier-card{stroke:var(--flow-agent-color);stroke-width:2.5}
-.flow-tier-node:focus-visible .flow-tier-card{stroke:var(--accent);stroke-width:3;stroke-dasharray:5 3}
-.flow-tier-name{fill:var(--text);font-size:12px;font-weight:700}
-.flow-tier-meta,.flow-tier-level{fill:var(--mute);font-size:11px}
-.flow-tier-level{fill:color-mix(in srgb,var(--flow-agent-color) 45%,var(--text));font-weight:700}
-.flow-tier-status{fill:var(--mute);stroke:var(--panel);stroke-width:1}
-.flow-tier-status[data-status=busy]{fill:var(--busy)}.flow-tier-status[data-status=waiting]{fill:var(--waiting)}.flow-tier-status[data-status=idle]{fill:var(--idle)}
-.flow-tier-edge{pointer-events:none}.flow-tier-edge path{fill:none;stroke:color-mix(in srgb,var(--flow-agent-color) 62%,var(--text));stroke-linecap:round}
-.flow-tier-chip rect{fill:var(--panel);stroke:var(--flow-agent-color);stroke-width:1.5}
-.flow-tier-chip text{fill:var(--text);font-size:11px;font-weight:700}
-.flow-lane-wrap{overflow:auto;max-height:48vh}
-.flow-lane-svg{display:block;width:100%;min-width:620px;height:auto;color:var(--mute);font:11px var(--font,system-ui,sans-serif)}
-.flow-lane-grid{stroke:var(--line);stroke-dasharray:2 4}.flow-lane text{fill:var(--text)}
-.flow-lane{cursor:pointer}.flow-lane-hit{fill:transparent}.flow-lane:hover .flow-lane-hit{fill:var(--hover)}
-.flow-lane:focus-visible .flow-lane-hit{stroke:var(--accent);stroke-width:2}
-.flow-lane-event{cursor:pointer}.flow-lane-event circle{fill:var(--flow-agent-color);stroke:var(--panel);stroke-width:2}
-.flow-lane-event:focus-visible circle,.flow-lane-event.selected circle{stroke:var(--accent);stroke-width:3}
-.flow-reply{display:grid;gap:4px;padding:8px;border-bottom:1px solid var(--line)}.flow-reply>b{font-size:12px}
-.flow-tier-select,.flow-task-form label{display:grid;gap:5px;font-size:12px;color:var(--mute)}
-.flow-tier-select select,.flow-task-form input,.flow-task-form textarea{width:100%;min-width:0}
+.flow{--bg:#f3f5fb;--panel:#fff;--panel2:#eaeef8;--fg:#182036;--muted:#566080;--line:#d3d9ea;--card:#fff;--cardline:#c5cde2;--edge:#a3adc9;--chipbg:#fff;--laneA:#f6f8fd;--laneB:#ebeff8;--grid:#d3d9ea;--tier:rgba(60,80,140,.06);--hi:#d97706;--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;margin:-6px -8px 0;padding:16px max(8px,env(safe-area-inset-left,0px)) 20px;background:var(--bg);color:var(--fg);font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;min-height:100%;color-scheme:light}
+.flow *{box-sizing:border-box}
+@media(prefers-color-scheme:dark){.flow:not([data-theme=light]):not([data-theme=dark]){--bg:#0f1426;--panel:#171e38;--panel2:#1d2646;--fg:#eef1fb;--muted:#a9b4cc;--line:#2a3358;--card:#202a4f;--cardline:#3a4672;--edge:#59658f;--chipbg:#0f1426;--laneA:#10162a;--laneB:#141b33;--grid:#2a3358;--tier:rgba(255,255,255,.03);--hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff6b6b;color-scheme:dark}}
+.flow[data-theme=dark]{--bg:#0f1426;--panel:#171e38;--panel2:#1d2646;--fg:#eef1fb;--muted:#a9b4cc;--line:#2a3358;--card:#202a4f;--cardline:#3a4672;--edge:#59658f;--chipbg:#0f1426;--laneA:#10162a;--laneB:#141b33;--grid:#2a3358;--tier:rgba(255,255,255,.03);--hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff6b6b;color-scheme:dark}
+.flow-shell{max-width:1240px;margin:0 auto;display:grid;gap:12px;min-width:0}
+.flow-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:none;border:0;border-radius:0;box-shadow:none;min-height:0;padding:0;color:inherit}
+.flow-head h1{font-size:20px;margin:0}
+.flow-sub{margin:2px 0 0;color:var(--muted);max-width:75ch;font-size:13px}
+.flow-stats{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted);align-items:center}
+.flow-stats b{color:var(--fg);font-variant-numeric:tabular-nums}
+.flow-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start;min-width:0}
+.flow-canvas,.flow-info,.flow-bar{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.flow-canvas{overflow:auto;position:relative;max-height:72vh;touch-action:pan-x pan-y}
+.flow-svg{display:block;width:max(100%,760px);height:auto;touch-action:none;cursor:grab}
+.flow-svg.drag{cursor:grabbing}
+.flow-svg text,.flow-lanes-svg text{font-family:"IBM Plex Sans",system-ui,sans-serif}
+.flow-tier{fill:var(--tier);stroke:var(--line);stroke-width:1}
+.flow-tierlbl{fill:var(--muted);font:600 11px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-edge{fill:none;stroke-linecap:round}
+.flow-chip rect{fill:var(--chipbg);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node{cursor:pointer;outline:none}.flow-node .card{fill:var(--card);stroke:var(--cardline);stroke-width:1.5}
+.flow-node:hover .card{stroke:var(--hi)}.flow-node.sel .card{stroke:var(--hi);stroke-width:3}.flow-node.st-ask .card{stroke:var(--bad);stroke-width:2.5}
+.flow-node:focus-visible .card{stroke:var(--hi);stroke-width:3;stroke-dasharray:4 3}
+.flow-node .nm{fill:var(--fg);font:700 13px "IBM Plex Sans",sans-serif;text-anchor:middle}.flow-node .rl{fill:var(--muted);font:11px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node .ini{fill:#fff;font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node .ping{fill:none;stroke:var(--ok);stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0}
+@media(prefers-reduced-motion:no-preference){.flow-node.st-done .ping{animation:flow-ping 1.4s ease-out infinite}.flow-node.st-ask .dot,.flow .livedot{animation:flow-throb .8s ease-in-out infinite}.flow-node.st-error .card{animation:flow-shake .35s linear 2}.flow-feed li.new{animation:flow-slide .5s ease-out}}
+@media(prefers-reduced-motion:reduce){.flow-node .flow-spin{display:none}}
+@keyframes flow-ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.6);opacity:0}}@keyframes flow-throb{50%{transform:scale(1.5)}}@keyframes flow-shake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}@keyframes flow-slide{from{opacity:0;transform:translateY(-6px)}}
+.flow-badge{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);border-radius:999px;padding:2px 12px;font-weight:600;background:var(--panel2)}
+.flow-badge.live{border-color:var(--ok);color:var(--ok)}.flow-badge.replay{border-color:var(--hi);color:var(--hi)}.flow .livedot{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
+.flow-info{padding:12px;display:grid;gap:8px;max-height:72vh;overflow:auto}
+.flow-info h2{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}.flow-info h3{font-size:12px;margin:2px 0 0;color:var(--muted);font-weight:600}
+.flow-info ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px;color:var(--muted);max-height:260px;overflow:auto}
+.flow-info li{overflow-wrap:anywhere}.flow-info li b{color:var(--fg);font-weight:600}.flow-info .sw{width:8px;height:8px;margin-right:5px}
+.flow-swatch{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.flow-pill{display:inline-block;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;color:#10162a}
+.flow-ask{border:1.5px solid var(--bad);border-radius:8px;padding:8px;display:grid;gap:6px;background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--fg);font-size:13px}
+.flow-ask>span{display:flex;align-items:center;gap:6px}.flow-ask>div{display:flex;flex-wrap:wrap;gap:6px}
+.flow-bar{padding:10px 12px;display:grid;gap:8px}.flow-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow-ctl input[type=range]{flex:1;min-width:140px;accent-color:var(--hi)}.flow-time{font-variant-numeric:tabular-nums;color:var(--muted);min-width:90px;text-align:right}
+.flow-lanes{overflow-x:auto}.flow-lanes-svg{display:block;min-width:960px;width:100%;height:auto;cursor:pointer}
+.flow-lbl{fill:var(--fg);font:600 12px "IBM Plex Sans",sans-serif}.flow-tk{fill:var(--muted);font:10px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-lane-hit{fill:transparent}.flow-lane:hover .flow-lane-hit{fill:var(--panel2)}.flow-lane{cursor:pointer}
+.flow-legend{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:12px;color:var(--muted);align-items:center}
+.flow-legend button{display:inline-flex;align-items:center;gap:6px;padding:1px 9px;border-radius:999px;font-size:12px}
+.flow-legend button[aria-pressed=true]{background:var(--panel2);color:var(--fg);border-color:var(--hi);font-weight:600}
+.flow-legend em{font-style:normal;margin-left:6px}
+.flow button,.flow select,.flow input,.flow textarea{font:inherit;color:var(--fg)}
+.flow button{background:var(--panel2);border-color:var(--line)}.flow button:hover{border-color:var(--hi)}
+.flow button:focus-visible,.flow select:focus-visible,.flow input:focus-visible,.flow textarea:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+.flow button[aria-pressed=true]{background:var(--hi);color:var(--onhi);border-color:var(--hi);font-weight:600}
+.flow-tools{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}.flow-tools button{padding:3px 10px}
+.flow-tier-tools{position:absolute;left:8px;bottom:8px}
+.flow-tier-select,.flow-task-form label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.flow-tier-select select,.flow-task-form input,.flow-task-form textarea{width:100%;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px}
 .flow-task-form{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-.flow-task-form>div{display:flex;gap:6px;flex-wrap:wrap}
-.flow-tier-tools .disabled{opacity:.55}
-.flow-tier-center .flow-hud,.flow-tier-center .flow-hint{background:color-mix(in srgb,var(--panel) 86%,var(--accent));color:var(--text)}
-@media(max-width:650px){.flowbar{align-items:flex-start}.flow-replay-control{width:100%}.flow-replay-control input{flex:1;min-width:100px}.flow-lane-wrap{max-height:42vh}}
+.flow-task-form>div{display:flex;gap:6px;flex-wrap:wrap}.flow-task-form .btn{justify-self:start}
+.flow-empty{color:var(--muted);font-size:12.5px}
+@media(max-width:900px){.flow-main{grid-template-columns:minmax(0,1fr)}.flow-info{max-height:none;grid-row:2}}
+@media(max-width:650px){section.view:has(.flow){padding:16px 14px 40px}.flow{margin:-4px -6px 0;padding:12px 0 16px}.flow-stats{width:100%}.flow-main{gap:8px}.flow-info{grid-row:2}.flow-canvas{max-height:55vh}.flow-ctl input[type=range]{flex-basis:100%;order:5}.flow-time{margin-left:auto}.flow-lanes-svg{min-width:960px}}
 .vw{max-width:1600px}
 .vw h1{margin:0 0 4px;font-size:20px;font-weight:700}
 .vw .lede{margin:0 0 20px;color:var(--mute);font-size:13.5px;max-width:72ch}
@@ -2528,8 +2495,9 @@ window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
 S.taskRoom = null; try { S.taskRoom = localStorage.getItem('bear-agent-manager:taskRoom') || null; } catch {}
 S.flowRoom = null; try { S.flowRoom = localStorage.getItem('bear-agent-manager:flowRoom') || null; } catch {}
-S.flowRange = '24h'; S.flowStyle = 'graph'; try { S.flowStyle = localStorage.getItem('bear-agent-manager:flowStyle') || 'graph'; } catch {}
-S.flowSelected = null; S.flowSelectedMsg = null; S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null; S.flowErr = ''; S.flowReplayTimer = null; S.flowReplayIndex = -1; S.flowReplayAt = null; S.flowSettingsPromise = null; S.flowDrag = null; S.flowSuppressClick = null; S.flowTaskForm = false;
+S.flowSelected = null; S.flowSelectedMsg = null; S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null; S.flowErr = ''; S.flowReplayAt = null; S.flowPlaying = false; S.flowSpeed = 2; S.flowSettingsPromise = null; S.flowDrag = null; S.flowPan = null; S.flowSuppressClick = null; S.flowTaskForm = false; S.flowTaskDraft = null; S.flowZoom = { k: 1, x: 0, y: 0 }; S.flowPulseQ = [];
+S.flowTheme = 'auto'; try { S.flowTheme = localStorage.getItem('bear-agent-manager:flowTheme') || 'auto'; } catch {}
+if (!['auto', 'light', 'dark'].includes(S.flowTheme)) S.flowTheme = 'auto';
 /** Last non-DM room seen (nav or the Việc tab's own picker): stays valid while a DM has nothing to show. */
 function setTaskRoom(name) { if (!name || room(name)?.dm) return; S.taskRoom = name; try { localStorage.setItem('bear-agent-manager:taskRoom', name); } catch {} }
 function flowRoomName() {
@@ -2537,327 +2505,211 @@ function flowRoomName() {
   return (S.flowRoom && normal.some((x) => x.name === S.flowRoom) ? S.flowRoom : null)
     || (S.current && !room(S.current)?.dm ? S.current : null)
     || (S.taskRoom && normal.some((x) => x.name === S.taskRoom) ? S.taskRoom : null)
-    || normal[0]?.name
-    || null;
+    || normal[0]?.name || null;
 }
 function loadFlow() {
   const r = flowRoomName();
   if (!r) return renderFlow();
-  S.flowRoom = r;
-  S.flowMessages[r] ||= [];
-  renderFlow();
+  S.flowRoom = r; S.flowMessages[r] ||= []; renderFlow();
   if (!S.settings && !S.flowSettingsPromise) {
     S.flowSettingsPromise = api('/api/settings').then((settings) => { S.settings = settings; }, (e) => { S.flowErr = e.message; }).finally(() => { S.flowSettingsPromise = null; renderFlow(); });
   }
   if (S.flowLoaded.has(r) || S.flowLoading === r) return;
   S.flowLoading = r; S.flowErr = '';
   api(`/api/rooms/${enc(r)}/messages?limit=300`).then((messages) => {
-    const live = S.flowMessages[r] || [];
-    const loaded = Array.isArray(messages) ? messages : [];
-    const merged = [...loaded, ...live.filter((m) => !loaded.some((x) => x.id === m.id))];
-    S.flowMessages[r] = merged.sort((a, b) => a.id - b.id);
+    const live = S.flowMessages[r] || [], loaded = Array.isArray(messages) ? messages : [];
+    S.flowMessages[r] = [...loaded, ...live.filter((m) => !loaded.some((x) => x.id === m.id))].sort((a, b) => a.id - b.id);
     S.flowLoaded.add(r);
-  }, (e) => { S.flowErr = e.message; }).finally(() => {
-    if (S.flowLoading === r) S.flowLoading = null;
-    renderFlow();
-  });
+  }, (e) => { S.flowErr = e.message; }).finally(() => { if (S.flowLoading === r) S.flowLoading = null; renderFlow(); });
 }
+function stopFlowReplay() { S.flowReplayAt = null; S.flowPlaying = false; }
 let flowFrame = 0;
 function queueFlow() {
-  if (flowFrame || S.tab !== 'flow' || S.flowDrag) return;
+  if (flowFrame || S.tab !== 'flow' || document.hidden || S.flowDrag || S.flowPan) return;
   flowFrame = requestAnimationFrame(() => { flowFrame = 0; renderFlow(); });
 }
-function flowStatus(s) { return s?.status || 'offline'; }
-function flowDuration() { return ({ '1h': 3600000, '24h': 86400000, '7d': 604800000 })[S.flowRange] || 0; }
-function flowMessages() {
-  const cutoff = flowDuration() ? Date.now() - flowDuration() : 0;
-  return (S.flowMessages[S.flowRoom] || []).filter((m) => !cutoff || m.ts >= cutoff).sort((a, b) => a.id - b.id);
-}
-function flowReplayMessages() {
-  const cursor = S.flowReplayAt ?? Date.now(), start = cursor - 300000;
-  return (S.flowMessages[S.flowRoom] || []).filter((m) => m.ts >= start && m.ts <= cursor).sort((a, b) => a.id - b.id);
-}
-const flowShort = (x, n = 26) => { x = String(x || ''); return x.length > n ? x.slice(0, n - 1) + '…' : x; };
-/* ---------- Flow tab (#133): a pixel-art office of one room. Each agent sits in the zone of its state; messages that wake someone fly desk to desk and fade out. ---------- */
-const FLOW_SKIN = ['#f1c9a5', '#e0ac82', '#c68a62', '#8d5a3b', '#f4d7b8'];
-const FLOW_HAIR = ['#2b2118', '#6b3f1d', '#c9852e', '#d9d2c4', '#3a2d6b', '#8a2f3d'];
-const FLOW_SHIRT = ['#4f7cff', '#2fb67c', '#e5675b', '#b36bd9', '#e0a62e', '#2eb5c9', '#d96b9b', '#7d8a9e'];
-const FLOW_SCREEN = { busy: '#ffb547', waiting: '#ff6b6b', idle: '#3ec9a7', offline: '#2a3347', user: '#8ab4ff' };
-const FLOW_ZONES = [
-  { key: 'busy', label: 'flow.zone.busy', a: '#2b3550', b: '#263048' },
-  { key: 'idle', label: 'flow.zone.idle', a: '#24413f', b: '#203836' },
-  { key: 'need', label: 'flow.zone.need', a: '#40303a', b: '#392a33' },
-  { key: 'off', label: 'flow.zone.off', a: '#262a33', b: '#22262e' },
-];
-const flowHash = (s) => { let h = 7; for (const c of String(s)) h = (h * 33 + c.charCodeAt(0)) >>> 0; return h; };
-const flowReduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-S.flowPulseQ = []; S.flowPos = new Map();
-/** One agent at a desk: sprite drawn from rects (crisp pixels). u = pixel size, status picks the pose. */
-function flowSprite(id, status, u) {
-  const h = flowHash(id), skin = FLOW_SKIN[h % FLOW_SKIN.length], hair = FLOW_HAIR[(h >> 3) % FLOW_HAIR.length], shirt = FLOW_SHIRT[(h >> 6) % FLOW_SHIRT.length];
-  const down = status === 'offline' ? 2 : 0, R = (x, y, w, hh, f) => `<rect x="${x}" y="${y + (y < 8 ? down : 0)}" width="${w}" height="${hh}" fill="${f}"/>`;
-  const eyes = status === 'offline' ? R(6, 5, 2, 1, '#1a1a22') + R(9, 5, 2, 1, '#1a1a22') : R(6, 4, 1, 1, '#1a1a22') + R(10, 4, 1, 1, '#1a1a22');
-  const hand = status === 'waiting' ? `<rect x="13" y="2" width="1" height="7" fill="${skin}"/><rect x="12" y="1" width="3" height="2" fill="${skin}"/>` : `<rect x="2" y="9" width="1" height="3" fill="${skin}"/><rect x="13" y="9" width="1" height="3" fill="${skin}"/>`;
-  return `<g class="flow-sprite" transform="scale(${u})" shape-rendering="crispEdges">${R(3, 7, 10, 7, shirt)}${hand}${R(4, 1, 8, 2, hair)}${R(5, 2, 6, 5, skin)}${eyes}${status === 'offline' ? '<text x="13" y="3" class="flow-z">z</text>' : ''}</g>`;
-}
-function flowLayout(nodes, now, narrow) {
-  const small = nodes.length > 24, u = small ? 2 : 2.6, cw = small ? 76 : 100, ch = Math.round(14 + 14 * u + 34);
-  const zoneOf = (n) => n.id === 'you' ? 'need' : n.session?.status === 'waiting' ? 'need' : n.session?.limited?.until > now || n.session?.status === 'offline' || n.session?.ended ? 'off' : n.session?.status === 'busy' ? 'busy' : 'idle';
-  const groups = { busy: [], idle: [], need: [], off: [] };
-  for (const n of nodes) groups[zoneOf(n)].push(n);
-  const W = narrow ? 440 : 1000, gap = 14, wl = narrow ? W - 20 : 600, wr = narrow ? W - 20 : W - wl - gap - 20, head = 34;
-  const colsL = Math.max(1, Math.floor((wl - 24) / cw)), colsR = Math.max(1, Math.floor((wr - 24) / cw));
-  const need = (k, cols) => head + Math.max(1, Math.ceil(groups[k].length / cols)) * ch + 14;
-  let rects, H;
-  if (narrow) {
-    let y = 10; rects = {};
-    for (const k of ['need', 'busy', 'idle', 'off']) { const h = need(k, colsL); rects[k] = { x: 10, y, w: wl, h, cols: colsL }; y += h + gap; }
-    H = y - gap + 10;
-  } else {
-    const hb = need('busy', colsL), hn = need('need', colsL), hi = need('idle', colsR), ho = need('off', colsR);
-    rects = { busy: { x: 10, y: 10, w: wl, h: hb, cols: colsL }, need: { x: 10, y: 10 + hb + gap, w: wl, h: hn, cols: colsL }, idle: { x: 10 + wl + gap, y: 10, w: wr, h: hi, cols: colsR }, off: { x: 10 + wl + gap, y: 10 + hi + gap, w: wr, h: ho, cols: colsR } };
-    H = 20 + Math.max(hb + gap + hn, hi + gap + ho);
-  }
-  const cells = [], pos = new Map();
-  for (const z of FLOW_ZONES) {
-    const r = rects[z.key];
-    groups[z.key].forEach((n, i) => {
-      const x = r.x + 12 + (i % r.cols) * cw, y = r.y + head + Math.floor(i / r.cols) * ch;
-      cells.push({ n, x, y, zone: z.key });
-      pos.set(n.id, { x: x + cw / 2, y: y + 14 + 7 * u });
-    });
-  }
-  return { W, H, u, cw, ch, rects, cells, pos, groups };
-}
-const flowCtl = (a, b) => {
-  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, k = Math.min(90, d * 0.28);
-  return { x: mx - dy / d * k, y: my + dx / d * k };
+const FLOW_NODE_COLORS = ['#e8559a', '#6d5df0', '#0ea5e9', '#65a30d', '#e08a00', '#0d9488', '#3b82f6', '#a855f7', '#ea6a1f', '#06a6c4'];
+function flowHash(value) { let h = 2166136261; for (const c of String(value || '')) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+function flowShort(value, limit = 24) { const text = String(value || ''); return text.length > limit ? `${text.slice(0, limit - 1)}…` : text; }
+const flowColor = (id) => FLOW_NODE_COLORS[flowHash(id) % FLOW_NODE_COLORS.length];
+const FLOW_STATES = {
+  working: ['flow.state.working', '#fbbf24'], done: ['flow.state.done', '#34d399'],
+  ask: ['flow.state.ask', '#f87171'], error: ['flow.state.error', '#fb923c'], idle: ['flow.state.idle', '#a8b0c4']
 };
-const flowArc = (a, b) => { const c = flowCtl(a, b); return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${c.x.toFixed(1)} ${c.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`; };
-const FLOW_AGENT_COLORS = ['#1d4ed8', '#047857', '#b45309', '#6d28d9', '#be123c', '#0369a1', '#4d7c0f', '#c2410c', '#0f766e', '#a21caf'];
-function flowAgentColor(id) { return FLOW_AGENT_COLORS[flowHash(id) % FLOW_AGENT_COLORS.length]; }
+const flowNow = () => Date.now();
+const flowName = (n) => n.id === 'you' ? t('flow.user') : n.name;
 function flowTierLayout(nodes, tiers) {
-  const assigned = Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9);
-  const tierCount = Math.max(2, ...assigned);
-  const middle = Math.floor(tierCount / 2) + 1, cardW = 150, cardH = 68, colGap = 30, rowGap = 92, left = 36;
-  const groups = Array.from({ length: tierCount }, () => []);
-  const tierById = new Map();
+  const tierCount = Math.max(2, ...Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9));
+  const TX = Array.from({ length: tierCount }, (_, i) => [8, 158, 308, 458, 608][i] ?? 608 + (i - 4) * 150);
+  const rows = Array.from({ length: tierCount }, () => []), assigned = new Map();
   for (const n of nodes) {
-    const tier = n.id === 'you' ? 1 : Math.min(tierCount, Math.max(1, tiers?.[String(n.name).trim().toLowerCase()] ?? middle));
-    groups[tier - 1].push(n); tierById.set(n.id, tier);
+    const t = n.id === 'you' ? 1 : Math.max(1, Math.min(tierCount, Number(tiers?.[n.name.trim().toLowerCase()]) || Math.floor(tierCount / 2) + 1));
+    n.tier = t - 1; rows[t - 1].push(n); assigned.set(n.id, t);
   }
-  for (const group of groups) group.sort((a, b) => a.name.localeCompare(b.name));
-  const W = left * 2 + tierCount * cardW + (tierCount - 1) * colGap;
-  const H = Math.max(184, ...groups.map((g) => 78 + g.length * rowGap));
-  const cells = [], pos = new Map();
-  groups.forEach((group, col) => group.forEach((n, row) => {
-    const x = left + col * (cardW + colGap), y = 62 + row * rowGap;
-    cells.push({ n, x, y, tier: col + 1 });
-    pos.set(n.id, { x: x + cardW / 2, y: y + cardH / 2 });
+  rows.forEach((list) => list.sort((a, b) => Number(b.session?.status === 'busy') - Number(a.session?.status === 'busy') || a.name.localeCompare(b.name)));
+  const maxRows = Math.max(1, ...rows.map((x) => x.length)), H = Math.max(520, 50 + maxRows * 118);
+  const pos = new Map();
+  rows.forEach((list, tier) => list.forEach((n, row) => {
+    const y = 50 + (maxRows - list.length) * 59 + row * 118;
+    n.x = TX[tier] + 39; n.y = y;
+    pos.set(n.id, { x: n.x + 29, y: n.y + 29 });
   }));
-  return { W, H, cardW, cardH, colGap, rowGap, left, tierCount, groups, cells, pos, tierById };
+  return { TX, tierCount, W: Math.max(760, TX[tierCount - 1] + 144), H, rows, pos, assigned };
 }
-function flowTierWorld(L, ctx) {
-  const { now, selected, messages, roomInfo } = ctx;
-  const defs = `<defs><marker id="flow-tier-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--mute)"/></marker></defs>`;
-  const columns = L.groups.map((group, i) => {
-    const x = L.left + i * (L.cardW + L.colGap);
-    return `<g><rect class="flow-tier-column" x="${x}" y="42" width="${L.cardW}" height="${L.H - 54}" rx="12"/><text class="flow-tier-heading" x="${x + L.cardW / 2}" y="25" text-anchor="middle">${esc(t('flow.tier', { n: i + 1 }))}</text></g>`;
-  }).join('');
-  const edgeMap = new Map();
-  for (const m of messages) {
-    if (m.kind === 'system' || m.kind === 'mirror' || now - m.ts >= 90000) continue;
+function flowNodes(roomInfo, messages) {
+  const map = new Map([['you', { id: 'you', name: t('flow.user'), role: t('flow.role.user'), session: null }]]);
+  const add = (id, fallback = '') => {
+    if (!id || map.has(id)) return;
+    const session = S.sessions[id];
+    map.set(id, { id, name: session?.name || fallback || id.slice(0, 12), role: id === roomInfo?.lead ? t('flow.role.lead') : t('flow.role.agent'), session });
+  };
+  for (const id of roomInfo?.members || []) add(id);
+  add(roomInfo?.lead);
+  for (const m of messages) { if (m.fromId) add(m.fromId, m.from); for (const id of m.wake || []) add(id); }
+  return [...map.values()];
+}
+function flowEvents(messages, nodes) {
+  const valid = new Set(nodes.map((n) => n.id));
+  return messages.filter((m) => m.kind !== 'system' && m.kind !== 'mirror').flatMap((m) => {
     const from = m.fromId || 'you';
-    for (const to of m.wake || []) {
-      if (from === to || !L.pos.has(from) || !L.pos.has(to)) continue;
-      const key = `${from}>${to}`, edge = edgeMap.get(key) || { from, to, count: 0, ts: 0 };
-      edge.count++; edge.ts = Math.max(edge.ts, m.ts); edgeMap.set(key, edge);
-    }
-  }
-  const edges = [...edgeMap.values()].map((e) => {
-    const related = selected && (e.from === selected || e.to === selected), age = Math.max(0, now - e.ts);
-    const recent = age < 25000, opacity = selected && !related ? 0.08 : Math.max(0.1, 1 - age / 90000);
-    const a = L.pos.get(e.from), b = L.pos.get(e.to), c = flowCtl(a, b);
-    const mid = { x: .25 * a.x + .5 * c.x + .25 * b.x, y: .25 * a.y + .5 * c.y + .25 * b.y };
-    const chip = recent || related;
-    return `<g class="flow-tier-edge${related ? ' related' : ''}" style="--flow-agent-color:${flowAgentColor(e.from)};opacity:${opacity.toFixed(2)}"><path d="${flowArc(a, b)}" stroke-width="${age < 4000 ? 4 : Math.min(4, 1.8 + Math.sqrt(e.count) * .55)}" marker-end="url(#flow-tier-arrow)"/>${chip ? `<g class="flow-tier-chip"><rect x="${mid.x - 15}" y="${mid.y - 9}" width="30" height="18" rx="9"/><text x="${mid.x}" y="${mid.y + 4}" text-anchor="middle">${e.count}</text></g>` : ''}</g>`;
-  }).join('');
-  const cards = L.cells.map(({ n, x, y, tier }) => {
-    const s = n.session, status = n.id === 'you' ? 'user' : flowStatus(s), lead = n.id !== 'you' && roomInfo?.lead === n.id;
-    const label = n.id === 'you' ? t('flow.user') : t(`status.${status}`);
-    const name = flowShort(n.name, 18), color = flowAgentColor(n.id), sel = selected === n.id;
-    return `<g class="flow-node flow-tier-node${sel ? ' is-sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${esc(status)}" tabindex="0" role="button" aria-pressed="${String(sel)}" aria-label="${esc(n.name)} · ${esc(label)} · ${esc(t('flow.tier', { n: tier }))}" transform="translate(${x} ${y})" style="--flow-agent-color:${color}"><title>${esc(n.name)} · ${esc(label)}</title><rect class="flow-tier-card" width="${L.cardW}" height="${L.cardH}" rx="11"/><circle cx="16" cy="18" r="5" class="flow-tier-status" data-status="${esc(status)}"/><text class="flow-tier-name" x="29" y="22">${lead ? '★ ' : ''}${esc(name)}</text><text class="flow-tier-meta" x="14" y="47">${esc(label)}</text><text class="flow-tier-level" x="${L.cardW - 12}" y="51" text-anchor="end">${esc(t('flow.tier', { n: tier }))}</text></g>`;
-  }).join('');
-  return `${defs}${columns}<g class="flow-tier-edges">${edges}</g><g class="flow-tier-cards">${cards}</g><g id="flowFx" class="flow-fx"></g>`;
+    if (!valid.has(from)) return [];
+    const tos = (m.wake || []).filter((id) => valid.has(id) && id !== from);
+    return tos.map((to) => [m.ts / 1000, from, to, m.sys?.level === 'error' ? 'error' : m.sys?.type === 'done' ? 'done' : 'msg', plain(m.text, 180), m.id]);
+  }).sort((a, b) => a[0] - b[0]);
 }
-function flowLaneTimeline(nodes, messages, cursor, selectedMsg) {
-  const laneMessages = messages.filter((m) => m.kind !== 'system' && m.kind !== 'mirror' && m.ts <= cursor && cursor - m.ts < 90000);
-  const W = 1000, left = 168, right = 24, plot = W - left - right, top = 28, row = 34, H = Math.max(72, top + nodes.length * row + 12);
-  const start = cursor - 90000;
+function flowStatusAt(node, events, cursor, live) {
+  if (node.id === 'you') return 'idle';
+  if (live && (S.perms || []).some((p) => p.session === node.id || p.sessionId === node.id || p.agent === node.name)) return 'ask';
+  if (live && node.session?.status === 'waiting') return 'ask';
+  if (live && node.session?.status === 'busy') return 'working';
+  const err = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => m.ts / 1000 <= cursor && cursor - m.ts / 1000 < 20 && m.sys?.level === 'error' && (m.fromId === node.id || m.sys?.agent === node.name));
+  if (err) return 'error';
+  const last = [...events].reverse().find((e) => e[0] <= cursor && e[0] >= cursor - 20 && (e[1] === node.id || e[2] === node.id));
+  if (last?.[1] === node.id && last[3] === 'done') return 'done';
+  if (last?.[1] === node.id && cursor - last[0] < 3) return 'done';
+  if (last && cursor - last[0] < 5 && (last[1] === node.id || last[2] === node.id)) return 'working';
+  return 'idle';
+}
+function flowTierTitle(i, roomInfo, rows) {
+  if (i === 0) return `${t('flow.tier', { n: 1 })}: ${t('flow.role.user')}`;
+  if (i === 1 && rows[i]?.some((n) => n.id === roomInfo?.lead)) return `${t('flow.tier', { n: i + 1 })}: ${t('flow.role.lead')}`;
+  return t('flow.tier', { n: i + 1 });
+}
+function flowGeom(a, b) {
+  const A = a.node, B = b.node, back = B.tier < A.tier, off = back ? 10 : -10;
+  let x1, x2;
+  if (B.tier > A.tier) { x1 = A.x + 58; x2 = B.x; }
+  else if (B.tier < A.tier) { x1 = A.x; x2 = B.x + 58; }
+  else { x1 = A.x + 29; x2 = B.x + 29; }
+  const y1 = A.y + 29 + off, y2 = B.y + 29 + off, dx = (x2 - x1) / 2;
+  return { d: `M${x1} ${y1}C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 };
+}
+function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live) {
+  const nodeBy = new Map(nodes.map((n) => [n.id, n])), counts = new Map(), lastAt = new Map();
+  for (const e of events) if (e[0] <= cursor && e[0] > cursor - 90) {
+    const key = `${e[1]}>${e[2]}`, v = counts.get(key) || { from: e[1], to: e[2], count: 0, ts: 0 };
+    v.count++; v.ts = Math.max(v.ts, e[0]); counts.set(key, v); lastAt.set(key, v.ts);
+  }
+  const cols = L.rows.map((row, i) => `<g><rect class="flow-tier" x="${L.TX[i] - 6}" y="10" width="144" height="${L.H - 20}" rx="10"/><text class="flow-tierlbl" x="${L.TX[i] + 68}" y="28">${esc(flowTierTitle(i, roomInfo, L.rows))}</text></g>`).join('');
+  const edges = [...counts.values()].map((e) => {
+    const key = `${e.from}>${e.to}`, age = Math.max(0, cursor - e.ts), rel = selected && (e.from === selected || e.to === selected);
+    const heat = Math.max(0, 1 - age / 4), fade = Math.max(.3, 1 - age / 90), opacity = selected && !rel ? .08 : heat > .05 ? 1 : fade * .75;
+    const gm = flowGeom({ node: nodeBy.get(e.from) }, { node: nodeBy.get(e.to) });
+    const chip = age < 25 || rel;
+    return `<g class="flow-edge-group" style="opacity:${opacity.toFixed(2)}"><path class="flow-edge" data-edge="${esc(key)}" d="${gm.d}" stroke="${flowColor(e.from)}" stroke-width="${age < 4 ? 3.6 : 1.6 + Math.min(2, Math.log2(e.count + 1) * .45)}"/><g class="flow-chip" style="display:${chip ? '' : 'none'}"><rect x="${gm.mx - 11}" y="${gm.my - 8}" width="22" height="16" rx="8" stroke="${flowColor(e.from)}"/><text x="${gm.mx}" y="${gm.my + 4}">${e.count}</text></g></g>`;
+  }).join('');
+  const cards = nodes.map((n) => {
+    const status = flowStatusAt(n, events, cursor, live), selectedNode = selected === n.id;
+    const last = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => m.fromId === n.id && m.kind !== 'system' && m.kind !== 'mirror' && m.ts / 1000 <= cursor);
+    const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })}`;
+    const dim = selected && n.id !== selected && ![...counts.values()].some((e) => (e.from === selected && e.to === n.id) || (e.to === selected && e.from === n.id));
+    const spin = status === 'working' ? `<path class="flow-spin" d="M43 8a20 20 0 0 1 9 9" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 29 29" to="360 29 29" dur=".9s" repeatCount="indefinite"/></path>` : '';
+    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><circle class="card" cx="29" cy="29" r="28"/><circle class="avatar" cx="29" cy="29" r="20" fill="${flowColor(n.id)}"/><text class="ini" x="29" y="34">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="29" y="72">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 18))}</text><text class="rl" x="29" y="88">${esc(flowShort(n.role || t('flow.role.agent'), 20))}</text><circle class="dot" cx="49" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="49" cy="10" r="5"/>${spin}</g>`;
+  }).join('');
+  return `${cols}<g class="flow-edges">${edges}</g><g class="flow-nodes">${cards}</g><g id="flowDots" class="flow-fx"></g>`;
+}
+function flowPaintDots(events, cursor, selected) {
+  const svg = $('view-flow').querySelector('#flowGraph'), layer = $('view-flow').querySelector('#flowDots');
+  if (!svg || !layer) return;
+  const dots = [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i], age = cursor - e[0];
+    if (age < 0) continue;
+    if (age > 1.6) break;
+    if (selected && e[1] !== selected && e[2] !== selected) continue;
+    const path = [...svg.querySelectorAll('.flow-edge')].find((x) => x.dataset.edge === `${e[1]}>${e[2]}`);
+    if (!path) continue;
+    try { const p = path.getPointAtLength(path.getTotalLength() * Math.max(0, age / 1.6)); dots.push(`<circle cx="${p.x}" cy="${p.y}" r="6" fill="${flowColor(e[1])}" stroke="${e[3] === 'error' ? '#f97316' : '#fff'}" stroke-width="2"/>`); } catch {}
+  }
+  layer.innerHTML = dots.join('');
+}
+function flowLaneTimeline(nodes, events, cursor, selectedMsg, selected) {
+  const W = 960, LX = 190, H = nodes.length * 22 + 26, start = cursor - 90;
+  const xAt = (ts) => LX + (ts - start) / 90 * (W - LX - 8);
   const rows = nodes.map((n, i) => {
-    const y = top + i * row, color = flowAgentColor(n.id), lane = laneMessages.filter((m) => (m.fromId || 'you') === n.id);
-    const events = lane.map((m) => {
-      const x = left + Math.max(0, Math.min(1, (m.ts - start) / 90000)) * plot;
-      const label = `${messageName(m)}: ${plain(m.text, 80)}`;
-      return `<g class="flow-lane-event${m.id === selectedMsg ? ' selected' : ''}" data-flow-message="${m.id}" role="button" tabindex="0" aria-label="${esc(label)}"><circle cx="${x.toFixed(1)}" cy="${y}" r="${m.id === selectedMsg ? 7 : 5}" style="--flow-agent-color:${color}"/><title>${esc(label)}</title></g>`;
-    }).join('');
-    const latest = lane[lane.length - 1];
-    return `<g class="flow-lane" data-flow-lane="${esc(n.id)}" role="button" tabindex="0" aria-label="${esc(t('flow.jumpLane', { name: n.name }))}"><rect x="0" y="${y - 15}" width="${W}" height="${row}" class="flow-lane-hit"/><text x="${left - 10}" y="${y + 4}" text-anchor="end">${esc(flowShort(n.name, 20))}</text>${events}<title>${esc(latest ? t('flow.jumpLane', { name: n.name }) : n.name)}</title></g>`;
+    const y = 18 + i * 22;
+    const marks = events.filter((e) => Math.abs(e[0] - cursor) <= 90 && (e[1] === n.id || e[2] === n.id) && (!selected || e[1] === selected || e[2] === selected))
+      .map((e) => `<g class="flow-lane-event" data-flow-message="${e[5]}" role="button" tabindex="0" aria-label="${esc(flowShort(e[4], 80))}"><path d="M${xAt(e[0])} ${y + 7}L${xAt(e[0]) + 5} ${y + 7}" stroke="${flowColor(e[1])}" opacity=".55"/><rect x="${xAt(e[0]) - 4}" y="${y + 3}" width="8" height="8" rx="2" fill="${flowColor(e[1])}" ${e[3] === 'error' ? 'stroke="#f97316" stroke-width="2"' : ''}/></g>`).join('');
+    return `<g class="flow-lane" data-flow-lane="${esc(n.id)}" role="button" tabindex="0" aria-label="${esc(t('flow.jumpLane', { name: n.name }))}"><rect class="flow-lane-hit" x="0" y="${y - 1}" width="${W}" height="22"/><circle cx="10" cy="${y + 7}" r="4" fill="${flowColor(n.id)}"/><text class="flow-lbl" x="20" y="${y + 11}">${esc(flowShort(n.name, 22))}</text>${marks}</g>`;
   }).join('');
-  const ticks = [0, 30, 60, 90].map((n) => {
-    const x = left + plot * n / 90;
-    return `<g><line x1="${x}" x2="${x}" y1="16" y2="${H - 6}" class="flow-lane-grid"/><text x="${x}" y="12" text-anchor="middle">${n}s</text></g>`;
+  const ticks = Array.from({ length: 7 }, (_, i) => {
+    const sec = i * 15, x = LX + (90 - sec) / 90 * (W - LX - 8);
+    return `<g><line x1="${x}" x2="${x}" y1="14" y2="${H}" stroke="var(--grid)"/><text class="flow-tk" x="${x}" y="12">${sec ? `-${sec}s` : 'T'}</text></g>`;
   }).join('');
-  return `<svg class="flow-lane-svg" viewBox="0 0 ${W} ${H}" role="group" aria-label="${t('flow.timelineAria')}">${ticks}${rows}</svg>`;
+  const mark = LX + (W - LX - 8);
+  return `<svg class="flow-lanes-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('flow.timelineAria'))}">${nodes.map((_, i) => `<rect x="0" y="${17 + i * 22}" width="${W}" height="22" fill="var(${i % 2 ? '--laneB' : '--laneA'})"/>`).join('')}${ticks}<text class="flow-tk" x="0" y="12" text-anchor="start">${esc(t('flow.timelineWindow'))}</text>${rows}<line x1="${mark}" x2="${mark}" y1="14" y2="${H}" stroke="var(--fg)" stroke-width="2"/></svg>`;
 }
-function flowWorld(L, ctx) {
-  const { now, selected, messages, roomInfo } = ctx;
-  const defs = `<defs>${FLOW_ZONES.map((z) => `<pattern id="flowf-${z.key}" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="${z.a}"/><rect width="12" height="12" fill="${z.b}"/><rect x="12" y="12" width="12" height="12" fill="${z.b}"/></pattern>`).join('')}<marker id="flow-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffd166"/></marker></defs>`;
-  const zones = FLOW_ZONES.map((z) => {
-    const r = L.rects[z.key], n = L.groups[z.key].length - (z.key === 'need' ? 1 : 0);
-    return `<g class="flow-zone" data-zone="${z.key}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="url(#flowf-${z.key})" class="flow-wall"/><rect x="${r.x}" y="${r.y}" width="${r.w}" height="26" rx="6" class="flow-zhead"/><text x="${r.x + 12}" y="${r.y + 18}" class="flow-ztitle">${esc(t(z.label))}</text><text x="${r.x + r.w - 12}" y="${r.y + 18}" class="flow-zcount" text-anchor="end">${n}</text></g>`;
-  }).join('');
-  const recentBy = new Map();
-  for (const m of [...messages].reverse()) { const id = m.fromId || 'you'; if (m.kind !== 'system' && now - m.ts < 45000 && !recentBy.has(id)) recentBy.set(id, m); if (recentBy.size >= 8) break; }
-  const desks = L.cells.map(({ n, x, y, zone }) => {
-    const s = n.session, status = n.id === 'you' ? 'user' : zone === 'off' ? 'offline' : flowStatus(s), limited = !!s?.limited && s.limited.until > now;
-    const lead = n.id !== 'you' && roomInfo?.lead === n.id, sel = selected === n.id, u = L.u, sw = 16 * u, sx = (L.cw - sw) / 2 - 8, deskY = 14 + 14 * u - 6;
-    const act = n.id === 'you' ? t('flow.user') : s?.activity && status === 'busy' ? s.activity : t(`status.${status === 'user' ? 'idle' : status}`);
-    const name = flowShort(n.name, L.cw < 90 ? 11 : 13);
-    const bub = recentBy.get(n.id), bt = bub ? flowShort(plain(bub.text, 40), L.cw < 90 ? 11 : 14) : '';
-    const bw = Math.min(L.cw - 6, bt.length * 5.6 + 12);
-    return `<g class="flow-node${sel ? ' is-sel' : ''}" data-flow-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(sel)}" aria-label="${esc(n.name)} · ${esc(act)}${lead ? ` · ${t('room.lead')}` : ''}${limited ? ` · ${t('flow.limited')}` : ''}" transform="translate(${x} ${y})"><title>${esc(n.name)} · ${esc(act)}</title><rect class="flow-hit" width="${L.cw - 6}" height="${L.ch - 6}" rx="6"/><g transform="translate(${sx} 14)">${flowSprite(n.id, status, u)}</g><rect x="6" y="${deskY}" width="${L.cw - 18}" height="12" class="flow-desk"/><rect x="6" y="${deskY}" width="${L.cw - 18}" height="3" class="flow-desk2"/><g class="flow-mon" data-status="${status}"><rect x="${L.cw - 36}" y="${deskY - 16}" width="22" height="15" class="flow-monb"/><rect x="${L.cw - 34}" y="${deskY - 14}" width="18" height="11" fill="${FLOW_SCREEN[status] || FLOW_SCREEN.idle}" class="flow-scr"/></g><text x="${(L.cw - 6) / 2}" y="${deskY + 26}" text-anchor="middle" class="flow-name">${lead ? '★ ' : ''}${esc(name)}</text>${status === 'waiting' ? `<g class="flow-bang"><circle cx="${sx + sw + 4}" cy="8" r="7"/><text x="${sx + sw + 4}" y="12" text-anchor="middle">!</text></g>` : ''}${limited ? `<text x="${L.cw - 8}" y="${deskY + 40}" text-anchor="end" class="flow-lim">${esc(t('flow.limited'))}</text>` : ''}${bub ? `<g class="flow-bubble" transform="translate(${Math.max(0, (L.cw - 6 - bw) / 2)} -5)"><rect width="${bw}" height="17" rx="3"/><text x="6" y="12">${esc(bt)}</text></g>` : ''}</g>`;
-  }).join('');
-  // arcs: what the selected agent exchanged (top partners) plus anything sent in the last two minutes, fading with age
-  const pair = new Map();
-  for (const m of messages) {
-    if (m.kind === 'system' || m.kind === 'mirror') continue;
-    const from = m.fromId || 'you';
-    for (const to of m.wake || []) {
-      if (from === to || !L.pos.has(from) || !L.pos.has(to)) continue;
-      const k = from + '>' + to, e = pair.get(k) || { from, to, n: 0, ts: 0 };
-      e.n++; e.ts = Math.max(e.ts, m.ts); pair.set(k, e);
-    }
-  }
-  const all = [...pair.values()];
-  const mine = selected ? all.filter((e) => e.from === selected || e.to === selected).sort((a, b) => b.n - a.n).slice(0, 8) : [];
-  const fresh = all.filter((e) => now - e.ts < 120000 && !mine.includes(e));
-  const arcs = [...fresh.map((e) => [e, 'fresh']), ...mine.map((e) => [e, 'mine'])].map(([e, kind]) => {
-    const a = L.pos.get(e.from), b = L.pos.get(e.to), op = kind === 'mine' ? 0.85 : Math.max(0.12, 0.8 - (now - e.ts) / 150000);
-    const c = flowCtl(a, b), mid = { x: 0.25 * a.x + 0.5 * c.x + 0.25 * b.x, y: 0.25 * a.y + 0.5 * c.y + 0.25 * b.y }, lw = String(e.n).length * 7 + 8;
-    return `<g class="flow-arcg ${kind}" style="opacity:${op.toFixed(2)}"><path d="${flowArc(a, b)}" class="flow-arc" marker-end="url(#flow-arr)"/>${kind === 'mine' && e.n > 1 ? `<g class="flow-pill"><rect x="${(mid.x - lw / 2).toFixed(1)}" y="${(mid.y - 8).toFixed(1)}" width="${lw}" height="15" rx="7"/><text x="${mid.x.toFixed(1)}" y="${(mid.y + 3.5).toFixed(1)}" class="flow-ac" text-anchor="middle">${e.n}</text></g>` : ''}</g>`;
-  }).join('');
-  return `${defs}${zones}<g class="flow-arcs">${arcs}</g>${desks}<g id="flowFx" class="flow-fx"></g>`;
-}
-/** Queue a flying envelope for a message that woke someone; drawn right after the next render (skipped when motion is reduced, the arc still appears). */
-function flowPulse(m) {
-  if (!m || m.kind === 'system' || m.kind === 'mirror') return;
-  const from = m.fromId || 'you';
-  for (const to of m.wake || []) if (to !== from) S.flowPulseQ.push({ from, to, at: Date.now() });
-}
-function flowPlayPulses() {
-  const fx = $('flowFx'); if (!fx) return;
-  const q = S.flowPulseQ.splice(0).filter((p) => Date.now() - p.at < 4000);
-  if (flowReduced()) return;
-  for (const p of q.slice(0, 24)) {
-    const a = S.flowPos.get(p.from), b = S.flowPos.get(p.to); if (!a || !b) continue;
-    const path = flowArc(a, b);
-    fx.insertAdjacentHTML('beforeend', `<g class="flow-mail"><rect x="-6" y="-4" width="12" height="8" fill="#ffd166" stroke="#3a2f12" stroke-width="1" shape-rendering="crispEdges"/><path d="M-6 -4L0 1L6 -4" fill="none" stroke="#3a2f12" stroke-width="1"/><animateMotion dur="1.6s" fill="freeze" path="${path}" rotate="0"/></g>`);
-  }
-  setTimeout(() => { for (const g of fx.querySelectorAll('.flow-mail')) g.remove(); }, 1800);
-}
+function flowPulse(m) { if (!m || m.kind === 'system' || m.kind === 'mirror') return; }
+function flowPlayPulses() { flowPaintDots(flowEvents(S.flowMessages[S.flowRoom] || [], flowNodes(room(S.flowRoom), S.flowMessages[S.flowRoom] || [])), (S.flowReplayAt ?? Date.now()) / 1000, S.flowSelected); }
 function renderFlow() {
   const el = $('view-flow');
   if (!el || S.tab !== 'flow') return;
   const r = flowRoomName();
-  if (!r) { el.innerHTML = `<div class="vw"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.noRooms')}</p></div>`; return; }
+  if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; return; }
   S.flowRoom = r;
-  const graphMode = S.flowStyle !== 'office';
-  const roomInfo = room(r), messages = graphMode ? flowReplayMessages() : flowMessages();
-  const now = Date.now(), nodeMap = new Map([['you', { id: 'you', name: t('you'), session: null }]]);
-  const addNode = (id, fallback) => {
-    if (!id || nodeMap.has(id)) return;
-    const session = S.sessions[id];
-    nodeMap.set(id, { id, name: session?.name || fallback || id.slice(0, 12), session });
-  };
-  for (const id of roomInfo?.members || []) addNode(id);
-  addNode(roomInfo?.lead);
-  for (const m of messages) {
-    if (m.fromId) addNode(m.fromId, m.from);
-    for (const id of m.wake || []) addNode(id);
-  }
-  const nodes = [...nodeMap.values()].filter((x) => x.id === 'you').concat([...nodeMap.values()].filter((x) => x.id !== 'you').sort((a, b) => Number(b.id === roomInfo?.lead) - Number(a.id === roomInfo?.lead) || a.name.localeCompare(b.name)));
-  const tiers = S.settings?.flowTiers?.[r] || {};
-  const L = graphMode ? flowTierLayout(nodes, tiers) : flowLayout(nodes, now, innerWidth < 760);
-  S.flowPos = L.pos;
-  const world = graphMode ? flowTierWorld(L, { now: S.flowReplayAt ?? now, selected: S.flowSelected, messages, roomInfo }) : flowWorld(L, { now, selected: S.flowSelected, messages, roomInfo });
-  const cnt = (status) => nodes.filter((n) => n.id !== 'you' && flowStatus(n.session) === status).length;
-  const hud = [['busy', 'flow.zone.busy'], ['need', 'flow.zone.need'], ['idle', 'flow.zone.idle'], ['off', 'flow.zone.off']].map(([k, lk]) => `<span class="flow-hudchip" data-k="${k}"><i></i>${esc(t(lk))} <b>${k === 'need' ? cnt('waiting') : k === 'off' ? cnt('offline') : cnt(k)}</b></span>`).join('');
-  const waiting = nodes.filter((n) => n.session?.status === 'waiting');
-  const blocked = (S.tasks[r] || []).filter((x) => x.status === 'blocked');
-  const attention = [
-    ...waiting.map((n) => `<button type="button" class="flow-attn" data-flow-pick="${esc(n.id)}"><span class="flow-attn-dot"></span><span>${esc(n.name)} · ${esc(t('status.waiting'))}</span></button>`),
-    ...blocked.slice(0, 12).map((x) => `<button type="button" class="flow-attn blocked" data-flow-task="${esc(x.id)}"><span class="flow-attn-dot"></span><span>#${x.id} · ${esc(x.title)}</span></button>`),
-    ...(S.unread[r] ? [`<button type="button" class="flow-attn unread" data-flow-room><span class="flow-attn-dot"></span><span>${esc(t('flow.unread', { n: S.unread[r] }))}</span></button>`] : []),
-  ].join('') || `<div class="flow-empty">${t('flow.clear')}</div>`;
-  const selected = nodeMap.get(S.flowSelected) || nodeMap.get('you'), sid = selected?.id === 'you' ? null : selected?.id, session = sid && S.sessions[sid];
-  const selectedTasks = (S.tasks[r] || []).filter((x) => x.status !== 'done' && (x.owner === selected?.name || x.owner === sid)).slice(0, 5);
-  const recent = messages.filter((m) => sid ? m.fromId === sid || (m.wake || []).includes(sid) : !m.fromId).slice(-5).reverse();
-  const detailMsg = messages.find((m) => m.id === S.flowSelectedMsg);
-  const graphCursor = S.flowReplayAt ?? now;
+  const now = flowNow(), live = S.flowReplayAt === null, cursor = (S.flowReplayAt ?? now) / 1000;
+  const roomInfo = room(r), messages = (S.flowMessages[r] || []).filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
+  const nodes = flowNodes(roomInfo, messages), tiers = S.settings?.flowTiers?.[r] || {}, L = flowTierLayout(nodes, tiers), events = flowEvents(messages, nodes);
+  S.flowPos = L.pos; S.flowLayout = L;
+  const world = flowTierWorld(L, nodes, events, cursor, S.flowSelected, roomInfo, live);
+  const waiting = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'ask');
+  const busy = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'working').length;
+  const rate = events.filter((e) => e[0] > cursor - 60 && e[0] <= cursor).length;
+  const selected = nodes.find((n) => n.id === S.flowSelected) || nodes[0], sid = selected?.id === 'you' ? null : selected?.id, session = sid && S.sessions[sid];
+  const selectedEvents = events.filter((e) => e[0] > cursor - 300 && (e[1] === selected?.id || e[2] === selected?.id));
   const partners = new Map();
-  for (const m of messages) {
-    if (m.kind === 'system' || m.kind === 'mirror' || graphCursor - m.ts >= 90000) continue;
-    const from = m.fromId || 'you';
-    for (const to of m.wake || []) {
-      if (from === sid && to !== sid) partners.set(to, (partners.get(to) || 0) + 1);
-      if (to === sid && from !== sid) partners.set(from, (partners.get(from) || 0) + 1);
-    }
-  }
-  const partnerList = [...partners.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const replyBox = waiting.length ? `<section class="flow-reply"><b>${t('flow.needsReply')}</b>${waiting.slice(0, 5).map((n) => `<button type="button" class="flow-attn" data-flow-pick="${esc(n.id)}">${esc(n.name)} · ${esc(t('status.waiting'))}</button>`).join('')}</section>` : '';
-  const tierOptions = `<option value="">${t('flow.tierDefault', { n: Math.floor((L.tierCount || 2) / 2) + 1 })}</option>${Array.from({ length: L.tierCount || 0 }, (_, i) => `<option value="${i + 1}"${tiers[String(selected?.name || '').trim().toLowerCase()] === i + 1 ? ' selected' : ''}>${esc(t('flow.tier', { n: i + 1 }))}</option>`).join('')}`;
+  selectedEvents.forEach((e) => { const id = e[1] === selected?.id ? e[2] : e[1]; partners.set(id, (partners.get(id) || 0) + 1); });
+  const recent = selectedEvents.slice(-6).reverse(), nodeBy = new Map(nodes.map((n) => [n.id, n]));
+  const tasks = (S.tasks[r] || []).filter((x) => x.status !== 'done' && sid && (x.owner === selected.name || x.owner === sid)).slice(0, 5);
+  const asks = (S.perms || []).filter((p) => nodes.some((n) => n.id === (p.session || p.sessionId) || n.name === p.agent));
+  const askBox = asks.length ? `<div class="flow-ask"><b>${t('flow.needsReply')}</b>${asks.slice(0, 5).map((p) => `<span><i class="flow-swatch" style="background:${flowColor(p.session || p.sessionId || p.agent)}"></i>${esc(p.agent || nodeBy.get(p.session || p.sessionId)?.name || '')} · ${esc(p.tool || '')}</span><div><button type="button" data-flow-permission="${esc(p.id)}" data-allow="1">${t('permq.allow')}</button><button type="button" data-flow-permission="${esc(p.id)}" data-allow="0">${t('permq.deny')}</button></div>`).join('')}</div>` : waiting.length ? `<div class="flow-ask"><b>${t('flow.needsReply')}</b>${waiting.map((n) => `<span><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(n.name)} · ${t('status.waiting')}</span>`).join('')}</div>` : '';
+  const selectedTier = sid ? (tiers[selected.name.trim().toLowerCase()] || '') : '';
+  const tierOptions = `<option value="">${t('flow.tierDefault', { n: Math.floor(L.tierCount / 2) + 1 })}</option>${Array.from({ length: L.tierCount }, (_, i) => `<option value="${i + 1}"${selectedTier === i + 1 ? ' selected' : ''}>${t('flow.tier', { n: i + 1 })}</option>`).join('')}`;
   const taskForm = sid ? (S.flowTaskForm
-    ? `<form class="flow-task-form" id="flowTaskForm"><label>${t('flow.taskTitle')}<input name="title" maxlength="200" required value="${esc(S.flowTaskDraft?.title || '')}"></label><label>${t('flow.taskDetail')}<textarea name="detail" maxlength="2000" rows="3">${esc(S.flowTaskDraft?.detail || '')}</textarea></label><div><button type="submit" class="btn sm">${t('flow.taskCreate')}</button><button type="button" class="btn sm" data-flow-task-cancel>${t('common.cancel')}</button></div></form>`
-    : `<button type="button" class="btn sm" data-flow-task-open>${t('flow.taskAssign')}</button>`) : '';
-  const inspector = `${replyBox}<div class="flow-detail"><h3>${esc(selected?.name || t('you'))}${session && roomInfo?.lead === sid ? ` <span class="star">★</span>` : ''}</h3><p>${esc(session?.activity || (session ? t(`status.${session.status}`) : t('flow.user')))}${session?.ide ? ` · ${esc(IDE[session.ide] || session.ide)}` : ''}</p>${session?.limited && session.limited.until > now ? `<p class="flow-limited">${t('flow.limited')}</p>` : ''}${session ? `<button type="button" class="btn sm" data-flow-chat="${esc(sid)}">${t('flow.chat')}</button>` : ''}${graphMode && sid ? `<label class="flow-tier-select">${t('flow.moveTier')}<select data-flow-tier-select>${tierOptions}</select></label>${taskForm}` : ''}<div><b>${t('flow.partners')}</b>${partnerList.length ? `<ul>${partnerList.map(([id, count]) => `<li>${esc(nodeMap.get(id)?.name || id)} <span class="muted">· ${count}</span></li>`).join('')}</ul>` : `<p>${t('flow.noPartners')}</p>`}</div><div><b>${t('flow.tasksTitle')}</b>${selectedTasks.length ? `<ul>${selectedTasks.map((x) => `<li>${esc(x.title)} <span class="muted">· ${esc(t(`task.${x.status}`))}</span></li>`).join('')}</ul>` : `<p>${t('flow.noTasks')}</p>`}</div><div><b>${t('flow.recent')}</b>${recent.length ? `<ul>${recent.map((m) => `<li>${esc(flowShort(m.text, 100))}</li>`).join('')}</ul>` : `<p>${t('flow.noMessages')}</p>`}</div></div>`;
-  const ticks = messages.filter((m) => m.kind !== 'system').slice(-120);
-  const selectedMessage = detailMsg ? `${messageName(detailMsg)} · ${plain(detailMsg.text, 180)}` : '';
-  const rangeOpts = [['1h', 'flow.1h'], ['24h', 'flow.24h'], ['7d', 'flow.7d'], ['all', 'flow.all']];
-  const styleSwitch = `<div class="flow-style" role="group" aria-label="${t('flow.view')}"><button type="button" class="btn sm" data-flow-style="graph" aria-pressed="${String(graphMode)}">${t('flow.graph')}</button><button type="button" class="btn sm" data-flow-style="office" aria-pressed="${String(!graphMode)}">${t('flow.office')}</button></div>`;
-  const replayControl = graphMode
-    ? `<div class="flow-replay-control"><button type="button" class="btn sm" id="flowLive" aria-pressed="${String(S.flowReplayAt === null)}">${t('flow.live')}</button><label for="flowReplaySlider">${t('flow.replayWindow')}</label><input id="flowReplaySlider" type="range" min="0" max="300000" step="1000" value="${S.flowReplayAt === null ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)))}" aria-label="${t('flow.replayWindow')}"></div>`
-    : `<label>${t('flow.range')} <select id="flowRange">${rangeOpts.map(([v, k]) => `<option value="${v}"${S.flowRange === v ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label><button type="button" class="btn sm" id="flowReplay" aria-pressed="${String(!!S.flowReplayTimer)}">${S.flowReplayTimer ? t('flow.stop') : t('flow.replay')}</button>`;
-  const graphControls = graphMode ? `<div class="flow-tier-tools"><button type="button" class="btn sm" data-flow-add-tier ${!sid || L.tierCount >= 9 ? 'disabled' : ''}>${t('flow.addTier')}</button><span>${esc(t('flow.addTierHint'))}</span></div>` : '';
-  const timeline = graphMode
-    ? `<div class="flowbox flow-timeline"><h2>${t('flow.timeline')} <small>${t('flow.timelineWindow')}</small></h2><div class="flow-lane-wrap">${flowLaneTimeline(nodes, messages, graphCursor, S.flowSelectedMsg)}</div>${selectedMessage ? `<div class="flow-msg">${esc(selectedMessage)}</div>` : ''}</div>`
-    : `<div class="flowbox flow-timeline"><h2>${t('flow.timeline')} <small>${ticks.length}</small></h2><div class="flow-ticks" role="list">${ticks.map((m) => `<button type="button" role="listitem" class="flow-tick" data-flow-message="${m.id}" aria-pressed="${String(m.id === S.flowSelectedMsg)}" title="${esc(messageName(m))}: ${esc(plain(m.text, 80))}" style="background:${m.fromId ? color(m.fromId) : 'var(--accent)'}"></button>`).join('')}</div>${selectedMessage ? `<div class="flow-msg">${esc(selectedMessage)}</div>` : ''}</div>`;
-  el.innerHTML = `<div class="vw flow"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.lede')}</p><div class="flowbar"><label>${t('flow.room')} <select id="flowRoom">${S.rooms.filter((x) => !x.dm).map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select></label>${styleSwitch}${replayControl}<div class="flowstats"><span class="flowstat">${t('flow.agentCount', { n: nodes.length - 1 })}</span><span class="flowstat">${t('flow.messageCount', { n: messages.length })}</span></div></div>${S.flowErr ? `<div class="verr">${esc(S.flowErr)}</div>` : ''}${S.flowLoading === r ? `<div class="flow-empty">${t('common.loading')}</div>` : ''}<div class="flowgrid town"><aside class="flowbox flow-attnbox"><h2>${t('flow.attention')} <small>${waiting.length + blocked.length + Number(!!S.unread[r])}</small></h2><div class="flowattention">${attention}</div></aside><div class="flowbox flowcenter${graphMode ? ' flow-tier-center' : ''}"><div class="flow-hud">${hud}</div>${graphControls}<div class="flowgraph-wrap" id="flowWorldBox"><svg class="${graphMode ? 'flow-tier-svg' : 'flowgraph'}" role="group" aria-label="${t('flow.graphAria')}" viewBox="0 0 ${L.W} ${L.H}" preserveAspectRatio="xMidYMin meet">${world}</svg></div><p class="flow-hint">${t('flow.edgeHint')}</p></div><aside class="flowbox flow-inspector"><h2>${t('flow.inspector')}</h2>${inspector}</aside></div>${timeline}</div>`;
-  flowPlayPulses();
+    ? `<form class="flow-task-form" id="flowTaskForm"><label>${t('flow.taskTitle')}<input name="title" maxlength="200" required value="${esc(S.flowTaskDraft?.title || '')}"></label><label>${t('flow.taskDetail')}<textarea name="detail" maxlength="2000" rows="3">${esc(S.flowTaskDraft?.detail || '')}</textarea></label><div><button type="submit">${t('flow.taskCreate')}</button><button type="button" data-flow-task-cancel>${t('common.cancel')}</button></div></form>`
+    : `<button type="button" data-flow-task-open>${t('flow.taskAssign')}</button>`) : '';
+  const status = sid ? flowStatusAt(selected, events, cursor, live) : 'idle';
+  const info = sid
+    ? `<h2><i class="flow-swatch" style="background:${flowColor(sid)}"></i>${esc(selected.name)}</h2><div><span class="flow-pill" style="background:${FLOW_STATES[status][1]}">${t(FLOW_STATES[status][0])}</span>${roomInfo?.lead === sid ? ' ★' : ''}</div>${session?.activity ? `<p>${esc(session.activity)}</p>` : ''}${session?.ide ? `<p>${esc(IDE[session.ide] || session.ide)}</p>` : ''}${session?.limited?.until > now ? `<p>${t('flow.limited')}</p>` : ''}<label class="flow-tier-select">${t('flow.moveTier')}<select data-flow-tier-select aria-label="${esc(t('flow.moveTier'))}">${tierOptions}</select></label>${taskForm}<h3>${t('flow.partners')}</h3><ul>${[...partners.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([id,count])=>`<li><i class="flow-swatch" style="background:${flowColor(id)}"></i><b>${esc(nodeBy.get(id)?.name || id)}</b> · ${count}</li>`).join('') || `<li>${t('flow.noPartners')}</li>`}</ul><h3>${t('flow.recent')}</h3><ul class="flow-feed">${recent.map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1]===sid?e[2]:e[1])}"></i><b>${e[1]===sid?'→ '+(nodeBy.get(e[2])?.name||''):'← '+(nodeBy.get(e[1])?.name||'')}</b> ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul><h3>${t('flow.tasksTitle')}</h3><ul>${tasks.map((x) => `<li>${esc(x.title)} · ${t(`task.${x.status}`)}</li>`).join('') || `<li>${t('flow.noTasks')}</li>`}</ul>`
+    : `<h2>${t('flow.justHappened')}</h2><ul class="flow-feed">${events.slice(-8).reverse().map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b> → ${esc(nodeBy.get(e[2])?.name || '')}: ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul>`;
+  const themeLabel = t(`flow.theme${S.flowTheme[0].toUpperCase()}${S.flowTheme.slice(1)}`);
+  const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
+  const graphW = Math.max(760, L.W), lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
+  const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
+  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}${askBox}<main class="flow-main"><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg><div class="flow-tools"><button type="button" data-flow-zoom="in" aria-label="${esc(t('flow.zoomIn'))}">+</button><button type="button" data-flow-zoom="out" aria-label="${esc(t('flow.zoomOut'))}">−</button><button type="button" data-flow-zoom="reset">${t('flow.zoomReset')}</button></div><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid ? '' : ' disabled'}>${t('flow.addTier')}</button></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes">${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  flowPaintDots(events, cursor, S.flowSelected);
 }
-setInterval(() => { if (S.tab === 'flow' && !document.hidden && !S.flowReplayTimer && !S.flowDrag) queueFlow(); }, 5000);   // arcs and bubbles fade with age
-function stopFlowReplay() {
-  if (S.flowReplayTimer) clearInterval(S.flowReplayTimer);
-  S.flowReplayTimer = null; S.flowReplayIndex = -1;
+function flowSetReplay(ts) {
+  const now = Date.now(), bounded = Math.max(now - 300000, Math.min(now, ts));
+  S.flowReplayAt = bounded >= now - 500 ? null : bounded; S.flowPlaying = false;
 }
-function startFlowReplay() {
-  const items = flowMessages().filter((m) => m.kind !== 'system');
-  if (!items.length) return;
-  stopFlowReplay();
-  S.flowReplayIndex = 0;
-  const step = () => {
-    const current = flowMessages().filter((m) => m.kind !== 'system');
-    if (S.flowReplayIndex >= current.length) return stopFlowReplay(), renderFlow();
-    const m = current[S.flowReplayIndex++];
-    S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; flowPulse(m); renderFlow();
-  };
-  step();
-  S.flowReplayTimer = setInterval(step, 1200);
-  renderFlow();
+function flowJumpLane(id) {
+  const m = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((x) => x.fromId === id || (x.wake || []).includes(id));
+  if (!m) return;
+  flowSetReplay(m.ts); S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow();
 }
 function flowSelectRoom(name) {
-  stopFlowReplay();
-  S.flowRoom = name; S.flowSelected = null; S.flowSelectedMsg = null; S.flowReplayAt = null; S.flowTaskForm = false; S.flowTaskDraft = null;
+  S.flowRoom = name; S.flowSelected = null; S.flowSelectedMsg = null; S.flowReplayAt = null; S.flowPlaying = false; S.flowTaskForm = false; S.flowTaskDraft = null; S.flowZoom = { k: 1, x: 0, y: 0 };
   try { localStorage.setItem('bear-agent-manager:flowRoom', name); } catch {}
   loadFlow();
 }
@@ -2866,114 +2718,121 @@ function saveFlowTier(agent, tier) {
     .then((settings) => { S.settings = settings; renderFlow(); })
     .catch((err) => toast(err.message));
 }
-function flowJumpLane(id) {
-  const all = S.flowMessages[S.flowRoom] || [];
-  const last = [...all].reverse().find((m) => (m.fromId || 'you') === id && m.kind !== 'system');
-  if (last) { S.flowReplayAt = last.ts; S.flowSelectedMsg = last.id; S.flowSelected = last.fromId || 'you'; renderFlow(); }
+function nodeNameForId(id) { return id && id !== 'you' ? S.sessions[id]?.name || (S.flowMessages[S.flowRoom] || []).find((m) => m.fromId === id)?.from || '' : ''; }
+function flowScreenPoint(svg, x, y, target) {
+  const p = svg.createSVGPoint(); p.x = x; p.y = y;
+  return p.matrixTransform((target || svg).getScreenCTM().inverse());
+}
+function flowZoomBy(factor, cx, cy) {
+  const z = S.flowZoom, next = Math.max(.6, Math.min(2.5, z.k * factor));
+  if (cx != null && cy != null) { z.x = cx - (cx - z.x) * next / z.k; z.y = cy - (cy - z.y) * next / z.k; }
+  z.k = next; renderFlow();
 }
 $('view-flow').addEventListener('change', (e) => {
   if (e.target.id === 'flowRoom') flowSelectRoom(e.target.value);
-  if (e.target.id === 'flowRange') { stopFlowReplay(); S.flowRange = e.target.value; S.flowSelectedMsg = null; renderFlow(); }
-  if (e.target.id === 'flowReplaySlider') {
-    const value = Number(e.target.value);
-    S.flowReplayAt = value >= 300000 ? null : Date.now() - 300000 + value;
-    renderFlow();
-  }
+  if (e.target.id === 'flowSeek') { const value = Number(e.target.value); flowSetReplay(value >= 299500 ? Date.now() : Date.now() - 300000 + value); renderFlow(); }
+  if (e.target.id === 'flowSpeed') { S.flowSpeed = Number(e.target.value); renderFlow(); }
   if (e.target.matches('[data-flow-tier-select]')) saveFlowTier(nodeNameForId(S.flowSelected), e.target.value ? Number(e.target.value) : null);
 });
+$('view-flow').addEventListener('input', (e) => {
+  if (e.target.id === 'flowSeek') { const value = Number(e.target.value); flowSetReplay(value >= 299500 ? Date.now() : Date.now() - 300000 + value); renderFlow(); }
+  if (e.target.closest('#flowTaskForm')) { const f = e.target.closest('#flowTaskForm'); S.flowTaskDraft = { title: f.elements.title.value, detail: f.elements.detail.value }; }
+});
 $('view-flow').addEventListener('click', (e) => {
-  const style = e.target.closest('[data-flow-style]');
-  if (style) { S.flowStyle = style.dataset.flowStyle === 'office' ? 'office' : 'graph'; try { localStorage.setItem('bear-agent-manager:flowStyle', S.flowStyle); } catch {} renderFlow(); return; }
-  if (e.target.closest('#flowLive')) { S.flowReplayAt = null; S.flowSelectedMsg = null; renderFlow(); return; }
-  if (e.target.closest('[data-flow-add-tier]')) {
-    const name = nodeNameForId(S.flowSelected), tiers = S.settings?.flowTiers?.[S.flowRoom] || {};
-    const count = Math.max(2, ...Object.values(tiers).filter(Number.isInteger));
-    if (name && count < 9) saveFlowTier(name, count + 1);
-    return;
-  }
-  if (e.target.closest('[data-flow-task-open]')) { S.flowTaskForm = true; S.flowTaskDraft = { title: '', detail: '' }; renderFlow(); document.querySelector('#flowTaskForm input[name=title]')?.focus(); return; }
+  if (e.target.closest('[data-flow-theme]')) { S.flowTheme = ({ auto: 'light', light: 'dark', dark: 'auto' })[S.flowTheme]; try { localStorage.setItem('bear-agent-manager:flowTheme', S.flowTheme); } catch {} renderFlow(); return; }
+  if (e.target.closest('[data-flow-add-tier]')) { if (S.flowSelected && S.flowSelected !== 'you') saveFlowTier(nodeNameForId(S.flowSelected), S.flowLayout.tierCount + 1); return; }
+  if (e.target.closest('#flowLive')) { S.flowReplayAt = null; S.flowPlaying = false; S.flowSelectedMsg = null; renderFlow(); return; }
+  if (e.target.closest('#flowPlay')) { S.flowPlaying = !S.flowPlaying; renderFlow(); return; }
+  const zoom = e.target.closest('[data-flow-zoom]');
+  if (zoom) { if (zoom.dataset.flowZoom === 'reset') { S.flowZoom = { k: 1, x: 0, y: 0 }; renderFlow(); } else flowZoomBy(zoom.dataset.flowZoom === 'in' ? 1.2 : .83); return; }
+  if (e.target.closest('[data-flow-task-open]')) { S.flowTaskForm = true; S.flowTaskDraft = { title: '', detail: '' }; renderFlow(); $('view-flow').querySelector('#flowTaskForm input[name=title]')?.focus(); return; }
   if (e.target.closest('[data-flow-task-cancel]')) { S.flowTaskForm = false; S.flowTaskDraft = null; renderFlow(); return; }
-  const tick = e.target.closest('[data-flow-message]');
-  if (tick) {
-    const m = (S.flowMessages[S.flowRoom] || []).find((x) => x.id === Number(tick.dataset.flowMessage));
-    if (m) { if (S.flowStyle !== 'office') S.flowReplayAt = m.ts; S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow(); }
-    return;
-  }
-  if (e.target.closest('[data-flow-lane]')) {
-    flowJumpLane(e.target.closest('[data-flow-lane]').dataset.flowLane);
-    return;
-  }
-  const node = e.target.closest('[data-flow-node], [data-flow-pick]');
-  if (node) {
-    const id = node.dataset.flowNode || node.dataset.flowPick;
-    if (S.flowSuppressClick === id) { S.flowSuppressClick = null; return; }
-    S.flowSelected = id; renderFlow();
-    [...$('view-flow').querySelectorAll('[data-flow-node]')].find((x) => x.dataset.flowNode === id)?.focus();
-    return;
-  }
-  const task = e.target.closest('[data-flow-task]');
-  if (task) { S.taskRoom = S.flowRoom; S.taskOpen = Number(task.dataset.flowTask); select(S.flowRoom); showTab('tasks'); return; }
-  if (e.target.closest('[data-flow-room]')) { select(S.flowRoom); showTab('rooms'); return; }
+  const permission = e.target.closest('[data-flow-permission]');
+  if (permission) { api(`/api/permissions/${enc(permission.dataset.flowPermission)}`, { allow: permission.dataset.allow === '1' }).then(() => permDone({ id: permission.dataset.flowPermission }), (err) => toast(err.message)); return; }
+  const filter = e.target.closest('[data-flow-filter]');
+  if (filter) { const id = filter.dataset.flowFilter; S.flowSelected = S.flowSelected === id ? null : id; renderFlow(); return; }
+  const mark = e.target.closest('[data-flow-message]');
+  if (mark) { const m = (S.flowMessages[S.flowRoom] || []).find((x) => x.id === Number(mark.dataset.flowMessage)); if (m) { flowSetReplay(m.ts); S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow(); } return; }
+  const lane = e.target.closest('[data-flow-lane]');
+  if (lane) { flowJumpLane(lane.dataset.flowLane); return; }
+  const node = e.target.closest('[data-flow-node]');
+  if (node) { if (S.flowSuppressClick === node.dataset.flowNode) { S.flowSuppressClick = null; return; } S.flowSelected = node.dataset.flowNode; renderFlow(); return; }
   const chat = e.target.closest('[data-flow-chat]');
   if (chat) api(`/api/rooms/dm/${enc(chat.dataset.flowChat)}`, {}).then((d) => { S.rooms = [...S.rooms.filter((x) => x.name !== d.name), d].sort((a, b) => a.name.localeCompare(b.name)); select(d.name); showTab('dm'); }, (err) => toast(err.message));
-  if (e.target.id === 'flowReplay') S.flowReplayTimer ? (stopFlowReplay(), renderFlow()) : startFlowReplay();
-});
-$('view-flow').addEventListener('input', (e) => {
-  if (e.target.closest('#flowTaskForm')) {
-    const form = e.target.closest('#flowTaskForm');
-    S.flowTaskDraft = { title: form.elements.title.value, detail: form.elements.detail.value };
-  }
 });
 $('view-flow').addEventListener('submit', (e) => {
   if (e.target.id !== 'flowTaskForm') return;
   e.preventDefault();
-  const form = e.target, title = form.elements.title.value.trim(), detail = form.elements.detail.value.trim();
-  const agent = nodeNameForId(S.flowSelected);
+  const form = e.target, title = form.elements.title.value.trim(), detail = form.elements.detail.value.trim(), agent = nodeNameForId(S.flowSelected);
   if (!title || !agent) return;
-  api(`/api/rooms/${enc(S.flowRoom)}/tasks`, { title, detail, owner: agent })
-    .then((task) => {
-      S.tasks[S.flowRoom] = [...(S.tasks[S.flowRoom] || []).filter((x) => x.id !== task.id), task];
-      S.flowTaskForm = false; S.flowTaskDraft = null; toast(t('flow.taskCreated')); renderFlow();
-    })
-    .catch((err) => toast(err.message || t('flow.taskError')));
+  api(`/api/rooms/${enc(S.flowRoom)}/tasks`, { title, detail, owner: agent }).then((task) => {
+    S.tasks[S.flowRoom] = [...(S.tasks[S.flowRoom] || []).filter((x) => x.id !== task.id), task];
+    S.flowTaskForm = false; S.flowTaskDraft = null; toast(t('flow.taskCreated')); renderFlow();
+  }).catch((err) => toast(err.message || t('flow.taskError')));
 });
 $('view-flow').addEventListener('pointerdown', (e) => {
+  const svg = e.target.closest('#flowGraph'); if (!svg || e.button !== 0) return;
   const node = e.target.closest('[data-flow-tier-node]');
-  if (!node || e.button !== 0) return;
-  S.flowDrag = { id: node.dataset.flowTierNode, x: e.clientX, y: e.clientY };
-  try { node.setPointerCapture(e.pointerId); } catch {}
-});
-$('view-flow').addEventListener('pointerup', (e) => {
-  const drag = S.flowDrag; S.flowDrag = null;
-  if (!drag || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
-  const svg = document.querySelector('#flowWorldBox svg.flow-tier-svg'), name = nodeNameForId(drag.id);
-  if (!svg || !name) return;
-  const point = svg.createSVGPoint(); point.x = e.clientX; point.y = e.clientY;
-  const x = point.matrixTransform(svg.getScreenCTM().inverse()).x, tiers = S.settings?.flowTiers?.[S.flowRoom] || {};
-  const count = Math.max(2, ...Object.values(tiers).filter(Number.isInteger));
-  const step = 150 + 30, tier = Math.max(1, Math.min(count, Math.round((x - 36 - 75) / step) + 1));
-  S.flowSelected = drag.id; S.flowSuppressClick = drag.id; setTimeout(() => { if (S.flowSuppressClick === drag.id) S.flowSuppressClick = null; }, 500);
-  saveFlowTier(name, tier);
-});
-$('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; });
-$('view-flow').addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  if (e.target.matches('[data-flow-node]')) {
-    e.preventDefault();
-    const id = e.target.dataset.flowNode;
-    S.flowSelected = id; renderFlow();
-    [...$('view-flow').querySelectorAll('[data-flow-node]')].find((x) => x.dataset.flowNode === id)?.focus();
+  if (node && node.dataset.flowTierNode !== 'you') {
+    const world = svg.querySelector('#flowWorld'), p = flowScreenPoint(svg, e.clientX, e.clientY, world);
+    S.flowDrag = { id: node.dataset.flowTierNode, node, x: Number(node.getAttribute('transform').match(/translate\(([-.\d]+)/)?.[1]) || 0, y: Number(node.getAttribute('transform').match(/,\s*([-.\d]+)/)?.[1]) || Number(node.dataset.flowY) || 0, sx: p.x, sy: p.y, px: e.clientX, py: e.clientY, moved: false };
+    try { node.setPointerCapture(e.pointerId); } catch {}
     return;
   }
-  const event = e.target.closest('[data-flow-message]');
-  if (event) { e.preventDefault(); const m = (S.flowMessages[S.flowRoom] || []).find((x) => x.id === Number(event.dataset.flowMessage)); if (m) { S.flowReplayAt = m.ts; S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow(); } return; }
+  if (node) return;
+  S.flowPan = { svg, x: e.clientX, y: e.clientY, ox: S.flowZoom.x, oy: S.flowZoom.y, moved: false };
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+});
+$('view-flow').addEventListener('pointermove', (e) => {
+  if (S.flowDrag) {
+    const d = S.flowDrag; if (Math.hypot(e.clientX - d.px, e.clientY - d.py) < 5) return;
+    d.moved = true; const p = flowScreenPoint($('view-flow').querySelector('#flowGraph'), e.clientX, e.clientY, $('view-flow').querySelector('#flowWorld'));
+    d.node.setAttribute('transform', `translate(${d.x + p.x - d.sx},${d.y + p.y - d.sy})`); return;
+  }
+  if (S.flowPan) {
+    const p = S.flowPan; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < 4) return; p.moved = true;
+    const svg = p.svg;
+    S.flowZoom.x = p.ox + (e.clientX - p.x) * svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+    S.flowZoom.y = p.oy + (e.clientY - p.y) * svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+    svg.querySelector('#flowWorld')?.setAttribute('transform', `translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})`);
+  }
+});
+$('view-flow').addEventListener('pointerup', (e) => {
+  if (S.flowDrag) {
+    const d = S.flowDrag; S.flowDrag = null;
+    if (d.moved) {
+      const p = flowScreenPoint($('view-flow').querySelector('#flowGraph'), e.clientX, e.clientY, $('view-flow').querySelector('#flowWorld'));
+      const L = S.flowLayout, index = L.TX.reduce((best, x, i) => Math.abs(p.x - x - 68) < best.distance ? { index: i, distance: Math.abs(p.x - x - 68) } : best, { index: 0, distance: Infinity }).index;
+      const agent = nodeNameForId(d.id); S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
+      if (agent) saveFlowTier(agent, index + 1); else renderFlow();
+    }
+    return;
+  }
+  if (S.flowPan) { const p = S.flowPan; S.flowPan = null; if (!p.moved && e.target.closest('#flowGraph')) { S.flowSelected = null; renderFlow(); } else if (p.moved) renderFlow(); }
+});
+$('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; S.flowPan = null; renderFlow(); });
+$('view-flow').addEventListener('wheel', (e) => {
+  const svg = e.target.closest('#flowGraph'); if (!svg) return;
+  e.preventDefault(); const p = flowScreenPoint(svg, e.clientX, e.clientY);
+  flowZoomBy(e.deltaY < 0 ? 1.12 : .89, p.x, p.y);
+}, { passive: false });
+$('view-flow').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const node = e.target.closest('[data-flow-node]');
+  if (node) { e.preventDefault(); S.flowSelected = node.dataset.flowNode; renderFlow(); $('view-flow').querySelector(`[data-flow-node="${CSS.escape(node.dataset.flowNode)}"]`)?.focus(); return; }
+  const mark = e.target.closest('[data-flow-message]');
+  if (mark) { e.preventDefault(); mark.dispatchEvent(new MouseEvent('click', { bubbles: true })); return; }
   const lane = e.target.closest('[data-flow-lane]');
   if (lane) { e.preventDefault(); flowJumpLane(lane.dataset.flowLane); }
 });
-function nodeNameForId(id) {
-  if (!id || id === 'you') return '';
-  return S.sessions[id]?.name || (S.flowMessages[S.flowRoom] || []).find((m) => m.fromId === id)?.from || '';
-}
+let flowFrameAt = Date.now();
+setInterval(() => {
+  if (S.tab !== 'flow' || document.hidden) return;
+  const now = Date.now(), dt = Math.min(.1, (now - flowFrameAt) / 1000); flowFrameAt = now;
+  if (S.flowReplayAt !== null && S.flowPlaying) { S.flowReplayAt = Math.min(now, S.flowReplayAt + dt * 1000 * S.flowSpeed); if (S.flowReplayAt >= now - 250) { S.flowReplayAt = null; S.flowPlaying = false; } }
+  renderFlow();
+}, 250);
+
 /** The room the Việc tab shows: the room you're chatting in, unless that's a DM (DMs have no tasks) — then the remembered one. */
 function taskRoomName() {
   if (S.current && !room(S.current)?.dm) return S.current;
@@ -2981,7 +2840,9 @@ function taskRoomName() {
   return S.rooms.find((x) => !x.dm)?.name ?? null;
 }
 const TCOLS = ['todo', 'doing', 'blocked', 'done'];
-const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
+const TGROUPS = ['unassigned', 'assigned', 'doing', 'blocked', 'done'];
+const TCOL_KEY = lazy({ todo: 'task.todo', unassigned: 'task.col.unassigned', assigned: 'task.col.assigned', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
+const tgroup = (x) => x.status === 'todo' ? (x.owner ? 'assigned' : 'unassigned') : x.status;
 const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
 function loadTasks(r = taskRoomName()) {
   if (!r) return Promise.resolve();
@@ -2994,7 +2855,7 @@ function renderTasks() {
   const owners = [...new Set(list.map((x) => x.owner).filter(Boolean))].sort();
   const allNames = [...new Set([...members(r).map((m) => m.name), ...owners])].sort();
   const shown = list.filter((x) => !S.tfOwner || (x.owner || '') === S.tfOwner);
-  const statusCounts = Object.fromEntries(TCOLS.map((s) => [s, shown.filter((x) => x.status === s).length]));
+  const statusCounts = Object.fromEntries(TGROUPS.map((s) => [s, shown.filter((x) => tgroup(x) === s).length]));
   const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + allNames.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
   const row = (x) => {
     const open = S.taskOpen === x.id, editing = S.taskEdit === x.id;
@@ -3008,14 +2869,15 @@ function renderTasks() {
     </li>`;
   };
   const sec = (s) => {
-    let items = shown.filter((x) => x.status === s).sort((a, b) => s === 'done' ? (b.doneAt || b.updatedAt) - (a.doneAt || a.updatedAt) : a.id - b.id);
+    let items = shown.filter((x) => tgroup(x) === s).sort((a, b) => s === 'done' ? (b.doneAt || b.updatedAt) - (a.doneAt || a.updatedAt) : a.id - b.id);
     const total = items.length;
-    if (!total && s !== 'todo') return '';
+    if (!total && s !== 'unassigned' && s !== 'assigned') return '';
     const collapsed = s === 'done' && !S.taskDoneAll;
     if (collapsed) items = items.slice(0, 5);
-    return `<section class="tsec" id="task-${s}" data-col="${s}"><h3><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
+    const status = s === 'unassigned' || s === 'assigned' ? 'todo' : s;
+    return `<section class="tsec" id="task-${s}" data-col="${s}"><h3><span class="tdot st-${status}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
   };
-  const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TCOLS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
+  const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TGROUPS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s === 'assigned' || s === 'unassigned' ? 'todo' : s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
   const chips = [`<button type="button" class="tchip" data-townerf="" aria-selected="${!S.tfOwner}">${t('task.filterAll')}</button>`, ...owners.map((o) => `<button type="button" class="tchip" data-townerf="${esc(o)}" aria-selected="${S.tfOwner === o}">${esc(o)}</button>`)].join('');
   const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
   const normalRooms = S.rooms.filter((x) => !x.dm);
@@ -3023,7 +2885,7 @@ function renderTasks() {
   const roomPick = normalRooms.length ? `<select id="taskRoomPick" class="aside" aria-label="${t('task.room')}">${normalRooms.map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select>` : `<span class="aside">#${esc(r || '')}</span>`;
   $('view-tasks').innerHTML = `<div class="vw"><div class="thead"><h2>${t('task.title')} ${roomPick}</h2><div class="tbar"><button type="button" class="btn primary" id="taskAdd">${t('task.add')}</button><details class="tmore"><summary class="btn" aria-label="${t('task.more')}">⋯</summary><div class="tmenu2"><button type="button" class="btn" data-timport="todoplan.md">${t('task.import', { file: 'todoplan.md' })}</button><button type="button" class="btn" data-timport="todobug.md">${t('task.import', { file: 'todobug.md' })}</button></div></details></div></div>
     ${owners.length > 1 ? `<div class="tfilter">${chips}</div>` : ''}${S.tasksErr ? `<div class="verr" role="alert">${esc(t('task.err', { err: S.tasksErr }))}</div>` : ''}${form}${!list.length && !S.taskForm && !S.tasksErr ? `<div class="vempty">${t('task.empty')}</div>` : ''}
-    ${statusBar}${TCOLS.map(sec).join('')}</div>`;
+    ${statusBar}${TGROUPS.map(sec).join('')}</div>`;
   const ed = $('view-tasks').querySelector('[data-tedit-in]'); if (ed) { ed.focus(); ed.select(); }
 }
 $('view-tasks').addEventListener('click', (e) => {
