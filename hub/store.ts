@@ -25,6 +25,8 @@ export type Session = {
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
+  limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
+  limitHandled?: string;         // last rate-limit line whose recovery was handled
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none

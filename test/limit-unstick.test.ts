@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { endedOnLimit } from '../hub/wake.ts';
+import { endedOnLimit, limitErrorMarker } from '../hub/wake.ts';
+import { startHub } from '../hub/server.ts';
 
 // The synthetic line Claude Code writes when a subscription limit stops a turn.
 const limitLine = (resetsAtSec: number) => JSON.stringify({
@@ -36,8 +37,11 @@ test('endedOnLimit: only when the newest assistant line is the rate-limit error'
   const f = path.join(dir, 't.jsonl');
   fs.writeFileSync(f, limitLine(1) + '\n' + JSON.stringify({ type: 'system', subtype: 'x' }) + '\n');
   assert.equal(endedOnLimit(f), true);
+  const marker = limitErrorMarker(f);
+  assert.ok(marker);
   fs.appendFileSync(f, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'back' }] } }) + '\n');
   assert.equal(endedOnLimit(f), false, 'a later normal answer means it recovered');
+  assert.equal(limitErrorMarker(f), null);
   assert.equal(endedOnLimit(path.join(dir, 'none.jsonl')), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -68,6 +72,67 @@ test('closeLimitedTab off: the tab is left alone and @you is told to type in it'
   try {
     assert.deepEqual(order, []);
     assert.ok(notices.some((t) => t.startsWith('@you') && t.includes('alice')), notices.join(' | '));
+  } finally { await h.hub.close(); }
+});
+
+test('an old limit line with no queued message is handled once across repeated usage sweeps and restarts', async () => {
+  const operations: string[] = [];
+  const h = await makeHub(20, () => { operations.push('revive'); }, {
+    listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { operations.push('kill'); },
+  });
+  try {
+    const tr = path.join(h.dir, 'stale.jsonl');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    await h.call('/api/sessions/register', { id: 'stale', cwd: h.dir, name: 'stale', transcript: tr, pid: 800 });
+    await h.call('/api/rooms/web/join', { sessionId: 'stale' });
+    const s = h.hub.store.session('stale');
+    h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() - 1, configDirs: [path.join(h.dir, '.claude')], swept: false } };
+    h.hub.store.save();
+    await until(() => !!s.limitHandled, 5_000, 'the stale limit line to be marked handled');
+    for (let i = 0; i < 4; i++) {
+      h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() - 1, configDirs: [path.join(h.dir, '.claude')], swept: false } };
+      h.hub.store.save();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    const messages = h.hub.store.history('web').filter((m) => m.kind === 'system');
+    assert.equal(messages.length, 0, 'no recovery notice or kill/revive is needed without queued work');
+    assert.deepEqual(operations, []);
+    assert.equal(h.hub.store.state.sessions.stale.limitHandled, limitErrorMarker(s.transcript));
+  } finally { await h.hub.close(); }
+  const restarted = await startHub({
+    dir: h.dir, port: 0, sweepMs: 20, revive: () => { operations.push('revive'); }, batchMs: 0, autoRevive: true,
+    listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { operations.push('kill'); }, probe: null, legacyKeyFile: path.join(h.dir, 'no-legacy.key'),
+    usageFetch: null, versionFetch: null, usageHome: h.dir, openUrl: () => {},
+  });
+  try {
+    assert.equal(restarted.store.session('stale').limitHandled, h.hub.store.session('stale').limitHandled, 'handled marker survives hub restart');
+    for (let i = 0; i < 4; i++) {
+      restarted.store.state.usagePaused = { 'a@x.com': { until: Date.now() - 1, configDirs: [path.join(h.dir, '.claude')], swept: false } };
+      restarted.store.save();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    assert.deepEqual(operations, [], 'restarted sweeper does not kill or revive for the same line');
+    assert.equal(restarted.store.history('web').filter((m) => m.kind === 'system').length, 0, 'restarted sweeper does not repeat a notice');
+  } finally { await restarted.close(); }
+});
+
+test('a live IDE tab is never terminated by limit recovery even when it has queued work', async () => {
+  const operations: string[] = [];
+  const h = await makeHub(undefined, () => { operations.push('revive'); }, {
+    listProcs: async () => [{ pid: process.pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
+    kill: async () => { operations.push('kill'); },
+  });
+  try {
+    const tr = path.join(h.dir, 'tab.jsonl');
+    fs.writeFileSync(tr, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    await h.call('/api/sessions/register', { id: 'ide-tab', cwd: h.dir, name: 'ide-tab', transcript: tr, pid: process.pid, ide: 'vscode' });
+    await h.call('/api/rooms/web/join', { sessionId: 'ide-tab' });
+    await h.call('/api/rooms/web/messages', { text: '@ide-tab continue' });
+    await until(() => !!h.hub.store.session('ide-tab').limitHandled, 5_000, 'the live IDE tab limit to be acknowledged');
+    assert.deepEqual(operations, []);
+    assert.equal(h.hub.store.pending('ide-tab').wake, true, 'queued work remains available');
   } finally { await h.hub.close(); }
 });
 

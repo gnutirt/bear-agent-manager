@@ -158,13 +158,22 @@ test('usage sweep unsticks ended-on-limit sessions after their account pause exp
     await h.call('/api/sessions/register', { id: 'sweep-limit', cwd: 'C:/fw', transcript });
     await h.call('/api/sessions/sweep-limit/rename', { name: 'sweep-limit' });
     await h.call('/api/rooms/proj/join', { sessionId: 'sweep-limit' });
+    await h.call('/api/sessions/register', { id: 'sender', cwd: 'C:/fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'sender' });
+    await h.call('/api/settings', { closeLimitedTab: true }, { method: 'PUT' });
+    assert.equal((await h.call<any>('/api/settings')).closeLimitedTab, true);
     h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() + 5_000, configDirs: [path.join(h.dir, '.claude')] } };
     h.hub.store.save();
+    await h.call('/api/rooms/proj/messages', { sessionId: 'sender', text: '@sweep-limit resume after reset' });
     await new Promise((r) => setTimeout(r, 50));
     assert.deepEqual(revived, [], 'a still-paused account is not unstuck');
     h.hub.store.state.usagePaused['a@x.com'].until = Date.now() - 1;
     h.hub.store.save();
-    await until(() => revived.includes('sweep-limit'), 5_000, 'the paused account sweep to unstick its tab');
+    try { await until(() => revived.includes('sweep-limit'), 5_000, 'the paused account sweep to unstick its tab'); }
+    catch (error) {
+      const session = h.hub.store.session('sweep-limit');
+      throw new Error(`${(error as Error).message}; state=${JSON.stringify({ revived, session, pending: h.hub.store.pending(session.id), pause: h.hub.store.state.usagePaused, messages: h.hub.store.history('proj').map((m) => m.text) })}`);
+    }
   } finally { await h.hub.close(); }
 });
 

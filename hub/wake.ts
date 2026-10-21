@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import type { AccountUsage } from './usage.ts';
 
 /** Epoch ms when the subscription limit that stopped this chat lifts, read from the newest `quotaLimits` line of its transcript (0 = none found). */
@@ -54,24 +55,45 @@ export function planWakes(accounts: AccountUsage[], cfg: WakeCfg, have: Record<s
  * for a rate limit. Such a chat keeps its process (an editor tab) but never reaches the Stop hook: alive but deaf.
  */
 export function endedOnLimit(file: string | undefined): boolean {
+  return limitErrorMarker(file) !== null;
+}
+
+/** Stable byte offset of the last conversation-ending rate-limit line, used to deduplicate recovery across restarts. */
+export function limitErrorMarker(file: string | undefined): string | null {
   try {
-    if (!file) return false;
+    if (!file) return null;
     const fd = fs.openSync(file, 'r');
     try {
       const size = fs.fstatSync(fd).size, len = Math.min(size, 256 * 1024), buf = Buffer.alloc(len);
       fs.readSync(fd, buf, 0, len, size - len);
-      for (const line of buf.toString('utf8').split('\n').reverse()) {
+      const startsAtLineBoundary = size === len || (() => {
+        const previous = Buffer.alloc(1);
+        fs.readSync(fd, previous, 0, 1, size - len - 1);
+        return previous[0] === 0x0a;
+      })();
+      const lines = buf.toString('utf8').split('\n');
+      const offsets: number[] = [];
+      let offset = size - len;
+      for (const line of lines) {
+        offsets.push(offset);
+        offset += Buffer.byteLength(line, 'utf8') + 1;
+      }
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
         if (!line.includes('"assistant"') && !line.includes('"user"')) continue;
         try {
           const j = JSON.parse(line);
           // A prompt (or tool result) typed AFTER the error means the chat is working again: its new turn has no assistant line yet,
           // and ending that tab would kill live work. Only the error being the last conversation line counts.
-          if (j.type === 'user') return false;
+          if (j.type === 'user') return null;
           if (j.type !== 'assistant') continue;
-          return !!j.isApiErrorMessage && (j.error === 'rate_limit' || Number(j.apiErrorStatus) === 429 || !!j.quotaLimits);
+          if (i === 0 && !startsAtLineBoundary) return null; // the first tail fragment may start mid-line
+          return j.isApiErrorMessage && (j.error === 'rate_limit' || Number(j.apiErrorStatus) === 429 || !!j.quotaLimits)
+            ? `${offsets[i]}:${createHash('sha256').update(line).digest('hex')}`
+            : null;
         } catch { /* torn line */ }
       }
     } finally { fs.closeSync(fd); }
   } catch { /* unreadable */ }
-  return false;
+  return null;
 }

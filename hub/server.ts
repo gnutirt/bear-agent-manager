@@ -39,7 +39,7 @@ import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './co
 import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message, SysMeta } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
-import { endedOnLimit, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
+import { endedOnLimit, limitErrorMarker, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
 import { apiEnv, apiPerm, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
@@ -665,23 +665,47 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const unsticking = new Set<string>();
-  const waitTold = new Map<string, number>();   // session -> reset time already announced (one notice per limit)
+  const pendingLimit = (s: Session) => {
+    const p = store.pending(s.id);
+    return p.wake && p.messages.length > 0;
+  };
+  const limitHandled = (s: Session, marker = limitErrorMarker(s.transcript)) => !!marker && s.limitHandled === marker;
+  const markLimitHandled = (s: Session, marker: string) => { s.limitHandled = marker; store.save(); };
   /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
   async function unstick(s: Session) {
     if (unsticking.has(s.id)) return;
+    const marker = limitErrorMarker(s.transcript);
+    if (!marker || limitHandled(s, marker)) return;
     unsticking.add(s.id);
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     try {
+      if (!pendingLimit(s)) {
+        markLimitHandled(s, marker);
+        return;
+      }
       const cfg = loadSettings(opts.dir, envCap);
       const q = quotaResetFromTranscript(s.transcript), until = Math.max(q?.until ?? 0, s.limited?.until ?? 0);
       if (until > Date.now()) {
-        if (await trySwitch(s, cfg).catch(() => false)) return;
+        if (await trySwitch(s, cfg).catch(() => false)) { markLimitHandled(s, marker); return; }
         const key = `s:${s.id}`, have = (store.state.wakeAt ??= {});
         if (!have[key]) { have[key] = { at: until + cfg.lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
-        if (waitTold.get(s.id) !== until) { waitTold.set(s.id, until); say(tr('sys.limit.waiting', { name: s.name, at: clock(have[key].at) })); }
+        if (s.limitNotice !== marker) {
+          s.limitNotice = marker;
+          store.save();
+          say(tr('sys.limit.waiting', { name: s.name, at: clock(have[key].at) }));
+        }
         return;
       }
-      if (!cfg.closeLimitedTab) { say(tr('sys.limit.stuck', { name: s.name })); return; }
+      if (s.ide && tabHolds(s)) {
+        markLimitHandled(s, marker);
+        return;
+      }
+      if (!cfg.closeLimitedTab) {
+        markLimitHandled(s, marker);
+        say(tr('sys.limit.stuck', { name: s.name }));
+        return;
+      }
+      markLimitHandled(s, marker);
       try { await terminateSession(s); }
       catch (e) {
         if (s.pid && pidAlive(s.pid)) { say(tr('sys.limit.stuck', { name: s.name }) + ` (${(e as Error).message})`); return; }
@@ -726,7 +750,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
     // usage limit (2026-10-18: three agents got their @ at 02:01 after the reset, none ran until the user typed in each
     // tab at 02:12). Drop that waiter and unstick the chat instead.
-    if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript)) {
+    if (autoRevive && !st.ended && !reviving.has(sid) && endedOnLimit(st.transcript) && !limitHandled(st)) {
       const w = waiters.get(sid);
       if (w) { clearTimeout(w.timer); waiters.delete(sid); json(w.res, 200, { superseded: true }); }
       void unstick(st);
@@ -1285,7 +1309,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const ms = store.members(r).filter((s) => mine(s.configDir ?? ''));
         const targets = ms.filter((s) => {
           const pending = store.pending(s.id);
-          return (pending.wake && pending.messages.length > 0) || endedOnLimit(s.transcript);
+          const marker = limitErrorMarker(s.transcript);
+          return (pending.wake && pending.messages.length > 0) || (!!marker && !limitHandled(s, marker));
         });
         const lead = ms.find((s) => s.id === store.state.rooms[r]?.lead);
         if (lead && !targets.some((s) => s.id === lead.id)) targets.unshift(lead);
@@ -2489,7 +2514,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const waitingForRecovery: Session[] = [];
       for (const s of Object.values(store.state.sessions)) {
         const dir = path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase();
-        if (pause.configDirs.some((c) => path.resolve(c).toLowerCase() === dir) && !apiProfileOf(s) && !copilotHolding(s.id) && endedOnLimit(s.transcript)) {
+        const marker = limitErrorMarker(s.transcript);
+        if (pause.configDirs.some((c) => path.resolve(c).toLowerCase() === dir) && !apiProfileOf(s) && !copilotHolding(s.id) && marker && !limitHandled(s, marker)) {
           waitingForRecovery.push(s);
         }
       }
