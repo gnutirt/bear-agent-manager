@@ -60,7 +60,8 @@
   </div>
 </div>
 <section class="dock" id="of-dock" aria-label="Chat phòng">
-  <header><b>#phòng-chung</b><span class="empty" id="of-mem"></span><button id="of-bDock" aria-label="Thu gọn hoặc mở chat" style="padding:0 9px">▾</button></header>
+  <header><b>#phòng-chung</b><button id="of-bMem" aria-expanded="false" aria-controls="of-roster" style="padding:0 9px"><span id="of-mem"></span> ▾</button><button id="of-bDock" aria-label="Thu gọn hoặc mở chat" style="padding:0 9px">▾</button></header>
+  <div class="roster" id="of-roster" hidden></div>
   <div class="msgs" id="of-msgs" aria-live="polite"></div>
   <form class="compose" id="of-form" autocomplete="off"><div class="sugg" id="of-sugg" hidden></div><input id="of-inp" placeholder="Nhắn cả phòng, gõ @ để gọi một agent" aria-label="Tin nhắn"><button type="submit" style="background:var(--hi);color:var(--onhi);border-color:var(--hi)">Gửi</button></form>
 </section>
@@ -232,6 +233,14 @@
     }
     mountComposer($('of-form'), $('of-inp'), $('of-sugg'), null);
     $('of-bDock').onclick = () => { $('of-dock').classList.toggle('closed'); };
+    function paintRoster() {
+      const r = $('of-roster'); if (r.hidden) return;
+      const html = AG.map((a) => { const S = ST[meeting && a.state !== 'ask' ? 'meet' : a.state]; return `<button data-id="${esc(a.id)}"><i style="background:${S[1]}"></i><b>${esc(a.n)}</b><span>${esc(a.r)}</span><em>${S[0]}</em></button>`; }).join('');
+      if (r.dataset.sig === html) return; r.dataset.sig = html; r.innerHTML = html;
+      r.querySelectorAll('button').forEach((b) => { b.onclick = () => { setRoster(false); setFocus(b.dataset.id); }; });
+    }
+    function setRoster(on) { $('of-roster').hidden = !on; $('of-bMem').setAttribute('aria-expanded', on); if (on) { $('of-dock').classList.remove('closed'); $('of-roster').dataset.sig = ''; paintRoster(); } }
+    $('of-bMem').onclick = () => setRoster($('of-roster').hidden);
 
     /* ---------- agent panel ---------- */
     let tab = 'chat';
@@ -266,7 +275,7 @@
     function toast(a, txt) { const t = $('of-toast'); t.textContent = '✋ ' + txt; t.hidden = false; toastFor = a.id; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000); }
     $('of-toast').onclick = () => { if (toastFor) setFocus(toastFor); $('of-toast').hidden = true; };
     function toastMsg(t) { const e = $('of-toast'); e.textContent = t; e.hidden = false; toastFor = null; clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.hidden = true; }, 3500); }
-    function hud() { const c = { w: 0, n: 0, z: 0 }; AG.forEach((a) => { if (a.state === 'working' || a.state === 'error') c.w++; else if (a.state === 'ask') c.n++; else c.z++; }); $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nNap').textContent = c.z; $('of-mem').textContent = AG.length + ' agent'; }
+    function hud() { const c = { w: 0, n: 0, z: 0 }; AG.forEach((a) => { if (a.state === 'working' || a.state === 'error') c.w++; else if (a.state === 'ask') c.n++; else c.z++; }); $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nNap').textContent = c.z; $('of-mem').textContent = AG.length + ' agent'; paintRoster(); }
 
     /* ---------- live hub data (#147): real sessions, states, room chat, DM, permission asks ---------- */
     const enc = encodeURIComponent;

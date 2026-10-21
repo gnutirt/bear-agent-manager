@@ -110,3 +110,16 @@
 .office .dock{background:color-mix(in srgb,var(--glass2) 96%,transparent);box-shadow:0 8px 28px rgba(10,14,40,.28)}
 .office .sub{color:var(--fg);text-shadow:0 0 6px var(--titleglow),0 0 2px var(--titleglow)}
 .office .m .h{font-size:12px}
+.office .roster{position:absolute;left:0;right:0;top:46px;bottom:0;z-index:3;overflow:auto;background:var(--glass2);padding:6px;display:grid;align-content:start;gap:2px}
+.office .roster[hidden]{display:none}
+.office .roster button{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;text-align:left;border:0;background:transparent;padding:5px 8px;border-radius:8px;backdrop-filter:none}
+.office .roster button:hover{background:var(--hi);color:var(--onhi)}
+.office .roster i{width:10px;height:10px;border-radius:50%;grid-row:span 2}
+.office .roster span{grid-column:2;font-size:11.5px;font-weight:600;opacity:.7}
+.office .roster em{grid-column:3;grid-row:1/span 2;font-style:normal;font-size:12px}
+.office .roster{background:#f4f6fc}
+.office[data-theme="dark"] .roster{background:#1a2040}
+@media(prefers-color-scheme:dark){.office:not([data-theme="light"]) .roster{background:#1a2040}}
+.office .roster button{grid-template-columns:auto minmax(0,1fr) auto}
+.office .roster em{display:block;white-space:nowrap}
+.office .roster{top:40px}
