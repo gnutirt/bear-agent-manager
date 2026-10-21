@@ -83,6 +83,9 @@ export function limitErrorMarker(file: string | undefined): string | null {
         if (!line.includes('"assistant"') && !line.includes('"user"')) continue;
         try {
           const j = JSON.parse(line);
+          // Meta lines (system reminders, task notifications) are stored as type 'user' but nobody typed them:
+          // they must not hide an earlier rate-limit error.
+          if (j.isMeta) continue;
           // A prompt (or tool result) typed AFTER the error means the chat is working again: its new turn has no assistant line yet,
           // and ending that tab would kill live work. Only the error being the last conversation line counts.
           if (j.type === 'user') return null;

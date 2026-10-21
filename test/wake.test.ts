@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { planWakes, quotaResetFromTranscript } from '../hub/wake.ts';
+import { limitErrorMarker, planWakes, quotaResetFromTranscript } from '../hub/wake.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 import { startHub, type ReviveJob } from '../hub/server.ts';
 import { t } from '../shared/i18n.ts';
@@ -175,6 +175,22 @@ test('usage sweep unsticks ended-on-limit sessions after their account pause exp
       throw new Error(`${(error as Error).message}; state=${JSON.stringify({ revived, session, pending: h.hub.store.pending(session.id), pause: h.hub.store.state.usagePaused, messages: h.hub.store.history('proj').map((m) => m.text) })}`);
     }
   } finally { await h.hub.close(); }
+});
+
+test('limitErrorMarker skips meta lines after the limit error but a typed prompt still ends it', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-limit-meta-'));
+  const error = { type: 'assistant', isApiErrorMessage: true, error: 'rate_limit', apiErrorStatus: 429 };
+  const write = (name: string, ...lines: unknown[]) => {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    return file;
+  };
+  const plain = write('plain.jsonl', error);
+  const meta = write('meta.jsonl', error, { type: 'user', isMeta: true, message: { role: 'user', content: 'system reminder' } });
+  const typed = write('typed.jsonl', error, { type: 'user', message: { role: 'user', content: 'go on' } });
+  assert.ok(limitErrorMarker(plain));
+  assert.equal(limitErrorMarker(meta), limitErrorMarker(plain), 'a meta line does not hide the marker');
+  assert.equal(limitErrorMarker(typed), null, 'a prompt typed after the error means the chat is working again');
 });
 
 test('StopFailure rate_limit: reads the reset from the transcript, marks the session, books its wake', async () => {

@@ -15,6 +15,18 @@ test('parseMentions finds @names, lower-cases, dedupes, ignores emails', () => {
   assert.deepEqual(parseMentions('**@Coder_No_2**, `@fw` *@web* [@x] a.@no b/@no'), ['coder_no_2', 'fw', 'web', 'x']);
 });
 
+test('fenced code blocks mention nobody; inline code and plain text still do', () => {
+  assert.deepEqual(parseMentions('sample:\n```\n@all\n```\ndone'), []);
+  assert.deepEqual(parseMentions('a ```@all``` b @fw'), ['fw']);
+  assert.deepEqual(parseMentions('`@web` still mentions, contract at routing.ts:23'), ['web']);
+  assert.deepEqual(parseMentions('```\n@all\n```'), []);
+
+  const from = (text: string) => msg({ from: 'fw', fromId: 's-fw', mentions: parseMentions(text) });
+  assert.equal(wakes(from('```\n@all\n```'), web, false), false, 'fenced @all wakes nobody');
+  assert.equal(wakes(from('@all'), web, false), true, 'plain @all wakes');
+  assert.equal(wakes(from('`@web` example'), web, false), true, 'inline backtick still wakes');
+});
+
 test('user message without mention wakes every member', () => {
   assert.equal(wakes(msg({}), fw, false), true);
   assert.equal(wakes(msg({}), web, false), true);

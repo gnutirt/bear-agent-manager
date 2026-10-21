@@ -21,11 +21,13 @@ export type Message = {
 export const LOOP_LIMIT = 30;
 
 // Any non-word, non-path char before @ counts, so markdown like **@name** or `@name` still mentions; a@b.com and x/@y do not.
+// Fenced code blocks are stripped first: example code or pasted snippets must not wake anyone by accident.
+const FENCE = /```[\s\S]*?```/g;
 const MENTION = /(?:^|[^A-Za-z0-9_.\-/@])@([A-Za-z0-9_-]+)/g;
 
 export function parseMentions(text: string): string[] {
   const out: string[] = [];
-  for (const m of text.matchAll(MENTION)) {
+  for (const m of text.replace(FENCE, ' ').matchAll(MENTION)) {
     const name = m[1].toLowerCase();
     if (!out.includes(name)) out.push(name);
   }
