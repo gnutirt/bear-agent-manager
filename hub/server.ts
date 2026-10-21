@@ -59,6 +59,12 @@ export type { ReviveJob };
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI_FILE = path.join(ROOT, 'ui', 'index.html');
 const MAX_BODY = 64 * 1024;
+const OFFICE_ASSETS: Record<string, { file: string; type: string }> = {
+  '/office.css': { file: path.join(ROOT, 'ui', 'office.css'), type: 'text/css; charset=utf-8' },
+  '/office.js': { file: path.join(ROOT, 'ui', 'office.js'), type: 'text/javascript; charset=utf-8' },
+  '/vendor/office/three.min.js': { file: path.join(ROOT, 'ui', 'vendor', 'office', 'three.min.js'), type: 'text/javascript; charset=utf-8' },
+  '/vendor/office/OrbitControls.js': { file: path.join(ROOT, 'ui', 'vendor', 'office', 'OrbitControls.js'), type: 'text/javascript; charset=utf-8' },
+};
 
 export type SpawnWorker = (a: { promptFile: string; dir: string; task: string }) => Promise<{ code: number; stdout: string }>;
 /**
@@ -1713,6 +1719,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const a = appAsset(p)!;
       res.writeHead(200, { 'content-type': a.type, 'cache-control': 'no-cache' });
       return res.end(a.body);
+    }
+    const officeAsset = OFFICE_ASSETS[p];
+    if (m === 'GET' && officeAsset) {
+      if (!fs.existsSync(officeAsset.file) || !fs.statSync(officeAsset.file).isFile()) return json(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': officeAsset.type, 'cache-control': 'no-cache' });
+      return res.end(fs.readFileSync(officeAsset.file));
     }
     // Monaco editor, served from the local node_modules (no CDN, works offline). Static code only, no token needed (the web worker cannot send one).
     if (m === 'GET' && p.startsWith('/vendor/monaco/')) {

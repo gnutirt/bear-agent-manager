@@ -652,6 +652,8 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
+#view-office{display:flex;overflow:hidden;padding:0}
+#officeRoot{flex:1;min-height:0;min-width:0}
 .flow{--bg:#f3f5fb;--panel:#fff;--panel2:#eaeef8;--fg:#182036;--muted:#566080;--line:#d3d9ea;--card:#fff;--cardline:#c5cde2;--edge:#a3adc9;--chipbg:#fff;--laneA:#f6f8fd;--laneB:#ebeff8;--grid:#d3d9ea;--tier:rgba(60,80,140,.06);--hi:#d97706;--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;margin:-6px -8px 0;padding:16px max(8px,env(safe-area-inset-left,0px)) 20px;background:var(--bg);color:var(--fg);font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;min-height:100%;color-scheme:light}
 .flow *{box-sizing:border-box}
 @media(prefers-color-scheme:dark){.flow:not([data-theme=light]):not([data-theme=dark]){--bg:#0f1426;--panel:#171e38;--panel2:#1d2646;--fg:#eef1fb;--muted:#a9b4cc;--line:#2a3358;--card:#202a4f;--cardline:#3a4672;--edge:#59658f;--chipbg:#0f1426;--laneA:#10162a;--laneB:#141b33;--grid:#2a3358;--tier:rgba(255,255,255,.03);--hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff6b6b;color-scheme:dark}}
@@ -909,6 +911,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens" data-i18n="tab.usage">Usage</button>
   <button role="tab" data-tab="flow" data-i18n="tab.flow">Flow</button>
+  <button role="tab" data-tab="office" data-i18n="tab.office">Office</button>
   <button role="tab" data-tab="skills">Skill</button>
   <button role="tab" data-tab="settings" data-i18n="tab.settings">Cài đặt</button>
 </nav>
@@ -955,6 +958,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
 <section id="view-flow" class="view" hidden aria-label="Luồng agent" data-i18n-aria="flow.title"></section>
+<section id="view-office" class="view" hidden aria-label="Office"><div id="officeRoot"></div></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
 <section id="view-settings" class="view" hidden aria-label="Cài đặt" data-i18n-aria="tab.settings"></section>
 </div>
@@ -2456,7 +2460,61 @@ $('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch
 $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
-const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'flow', 'skills', 'settings'];
+const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'flow', 'office', 'skills', 'settings'];
+let officeAssetsPromise = null, officeStylePromise = null, officeInstance = null;
+const officeScriptLoads = new Map();
+function loadOfficeStylesheet() {
+  if (officeStylePromise) return officeStylePromise;
+  officeStylePromise = new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet'; link.href = '/office.css'; link.dataset.officeStyle = 'true';
+    link.onload = resolve;
+    link.onerror = () => { link.remove(); reject(new Error('office.css')); };
+    document.head.append(link);
+  }).catch((err) => { officeStylePromise = null; throw err; });
+  return officeStylePromise;
+}
+function loadOfficeScript(src) {
+  if (officeScriptLoads.has(src)) return officeScriptLoads.get(src);
+  const promise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => { script.remove(); reject(new Error(src)); };
+    document.head.append(script);
+  }).catch((err) => { officeScriptLoads.delete(src); throw err; });
+  officeScriptLoads.set(src, promise);
+  return promise;
+}
+function ensureOfficeAssets() {
+  if (!officeAssetsPromise) {
+    officeAssetsPromise = loadOfficeStylesheet()
+      .then(() => loadOfficeScript('/vendor/office/three.min.js'))
+      .then(() => loadOfficeScript('/vendor/office/OrbitControls.js'))
+      .then(() => loadOfficeScript('/office.js'))
+      .catch((err) => { officeAssetsPromise = null; throw err; });
+  }
+  return officeAssetsPromise;
+}
+async function openOffice() {
+  try {
+    await ensureOfficeAssets();
+    if (S.tab !== 'office' || officeInstance) return;
+    if (typeof window.mountOffice !== 'function' || typeof window.unmountOffice !== 'function') throw new Error('office module unavailable');
+    officeInstance = window.mountOffice($('officeRoot'), { room: flowRoomName() || 'bear-agent-manager', base: location.origin, token: TOKEN });
+  } catch (err) {
+    if (S.tab !== 'office') return;
+    const root = $('officeRoot'), message = document.createElement('p');
+    message.className = 'verr'; message.textContent = `${t('office.loadError')} ${err?.message || err}`;
+    root.replaceChildren(message);
+    toast(t('office.loadError'));
+  }
+}
+function closeOffice() {
+  if (!officeInstance) return;
+  if (typeof window.unmountOffice === 'function') window.unmountOffice();
+  officeInstance = null;
+}
 /** Phòng and Chat riêng share the chat view but never each other's conversations: each tab keeps its own last conversation. */
 function syncChatTabs() {
   const dm = !!room(S.current)?.dm, chat = S.tab === 'rooms';
@@ -2476,6 +2534,7 @@ function showTab(name) {
   }
   if (!TABS.includes(name)) name = 'rooms';
   if (name !== 'flow') stopFlowReplay();
+  if (name !== 'office') closeOffice();
   S.tab = name; closeMenu();
   for (const t of TABS) {
     $('view-' + t).hidden = t !== name;
@@ -2485,7 +2544,7 @@ function showTab(name) {
   syncChatTabs();
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, flow: loadFlow, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
+  ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, flow: loadFlow, office: openOffice, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 $('tabs').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const b = e.target.closest('[data-tab=dm]'); if (b) { e.preventDefault(); showTab('dm'); } } });

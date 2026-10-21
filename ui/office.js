@@ -201,7 +201,7 @@
         if (!m) { close(); return; }
         items = [{ h: 'all', n: 'Cả phòng', c: '#999' }].concat(AG).filter((a) => a.h.startsWith(m[1]) || (a.n || '').toLowerCase().startsWith(m[1])); idx = 0;
         if (!items.length) { close(); return; }
-        sugg.innerHTML = items.map((a, i) => `<button type="button" data-i="${i}" aria-selected="${i === 0}"><i style="background:${a.c}"></i>@${a.h} <span class="empty">${esc(a.n)}</span></button>`).join(''); sugg.hidden = false;
+        sugg.innerHTML = items.map((a, i) => `<button type="button" data-i="${i}" aria-selected="${i === 0}"><i style="background:${a.c}"></i>@${esc(a.h)} <span class="empty">${esc(a.n)}</span></button>`).join(''); sugg.hidden = false;
       });
       const choose = (i) => { const a = items[i]; if (!a) return; const pos = inp.selectionStart, pre = inp.value.slice(0, pos).replace(/@[a-z0-9-]*$/, '@' + a.h + ' '); inp.value = pre + inp.value.slice(pos); close(); inp.focus(); };
       sugg.addEventListener('mousedown', (e) => { const b = e.target.closest('[data-i]'); if (b) { e.preventDefault(); choose(+b.dataset.i); } });
@@ -252,7 +252,7 @@
       p.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
       if (tab === 'chat') { paintMsgs($('of-pm'), CHAT.filter((m) => live ? m.dm === a.id : (m.from === a.id || (m.to || []).includes(a.id))), 'Chưa có tin nào với ' + esc(a.n) + '.'); }
       else if (tab === 'act') { $('of-pb').firstChild.innerHTML = (a.state === 'working' && a.tool ? `<div style="border-color:var(--hi)">▶ ${esc(a.tool)}</div>` : '') + a.log.map((l) => `<div>${fmtT(l.t)} ${esc(l.txt)}</div>`).join('') || '<div>Chưa có hoạt động</div>'; }
-      else { $('of-pb').firstChild.innerHTML = `<dl><dt>Tầng</dt><dd>${a.tier}</dd><dt>Vai trò</dt><dd>${esc(a.r)}</dd><dt>Gọi bằng</dt><dd>@${a.h}</dd><dt>Trạng thái</dt><dd>${S[0]}</dd></dl><div><div class="empty">Cửa sổ ngữ cảnh ${a.ctx}%</div><div class="meter"><i style="width:${a.ctx}%"></i></div></div>`; }
+      else { $('of-pb').firstChild.innerHTML = `<dl><dt>Tầng</dt><dd>${a.tier}</dd><dt>Vai trò</dt><dd>${esc(a.r)}</dd><dt>Gọi bằng</dt><dd>@${esc(a.h)}</dd><dt>Trạng thái</dt><dd>${S[0]}</dd></dl><div><div class="empty">Cửa sổ ngữ cảnh ${a.ctx}%</div><div class="meter"><i style="width:${a.ctx}%"></i></div></div>`; }
     }
     function buildBody() {
       const a = by[focus], pb = $('of-pb');

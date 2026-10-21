@@ -250,11 +250,31 @@ test('UI tabs have their views', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const t of ['rooms', 'workers', 'tokens', 'flow', 'skills', 'settings']) {
+    for (const t of ['rooms', 'workers', 'tokens', 'flow', 'office', 'skills', 'settings']) {
       assert.ok(html.includes(`data-tab="${t}"`), `missing tab ${t}`);
       assert.ok(html.includes(`id="view-${t}"`), `missing view ${t}`);
     }
     assert.ok(html.includes('.view[hidden]{display:none!important}'), 'a hidden flex <main> must really hide');
+    assert.ok(html.includes('function openOffice()') && html.includes('function closeOffice()'), 'Office is loaded on demand and unmounted when leaving its tab');
+    assert.ok(html.indexOf("loadOfficeScript('/vendor/office/three.min.js')") < html.indexOf("loadOfficeScript('/vendor/office/OrbitControls.js')"), 'Three.js loads before OrbitControls');
+    assert.ok(html.indexOf("loadOfficeScript('/vendor/office/OrbitControls.js')") < html.indexOf("loadOfficeScript('/office.js')"), 'OrbitControls loads before the Office module');
+  } finally { await hub.close(); }
+});
+
+test('Office tab assets are served locally and without a token', async () => {
+  const { hub } = await makeHub();
+  try {
+    for (const [url, type, marker] of [
+      ['/office.css', 'text/css', '.office{'],
+      ['/office.js', 'text/javascript', 'window.mountOffice = mountOffice'],
+      ['/vendor/office/three.min.js', 'text/javascript', 'const e="128"'],
+      ['/vendor/office/OrbitControls.js', 'text/javascript', 'THREE.OrbitControls = OrbitControls'],
+    ]) {
+      const response = await fetch(hub.url + url);
+      assert.equal(response.status, 200, `${url} should be public static asset`);
+      assert.ok(response.headers.get('content-type')?.startsWith(type), `${url} should have ${type} content type`);
+      assert.ok((await response.text()).includes(marker), `${url} should contain ${marker}`);
+    }
   } finally { await hub.close(); }
 });
 
