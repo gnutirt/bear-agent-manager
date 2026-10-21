@@ -178,6 +178,9 @@ test('C3 deaf tab: a live tab with no waiter and an @ waiting is reported once; 
     assert.deepEqual(deafNotice.sys, { type: 'tab', level: 'warn', agent: 'alpha' });
     // ...and open-tab, normally refused for a session that still looks online, is let through for this flagged one
     assert.deepEqual(await h.call('/api/sessions/a1/open-tab', {}), { ok: true, ide: 'vscode' });
+    const delivered = await h.call<any>('/api/sessions/a1/wait?timeout=1');
+    assert.ok(delivered.messages.some((m: any) => m.id === deafNotice.id), 'the reported message is still delivered and consumed');
+    await assert.rejects(h.call('/api/sessions/a1/open-tab', {}), /online/, 'without the reported message pending, the online guard applies again');
 
     // C4: beta's tab was closed, there is no saved chat to resume and openTabOnWake is off
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b1' }) });
