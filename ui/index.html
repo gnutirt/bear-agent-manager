@@ -692,7 +692,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-bubble rect{fill:#f7f9ff;stroke:#0a0f1d;stroke-width:1.5}.flow-bubble text{fill:#14192a;font-size:9.5px;font-weight:600}
 .flow-arc{fill:none;stroke:#ffd166;stroke-width:2;stroke-dasharray:5 4}
 .flow-arcg.mine .flow-arc{stroke-width:2.6;stroke-dasharray:none}
-.flow-ac{fill:#ffe9a8;font-size:11px;font-weight:700;paint-order:stroke;stroke:#0a0f1d;stroke-width:3px}
+.flow-pill rect{fill:#0c1222;stroke:#ffd166;stroke-width:1.2}.flow-ac{fill:#ffe9a8;font-size:10.5px;font-weight:700}
 .flow-fx{pointer-events:none}
 @keyframes flowtype{0%,100%{opacity:1}50%{opacity:.45}}
 @keyframes flowbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
@@ -2570,9 +2570,9 @@ function flowLayout(nodes, now, narrow) {
     for (const k of ['need', 'busy', 'idle', 'off']) { const h = need(k, colsL); rects[k] = { x: 10, y, w: wl, h, cols: colsL }; y += h + gap; }
     H = y - gap + 10;
   } else {
-    const h1 = Math.max(need('busy', colsL), need('idle', colsR)), h2 = Math.max(need('need', colsL), need('off', colsR));
-    rects = { busy: { x: 10, y: 10, w: wl, h: h1, cols: colsL }, idle: { x: 10 + wl + gap, y: 10, w: wr, h: h1, cols: colsR }, need: { x: 10, y: 10 + h1 + gap, w: wl, h: h2, cols: colsL }, off: { x: 10 + wl + gap, y: 10 + h1 + gap, w: wr, h: h2, cols: colsR } };
-    H = 20 + h1 + gap + h2;
+    const hb = need('busy', colsL), hn = need('need', colsL), hi = need('idle', colsR), ho = need('off', colsR);
+    rects = { busy: { x: 10, y: 10, w: wl, h: hb, cols: colsL }, need: { x: 10, y: 10 + hb + gap, w: wl, h: hn, cols: colsL }, idle: { x: 10 + wl + gap, y: 10, w: wr, h: hi, cols: colsR }, off: { x: 10 + wl + gap, y: 10 + hi + gap, w: wr, h: ho, cols: colsR } };
+    H = 20 + Math.max(hb + gap + hn, hi + gap + ho);
   }
   const cells = [], pos = new Map();
   for (const z of FLOW_ZONES) {
@@ -2585,15 +2585,16 @@ function flowLayout(nodes, now, narrow) {
   }
   return { W, H, u, cw, ch, rects, cells, pos, groups };
 }
-const flowArc = (a, b) => {
+const flowCtl = (a, b) => {
   const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, k = Math.min(90, d * 0.28);
-  return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${(mx - dy / d * k).toFixed(1)} ${(my + dx / d * k).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  return { x: mx - dy / d * k, y: my + dx / d * k };
 };
+const flowArc = (a, b) => { const c = flowCtl(a, b); return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${c.x.toFixed(1)} ${c.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`; };
 function flowWorld(L, ctx) {
   const { now, selected, messages, roomInfo } = ctx;
   const defs = `<defs>${FLOW_ZONES.map((z) => `<pattern id="flowf-${z.key}" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="${z.a}"/><rect width="12" height="12" fill="${z.b}"/><rect x="12" y="12" width="12" height="12" fill="${z.b}"/></pattern>`).join('')}<marker id="flow-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffd166"/></marker></defs>`;
   const zones = FLOW_ZONES.map((z) => {
-    const r = L.rects[z.key], n = L.groups[z.key].length;
+    const r = L.rects[z.key], n = L.groups[z.key].length - (z.key === 'need' ? 1 : 0);
     return `<g class="flow-zone" data-zone="${z.key}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="url(#flowf-${z.key})" class="flow-wall"/><rect x="${r.x}" y="${r.y}" width="${r.w}" height="26" rx="6" class="flow-zhead"/><text x="${r.x + 12}" y="${r.y + 18}" class="flow-ztitle">${esc(t(z.label))}</text><text x="${r.x + r.w - 12}" y="${r.y + 18}" class="flow-zcount" text-anchor="end">${n}</text></g>`;
   }).join('');
   const recentBy = new Map();
@@ -2623,8 +2624,8 @@ function flowWorld(L, ctx) {
   const fresh = all.filter((e) => now - e.ts < 120000 && !mine.includes(e));
   const arcs = [...fresh.map((e) => [e, 'fresh']), ...mine.map((e) => [e, 'mine'])].map(([e, kind]) => {
     const a = L.pos.get(e.from), b = L.pos.get(e.to), op = kind === 'mine' ? 0.85 : Math.max(0.12, 0.8 - (now - e.ts) / 150000);
-    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    return `<g class="flow-arcg ${kind}" style="opacity:${op.toFixed(2)}"><path d="${flowArc(a, b)}" class="flow-arc" marker-end="url(#flow-arr)"/>${kind === 'mine' && e.n > 1 ? `<text x="${mid.x}" y="${mid.y - 4}" class="flow-ac" text-anchor="middle">${e.n}</text>` : ''}</g>`;
+    const c = flowCtl(a, b), mid = { x: 0.25 * a.x + 0.5 * c.x + 0.25 * b.x, y: 0.25 * a.y + 0.5 * c.y + 0.25 * b.y }, lw = String(e.n).length * 7 + 8;
+    return `<g class="flow-arcg ${kind}" style="opacity:${op.toFixed(2)}"><path d="${flowArc(a, b)}" class="flow-arc" marker-end="url(#flow-arr)"/>${kind === 'mine' && e.n > 1 ? `<g class="flow-pill"><rect x="${(mid.x - lw / 2).toFixed(1)}" y="${(mid.y - 8).toFixed(1)}" width="${lw}" height="15" rx="7"/><text x="${mid.x.toFixed(1)}" y="${(mid.y + 3.5).toFixed(1)}" class="flow-ac" text-anchor="middle">${e.n}</text></g>` : ''}</g>`;
   }).join('');
   return `${defs}${zones}<g class="flow-arcs">${arcs}</g>${desks}<g id="flowFx" class="flow-fx"></g>`;
 }
