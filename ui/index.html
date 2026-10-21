@@ -652,6 +652,53 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
+.flowbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.flowbar select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text)}
+.flowstats{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.flowstat{border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--panel);font-size:12px;color:var(--mute)}
+.flowgrid{display:grid;grid-template-columns:minmax(170px,210px) minmax(0,1fr) minmax(220px,270px);gap:12px;align-items:start}
+.flowbox{min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.flowbox h2{display:flex;align-items:center;gap:8px;margin:0;padding:11px 13px;border-bottom:1px solid var(--line);font-size:13px}
+.flowbox h2 small{margin-left:auto;color:var(--mute);font-weight:500}
+.flowattention{padding:6px;display:grid;gap:3px;max-height:62vh;overflow:auto}
+.flow-attn{display:flex;align-items:flex-start;gap:8px;text-align:left;padding:8px;border-radius:8px;font-size:12px;color:var(--text)}
+.flow-attn:hover{background:var(--hover)}
+.flow-attn .flow-attn-dot{flex:none;width:8px;height:8px;margin-top:4px;border-radius:50%;background:var(--waiting)}
+.flow-attn.blocked .flow-attn-dot{background:var(--busy)}
+.flow-attn.unread .flow-attn-dot{background:var(--accent)}
+.flow-attn span:last-child{min-width:0;overflow-wrap:anywhere}
+.flow-empty{padding:16px;color:var(--mute);font-size:12.5px}
+.flowgraph-wrap{overflow:auto;max-height:62vh;background:linear-gradient(135deg,var(--panel),var(--bg))}
+.flowgraph{display:block;max-width:none}
+.flow-edge{fill:none;stroke:var(--accent);stroke-opacity:.52;vector-effect:non-scaling-stroke}
+.flow-edge.relay{stroke:var(--mute);stroke-dasharray:5 4;stroke-opacity:.72}
+.flow-edge.is-active{stroke:var(--busy);stroke-opacity:1}
+.flow-edge-count{font-size:10px;fill:var(--mute);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:4px;stroke-linejoin:round}
+.flow-node{cursor:pointer;outline:none}
+.flow-node rect{fill:var(--panel);stroke:var(--line);stroke-width:1.4;vector-effect:non-scaling-stroke}
+.flow-node:hover rect,.flow-node:focus rect{stroke:var(--accent);stroke-width:2.4}
+.flow-node[aria-pressed=true] rect{stroke:var(--accent);stroke-width:2.4;fill:var(--accent-soft)}
+.flow-node[data-status=busy] rect{stroke:var(--busy)}
+.flow-node[data-status=waiting] rect{stroke:var(--waiting)}
+.flow-node[data-status=idle] rect{stroke:var(--idle)}
+.flow-node .flow-name{font-size:12px;font-weight:700;fill:var(--text)}
+.flow-node .flow-meta{font-size:10px;fill:var(--mute)}
+.flow-node .flow-dot{stroke:var(--panel);stroke-width:2}
+.flow-node .flow-lead{font-size:10px;fill:var(--busy)}
+.flow-node .flow-limited{font-size:9px;font-weight:700;fill:var(--waiting)}
+.flow-detail{padding:12px;display:grid;gap:8px;font-size:12.5px}
+.flow-detail h3{margin:0;font-size:14px}
+.flow-detail p{margin:0;color:var(--mute);overflow-wrap:anywhere}
+.flow-detail ul{margin:0;padding-left:18px;display:grid;gap:5px}
+.flow-detail li{overflow-wrap:anywhere}
+.flow-detail .btn{justify-self:start}
+.flow-timeline{margin-top:12px}
+.flow-ticks{display:flex;align-items:stretch;gap:3px;padding:10px;overflow-x:auto;min-height:42px}
+.flow-tick{flex:none;width:5px;min-height:22px;border-radius:3px;background:var(--accent);opacity:.72;padding:0}
+.flow-tick:hover,.flow-tick[aria-pressed=true]{opacity:1;outline:2px solid var(--accent);outline-offset:2px}
+.flow-msg{padding:0 12px 12px;color:var(--mute);font-size:12px;overflow-wrap:anywhere}
+@media(max-width:1050px){.flowgrid{grid-template-columns:minmax(150px,190px) minmax(0,1fr)}.flow-inspector{grid-column:1/-1}.flow-detail{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:start}.flow-detail h3{grid-column:1/-1}}
+@media(max-width:650px){.flowgrid{grid-template-columns:minmax(0,1fr)}.flow-inspector{grid-column:auto}.flowattention{display:flex;max-height:none;overflow-x:auto}.flow-attn{min-width:180px}.flowstats{margin-left:0}.flowgraph-wrap{max-height:55vh}}
 .vw{max-width:1600px}
 .vw h1{margin:0 0 4px;font-size:20px;font-weight:700}
 .vw .lede{margin:0 0 20px;color:var(--mute);font-size:13.5px;max-width:72ch}
@@ -847,6 +894,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <button role="tab" data-tab="tasks"><span data-i18n="tab.tasks">Việc</span> <span class="cap" id="tabTaskCount"></span></button>
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="tokens" data-i18n="tab.usage">Usage</button>
+  <button role="tab" data-tab="flow" data-i18n="tab.flow">Flow</button>
   <button role="tab" data-tab="skills">Skill</button>
   <button role="tab" data-tab="settings" data-i18n="tab.settings">Cài đặt</button>
 </nav>
@@ -892,6 +940,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <section id="view-tasks" class="view" hidden aria-label="Việc" data-i18n-aria="tab.tasks"></section>
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
+<section id="view-flow" class="view" hidden aria-label="Luồng agent" data-i18n-aria="flow.title"></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
 <section id="view-settings" class="view" hidden aria-label="Cài đặt" data-i18n-aria="tab.settings"></section>
 </div>
@@ -1891,8 +1940,10 @@ async function select(name) {
 function setRooms(rooms) {
   S.rooms = rooms.sort((a, b) => a.name.localeCompare(b.name));
   for (const k of Object.keys(S.messages)) if (!room(k)) delete S.messages[k];
+  for (const k of Object.keys(S.flowMessages)) if (!room(k)) { delete S.flowMessages[k]; S.flowLoaded.delete(k); }
   if (!room(S.current)) { S.current = null; return select(S.rooms.find((r) => !r.dm)?.name ?? S.rooms[0]?.name ?? null); }
   renderAll();
+  renderFlow();
 }
 
 /* ---------- live updates ---------- */
@@ -1902,11 +1953,13 @@ function connect() {
     const snap = JSON.parse(e.data);
     S.sessions = Object.fromEntries(snap.sessions.map((s) => [s.id, s]));
     S.messages = {};
+    S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null;
     let saved = null; try { saved = localStorage.getItem('bear-agent-manager:room'); } catch {}
     S.rooms = snap.rooms;
     S.current = room(S.current) ? S.current : room(saved) ? saved : (S.rooms.find((r) => !r.dm)?.name ?? S.rooms[0]?.name ?? null);
     select(S.current);
     for (const r of S.rooms) loadTasks(r.name);
+    if (S.tab === 'flow') loadFlow();
     loadWorkers();
     refreshAgentMetadata().catch((err) => toast(err.message));
     renderWorkersView();
@@ -1914,6 +1967,9 @@ function connect() {
   });
   es.addEventListener('msg', (e) => {
     const m = JSON.parse(e.data);
+    const flowList = S.flowMessages[m.room];
+    if (flowList && !flowList.some((x) => x.id === m.id)) flowList.push(m);
+    if (m.room === S.flowRoom) { queueFlow(); if (S.tab === 'flow') announce(`${messageName(m)}: ${plain(m.text, 160)}`); }
     const list = S.messages[m.room];
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
     if (m.sys?.type === 'relay' && m.fromId) ensureDm(m.fromId);
@@ -1928,7 +1984,7 @@ function connect() {
       queueLog();
     } else if (!(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
-  es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); });
+  es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); renderFlow(); });
   es.addEventListener('console', (e) => {
     const d = JSON.parse(e.data), list = S.console[d.session]; if (!list) return;
     const i = list.findIndex((x) => x.id === d.id); if (i < 0) list.push(d); else list[i] = d;
@@ -1941,12 +1997,14 @@ function connect() {
     if (S.renaming !== s.id) renderSessions();
     renderHeader(); renderPresence(); renderLogIfChanged(); if (typeof renderLive === 'function') renderLive();
     if (S.tab === 'workers') renderWorkersView();
+    queueFlow();
   });
   es.addEventListener('room', (e) => {
     const r = JSON.parse(e.data);
     const i = S.rooms.findIndex((x) => x.name === r.name);
     if (i >= 0) S.rooms[i] = r; else S.rooms.push(r);
     setRooms(S.rooms);
+    renderFlow();
   });
   es.addEventListener('rooms', (e) => setRooms(JSON.parse(e.data)));
   es.addEventListener('live', (e) => liveEvent(JSON.parse(e.data)));
@@ -2384,7 +2442,7 @@ $('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch
 $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
-const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'skills', 'settings'];
+const TABS = ['rooms', 'tasks', 'workers', 'tokens', 'flow', 'skills', 'settings'];
 /** Phòng and Chat riêng share the chat view but never each other's conversations: each tab keeps its own last conversation. */
 function syncChatTabs() {
   const dm = !!room(S.current)?.dm, chat = S.tab === 'rooms';
@@ -2403,6 +2461,7 @@ function showTab(name) {
     name = 'rooms';
   }
   if (!TABS.includes(name)) name = 'rooms';
+  if (name !== 'flow') stopFlowReplay();
   S.tab = name; closeMenu();
   for (const t of TABS) {
     $('view-' + t).hidden = t !== name;
@@ -2412,7 +2471,7 @@ function showTab(name) {
   syncChatTabs();
   if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
+  ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, flow: loadFlow, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 $('tabs').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const b = e.target.closest('[data-tab=dm]'); if (b) { e.preventDefault(); showTab('dm'); } } });
@@ -2421,8 +2480,169 @@ window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 /* ---------- Việc tab (K3): grouped task list (GET/POST /api/rooms/:r/tasks, live through the "tasks" event) ---------- */
 S.tasks = {}; S.taskOpen = null; S.tasksErr = ''; S.tfOwner = ''; S.taskForm = false; S.taskDoneAll = false; S.taskEdit = null;
 S.taskRoom = null; try { S.taskRoom = localStorage.getItem('bear-agent-manager:taskRoom') || null; } catch {}
+S.flowRoom = null; try { S.flowRoom = localStorage.getItem('bear-agent-manager:flowRoom') || null; } catch {}
+S.flowRange = '24h'; S.flowSelected = 'you'; S.flowSelectedMsg = null; S.flowMessages = {}; S.flowLoaded = new Set(); S.flowLoading = null; S.flowErr = ''; S.flowReplayTimer = null; S.flowReplayIndex = -1;
 /** Last non-DM room seen (nav or the Việc tab's own picker): stays valid while a DM has nothing to show. */
 function setTaskRoom(name) { if (!name || room(name)?.dm) return; S.taskRoom = name; try { localStorage.setItem('bear-agent-manager:taskRoom', name); } catch {} }
+function flowRoomName() {
+  const normal = S.rooms.filter((x) => !x.dm);
+  return (S.flowRoom && normal.some((x) => x.name === S.flowRoom) ? S.flowRoom : null)
+    || (S.current && !room(S.current)?.dm ? S.current : null)
+    || (S.taskRoom && normal.some((x) => x.name === S.taskRoom) ? S.taskRoom : null)
+    || normal[0]?.name
+    || null;
+}
+function loadFlow() {
+  const r = flowRoomName();
+  if (!r) return renderFlow();
+  S.flowRoom = r;
+  S.flowMessages[r] ||= [];
+  renderFlow();
+  if (S.flowLoaded.has(r) || S.flowLoading === r) return;
+  S.flowLoading = r; S.flowErr = '';
+  api(`/api/rooms/${enc(r)}/messages?limit=300`).then((messages) => {
+    const live = S.flowMessages[r] || [];
+    const loaded = Array.isArray(messages) ? messages : [];
+    const merged = [...loaded, ...live.filter((m) => !loaded.some((x) => x.id === m.id))];
+    S.flowMessages[r] = merged.sort((a, b) => a.id - b.id);
+    S.flowLoaded.add(r);
+  }, (e) => { S.flowErr = e.message; }).finally(() => {
+    if (S.flowLoading === r) S.flowLoading = null;
+    renderFlow();
+  });
+}
+let flowFrame = 0;
+function queueFlow() {
+  if (flowFrame || S.tab !== 'flow') return;
+  flowFrame = requestAnimationFrame(() => { flowFrame = 0; renderFlow(); });
+}
+function flowStatus(s) { return s?.status || 'offline'; }
+function flowDuration() { return ({ '1h': 3600000, '24h': 86400000, '7d': 604800000 })[S.flowRange] || 0; }
+function flowMessages() {
+  const cutoff = flowDuration() ? Date.now() - flowDuration() : 0;
+  return (S.flowMessages[S.flowRoom] || []).filter((m) => !cutoff || m.ts >= cutoff).sort((a, b) => a.id - b.id);
+}
+const flowShort = (x, n = 26) => { x = String(x || ''); return x.length > n ? x.slice(0, n - 1) + '…' : x; };
+function renderFlow() {
+  const el = $('view-flow');
+  if (!el || S.tab !== 'flow') return;
+  const r = flowRoomName();
+  if (!r) { el.innerHTML = `<div class="vw"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.noRooms')}</p></div>`; return; }
+  S.flowRoom = r;
+  const roomInfo = room(r), messages = flowMessages();
+  const now = Date.now(), nodeMap = new Map([['you', { id: 'you', name: t('you'), session: null }]]);
+  const addNode = (id, fallback) => {
+    if (!id || nodeMap.has(id)) return;
+    const session = S.sessions[id];
+    nodeMap.set(id, { id, name: session?.name || fallback || id.slice(0, 12), session });
+  };
+  for (const id of roomInfo?.members || []) addNode(id);
+  addNode(roomInfo?.lead);
+  for (const m of messages) {
+    if (m.fromId) addNode(m.fromId, m.from);
+    for (const id of m.wake || []) addNode(id);
+  }
+  const nodes = [...nodeMap.values()].filter((x) => x.id === 'you').concat([...nodeMap.values()].filter((x) => x.id !== 'you').sort((a, b) => Number(b.id === roomInfo?.lead) - Number(a.id === roomInfo?.lead) || a.name.localeCompare(b.name)));
+  const colCount = innerWidth <= 650 ? 2 : 3, cardW = innerWidth <= 650 ? 140 : 158, cardH = 72, stepX = cardW + 22, stepY = 106, left = 12, top = 12;
+  const positions = new Map(nodes.map((n, i) => [n.id, { x: left + (i % colCount) * stepX, y: top + Math.floor(i / colCount) * stepY }]));
+  const width = left * 2 + colCount * cardW + (colCount - 1) * 22;
+  const height = top * 2 + Math.max(1, Math.ceil(nodes.length / colCount)) * stepY - (stepY - cardH);
+  const edgeMap = new Map();
+  const addEdge = (from, to, type) => {
+    if (!positions.has(from) || !positions.has(to) || from === to) return;
+    const key = `${type}:${from}:${to}`, edge = edgeMap.get(key) || { from, to, type, count: 0 };
+    edge.count++; edgeMap.set(key, edge);
+  };
+  for (const m of messages) {
+    const from = m.fromId || 'you';
+    for (const to of m.wake || []) addEdge(from, to, 'wake');
+    if (m.kind === 'mirror' || m.sys?.type === 'relay') addEdge(from, 'you', 'relay');
+  }
+  const edges = [...edgeMap.values()].sort((a, b) => b.count - a.count).slice(0, 240);
+  const edgeHtml = edges.map((edge) => {
+    const a = positions.get(edge.from), b = positions.get(edge.to), x1 = a.x + cardW / 2, y1 = a.y + cardH / 2, x2 = b.x + cardW / 2, y2 = b.y + cardH / 2;
+    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+    const active = messages.some((m) => m.id === S.flowSelectedMsg && (((m.wake || []).includes(edge.to) && (m.fromId || 'you') === edge.from) || (edge.type === 'relay' && (m.kind === 'mirror' || m.sys?.type === 'relay') && (m.fromId || 'you') === edge.from)));
+    return `<g><path class="flow-edge ${edge.type === 'relay' ? 'relay' : ''}${active ? ' is-active' : ''}" d="M${x1} ${y1} L${x2} ${y2}" stroke-width="${Math.min(4, 1.2 + Math.log2(edge.count + 1))}" marker-end="url(#flow-arrow)"/><text class="flow-edge-count" x="${midX}" y="${midY - 3}">${edge.count}</text></g>`;
+  }).join('');
+  const nodeHtml = nodes.map((n) => {
+    const p = positions.get(n.id), s = n.session, status = n.id === 'you' ? 'user' : flowStatus(s), limited = !!s?.limited && s.limited.until > now, name = flowShort(n.name, innerWidth <= 650 ? 19 : 24);
+    const activity = n.id === 'you' ? t('flow.user') : s?.activity && status === 'busy' ? s.activity : t(`status.${status}`);
+    const lead = n.id !== 'you' && roomInfo?.lead === n.id;
+    const tasks = (S.tasks[r] || []).filter((x) => x.status !== 'done' && (x.owner === n.name || x.owner === n.id)).length;
+    return `<g class="flow-node" data-flow-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(S.flowSelected === n.id)}" aria-label="${esc(n.name)} · ${esc(activity)}${lead ? ` · ${t('room.lead')}` : ''}${limited ? ` · ${t('flow.limited')}` : ''}" transform="translate(${p.x} ${p.y})"><rect width="${cardW}" height="${cardH}" rx="11"/><circle class="flow-dot" cx="13" cy="16" r="5" fill="${n.id === 'you' ? 'var(--accent)' : `var(--${status})`}"/><text class="flow-name" x="24" y="20">${esc(name)}${lead ? ' ★' : ''}</text><text class="flow-meta" x="11" y="41">${esc(flowShort(activity, 27))}</text>${limited ? `<text class="flow-limited" x="11" y="58">${esc(t('flow.limited'))}</text>` : tasks ? `<text class="flow-meta" x="11" y="58">${esc(t('flow.tasks', { n: tasks }))}</text>` : s?.ide ? `<text class="flow-meta" x="11" y="58">${esc(IDE[s.ide] || s.ide)}</text>` : ''}</g>`;
+  }).join('');
+  const waiting = nodes.filter((n) => n.session?.status === 'waiting');
+  const blocked = (S.tasks[r] || []).filter((x) => x.status === 'blocked');
+  const attention = [
+    ...waiting.map((n) => `<button type="button" class="flow-attn" data-flow-pick="${esc(n.id)}"><span class="flow-attn-dot"></span><span>${esc(n.name)} · ${esc(t('status.waiting'))}</span></button>`),
+    ...blocked.slice(0, 12).map((x) => `<button type="button" class="flow-attn blocked" data-flow-task="${esc(x.id)}"><span class="flow-attn-dot"></span><span>#${x.id} · ${esc(x.title)}</span></button>`),
+    ...(S.unread[r] ? [`<button type="button" class="flow-attn unread" data-flow-room><span class="flow-attn-dot"></span><span>${esc(t('flow.unread', { n: S.unread[r] }))}</span></button>`] : []),
+  ].join('') || `<div class="flow-empty">${t('flow.clear')}</div>`;
+  const selected = nodeMap.get(S.flowSelected) || nodeMap.get('you'), sid = selected?.id === 'you' ? null : selected?.id, session = sid && S.sessions[sid];
+  const selectedTasks = (S.tasks[r] || []).filter((x) => x.status !== 'done' && (x.owner === selected?.name || x.owner === sid)).slice(0, 5);
+  const recent = messages.filter((m) => sid ? m.fromId === sid || (m.wake || []).includes(sid) : !m.fromId).slice(-5).reverse();
+  const detailMsg = messages.find((m) => m.id === S.flowSelectedMsg);
+  const inspector = `<div class="flow-detail"><h3>${esc(selected?.name || t('you'))}${session && roomInfo?.lead === sid ? ` <span class="star">★</span>` : ''}</h3><p>${esc(session?.activity || (session ? t(`status.${session.status}`) : t('flow.user')))}${session?.ide ? ` · ${esc(IDE[session.ide] || session.ide)}` : ''}</p>${session?.limited && session.limited.until > now ? `<p class="flow-limited">${t('flow.limited')}</p>` : ''}${session ? `<button type="button" class="btn sm" data-flow-chat="${esc(sid)}">${t('flow.chat')}</button>` : ''}<div><b>${t('flow.tasksTitle')}</b>${selectedTasks.length ? `<ul>${selectedTasks.map((x) => `<li>${esc(x.title)} <span class="muted">· ${esc(t(`task.${x.status}`))}</span></li>`).join('')}</ul>` : `<p>${t('flow.noTasks')}</p>`}</div><div><b>${t('flow.recent')}</b>${recent.length ? `<ul>${recent.map((m) => `<li>${esc(flowShort(m.text, 100))}</li>`).join('')}</ul>` : `<p>${t('flow.noMessages')}</p>`}</div></div>`;
+  const ticks = messages.filter((m) => m.kind !== 'system').slice(-120);
+  const selectedMessage = detailMsg ? `${messageName(detailMsg)} · ${plain(detailMsg.text, 180)}` : '';
+  const rangeOpts = [['1h', 'flow.1h'], ['24h', 'flow.24h'], ['7d', 'flow.7d'], ['all', 'flow.all']];
+  el.innerHTML = `<div class="vw flow"><h1>${t('flow.title')}</h1><p class="lede">${t('flow.lede')}</p><div class="flowbar"><label>${t('flow.room')} <select id="flowRoom">${S.rooms.filter((x) => !x.dm).map((x) => `<option value="${esc(x.name)}"${x.name === r ? ' selected' : ''}>#${esc(x.name)}</option>`).join('')}</select></label><label>${t('flow.range')} <select id="flowRange">${rangeOpts.map(([v, k]) => `<option value="${v}"${S.flowRange === v ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label><button type="button" class="btn sm" id="flowReplay" aria-pressed="${String(!!S.flowReplayTimer)}">${S.flowReplayTimer ? t('flow.stop') : t('flow.replay')}</button><div class="flowstats"><span class="flowstat">${t('flow.agentCount', { n: nodes.length - 1 })}</span><span class="flowstat">${t('flow.messageCount', { n: messages.length })}</span><span class="flowstat">${t('flow.edgeCount', { n: edges.length })}</span></div></div>${S.flowErr ? `<div class="verr">${esc(S.flowErr)}</div>` : ''}${S.flowLoading === r ? `<div class="flow-empty">${t('common.loading')}</div>` : ''}<div class="flowgrid"><aside class="flowbox"><h2>${t('flow.attention')} <small>${waiting.length + blocked.length + Number(!!S.unread[r])}</small></h2><div class="flowattention">${attention}</div></aside><div class="flowbox"><h2>${t('flow.graph')} <small>${t('flow.edgeHint')}</small></h2><div class="flowgraph-wrap"><svg class="flowgraph" role="group" aria-label="${t('flow.graphAria')}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs>${edgeHtml}${nodeHtml}</svg></div><div class="flow-timeline"><h2>${t('flow.timeline')} <small>${ticks.length}</small></h2><div class="flow-ticks" role="group" aria-label="${t('flow.timeline')}">${ticks.map((m) => `<button type="button" class="flow-tick" style="background:${m.fromId ? color(S.sessions[m.fromId]?.name || m.from) : 'var(--accent)'}" data-flow-message="${m.id}" aria-label="${esc(messageName(m))} · ${esc(time(m.ts))}" title="${esc(messageName(m))} · ${esc(time(m.ts))}" aria-pressed="${String(m.id === S.flowSelectedMsg)}"></button>`).join('')}</div>${detailMsg ? `<p class="flow-msg" aria-live="polite">${esc(selectedMessage)}</p>` : ''}</div></div><aside class="flowbox flow-inspector"><h2>${t('flow.inspector')}</h2>${inspector}</aside></div><div id="flowLive" class="sr-only" aria-live="polite"></div></div>`;
+}
+function stopFlowReplay() {
+  if (S.flowReplayTimer) clearInterval(S.flowReplayTimer);
+  S.flowReplayTimer = null; S.flowReplayIndex = -1;
+}
+function startFlowReplay() {
+  const items = flowMessages().filter((m) => m.kind !== 'system');
+  if (!items.length) return;
+  stopFlowReplay();
+  S.flowReplayIndex = 0;
+  const step = () => {
+    const current = flowMessages().filter((m) => m.kind !== 'system');
+    if (S.flowReplayIndex >= current.length) return stopFlowReplay(), renderFlow();
+    const m = current[S.flowReplayIndex++];
+    S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow();
+  };
+  step();
+  S.flowReplayTimer = setInterval(step, 1200);
+  renderFlow();
+}
+function flowSelectRoom(name) {
+  stopFlowReplay();
+  S.flowRoom = name; S.flowSelected = 'you'; S.flowSelectedMsg = null;
+  try { localStorage.setItem('bear-agent-manager:flowRoom', name); } catch {}
+  loadFlow();
+}
+$('view-flow').addEventListener('change', (e) => {
+  if (e.target.id === 'flowRoom') flowSelectRoom(e.target.value);
+  if (e.target.id === 'flowRange') { stopFlowReplay(); S.flowRange = e.target.value; S.flowSelectedMsg = null; renderFlow(); }
+});
+$('view-flow').addEventListener('click', (e) => {
+  const node = e.target.closest('[data-flow-node], [data-flow-pick]');
+  if (node) {
+    const id = node.dataset.flowNode || node.dataset.flowPick;
+    S.flowSelected = id; renderFlow();
+    [...$('view-flow').querySelectorAll('[data-flow-node]')].find((x) => x.dataset.flowNode === id)?.focus();
+    return;
+  }
+  const tick = e.target.closest('[data-flow-message]');
+  if (tick) { const m = flowMessages().find((x) => x.id === Number(tick.dataset.flowMessage)); if (m) { S.flowSelectedMsg = m.id; S.flowSelected = m.fromId || 'you'; renderFlow(); } return; }
+  const task = e.target.closest('[data-flow-task]');
+  if (task) { S.taskRoom = S.flowRoom; S.taskOpen = Number(task.dataset.flowTask); select(S.flowRoom); showTab('tasks'); return; }
+  if (e.target.closest('[data-flow-room]')) { select(S.flowRoom); showTab('rooms'); return; }
+  const chat = e.target.closest('[data-flow-chat]');
+  if (chat) api(`/api/rooms/dm/${enc(chat.dataset.flowChat)}`, {}).then((d) => { S.rooms = [...S.rooms.filter((x) => x.name !== d.name), d].sort((a, b) => a.name.localeCompare(b.name)); select(d.name); showTab('dm'); }, (err) => toast(err.message));
+  if (e.target.id === 'flowReplay') S.flowReplayTimer ? (stopFlowReplay(), renderFlow()) : startFlowReplay();
+});
+$('view-flow').addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-flow-node]')) {
+    e.preventDefault();
+    const id = e.target.dataset.flowNode;
+    S.flowSelected = id; renderFlow();
+    [...$('view-flow').querySelectorAll('[data-flow-node]')].find((x) => x.dataset.flowNode === id)?.focus();
+  }
+});
 /** The room the Việc tab shows: the room you're chatting in, unless that's a DM (DMs have no tasks) — then the remembered one. */
 function taskRoomName() {
   if (S.current && !room(S.current)?.dm) return S.current;
@@ -2434,7 +2654,7 @@ const TCOL_KEY = lazy({ todo: 'task.todo', doing: 'task.doing', blocked: 'task.b
 const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
 function loadTasks(r = taskRoomName()) {
   if (!r) return Promise.resolve();
-  return api(`/api/rooms/${enc(r)}/tasks`).then((l) => { S.tasks[r] = Array.isArray(l) ? l : []; if (r === taskRoomName()) S.tasksErr = ''; }, (e) => { if (r === taskRoomName()) S.tasksErr = e.message; }).then(() => { renderTasks(); renderRooms(); });
+  return api(`/api/rooms/${enc(r)}/tasks`).then((l) => { S.tasks[r] = Array.isArray(l) ? l : []; if (r === taskRoomName()) S.tasksErr = ''; }, (e) => { if (r === taskRoomName()) S.tasksErr = e.message; }).then(() => { renderTasks(); renderRooms(); renderFlow(); });
 }
 function renderTasks() {
   const r = taskRoomName(), list = S.tasks[r] || [], n = openTasks(r).length;
@@ -3885,7 +4105,8 @@ const urlTheme = new URLSearchParams(location.search).get('theme');
 if (themeOk(urlTheme)) savedTheme = urlTheme;
 if (!themeOk(savedTheme)) savedTheme = 'auto';
 setTheme(savedTheme);
-renderEverything = () => { applyStatic(); renderAll(); renderWorkersView(); renderTokensView(); renderSettingsView(); };
+renderEverything = () => { applyStatic(); renderAll(); renderWorkersView(); renderTokensView(); renderFlow(); renderSettingsView(); };
+window.addEventListener('resize', () => { if (S.tab === 'flow') queueFlow(); }, { passive: true });
 renderAll();
 connect();
 loadClaudeUsage();   // account chips on the Phòng tab

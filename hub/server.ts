@@ -71,7 +71,7 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
   { maxBuffer: 16 << 20, windowsHide: true },
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
-export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; bg: boolean; tab: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
+export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
 export type Hub = { url: string; port: number; token: string; store: Store; waiting(id: string): boolean; close(): Promise<void> };   // waiting: a long-poll waiter is registered for the session (tests wait for it instead of sleeping)
 type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean };   // headless: the waiter of a background wake, not of a tab
 
@@ -81,7 +81,7 @@ export function liveKinds(pids: Session['pids'], alive: (pid: number) => boolean
   return { bg: live.some((x) => x.headless), tab: live.some((x) => !x.headless) };
 }
 export function publicSession(s: Session): PublicSession {
-  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '' };
+  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '', ...(s.limited ? { limited: s.limited } : {}) };
 }
 
 function json(res: http.ServerResponse, code: number, data: unknown): void {

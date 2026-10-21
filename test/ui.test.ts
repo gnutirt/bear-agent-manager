@@ -241,15 +241,36 @@ test('inline script never calls $() before declaring it (a TDZ error blanks the 
   } finally { await hub.close(); }
 });
 
-test('UI has five tabs with their views', async () => {
+test('UI tabs have their views', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const t of ['rooms', 'workers', 'tokens', 'skills', 'settings']) {
+    for (const t of ['rooms', 'workers', 'tokens', 'flow', 'skills', 'settings']) {
       assert.ok(html.includes(`data-tab="${t}"`), `missing tab ${t}`);
       assert.ok(html.includes(`id="view-${t}"`), `missing view ${t}`);
     }
     assert.ok(html.includes('.view[hidden]{display:none!important}'), 'a hidden flex <main> must really hide');
+  } finally { await hub.close(); }
+});
+
+test('Flow tab draws room wake edges, live room state, attention and an accessible timeline without a graph dependency', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      "function loadFlow()",
+      "function renderFlow()",
+      "api(`/api/rooms/${enc(r)}/messages?limit=300`)",
+      "for (const to of m.wake || []) addEdge(from, to, 'wake')",
+      "es.addEventListener('msg'",
+      "es.addEventListener('tasks'",
+      "es.addEventListener('session'",
+      'class="flowgraph"',
+      'role="button"',
+      'data-flow-message=',
+      'id="flowReplay"',
+      'prefers-reduced-motion'
+    ]) assert.ok(html.includes(s), `missing Flow behavior: ${s}`);
   } finally { await hub.close(); }
 });
 
