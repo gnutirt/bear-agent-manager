@@ -3625,7 +3625,7 @@ function healthBlock() {
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
-S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null;
+S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null;
 function loadCopilotProfiles() {
   return Promise.all([api('/api/providers'), api('/api/agent-profiles')]).then(([providers, statuses]) => {
     S.providers = providers;
@@ -3637,7 +3637,7 @@ function loadCopilotProfiles() {
   });
 }
 function loadAccounts() {
-  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles()]).then(([a, au, cp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
 }
 const SWM = lazy({ off: 'sw.mode.off', ask: 'sw.mode.ask', auto: 'sw.mode.auto' });
 const SWH = lazy({ off: 'sw.mode.hint.off', ask: 'sw.mode.hint.ask', auto: 'sw.mode.hint.auto' });
@@ -3743,11 +3743,16 @@ function accountBlock(st) {
     <button class="btn primary">${t('ac.api.add')}</button>
   </form>`;
   const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}${apiForm}`;
+  const mcpConnections = S.mcpConnections || [];
+  const mcpRows = mcpConnections.length ? `<div class="cprofiles">${mcpConnections.map((connection) => `<article class="cprofile"><div class="pf"><b>${esc(connection.name)}</b><span class="small muted">${esc(connection.id)}</span><span style="flex:1"></span><button type="button" class="btn sm" data-mcp-revoke="${esc(connection.id)}">${t('mcp.revoke')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${S.mcpConnections === undefined ? t('mcp.loading') : t('mcp.empty')}</p>`;
+  const mcpIssued = S.mcpIssued ? `<div class="aplan" role="status"><p class="small pwarn">${t('mcp.tokenOnce')}</p><label class="setrow"><span><b>${t('mcp.token')}</b></span><code class="mono">${esc(S.mcpIssued.token)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.token)}">${t('mcp.copy')}</button></label><label class="setrow"><span><b>${t('mcp.command')}</b><small>${t('mcp.envHint')}</small></span><code class="mono">${esc(S.mcpIssued.command)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.command)}">${t('mcp.copy')}</button></label><div class="row" style="display:flex;justify-content:flex-end"><button type="button" class="btn" id="mcpTokenDismiss">${t('mcp.dismiss')}</button></div></div>` : '';
+  const mcpHtml = `<h2>${t('mcp.title')}</h2><div class="setbox"><p class="small muted note">${t('mcp.note')}</p><form class="cprofile-new" id="mcpConnectionNew"><input name="name" required maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" placeholder="${t('mcp.name')}" aria-label="${t('mcp.name')}"><button class="btn primary">${t('mcp.create')}</button></form>${mcpIssued}${mcpRows}</div>`;
   return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
     <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
     <h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}<h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>
+    ${mcpHtml}
     <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
 }
 function refreshAgentMetadata() {
@@ -4107,6 +4112,15 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
       return saveCopilotProfiles([...profiles, { id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit ? { edit: true } : {}), enabled: f.elements.namedItem('enabled').checked }]);
     }
+    if (e.target.id === 'mcpConnectionNew') {
+      e.preventDefault();
+      const name = e.target.elements.namedItem('name').value.trim();
+      return api('/api/mcp/connections', { name }).then((created) => {
+        S.mcpConnections = [...(S.mcpConnections || []), created.connection];
+        S.mcpIssued = created;
+        renderSettingsView();
+      }, (err) => toast(err.message));
+    }
     if (e.target.id !== 'agentNew') return;
     e.preventDefault();
     const f = e.target, body = { name: f.name.value.trim(), cwd: f.cwd.value.trim(), room: f.room.value, setRoomCwd: f.setRoomCwd.checked, ...(f.account.value ? { account: f.account.value } : {}), ...(f.prompt.value.trim() ? { prompt: f.prompt.value.trim() } : {}) };
@@ -4118,6 +4132,12 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
     const ct = e.target.closest('[data-copytext]'); if (ct) return copy(ct.dataset.copytext, t('sm.copied'));
+    if (e.target.closest('#mcpTokenDismiss')) { S.mcpIssued = null; return renderSettingsView(); }
+    const mcpRevoke = e.target.closest('[data-mcp-revoke]');
+    if (mcpRevoke) return armed(mcpRevoke, t('common.pressAgainDelete'), () => api(`/api/mcp/connections/${enc(mcpRevoke.dataset.mcpRevoke)}`, undefined, 'DELETE').then(() => {
+      S.mcpConnections = (S.mcpConnections || []).filter((connection) => connection.id !== mcpRevoke.dataset.mcpRevoke);
+      renderSettingsView();
+    }, (err) => toast(err.message)));
     const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     const od = e.target.closest('[data-opendata]');

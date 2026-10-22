@@ -53,7 +53,7 @@ import { ToolConsole } from './console.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
-import { createMcpHttpHandler } from './mcp-http.ts';
+import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
 
 export type { ReviveJob };
 
@@ -1843,6 +1843,36 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const dir = usageDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.configDir ?? '')).toLowerCase());
       if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
       const names: string[] = Array.isArray(b.names) ? b.names.map(String).slice(0, 200) : [];
+    if (m === 'GET' && p === '/api/mcp/connections') {
+      const connections = Object.values(store.state.sessions)
+        .filter((session) => session.id.startsWith('mcp-') && (session as Session & { mcpTokenHash?: string }).mcpTokenHash)
+        .map(({ id, name }) => ({ id, name }));
+      return json(res, 200, connections);
+    }
+    if (m === 'POST' && p === '/api/mcp/connections') {
+      const body = await readBody(req);
+      const name = String(body.name ?? '').trim();
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(name)) throw new StoreError(400, 'name must be 1-32 letters, digits, _ or -');
+      const id = `mcp-${crypto.randomUUID()}`;
+      const session = store.register({ id, cwd: '', name });
+      const token = createMcpToken();
+      (session as Session & { mcpTokenHash?: string }).mcpTokenHash = hashMcpToken(token);
+      store.save();
+      return json(res, 200, {
+        connection: { id: session.id, name: session.name },
+        token,
+        command: `claude mcp add --transport http bam http://127.0.0.1:${port}/mcp --header "Authorization: Bearer \${BAM_MCP_TOKEN}"`,
+      });
+    }
+    const mcpConnection = p.match(/^\/api\/mcp\/connections\/(mcp-[0-9a-f-]+)$/i);
+    if (mcpConnection && m === 'DELETE') {
+      const session = store.session(mcpConnection[1]);
+      if (!session.id.startsWith('mcp-') || !(session as Session & { mcpTokenHash?: string }).mcpTokenHash) {
+        throw new StoreError(404, 'unknown MCP connection');
+      }
+      store.forget(session.id);
+      return json(res, 200, { ok: true });
+    }
       const results = names.map((n) => {
         const sk = lib.skills.find((x) => x.name === n);
         if (!sk) return { name: n, status: 'error', error: 'not in the library' };
