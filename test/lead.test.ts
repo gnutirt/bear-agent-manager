@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
+import path from 'node:path';
 import { leadLink, leadPrompt, MAX_PROMPT, sameDir, tabLink } from '../hub/lead.ts';
 import { startHub } from '../hub/server.ts';
 import { makeHub, until } from './helpers.ts';
@@ -113,6 +114,7 @@ test('T-W open-tab: refused for an online member, opens the tab of an offline on
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'a1' }) });
     assert.deepEqual(await h.call('/api/sessions/a1/open-tab', {}), { ok: true, ide: 'antigravity' });
     assert.equal(opened.length, 1); assert.equal(new URL(opened[0]).protocol, 'claude-cli:');
+    assert.ok(h.hub.store.history('r').some((m) => m.text.includes('Hub đã mở tab cho alpha')), 'opening a tab is announced in the room');
 
     // no saved chat to resume: off by default, on with the setting
     await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'b1' }) });
@@ -123,6 +125,29 @@ test('T-W open-tab: refused for an online member, opens the tab of an offline on
     assert.equal(opened.length, 2); assert.equal(new URL(opened[1]).protocol, 'vscode:');
     await h.call('/api/rooms/r/messages', { sessionId: 'a1', text: '@beta third' });
     assert.equal(opened.length, 2);   // at most once per 10 minutes
+  } finally { await h.hub.close(); }
+});
+
+test('openTabOnWake does not open a tab while the session account is usage-paused', async () => {
+  const opened: string[] = [];
+  const h = await makeHub(undefined, () => {}, {
+    openUrl: (u: string) => opened.push(u),
+    usageFetch: async () => new Response('{}'),
+  });
+  try {
+    await h.call('/api/settings', { openTabOnWake: true }, { method: 'PUT' });
+    await h.call('/api/sessions/register', { id: 'limited', cwd: h.dir, name: 'limited' });
+    await h.call('/api/rooms/r/join', { sessionId: 'limited' });
+    await fetch(`${h.hub.url}/hooks/end`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'limited' }),
+    });
+    h.hub.store.state.usagePaused = {
+      'user@example.com': { until: Date.now() + 60_000, configDirs: [path.join(h.dir, '.claude')] },
+    };
+    await h.call('/api/rooms/r/messages', { text: '@limited are you there?' });
+    assert.equal(opened.length, 0, 'a usage-paused agent is not opened in an editor tab');
   } finally { await h.hub.close(); }
 });
 

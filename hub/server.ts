@@ -751,11 +751,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** At wake time: still limited -> book the wake for the reset; lifted -> stop the stuck process (setting closeLimitedTab) and revive it. */
   async function unstick(s: Session): Promise<boolean> {
     if (unsticking.has(s.id)) return false;
+    if (usagePaused(s)) return false;
     const marker = limitErrorMarker(s.transcript);
     if (!marker || limitHandled(s, marker)) return false;
     // Nothing waits: nothing was killed either, so this marker must NOT be called handled — a message that arrives later
     // (the next @) has to run this path again. The 30 s sweeper may re-read the transcript tail; that is cheaper than a
-    if (usagePaused(s)) return false;
     // chat that never runs again because a marker without a kill said it was done (lead, 2026-10-21).
     if (!pendingLimit(s)) return false;
     unsticking.add(s.id);
@@ -847,11 +847,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!waiters.has(sid)) {
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
       if ((autoRevive || apiProfileOf(st)) && st.ended && !revive(sid) && !reviving.has(sid)) {   // a provider agent has no tab to fall back on: an @ always wakes it
+        if (accountUsageBlocked(st)) return;
         autoOpenTab(sid);
         // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
           cannotTold.add(sid);
-        if (accountUsageBlocked(st)) return;
           for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }), undefined, { type: 'wake', level: 'warn', agent: st.name })); emitRoom(r); } catch { /* room gone */ } }
         }
       } else if (!st.ended && st.status !== 'busy') {
@@ -925,8 +925,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = Object.keys(s.rooms);
     (opts.openUrl ?? openUrl)(tabLink(s, rooms, lang()));
     tabOpened.set(s.id, Date.now());
-    return true;
     for (const r of rooms) { try { broadcast('msg', postSys(r, tr('sys.tab.opened', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
+    return true;
   }
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
@@ -1413,6 +1413,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const dir = path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase();
     return Object.values(store.state.usagePaused ?? {}).some((p) => p.until > Date.now() && p.configDirs.some((c) => path.resolve(c).toLowerCase() === dir));
   }
+  function accountUsageBlocked(s: Session): boolean {
+    return !apiProfileOf(s) && (usagePaused(s) || (s.limited?.until ?? 0) > Date.now());
+  }
   /** Rooms of the sessions running on this account (all rooms when none is in a room). */
   const onAccount = (a: AccountUsage) => (dir: string) => a.configDirs.some((c) => path.resolve(c).toLowerCase() === path.resolve(dir || path.join(usageHome, '.claude')).toLowerCase());
   const accountRooms = (a: AccountUsage) => {
@@ -1420,9 +1423,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = new Set(Object.values(store.state.sessions).filter((s) => mine(s.configDir ?? '')).flatMap((s) => Object.keys(s.rooms)));
     return rooms.size ? [...rooms] : Object.keys(store.state.rooms);
   };
-  function accountUsageBlocked(s: Session): boolean {
-    return !apiProfileOf(s) && (usagePaused(s) || (s.limited?.until ?? 0) > Date.now());
-  }
   async function pollUsage() {
     if (!usage || !listAccounts(usageDirs(), usageHome).length) return;
     const accounts = await usage.read(usageDirs());
