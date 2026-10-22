@@ -604,6 +604,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const asked = store.messages.filter((m) => m.id > before && m.id <= upTo && m.fromId == null && !m.kind && m.wake.some((w) => store.resolve(w) === sid)   // a message posted before a resume still names the old id
       && (m.room.startsWith('dm-') || !m.mentions.includes('all') || m.mentions.includes(me))).pop();
     if (asked) relayWatch.set(sid, { at: store.now(), room: asked.room });   // the same clock as Message.ts: a test that injects one must not compare two
+    // #170: the DM holds only the user↔agent talk; the answer to a room message delivered in the middle of a tab turn goes to the room (room_send)
+    const dmName = store.privateRoom(sid)?.name;
+    if (store.messages.some((m) => m.id > before && m.id <= upTo && m.room !== dmName && m.wake.some((w) => store.resolve(w) === sid))) mirroring.delete(sid);
     // A DM delivered by the hub is never typed in the tab, so the tab mirror would skip it: arm the mirror so the Stop
     // hook copies the answer into the DM even when the agent forgets room_send (mirrorAgent drops it if it did not).
     if (asked && asked.room === store.privateRoom(sid)?.name && loadSettings(opts.dir, envCap).mirrorTabs) mirroring.set(sid, { ts: asked.ts, last: '', answered: false, at: Date.now() });

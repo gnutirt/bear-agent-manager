@@ -218,3 +218,20 @@ test('tab mirror (#164): a prompt the Chrome extension prefixed with <browser_in
     assert.deepEqual(dm, ['[tab] user: mày còn việc gì nữa', '[tab] agent: Không còn việc.']);
   } finally { await h.hub.close(); }
 });
+
+test('tab mirror (#170): the answer to a room message delivered in the middle of a tab turn is not copied into the DM; a DM delivery still is', async () => {
+  const { h, hook, dm, lines } = await dmHub('r1', 'rita', { relayChat: false, mirrorTabs: true });
+  try {
+    await h.call('/api/rooms/proj/join', { sessionId: 'r1' });
+    await hook('prompt', { prompt: 'run the tests' });
+    await hook('stop', { last_assistant_message: 'All tests pass.' });   // the waiter blocks this Stop...
+    await h.call('/api/rooms/proj/messages', { text: '@rita review #12' });
+    await h.call('/api/sessions/r1/pending?consume=1');                   // ...and delivers the room message
+    await hook('stop', { last_assistant_message: 'Reviewed #12, two issues.' });
+    assert.deepEqual(await lines(), ['[tab] user: run the tests', '[tab] agent: All tests pass.']);
+    await h.call(`/api/rooms/${dm}/messages`, { text: 'and now?' });
+    await h.call('/api/sessions/r1/pending?consume=1');
+    await hook('stop', { last_assistant_message: 'Done for today.' });
+    assert.deepEqual((await lines()).slice(2), ['[tab] agent: Done for today.']);
+  } finally { await h.hub.close(); }
+});
