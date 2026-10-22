@@ -1436,7 +1436,8 @@ function renderRooms() {
 }
 
 /** A chat the hub runs in the background (no tab open, claude -p): marked so it is not mistaken for a real tab. Needs `bg` from the hub session (headless pid alive, no tab). */
-const bgTag = (s) => s.bg && !s.tab && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
+const bgTag = (s) => (s.dup ? `<span class="bgtag" title="${t('sessions.dup.tip')}">${t('sessions.dup')}</span>` : '') + bgTagOnly(s);   // #177: the chat is open in two tabs
+const bgTagOnly = (s) => s.bg && !s.tab && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
 function sessionRow(s) {
   const inRoom = S.current && room(S.current)?.members.includes(s.id);
   const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id;

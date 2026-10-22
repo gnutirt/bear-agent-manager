@@ -79,9 +79,9 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
   { maxBuffer: 16 << 20, windowsHide: true },
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
-export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
+export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean; dup?: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
 export type Hub = { url: string; port: number; token: string; store: Store; waiting(id: string): boolean; close(): Promise<void> };   // waiting: a long-poll waiter is registered for the session (tests wait for it instead of sleeping)
-type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean; afterLimit?: boolean };   // headless: the waiter of a background wake, not of a tab   // afterLimit: built by the StopFailure hook, so it is waiting on the turn that died on the usage limit
+type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean; afterLimit?: boolean; pid?: number };   // headless: the waiter of a background wake, not of a tab   // afterLimit: built by the StopFailure hook, so it is waiting on the turn that died on the usage limit
 
 /** Which kinds of claude are alive for a chat: a background one (hub wake, headless) and/or one with a tab or terminal. */
 export function liveKinds(pids: Session['pids'], alive: (pid: number) => boolean = pidAlive): { bg: boolean; tab: boolean } {
@@ -89,8 +89,10 @@ export function liveKinds(pids: Session['pids'], alive: (pid: number) => boolean
   return { bg: live.some((x) => x.headless), tab: live.some((x) => !x.headless) };
 }
 export function publicSession(s: Session): PublicSession {
-  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '', ...(s.limited ? { limited: s.limited } : {}) };
+  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '', ...(s.limited ? { limited: s.limited } : {}), ...(tabCount(s.pids) > 1 ? { dup: true } : {}) };
 }
+/** #177: claudes with a tab or terminal alive on one chat; two means the chat is open twice (VS Code: "still open somewhere else"). */
+export const tabCount = (pids: Session['pids'], alive: (pid: number) => boolean = pidAlive) => (pids ?? []).filter((x) => !x.headless && alive(x.pid)).length;
 
 function json(res: http.ServerResponse, code: number, data: unknown): void {
   if (res.writableEnded || res.destroyed) return;
@@ -262,7 +264,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     ['sys.wake.', { type: 'wake', level: 'info' }],
     ['sys.compact', { type: 'compact', level: 'info' }], ['sys.terminated', { type: 'tab', level: 'warn' }], ['sys.terminate.stuck', { type: 'tab', level: 'error' }],
     ['sys.plugin.failed', { type: 'update', level: 'error' }], ['sys.plugin.', { type: 'update', level: 'info' }],
-    ['sys.tab.deaf', { type: 'tab', level: 'warn' }],
+    ['sys.tab.deaf', { type: 'tab', level: 'warn' }], ['sys.tab.duplicate', { type: 'tab', level: 'warn' }],
     ['sys.tab.', { type: 'tab', level: 'info' }], ['sys.lead.', { type: 'lead', level: 'info' }],
     ['sys.task.done', { type: 'task', level: 'done' }], ['sys.task.', { type: 'task', level: 'info' }],
     ['sys.stop.', { type: 'error', level: 'error' }], ['sys.archive', { type: 'backup', level: 'warn' }],
@@ -912,11 +914,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** B4: a live claude with a tab or terminal (any editor) holds the chat; the hub starts or opens nothing next to it. */
   const tabHolds = (s: Session) => liveKinds(s.pids, isAlive).tab;
   const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
+  const dupTold = new Set<string>();   // #177: sessions already told they are open in two tabs
   /** T-W: opens the tab of an offline member; the user presses Enter once. */
-  function openTab(s: Session) {
+  function openTab(s: Session): boolean {
+    // #177: a tab opened less than 2 minutes ago registers only at its first Enter; a second one would open the chat twice
+    if (Date.now() - (tabOpened.get(s.id) ?? 0) < 2 * 60_000) return false;
     const rooms = Object.keys(s.rooms);
     (opts.openUrl ?? openUrl)(tabLink(s, rooms, lang()));
     tabOpened.set(s.id, Date.now());
+    return true;
     for (const r of rooms) { try { broadcast('msg', postSys(r, tr('sys.tab.opened', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
@@ -1179,6 +1185,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function wait(id: string, url: URL, res: http.ServerResponse) {
     const sid = store.session(id).id;
     const headless = url.searchParams.get('headless') === '1';
+    const pid = Number(url.searchParams.get('pid')) || undefined;   // #177: the claude of this waiter (the hook's parent)
     const afterLimit = url.searchParams.get('afterLimit') === '1';   // the StopFailure hook says this waiter waits on the turn that died on the limit
     const tab = waiters.get(sid);
     if (headless && tab && !tab.headless) return json(res, 200, { superseded: true });   // a tab already waits: the background process steps aside and ends
@@ -1187,7 +1194,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     store.touch(sid);
     if (wasOffline) emitSession(store.session(sid));
     const old = waiters.get(sid);
-    if (old) { clearTimeout(old.timer); waiters.delete(sid); json(old.res, 200, { superseded: true }); }
+    // #177: a waiter of another tab's claude takes the chat over: that old tab is told the chat is open twice
+    if (old) { clearTimeout(old.timer); waiters.delete(sid); json(old.res, 200, { superseded: !headless && !old.headless && old.pid && pid && old.pid !== pid ? 'dup' : true }); }
     const p = store.pending(sid);
     if (p.wake) return deliverTo(res, sid, p.messages, afterLimit);
     const seconds = Math.max(1, Math.min(Number(url.searchParams.get('timeout') ?? 50), 120));
@@ -1195,7 +1203,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (waiters.get(sid)?.res === res) waiters.delete(sid);
       json(res, 200, { messages: [] });
     }, seconds * 1000);
-    waiters.set(sid, { res, timer, headless, afterLimit });
+    waiters.set(sid, { res, timer, headless, afterLimit, ...(pid ? { pid } : {}) });
     cannotTold.delete(sid);
     res.on('close', () => {
       if (waiters.get(sid)?.res === res) { clearTimeout(timer); waiters.delete(sid); }
@@ -2295,6 +2303,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
         store.save();
       }
+      // #177: a second tab on the same chat: say it once (the hub never kills an editor's claude; the user closes one)
+      if (tabCount(s.pids, isAlive) < 2) dupTold.delete(s.id);
+      else if (b.headless !== true && !dupTold.has(s.id)) {
+        dupTold.add(s.id);
+        for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.duplicate', { name: s.name }))); } catch { /* room gone */ } }
+      }
       if (b.ide) s = store.setIde(s.id, String(b.ide));
       if (b.title) s = setTitleKeepingRules(s.id, String(b.title));
       emitSession(s);
@@ -2363,6 +2377,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
         const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
         if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        if (Date.now() - (tabOpened.get(s.id) ?? 0) < 2 * 60_000) return json(res, 409, { error: `a tab of ${s.name} was opened less than 2 minutes ago: press Enter in it` });
         endBackground(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });

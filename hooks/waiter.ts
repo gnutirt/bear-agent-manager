@@ -61,10 +61,10 @@ if (input.hook_event_name === 'Stop' || afterLimit) {
 }
 
 while (Date.now() - started < LIFETIME_MS) {
-  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; agentComms?: AgentComms; superseded?: boolean };
+  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; agentComms?: AgentComms; superseded?: boolean | 'dup' };
   try {
     const left = Math.max(1, Math.min(50, Math.ceil((LIFETIME_MS - (Date.now() - started)) / 1000)));   // never poll past the idle limit
-    r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}${afterLimit ? '&afterLimit=1' : ''}`, { timeoutMs: 65_000 });
+    r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}${afterLimit ? '&afterLimit=1' : ''}&pid=${process.ppid}`, { timeoutMs: 65_000 });
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       await register(input, { ide }).catch(() => {});
@@ -75,6 +75,8 @@ while (Date.now() - started < LIFETIME_MS) {
     }
     continue;
   }
+  // #177: another tab took this chat over; say so to the user here, and never exit 2 (waking this tab would take it back: ping-pong)
+  if (r.superseded === 'dup') { process.stdout.write(JSON.stringify({ systemMessage: 'bear-agent-manager: this chat is also open in another tab, which now gets the room messages. Close one of the two tabs.' })); process.exit(0); }
   if (r.superseded) process.exit(0);
   if (r.messages?.length) {
     await api(`/api/sessions/${id}/status`, { body: { status: 'busy', activity: 'reading room' } }).catch(() => {});

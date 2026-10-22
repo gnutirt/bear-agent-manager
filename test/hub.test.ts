@@ -777,3 +777,50 @@ test('B4: a chat still held by a live editor claude is never resumed or reopened
     assert.equal(jobs.length, 0);
   } finally { await h.hub.close(); }
 });
+
+test('#177: a second tab registering on the same chat is reported once (room notice + dup on the session), nothing is killed', async () => {
+  const h = await makeHub();
+  try {
+    await h.call('/api/sessions/register', { id: 't1', cwd: 'C:/fw', pid: process.pid });
+    await h.call('/api/sessions/t1/rename', { name: 'tess' });
+    await h.call('/api/rooms/proj/join', { sessionId: 't1' });
+    assert.equal((await h.call<any>('/api/sessions/t1')).session.dup, undefined, 'one tab is not a duplicate');
+    await h.call('/api/sessions/register', { id: 't1', cwd: 'C:/fw', pid: process.ppid });   // a second claude (another tab), both alive
+    await h.call('/api/sessions/register', { id: 't1', cwd: 'C:/fw', pid: process.ppid });   // its next hook: said once only
+    assert.equal((await h.call<any>('/api/sessions/t1')).session.dup, true);
+    const dup = h.hub.store.history('proj').filter((m) => /đang mở ở 2 tab/.test(m.text));
+    assert.equal(dup.length, 1, 'one notice');
+    assert.equal(dup[0].sys?.level, 'warn');
+  } finally { await h.hub.close(); }
+});
+
+test('#177: open-tab twice within 2 minutes opens one tab only (the first registers only at its Enter)', async () => {
+  const opened: string[] = [];
+  const h = await makeHub(undefined, () => {}, { openUrl: (u: string) => opened.push(u) });
+  try {
+    await h.call('/api/sessions/register', { id: 'o1', cwd: 'C:/alpha' });
+    await h.call('/api/rooms/r/join', { sessionId: 'o1' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'o1' }) });
+    await h.call('/api/sessions/o1/open-tab', {});
+    await assert.rejects(h.call('/api/sessions/o1/open-tab', {}), /less than 2 minutes/);
+    assert.equal(opened.length, 1);
+  } finally { await h.hub.close(); }
+});
+
+test('#177: a waiter of another claude takes the chat over: the old one hears superseded "dup"; the same claude again is a plain supersede', async () => {
+  const h = await makeHub();
+  const wait = (pid: number) => fetch(`${h.hub.url}/api/sessions/w7/wait?timeout=30&pid=${pid}`, { headers: { 'x-room-token': h.hub.token } }).then((r) => r.json());
+  try {
+    await h.call('/api/sessions/register', { id: 'w7', cwd: 'C:/fw' });
+    const first = wait(111);
+    await until(() => h.hub.waiting('w7'), 2_000, 'first waiter');
+    const second = wait(222);
+    assert.deepEqual(await first, { superseded: 'dup' });
+    await until(() => h.hub.waiting('w7'), 2_000, 'second waiter');
+    const third = wait(222);
+    assert.deepEqual(await second, { superseded: true });
+    await h.call('/api/rooms/proj/join', { sessionId: 'w7' });
+    await h.call('/api/rooms/proj/messages', { text: '@w7 end' });
+    await third;
+  } finally { await h.hub.close(); }
+});
