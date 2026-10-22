@@ -701,7 +701,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     stopRevive(s.id);
     const cur = store.session(s.id);
     carrySessionDirs(cur.configDir || path.join(usageHome, '.claude'), to, cur.id);   // B2: rewind history and todos come along
-    cur.configDir = to; cur.ended = true; store.save();
+    cur.configDir = to; cur.limited = undefined; cur.ended = true; store.save();
     for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr(continueInBam ? 'sys.switch.doneBam' : 'sys.switch.done', { name: cur.name, to: path.basename(to), note }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
     emitSession(cur);
     if (!continueInBam) revive(cur.id);
@@ -746,6 +746,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!marker || limitHandled(s, marker)) return false;
     // Nothing waits: nothing was killed either, so this marker must NOT be called handled — a message that arrives later
     // (the next @) has to run this path again. The 30 s sweeper may re-read the transcript tail; that is cheaper than a
+    if (usagePaused(s)) return false;
     // chat that never runs again because a marker without a kill said it was done (lead, 2026-10-21).
     if (!pendingLimit(s)) return false;
     unsticking.add(s.id);
@@ -817,7 +818,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       void cop.wake(st.id).catch((error) => cop.reportError(error));
       return;
     }
-    if (!directUser && !apiProfileOf(st) && usagePaused(st)) return;
+    if (!directUser && !apiProfileOf(st) && accountUsageBlocked(st) && (!st.ended || waiters.has(sid) || !usage)) return;
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
@@ -841,6 +842,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
           cannotTold.add(sid);
+        if (accountUsageBlocked(st)) return;
           for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }), undefined, { type: 'wake', level: 'warn', agent: st.name })); emitRoom(r); } catch { /* room gone */ } }
         }
       } else if (!st.ended && st.status !== 'busy') {
@@ -925,14 +927,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
-    if (apiProfileOf(s)) attachTranscript(s);
+    const profile = apiProfileOf(s);
+    if (profile) attachTranscript(s);
+    if (!profile && accountUsageBlocked(s) && !usage) return false;
     // A claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing this transcript; a
     // second `claude --resume` on the same session would give the JSONL two writers. The alias check matters: a turn
     // started before a clear/resume lives under the old id, and looking only at the new one started a twin agent.
     if (reviving.has(s.id) || waiters.has(s.id) || bgRunning(s.id) || !hasTranscript(s)) return false;
     if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
-    const api = apiProfileOf(s);
+    const api = profile;
     let apiRun: ReturnType<typeof apiJob> | undefined;
     if (api) {
       if (!api.enabled || apiLimited(api) || apiBudgetUntil(api)) return false;
@@ -1076,25 +1080,30 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
   }
 
-  /** Account out of usage (a window at 100%): waking an agent on it only burns the turn. Books a wake-up for the reset and says why. */
+  /** A paused or exhausted account must not receive a background turn; switch accounts when possible, otherwise book the reset. */
   async function blockedAccount(s: Session, job?: { configDir?: string }): Promise<string> {
     if (!usage) return '';
     const dirs = usageDirs();
     const accs = await usage.read(dirs).catch(() => []);
     const acc = accs.find((a) => onAccount(a)(s.configDir ?? ''));
-    const until = acc ? blockedUntil(acc) : 0;
-    if (!acc || until <= Date.now()) return '';
+    const dir = s.configDir || path.join(usageHome, '.claude');
+    const dirKey = path.resolve(dir).toLowerCase();
+    const pauseUntil = Math.max(0, ...Object.values(store.state.usagePaused ?? {})
+      .filter((p) => p.configDirs.some((c) => path.resolve(c).toLowerCase() === dirKey))
+      .map((p) => p.until));
+    const until = Math.max(acc ? blockedUntil(acc) : 0, s.limited?.until ?? 0, pauseUntil);
+    if (until <= Date.now()) return '';
     // D2 on wake (2026-10-19: the user moved to the VS Code account, @-ed agents of the Antigravity account, and each one got
     // "cannot wake until 17:09"): with shared chats, another logged-in account with room left takes this turn, no question.
     let why = '';
     const sw = loadSettings(opts.dir, envCap).accountSwitch;
-    if (sw.autoOnWake !== false) {
+    if (sw.autoOnWake !== false && acc) {
       const all = machineAccountDirs(), primary = path.join(usageHome, '.claude');
       const pick = pickAccount(await usage.read(all).catch(() => accs), s.configDir || primary, { ...sw, mode: 'auto' }, listConfigAccounts(all, primary).shared);
       if (pick.target) {
         const to = pick.target.configDirs[0], cur = store.session(s.id);
         carrySessionDirs(cur.configDir || primary, to, cur.id);   // B2: rewind history and todos come along
-        cur.configDir = to; store.save();
+        cur.configDir = to; cur.limited = undefined; store.save();
         if (job) job.configDir = to;
         emitSession(cur);
         for (const r of Object.keys(cur.rooms)) { try { broadcast('msg', postSys(r, tr('sys.switch.onWake', { name: cur.name, from: acc.label, to: pick.target.label }), undefined, { type: 'wake', level: 'info', agent: cur.name })); emitRoom(r); } catch { /* room gone */ } }
@@ -1102,9 +1111,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       why = pick.reason === 'not-shared' ? tr('sys.switch.why.notShared') : pick.reason === 'other-unusable' ? tr('sys.switch.why.unusable') : pick.reason === 'other-full' ? tr('sys.switch.why.full') : '';
     }
-    const key = accountKey(acc), have = (store.state.wakeAt ??= {});
+    const key = acc ? accountKey(acc) : path.resolve(dir), have = (store.state.wakeAt ??= {});
     if (!have[key]) { have[key] = { at: until + loadSettings(opts.dir, envCap).lead.wake.afterResetMin * 60_000, tries: 0 }; store.save(); scheduleWake(key); }
-    return tr('sys.wake.blocked', { account: acc.label, until: clock(until, { day: 'numeric', month: 'numeric' }) }) + (why ? ` ${why}` : '');
+    return tr('sys.wake.blocked', { account: acc?.label ?? path.basename(dir), until: clock(until, { day: 'numeric', month: 'numeric' }) }) + (why ? ` ${why}` : '');
   }
 
   /** Every claude pid the hub knows for a chat: its tab and/or a background wake. */
@@ -1384,6 +1393,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const rooms = new Set(Object.values(store.state.sessions).filter((s) => mine(s.configDir ?? '')).flatMap((s) => Object.keys(s.rooms)));
     return rooms.size ? [...rooms] : Object.keys(store.state.rooms);
   };
+  function accountUsageBlocked(s: Session): boolean {
+    return !apiProfileOf(s) && (usagePaused(s) || (s.limited?.until ?? 0) > Date.now());
+  }
   async function pollUsage() {
     if (!usage || !listAccounts(usageDirs(), usageHome).length) return;
     const accounts = await usage.read(usageDirs());
@@ -1486,9 +1498,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const lead = ms.find((s) => s.id === store.state.rooms[r]?.lead);
         if (lead && !targets.some((s) => s.id === lead.id)) targets.unshift(lead);
         if (!lead && !targets.length) targets.push(...ms);
-        if (!targets.length) continue;
+        // #152: an s: resume wake a second earlier already woke them here; a second wake per reset is noise
+        const woken = (s: Session) => store.messages.some((m) => m.room === r && m.sys?.type === 'wake' && m.wake.some((w) => store.resolve(w) === s.id) && store.now() - m.ts < 600_000);
+        const fresh = targets.filter((s) => !woken(s));
+        if (!fresh.length) continue;
         try {
-          const posted = store.post(r, null, tr('sys.wake.reset', { names: targets.map((s) => '@' + s.name).join(' '), account: acc.label }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
+          const posted = store.post(r, null, tr('sys.wake.reset', { names: fresh.map((s) => '@' + s.name).join(' '), account: acc.label }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
           broadcast('msg', posted.message);
           emitRoom(r);
           for (const id of posted.message.wake) deliver(store.resolve(id));

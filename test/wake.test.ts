@@ -243,3 +243,26 @@ test('StopFailure server_error: retries the same chat with backoff, tells @you o
     assert.equal(h.hub.store.session('rt1').apiRetry, undefined, 'a turn that ends normally clears the counter');
   } finally { await h.hub.close(); }
 });
+
+test('usage wake (#152): an agent woken in the room in the last 10 minutes (s: resume) is not woken again by the account reset', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-wake-dup-'));
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.writeFileSync(path.join(home, '.claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'tok', expiresAt: Date.now() + 3600_000, subscriptionType: 'pro' } }));
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'a@x.com' } }));
+  const resetAt = new Date(Date.now() + 400).toISOString();
+  let calls = 0;
+  const fetchStub = (async () => new Response(JSON.stringify({ five_hour: { utilization: calls++ < 1 ? 95 : 3, resets_at: resetAt } }))) as typeof fetch;
+  const h = await makeHub(undefined, undefined, { usageFetch: null, usageHome: home });
+  try {
+    await h.call('/api/sessions/register', { id: 'd1', cwd: 'C:/fw' });
+    await h.call('/api/sessions/d1/rename', { name: 'alice' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'd1' });
+    await h.call('/api/settings', { lead: { wake: { enabled: true, atPct: 90, afterResetMin: 0 } } }, { method: 'PUT' });
+    h.hub.store.post('proj', null, '@alice continue', undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });   // the s: resume wake
+  } finally { await h.hub.close(); }
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {} });
+  try {
+    await until(() => again.store.history('proj').some((m) => m.kind === 'system' && /hẹn đánh thức/.test(m.text)) && !again.store.state.wakeAt?.['a@x.com'], 20_000, 'the booking fired');
+    assert.equal(again.store.history('proj').filter((m) => m.sys?.type === 'wake').length, 1, 'only the earlier resume wake: ' + again.store.history('proj').map((m) => m.text).join(' | '));
+  } finally { await again.close(); }
+});

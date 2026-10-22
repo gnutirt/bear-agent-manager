@@ -71,6 +71,42 @@ test('still limited: no kill, one notice and a wake booked for the reset', async
   } finally { await h.hub.close(); }
 });
 
+test('usage-paused or session-limited accounts do not close tabs, revive, or post wake failures', async () => {
+  const operations: string[] = [];
+  const pid = process.pid;
+  let procAlive = true;
+  let h: Awaited<ReturnType<typeof makeHub>>;
+  h = await makeHub(undefined, () => { operations.push('revive'); }, {
+    listProcs: async () => procAlive ? [{ pid, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }] : [],
+    kill: async () => { operations.push('kill'); procAlive = false; h.hub.store.session('paused-tab').pids = []; },
+    isAlive: (checkPid: number) => checkPid === pid && procAlive,
+  });
+  try {
+    const pausedTranscript = path.join(h.dir, 'paused-tab.jsonl');
+    fs.writeFileSync(pausedTranscript, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
+    const configDir = path.join(h.dir, '.claude');
+    await h.call('/api/sessions/register', { id: 'paused-tab', cwd: h.dir, name: 'paused-tab', configDir, transcript: pausedTranscript, pid, ide: 'vscode' });
+    await h.call('/api/rooms/web/join', { sessionId: 'paused-tab' });
+    await h.call('/api/settings', { closeLimitedTab: true }, { method: 'PUT' });
+    h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() + 60_000, configDirs: [configDir] } };
+    h.hub.store.save();
+
+    const limitedTranscript = path.join(h.dir, 'limited-only.jsonl');
+    fs.writeFileSync(limitedTranscript, JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'saved chat' }] } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'limited-only', cwd: h.dir, configDir: path.join(h.dir, '.other-claude'), transcript: limitedTranscript });
+    h.hub.store.session('limited-only').limited = { until: Date.now() + 60_000, type: 'five_hour' };
+    h.hub.store.session('limited-only').ended = true;
+    h.hub.store.save();
+    assert.deepEqual(await h.call('/api/sessions/limited-only/revive', {}), { started: false });
+
+    await h.call('/api/rooms/web/messages', { text: '@paused-tab continue' });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.deepEqual(operations, [], 'the active account pause prevents the limited tab from being killed or resumed');
+    assert.deepEqual(h.hub.store.history('web').filter((message) => message.kind === 'system'), [], 'a paused account does not produce a wake-failed notice');
+    assert.equal(h.hub.store.pending('paused-tab').wake, true, 'the mention remains pending until reset');
+  } finally { await h.hub.close(); }
+});
+
 test('closeLimitedTab off: the tab is left alone and @you is told to type in it', async () => {
   const { h, order, notices } = await stuckTab(Date.now() - 60_000, { closeLimitedTab: false });
   try {
