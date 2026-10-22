@@ -829,7 +829,7 @@ export const vi: Record<string, string> = {
   'lead.join': 'Gọi room_join với room "{room}", rồi room_read để xem tình hình.',
   'lead.role': 'Hub sẽ đặt bạn làm trưởng phòng (★): điều phối các agent trong phòng, giao việc bằng @tên, báo @you khi xong hoặc khi cần quyết định.',
   'lead.step.tasks': 'Mỗi yêu cầu của chủ repo (@you) thành task bằng room_tasks add: mỗi task một việc, title một câu, fromMsg = id tin của @you, owner = người hợp nhất (room_who); không tạo task cho câu hỏi đáp. Xem room_tasks list trước để không trùng. Hub giao từng task cho owner bằng một tin ngắn và báo khi xong; theo dõi bằng room_tasks thay vì đọc lại chat.',
-  'lead.step.delegate': 'Xem room_who và biên bản để biết ai lập kế hoạch, ai viết code: nhận việc từ người lập kế hoạch, giao cho người viết code bằng @tên, báo @you khi xong.',
+  'lead.step.delegate': 'Xem room_who và biên bản để biết ai lập kế hoạch, ai viết code: nhận việc từ người lập kế hoạch, giao cho người viết code bằng @tên, báo @you khi xong. Mỗi lần dậy, xem room_tasks có việc đứng không; owner im thì giao lại.',
   'lead.step.distribute': 'Việc đọc nhiều (file/log lớn, khảo sát repo) giao skill worker; dọn chat dài, biên bản rối giao skill osin.',
   'lead.step.handoff': 'Xong một việc: ghi điều đã chốt bằng room_note và để lại hồ sơ bàn giao.',
   'lead.head': 'Bạn được mở để làm trưởng phòng #{room} trong bear-agent-manager.',
