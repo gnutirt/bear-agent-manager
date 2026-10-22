@@ -435,7 +435,7 @@ header .spacer{flex:1}
 .trow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 10px;margin:6px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.trow:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--hover)}
 .tdotb{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin-top:-2px}.tdotb:hover{background:var(--hover)}.tbox{width:18px;height:18px;border-radius:5px;border:2px solid var(--mute);display:grid;place-items:center;color:#fff}.tbox svg{width:12px;height:12px}.tbox.st-doing{border-color:#F59E0B}.tbox.st-blocked{border-color:#EF4444}.tbox.st-done{background:#15803D;border-color:#15803D}
 .tmain{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:3px}.ttitle{font-weight:600;font-size:14.5px;line-height:1.4}.trow.st-done .ttitle{color:var(--mute);font-weight:500;text-decoration:line-through}
-.tinfo{display:flex;gap:10px;align-items:center;font-size:12px}
+.tinfo{display:flex;gap:10px;align-items:center;font-size:12px}.tstuck{color:#dc2626;font-weight:600}
 .tdetail{flex:0 0 100%;padding:4px 0 2px 36px;font-size:13.5px}.tdetail p{margin:4px 0}.tmeta2{display:flex;gap:10px;align-items:center;margin-top:6px}.tdetail .tacts{margin-top:10px}
 .tfilter{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.tmore{position:relative}.tmore summary{list-style:none;cursor:pointer}.tmore summary::-webkit-details-marker{display:none}.tmenu2{position:absolute;right:0;top:110%;z-index:5;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:210px}
 .tform{grid-template-columns:2fr 1fr 2fr}
@@ -2868,9 +2868,11 @@ function taskRoomName() {
   return S.rooms.find((x) => !x.dm)?.name ?? null;
 }
 const TCOLS = ['todo', 'doing', 'blocked', 'done'];
-const TGROUPS = ['unassigned', 'assigned', 'doing', 'blocked', 'done'];
-const TCOL_KEY = lazy({ todo: 'task.todo', unassigned: 'task.col.unassigned', assigned: 'task.col.assigned', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
-const tgroup = (x) => x.status === 'todo' ? (x.owner ? 'assigned' : 'unassigned') : x.status;
+const TGROUPS = ['planned', 'doing', 'done'];
+const TCOL_KEY = lazy({ planned: 'task.col.planned', todo: 'task.todo', unassigned: 'task.col.unassigned', assigned: 'task.col.assigned', doing: 'task.doing', blocked: 'task.blocked', done: 'task.done' });
+const tgroup = (x) => x.status === 'todo' || x.status === 'blocked' ? 'planned' : x.status;
+// A task only waits while a task in its `after` list is still open; a blocked task with nothing pending is blocked for real (user/lead decision).
+const taskWaits = (x, all) => (x.after || []).filter((id) => { const d = all.find((y) => y.id === id); return d && d.status !== 'done'; });
 const openTasks = (r) => (S.tasks[r] || []).filter((x) => x.status !== 'done');
 function loadTasks(r = taskRoomName()) {
   if (!r) return Promise.resolve();
@@ -2886,11 +2888,11 @@ function renderTasks() {
   const statusCounts = Object.fromEntries(TGROUPS.map((s) => [s, shown.filter((x) => tgroup(x) === s).length]));
   const ownerOpts = (cur, blank) => `<option value="">${blank}</option>` + allNames.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
   const row = (x) => {
-    const open = S.taskOpen === x.id, editing = S.taskEdit === x.id;
+    const open = S.taskOpen === x.id, editing = S.taskEdit === x.id, waits = x.status === 'done' ? [] : taskWaits(x, list), stuck = x.status === 'blocked' && !waits.length;
     return `<li class="trow st-${x.status}${open ? ' open' : ''}" data-tid="${x.id}">
       <button type="button" class="tdotb" data-tnext="${x.id}" role="checkbox" aria-checked="${x.status === 'done'}" title="${x.status === 'done' ? t('task.reopen') : t('task.markDone')}" aria-label="${esc(x.title)}"><span class="tbox st-${x.status}">${x.status === 'done' ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>' : ''}</span></button>
       <div class="tmain" data-ttoggle="${x.id}">${editing ? `<input class="tedit" data-tedit-in value="${esc(x.title)}" maxlength="200" aria-label="${t('task.edit')}">` : `<span class="ttitle">${esc(x.title)}</span>`}
-        <span class="tinfo">${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}<span class="muted">${agoText(x.doneAt || x.updatedAt)}</span></span></div>
+        <span class="tinfo">${waits.length ? `<span class="muted">${t('task.waitFor', { ids: waits.map((id) => '#' + id).join(' ') })}</span>` : ''}${stuck ? `<span class="tstuck" title="${esc(t('task.blockedReal'))}">🚫 ${esc(plain(String(x.note || t('task.blockedReal')).replace(/^🚫s*/, ''), 60))}</span>` : ''}${x.owner ? `<span class="town" style="--c:${color(x.owner)}">${esc(x.owner)}</span>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}<span class="muted">${agoText(x.doneAt || x.updatedAt)}</span></span></div>
       ${open ? `<div class="tdetail">${x.doneWhen ? `<p><b>${t('task.doneWhenLabel')}</b> ${esc(x.doneWhen)}</p>` : ''}${x.detail ? `<div class="msg">${md(x.detail)}</div>` : ''}${x.note ? `<p class="tnote">${esc(x.note)}</p>` : ''}
         <div class="tmeta2">${x.fromMsg ? `<button type="button" class="tlink" data-tjump="${x.fromMsg}">${t('task.fromMsg', { id: x.fromMsg })}</button>` : ''}${x.commit ? `<code class="tcommit">${esc(String(x.commit).slice(0, 9))}</code>` : ''}</div>
         <div class="tacts"><select data-tstatus="${x.id}" aria-label="${t('task.status')}">${TCOLS.map((k) => `<option value="${k}"${k === x.status ? ' selected' : ''}>${TCOL_KEY[k]}</option>`).join('')}</select><select data-towner="${x.id}" aria-label="${t('task.owner')}">${ownerOpts(x.owner || '', t('task.unassigned'))}</select><button type="button" class="btn sm" data-tedit="${x.id}">${t('task.edit')}</button><button type="button" class="btn sm danger" data-tdel="${x.id}">${t('task.delete')}</button></div></div>` : ''}
@@ -2899,13 +2901,13 @@ function renderTasks() {
   const sec = (s) => {
     let items = shown.filter((x) => tgroup(x) === s).sort((a, b) => s === 'done' ? (b.doneAt || b.updatedAt) - (a.doneAt || a.updatedAt) : a.id - b.id);
     const total = items.length;
-    if (!total && s !== 'unassigned' && s !== 'assigned') return '';
+    if (!total && s !== 'planned') return '';
     const collapsed = s === 'done' && !S.taskDoneAll;
     if (collapsed) items = items.slice(0, 5);
-    const status = s === 'unassigned' || s === 'assigned' ? 'todo' : s;
+    const status = s === 'planned' ? 'todo' : s;
     return `<section class="tsec" id="task-${s}" data-col="${s}"><h3><span class="tdot st-${status}"></span>${TCOL_KEY[s]} <small>${total}</small></h3>${items.length ? `<ul class="tlist">${items.map(row).join('')}</ul>` : `<div class="tempty">${t('task.colEmpty')}</div>`}${collapsed && total > items.length ? `<button type="button" class="btn sm" id="taskDoneAll">${t('task.showAll', { n: total })}</button>` : ''}</section>`;
   };
-  const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TGROUPS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s === 'assigned' || s === 'unassigned' ? 'todo' : s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
+  const statusBar = `<nav class="tstatusbar" aria-label="${t('task.status')}">${TGROUPS.map((s) => `<button type="button" class="tstatus" data-task-jump="${s}"${statusCounts[s] ? '' : ' disabled'}><span class="tdot st-${s === 'planned' ? 'todo' : s}"></span>${TCOL_KEY[s]} <b>${statusCounts[s]}</b></button>`).join('')}</nav>`;
   const chips = [`<button type="button" class="tchip" data-townerf="" aria-selected="${!S.tfOwner}">${t('task.filterAll')}</button>`, ...owners.map((o) => `<button type="button" class="tchip" data-townerf="${esc(o)}" aria-selected="${S.tfOwner === o}">${esc(o)}</button>`)].join('');
   const form = S.taskForm ? `<form class="tform" id="taskNew"><input name="title" placeholder="${t('task.form.title')}" maxlength="200" required aria-label="${t('task.form.title')}"><select name="owner" aria-label="${t('task.owner')}">${ownerOpts('', t('task.unassigned'))}</select><input name="doneWhen" placeholder="${t('task.form.doneWhen')}" maxlength="500" aria-label="${t('task.form.doneWhen')}"><div class="row"><button type="button" class="btn" id="taskCancel">${t('common.cancel')}</button><button class="btn primary">${t('task.form.save')}</button></div></form>` : '';
   const normalRooms = S.rooms.filter((x) => !x.dm);

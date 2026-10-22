@@ -67,12 +67,12 @@ test('tasks use grouped status sections with a completed checklist and an undo w
     for (const s of ['class="tstatusbar"', 'data-task-jump="${s}"', 'id="task-${s}"', 'TGROUPS.map(sec)', 'role="checkbox"', "label: t('task.undo')", 'ms: 6000']) {
       assert.ok(html.includes(s), `missing ${s}`);
     }
-    assert.ok(html.indexOf("const TGROUPS = ['unassigned', 'assigned', 'doing', 'blocked', 'done']") < html.indexOf('TGROUPS.map(sec)'), 'status groups are ordered from open work to completed');
+    assert.ok(html.indexOf("const TGROUPS = ['planned', 'doing', 'done']") < html.indexOf('TGROUPS.map(sec)'), 'status groups are ordered from open work to completed');
     const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
     // #149: a todo with an owner was handed out (agent may have forgotten to claim) — shown as "Đã giao", not lumped with unowned work.
-    assert.ok(html.includes("const tgroup = (x) => x.status === 'todo' ? (x.owner ? 'assigned' : 'unassigned') : x.status;"));
-    assert.equal(vi['task.col.unassigned'], 'Chưa giao'); assert.equal(vi['task.col.assigned'], 'Đã giao'); assert.equal(vi['task.blocked'], 'Bị chặn');
-    for (const k of ['task.col.unassigned', 'task.col.assigned']) assert.ok(en[k], `en missing ${k}`);
+    assert.ok(html.includes("const tgroup = (x) => x.status === 'todo' || x.status === 'blocked' ? 'planned' : x.status;"));
+    assert.equal(vi['task.col.planned'], 'Dự định'); assert.equal(vi['task.blocked'], 'Bị chặn');
+    for (const k of ['task.col.planned', 'task.waitFor', 'task.blockedReal']) assert.ok(en[k], `en missing ${k}`);
   } finally { await hub.close(); }
 });
 
