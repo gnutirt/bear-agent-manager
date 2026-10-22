@@ -2718,7 +2718,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // "last message" both read the edge that just happened).
         if (task.status === 'done' && before.status !== 'done') {
           try {
-            broadcast('msg', postSys(room, tr('sys.task.done', { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '' })));
+            // #190: ONE message per finished task; it asks the lead to audit unless the owner already pinged the lead about this #id in the last 10 minutes
+            const done = { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '', note: task.note ? ` — ${task.note.slice(0, 200)}` : '' };
+            const leadId = store.state.rooms[room]?.lead, lead = leadId ? store.state.sessions[leadId] : undefined;
+            const owner = task.owner ? store.members(room).find((m) => m.name.toLowerCase() === task.owner!.toLowerCase()) : undefined;
+            const pinged = !!lead && !!owner && store.messages.some((m) => m.room === room && m.fromId && store.resolve(m.fromId) === owner.id && m.wake.some((w) => store.resolve(w) === lead.id) && m.text.includes(`#${task.id}`) && store.now() - m.ts < 600_000);
+            if (lead?.name && lead.name.toLowerCase() !== (task.owner ?? '').toLowerCase() && !pinged) {
+              const r = store.post(room, null, tr('sys.task.done.audit', { ...done, lead: lead.name }), undefined, undefined, undefined, undefined, { type: 'task', level: 'done' });
+              broadcast('msg', r.message);
+              for (const id of r.message.wake) deliver(store.resolve(id));
+            } else broadcast('msg', postSys(room, tr('sys.task.done', done)));
             emitRoom(room);
           } catch { /* room gone */ }
           afterTaskDone(room, task);
@@ -2969,15 +2978,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const id of r.message.wake) deliver(store.resolve(id));
   };
   const emitTaskList = (room: string) => broadcast('tasks', { room, tasks: listTasks(opts.dir, room) });
-  // a finished task wakes the lead to audit it, and releases the tasks that waited for it
+  // a finished task releases the tasks that waited for it (the lead's audit ping is part of the one "done" message)
   const afterTaskDone = (room: string, done: Task) => {
     try {
-      const lead = store.state.rooms[room]?.lead ? store.state.sessions[store.state.rooms[room].lead!] : undefined;
-      if (lead?.name && lead.name.toLowerCase() !== (done.owner ?? '').toLowerCase()) {
-        const r = store.post(room, null, tr('sys.task.audit', { lead: lead.name, id: done.id, title: done.title, owner: done.owner ?? '-', commit: done.commit ? ` · ${done.commit.slice(0, 9)}` : '' }), undefined, undefined, undefined, undefined, { type: 'task', level: 'info' });
-        broadcast('msg', r.message);
-        for (const id of r.message.wake) deliver(store.resolve(id));
-      }
       const released = unblockReady(opts.dir, room);
       if (released.length) emitTaskList(room);
       for (const t of released) if (t.owner) assignTask(room, t, null);

@@ -74,11 +74,10 @@ test('hub routes: lead adds and assigns (one short message wakes the owner), oth
     await call('/api/rooms/r/tasks/1', { sessionId: 'c1', status: 'doing' });
     await call('/api/rooms/r/tasks/1', { sessionId: 'c1', status: 'done', commit: 'abc1234def', note: 'ok' });
     const after = await call<any[]>('/api/rooms/r/messages?limit=3');
-    const doneLine = after[after.length - 2], audit = after[after.length - 1];
-    assert.match(doneLine.text, /✅ Việc #1 xong: Build K1 \(coder\) · abc1234de/);
-    assert.deepEqual(doneLine.wake, []);
-    assert.match(audit.text, /^@boss Việc #1 đã xong \(coder\)/);   // Q2: the lead is woken to audit
-    assert.deepEqual(audit.wake, ['l1']);
+    const doneLine = after[after.length - 1];
+    assert.match(doneLine.text, /✅ Việc #1 xong: Build K1 \(coder\) · abc1234de — ok\. @boss audit giúp\./);   // #190: one message that is also the Q2 audit wake
+    assert.deepEqual(doneLine.wake, ['l1']);
+    assert.ok(!after.slice(-2).some((m) => /đã xong \(coder\)/.test(m.text)), 'no second audit message');
 
     // a different owner gets the assignment message, a done task is not re-assigned
     const t2 = await call('/api/rooms/r/tasks', { title: 'From the UI' });   // no session: the owner of the repo
@@ -94,6 +93,14 @@ test('hub routes: lead adds and assigns (one short message wakes the owner), oth
     await call('/api/rooms/r/tasks/2/delete', {});
     assert.equal((await call<any[]>('/api/rooms/r/tasks')).length, 2);
     await assert.rejects(call('/api/rooms/nope/tasks'), /unknown room|not found/i);
+    // #190: the owner already pinged the lead about this #id: the done line is plain and wakes nobody
+    const t3 = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Pinged', owner: 'coder' });
+    await call('/api/rooms/r/messages', { sessionId: 'c1', text: `@boss #${t3.id} ready for audit` });
+    await call(`/api/rooms/r/tasks/${t3.id}`, { sessionId: 'c1', status: 'done' });
+    const last = (await call<any[]>('/api/rooms/r/messages?limit=1'))[0];
+    assert.match(last.text, new RegExp(`✅ Việc #${t3.id} xong: Pinged`));
+    assert.deepEqual(last.wake, []);
+    assert.doesNotMatch(last.text, /audit giúp/);
   } finally { await hub.close(); }
 });
 
