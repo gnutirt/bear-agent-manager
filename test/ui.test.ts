@@ -73,6 +73,9 @@ test('tasks use grouped status sections with a completed checklist and an undo w
     assert.ok(html.includes("const tgroup = (x) => x.status === 'todo' || x.status === 'blocked' ? 'planned' : x.status;"));
     assert.equal(vi['task.col.planned'], 'Dự định'); assert.equal(vi['task.blocked'], 'Bị chặn');
     for (const k of ['task.col.planned', 'task.waitFor', 'task.blockedReal']) assert.ok(en[k], `en missing ${k}`);
+    // #196: KPI table from GET /api/rooms/:room/kpi, row click filters by owner, stuck badge on doing cards, lead.monitor settings
+    for (const s of ['`/api/rooms/${enc(r)}/kpi?days=${S.kpiDays}`', 'data-kpi-owner=', 'id="kpiDays"', 'kpiPanel(r)', "t('task.stuckFor', { n: idleMin })", "'lead.monitor.on'", "'lead.monitor.staleMin'", "'lead.monitor.nudgeMin'"]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const k of ['task.kpi.title', 'task.kpi.stale', 'task.kpi.min', 'task.kpi.hour', 'task.stuckFor']) { assert.ok(en[k], `en missing ${k}`); assert.ok(vi[k], `vi missing ${k}`); }
   } finally { await hub.close(); }
 });
 
