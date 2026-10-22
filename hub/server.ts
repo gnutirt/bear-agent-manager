@@ -2020,6 +2020,18 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
       return copilotToggle(res, prof.id, b.on);
     }
+    if (m === 'POST' && p === '/api/pm') {
+      // #160: room_pm(to, text): the PM room of the two agents (made on first use), then the message in it. The sender is the caller's own session.
+      const b = await readBody(req);
+      const from = store.session(String(b.sessionId ?? '')), to = String(b.to ?? '').trim().replace(/^@/, '').toLowerCase();
+      const peer = Object.values(store.state.sessions).find((x) => x.name.toLowerCase() === to);
+      if (!peer) throw new StoreError(404, `no agent named "${to}"`);
+      const room = store.pmRoom(from.id, peer.id);
+      const r = store.post(room.name, from.id, String(b.text ?? ''));
+      broadcast('msg', r.message); emitRoom(room.name); emitSession(from); emitSession(peer);
+      broadcast('rooms', Object.keys(store.state.rooms).sort().map((x) => store.roomInfo(x)));
+      return json(res, 200, { room: room.name, message: r.message });
+    }
     if (m === 'POST' && p === '/api/agents') {
       // D3: a new agent without any editor. A folder no chat ever used must be confirmed (it runs with the agent's permissions there).
       const b = await readBody(req);

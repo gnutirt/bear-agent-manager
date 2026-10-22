@@ -23,7 +23,7 @@ function apiFor(url: string, token: string): Api {
 }
 
 test('tool list has the room tools with object schemas', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['room_who', 'room_join', 'room_leave', 'room_send', 'room_read', 'room_topics', 'room_tasks', 'local_summarize', 'room_set_name', 'room_note', 'room_notes', 'room_note_remove', 'room_done', 'room_commit']);
+  assert.deepEqual(TOOLS.map((t) => t.name), ['room_who', 'room_join', 'room_leave', 'room_send', 'room_pm', 'room_read', 'room_topics', 'room_tasks', 'local_summarize', 'room_set_name', 'room_note', 'room_notes', 'room_note_remove', 'room_done', 'room_commit']);
   for (const t of TOOLS) assert.equal(t.inputSchema.type, 'object');
 });
 
@@ -159,7 +159,7 @@ test('stdio server speaks MCP: initialize, tools/list, tools/call, unknown metho
     assert.match(init.result.instructions, /room_send/);
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     const list = await rpc(2, 'tools/list');
-    assert.equal(list.result.tools.length, 14);
+    assert.equal(list.result.tools.length, 15);
     const joined = await rpc(3, 'tools/call', { name: 'room_join', arguments: { room: 'lab' } });
     assert.match(joined.result.content[0].text, /Joined #lab/);
     const bad = await rpc(4, 'tools/call', { name: 'room_send', arguments: { room: 'nope', text: 'x' } });

@@ -1387,6 +1387,7 @@ function membersMenu(anchor) {
 }
 
 /* ---------- rendering ---------- */
+const pmLabel = (r) => r.pm.map((id) => S.sessions[id]?.name || id.slice(0, 4)).join(' ↔ ');   // #160: a PM between two agents; the user reads it only
 function renderRooms() {
   syncChatTabs();
   const el = $('rooms'); el.innerHTML = '';
@@ -1396,7 +1397,7 @@ function renderRooms() {
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
-    b.innerHTML = `<span class="hash">#</span><span class="rname">${esc(r.name)}${r.paused ? ' ⏸' : ''}</span>${openTasks(r.name).length ? `<span class="tcount" title="${t('task.countTip', { n: openTasks(r.name).length })}">${openTasks(r.name).length}</span>` : ''}${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}">${I.dots}</button>`;
+    b.innerHTML = `<span class="hash">${r.pm ? '👀' : '#'}</span><span class="rname">${esc(r.pm ? pmLabel(r) : r.name)}${r.paused ? ' ⏸' : ''}</span>${openTasks(r.name).length ? `<span class="tcount" title="${t('task.countTip', { n: openTasks(r.name).length })}">${openTasks(r.name).length}</span>` : ''}${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}">${I.dots}</button>`;
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
@@ -1606,10 +1607,11 @@ function moreMenu(anchor) {
 function renderHeader() {
   renderUsageChips();
   const r = room(S.current);
-  $('titleName').textContent = r ? (r.dm ? (S.sessions[r.dm]?.name || r.name) : r.name) : 'Bear Agent Manager';
+  $('titleName').textContent = r ? (r.dm ? (S.sessions[r.dm]?.name || r.name) : r.pm ? pmLabel(r) : r.name) : 'Bear Agent Manager';
+  $('composer').hidden = !!r?.pm;
   const titleHash = document.querySelector('#title .h');
   titleHash.style.display = r ? '' : 'none';
-  titleHash.textContent = r?.dm ? '@' : '#';
+  titleHash.textContent = r?.dm ? '@' : r?.pm ? '👀' : '#';
   const ms = r ? members(r.name) : [];
   const busy = ms.filter((s) => s.status === 'busy').length;
   const lead = r?.lead ? S.sessions[r.lead] : null;

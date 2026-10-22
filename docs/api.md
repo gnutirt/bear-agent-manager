@@ -25,6 +25,9 @@
 | GET | `/api/path/view` |  | có |
 | POST | `/api/path/reveal` | `room`, `id`, `path` | có |
 | GET | `/api/settings` |  | có |
+| GET | `/api/mcp/connections` |  | có |
+| POST | `/api/mcp/connections` |  | có |
+| DELETE | `/api/mcp/connections/:param` |  | có |
 
 ## skill library (S1): filter by role / words / license, installed per Claude account
 
@@ -53,6 +56,7 @@
 | POST | `/api/permissions/ask` | `session`, `tool`, `input` | có |
 | GET | `/api/permissions` |  | có |
 | GET | `/api/agent-profiles` |  | có |
+| POST | `/api/pm` | `sessionId`, `to`, `text` | có |
 | POST | `/api/agents` | `name`, `room`, `cwd`, `confirm`, `account`, `setRoomCwd`, `prompt` | có |
 | GET | `/api/version` |  | có |
 | POST | `/api/version/check` |  | có |
