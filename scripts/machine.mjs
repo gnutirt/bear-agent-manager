@@ -23,6 +23,8 @@ const SECRET_KEY = /(token|secret|passw|api[-_]?key|^key$|authorization|auth$|be
 const SECRET_VALUE = /^(sk[-_]|ghp_|gho_|ghu_|ghs_|github_pat_|xox[baprs]-|AIza|eyJ|glpat-|npm_|shpat_|dckr_pat_)/;
 const NOT_SECRET_KEY = /(path|dir|home|url|uri|host|port|file|timeout|proxy|email|region|bucket|command)/i;
 const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
+const SECRET_FLAG = /^--?(?:token|api[-_]?key|key|secret|password|auth[\w-]*)$/i;
+const SECRET_FLAG_EQ = /^(--?(?:token|api[-_]?key|key|secret|password|auth[\w-]*))=(.+)$/i;
 
 /** Whether an env/header entry looks like a credential: by its name, its prefix, or a long random-looking value. */
 export function looksSecret(key, value) {
@@ -58,11 +60,15 @@ export function mcpServersForExport(home) {
     // A token can also be typed as a CLI argument (`--api-key sk-…`) or sit in the query of the URL; both leak the
     // same way, so they are replaced too, with a name the user can export before importing.
     if (Array.isArray(copyOf.args)) {
-      copyOf.args = copyOf.args.map((a, i) => {
-        if (typeof a !== 'string' || !SECRET_VALUE.test(a)) return a;
+      copyOf.args = copyOf.args.map((a, i, all) => {
+        if (typeof a !== 'string') return a;
+        // #174: a raw value (hex, no known prefix) is a secret too when its flag says so: `--token VALUE` or `--api-key=VALUE`
+        const eq = a.match(SECRET_FLAG_EQ);
+        if (PLACEHOLDER.test(eq ? eq[2] : a)) return a;
+        if (!eq && !SECRET_VALUE.test(a) && !(typeof all[i - 1] === 'string' && SECRET_FLAG.test(all[i - 1]))) return a;
         const varName = `${String(name).toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_ARG_${i}`;
         vars.add(varName);
-        return `\${${varName}}`;
+        return eq ? `${eq[1]}=\${${varName}}` : `\${${varName}}`;
       });
     }
     // Plain string surgery, not URL(): the URL API would percent-encode the `${…}` placeholder and Claude Code would

@@ -174,3 +174,18 @@ test('hub: after a restart the last export is read back from manifest.json', asy
     assert.deepEqual([g.running, g.last.items, g.last.at, g.last.fromManifest], [null, 3, Date.parse('2026-10-18T10:00:00.000Z'), true]);
   } finally { delete process.env.BEAR_AGENT_ARCHIVE_DIR; await hub.close(); }
 });
+
+test('#174: a raw token passed as a CLI argument (--token VALUE, --api-key=VALUE) never reaches the export', () => {
+  const { home, hub } = fakeHome();
+  const hex = '9f3a1c7e5b2d4f60a8e1c3b5d7f90a2b', hex2 = '0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e';
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ mcpServers: {
+    tool: { command: 'npx', args: ['-y', 'some-mcp', '--token', hex, '--api-key=' + hex2, '--port', '8080', '--auth-token', '${ALREADY}'] },
+  } }));
+  const out = path.join(home, 'out');
+  exportMachine({ home, hubHome: hub, dir: out });
+  const txt = fs.readFileSync(path.join(out, 'mcp.json'), 'utf8');
+  for (const secret of [hex, hex2]) assert.ok(!txt.includes(secret), `the export must not contain ${secret}`);
+  const j = JSON.parse(txt);
+  assert.deepEqual(j.servers.tool.args, ['-y', 'some-mcp', '--token', '${TOOL_ARG_3}', '--api-key=${TOOL_ARG_4}', '--port', '8080', '--auth-token', '${ALREADY}']);
+  assert.deepEqual([...j.vars].sort(), ['TOOL_ARG_3', 'TOOL_ARG_4']);
+});
