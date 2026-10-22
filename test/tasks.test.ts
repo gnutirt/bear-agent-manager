@@ -208,10 +208,11 @@ test('#195 KPI: startedAt is the first doing, a reopened done counts, medians/st
   assert.equal(taskKpi(home, 'r', 14, now).owners.find((o) => o.owner === 'Boss')!.commitRate, 0);
 });
 
-test('#195 hub: GET /kpi, and a task in doing for over an hour wakes the lead once per hour', async () => {
+test('#195 hub: GET /kpi; a stuck task nudges its owner once, a silent owner wakes the lead, an offline owner goes to the lead at once', async () => {
   const { hub, dir, call } = await makeHub(50);
   try {
-    for (const [id, name] of [['l1', 'boss'], ['c1', 'coder']]) {
+    fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ language: 'vi', lead: { monitor: { on: true, staleMin: 60, nudgeMin: 0 } } }));
+    for (const [id, name] of [['l1', 'boss'], ['c1', 'coder'], ['g1', 'ghost']]) {
       await call('/api/sessions/register', { id, cwd: `C:/${name}` });
       await call(`/api/sessions/${id}/rename`, { name });
       await call('/api/rooms/r/join', { sessionId: id });
@@ -219,15 +220,23 @@ test('#195 hub: GET /kpi, and a task in doing for over an hour wakes the lead on
     await call('/api/rooms/r/lead', { sessionId: 'l1' });
     const t = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Slow', owner: 'coder' });
     await call(`/api/rooms/r/tasks/${t.id}`, { sessionId: 'c1', status: 'doing' });
-    assert.equal((await call<any>('/api/rooms/r/kpi?days=7')).owners[0].doing, 1);
+    await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Gone', owner: 'ghost' });   // todo nobody took
+    assert.equal((await call<any>('/api/rooms/r/kpi?days=7')).owners.find((o: any) => o.owner === 'coder').doing, 1);
     await assert.rejects(call('/api/rooms/nope/kpi'), /404|not found|unknown/i);
+    await fetch(`${hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'g1' }) });
     const file = path.join(dir, 'rooms', 'r', 'tasks.json'), j = JSON.parse(fs.readFileSync(file, 'utf8'));
-    j.tasks[0].updatedAt = Date.now() - 61 * 60_000;
+    for (const x of j.tasks) x.updatedAt = Date.now() - 61 * 60_000;
     fs.writeFileSync(file, JSON.stringify(j));
-    const stale = async () => (await call<any[]>('/api/rooms/r/messages?limit=20')).filter((x) => /^⏳ @boss việc #1 đứng 6\d phút \(người làm coder: /.test(x.text));
-    const hit = await until(async () => { const m = await stale(); return m.length ? m : null; }, 5000, 'stale notice');
-    assert.ok(hit[0].wake.includes('l1'), 'lead woken');
-    await new Promise((r) => setTimeout(r, 300));   // several more sweeps: still one notice
-    assert.equal((await stale()).length, 1);
+    const find = async (re: RegExp) => (await call<any[]>('/api/rooms/r/messages?limit=50')).filter((x) => re.test(x.text));
+    const nudge = /^⏳ @coder việc #1 đứng 6\d phút/, esc = /^⏳ @boss việc #1: coder không phản hồi/, away = /^⏳ @boss việc #2 đứng 6\d phút, ghost .*\(offline\)/;
+    const n = await until(async () => { const m = await find(nudge); return m.length ? m : null; }, 5000, 'owner nudged');
+    assert.ok(n[0].wake.includes('c1'), 'owner woken');
+    const e = await until(async () => { const m = await find(esc); return m.length ? m : null; }, 5000, 'lead woken for a silent owner');
+    assert.ok(e[0].wake.includes('l1'));
+    const a = await until(async () => { const m = await find(away); return m.length ? m : null; }, 5000, 'lead told the owner is offline');
+    assert.ok(a[0].wake.includes('l1'));
+    assert.equal((await find(/@ghost việc #2/)).length, 0, 'an offline owner is not nudged');
+    await new Promise((r) => setTimeout(r, 300));   // several more sweeps: still one of each within the hour
+    for (const re of [nudge, esc, away]) assert.equal((await find(re)).length, 1, String(re));
   } finally { await hub.close(); }
 });
