@@ -98,14 +98,28 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
 
   switch (name) {
     case 'room_who': {
-      const [s, rooms, sessions] = await Promise.all([me(), api<RoomInfo[]>('/api/rooms'), api<PublicSession[]>('/api/sessions')]);
+      const [s, rooms, sessions, profiles] = await Promise.all([
+        me(),
+        api<RoomInfo[]>('/api/rooms'),
+        api<PublicSession[]>('/api/sessions'),
+        api<{ provider: string; name: string; quotaLimited?: boolean; retryAt?: number }[]>('/api/agent-profiles'),
+      ]);
       const byId = new Map(sessions.map((x) => [x.id, x]));
+      const copilotLimits = new Map(profiles
+        .filter((profile) => profile.provider === 'copilot' && profile.quotaLimited === true)
+        .map((profile) => [profile.name, profile.retryAt]));
       const lines = [`You are "${s.name}".`];
       for (const r of rooms.filter((x) => s.rooms.includes(x.name))) {
         lines.push(`#${r.name}${r.paused ? ' (paused by loop guard)' : ''}${r.cwd ? ` (working folder: ${r.cwd})` : ''}:`);
         for (const id of r.members) {
           const m = byId.get(id);
-          if (m) lines.push(`  ${m.id === r.lead ? '★ ' : ''}${m.name}${m.id === r.lead ? ' (lead)' : ''}${m.id === s.id ? ' (you)' : ''} — ${m.status}${m.activity ? ' · ' + m.activity : ''} — ${m.cwd}`);
+          if (m) {
+            const retryAt = copilotLimits.get(m.name);
+            const status = copilotLimits.has(m.name)
+              ? `paused${retryAt != null ? ` until ${new Date(retryAt).toLocaleString()}` : ''}`
+              : m.status;
+            lines.push(`  ${m.id === r.lead ? '★ ' : ''}${m.name}${m.id === r.lead ? ' (lead)' : ''}${m.id === s.id ? ' (you)' : ''} — ${status}${m.activity ? ' · ' + m.activity : ''} — ${m.cwd}`);
+          }
         }
       }
       if (!s.rooms.length) lines.push('You are not in any room yet.');

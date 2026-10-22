@@ -59,6 +59,29 @@ test('join, send (default room), read, who, typo warning', async () => {
   } finally { await hub.close(); }
 });
 
+test('room_who shows monthly-quota Copilot profiles as paused until reset', async () => {
+  const retryAt = Date.now() + 10_000;
+  const sessions = [
+    { id: 'lead', name: 'Lead', cwd: 'C:\\repo', rooms: ['proj'], status: 'idle', activity: '' },
+    { id: 'copilot-session', name: 'CopilotMonthly', cwd: 'C:\\repo', rooms: ['proj'], status: 'idle', activity: '' },
+  ];
+  const responses: Record<string, unknown> = {
+    '/api/sessions/lead': { session: sessions[0] },
+    '/api/rooms': [{ name: 'proj', paused: false, members: sessions.map((s) => s.id), lead: 'lead' }],
+    '/api/sessions': sessions,
+    '/api/agent-profiles': [{ provider: 'copilot', name: 'CopilotMonthly', quotaLimited: true, retryAt }],
+  };
+  const api: Api = async <T>(path: string): Promise<T> => {
+    const response = responses[path];
+    if (response === undefined) throw new Error(`unexpected API path: ${path}`);
+    return response as T;
+  };
+
+  const who = await callTool(api, 'lead', 'room_who', {});
+  assert.match(who, /CopilotMonthly — paused until /);
+  assert.match(who, /Lead \(lead\) \(you\) — idle/);
+});
+
 test('room_send refuses a non-string text instead of posting "[object Object]"', async () => {
   const { hub, call } = await makeHub();
   const api = apiFor(hub.url, hub.token);

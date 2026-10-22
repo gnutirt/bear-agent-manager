@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { makeHub, until } from './helpers.ts';
-import { copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
+import { CopilotAgent, copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
 import { defaultSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
 import type { AutoModeSwitchRequest, SessionEvent } from '@github/copilot-sdk';
@@ -116,6 +116,38 @@ test('Copilot permission handler reads the current settings rule for every reque
 
   rule = { mode: 'bypass', allow: [], deny: ['Bash(npm test:*)'] };
   assert.equal(handler(request, { sessionId: uuid }).kind, 'reject');
+});
+
+test('Copilot reconnects quietly unless it was offline for more than ten minutes', async () => {
+  const { hub, dir } = await makeHub();
+  const { factory } = fakeFactory();
+  let now = Date.now();
+  const notices: string[] = [];
+  const agent = new CopilotAgent({
+    dir,
+    profile: { id: 'quick-reconnect', name: 'CopilotQuick', cwd: process.cwd() },
+    port: () => hub.port,
+    store: hub.store,
+    settings: () => defaultSettings(),
+    onChange: () => {},
+    onRoom: () => {},
+    onRooms: () => {},
+    onMessage: (_room, message) => notices.push(message.text),
+    createClient: factory,
+    now: () => now,
+  });
+  try {
+    await agent.start();
+    assert.match(notices[0], /^~ CopilotQuick is online and ready/);
+    await agent.stop();
+    now += 11 * 60_000;
+    await agent.start();
+    assert.match(notices[1], /^CopilotQuick is online and ready/);
+    assert.doesNotMatch(notices[1], /^~/);
+  } finally {
+    await agent.stop();
+    await hub.close();
+  }
 });
 
 test('Copilot runtime does not inherit host CLI/IDE flags or keychain-disable setting', () => {

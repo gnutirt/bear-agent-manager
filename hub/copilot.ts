@@ -12,6 +12,7 @@ const ROOM = 'bear-agent-manager';
 const LEGACY_ROOM = 'copilot';
 const MCP_SERVER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../mcp/server.ts');
 const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+const ONLINE_NOTICE_AFTER_MS = 10 * 60_000;
 
 type Identity = { hubId: string; providerId?: string };
 type State = 'off' | 'starting' | 'idle' | 'busy' | 'error';
@@ -37,6 +38,7 @@ export type CopilotAgentOptions = {
   onMessage: (room: string, message: Message) => void;
   onQuota?: (limit: CopilotQuotaLimit) => Promise<number | false> | number | false;
   createClient?: CopilotClientFactory;
+  now?: () => number;
 };
 
 const COPILOT_HOST_ENV = [
@@ -171,12 +173,14 @@ export class CopilotAgent {
   private quotaTask?: Promise<number | false>;
   private quotaTaskPending = false;
   private quotaTimer?: NodeJS.Timeout;
+  private offlineSince: number;
 
   constructor(opts: CopilotAgentOptions) {
     this.opts = opts;
     const { id, name, cwd, home } = opts.profile;
     this.cwd = cwd;
     this.name = name;
+    this.offlineSince = this.now();
     // the default profile keeps the pre-profile identity file, so an existing install resumes the same Copilot session
     this.file = path.join(home ?? opts.dir, id === 'copilot' ? 'copilot-agent.json' : `copilot-agent-${id}.json`);
     this.status = { id, name, state: 'off', auth: 'unknown', room: ROOM, cwd };
@@ -244,7 +248,10 @@ export class CopilotAgent {
         saveIdentity(this.file, identity);
       }
       this.setStatus({ state: 'idle', auth: 'ok', login: auth.login, error: undefined });
-      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} is online and ready in the shared room.`));
+      const notice = `${this.name} is online and ready in the shared room.`;
+      const text = this.now() - this.offlineSince > ONLINE_NOTICE_AFTER_MS ? notice : `~ ${notice}`;
+      this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, text));
+      this.offlineSince = this.now();
       void this.wake(identity.hubId).catch((error) => this.reportError(error));
     } catch (error) {
       const failedSession = this.session;
@@ -438,6 +445,7 @@ export class CopilotAgent {
     }
     if (this.wakeTask) await this.wakeTask.catch((error) => { errors.push(new Error(safeError(error))); });
     this.stopping = false;
+    this.offlineSince = this.now();
     this.setStatus({ state: 'off', error: undefined });
     if (id && this.opts.store.state.sessions[id]) {
       this.opts.store.markEnded(id);
@@ -470,6 +478,10 @@ export class CopilotAgent {
   private setStatus(next: Partial<CopilotStatus> & Pick<CopilotStatus, 'state'>): void {
     this.status = { ...this.status, ...next, room: ROOM, cwd: this.cwd };
     this.opts.onChange(this.snapshot());
+  }
+
+  private now(): number {
+    return (this.opts.now ?? Date.now)();
   }
 
   private markQuotaLimited(limit: CopilotQuotaLimit): Promise<number | false> {
