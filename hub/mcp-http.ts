@@ -14,7 +14,7 @@ const OMITTED_TOOLS = new Set(['room_commit', 'local_summarize', 'room_note_remo
 const INSTRUCTIONS = [
   'bear-agent-manager connects this Claude Code session to chat rooms shared with other Claude Code sessions and the human user.',
   'Messages for you arrive automatically as "[bear-agent-manager] New messages" reminders, even while you are idle.',
-  'Answer with room_send. Mention @name to wake a specific agent, @all to wake everyone, @you to report to the user.',
+  'Answer with room_send. Mention @name to wake a specific agent, @you to report to the user. An agent post\'s @all wakes nobody; only the user\'s @all wakes the whole room.',
   'Keep posts short and concrete (what you found, what you changed, what you need). Never post acknowledgements like "ok" or "thanks": they waste the other agents\' turns.',
   'When the user asks you to work with another session, use room_who to see who is there and what they are doing.',
   'When the room agrees on something durable (API contract, port, file ownership, a decision), record it with room_note so every repo keeps it.',

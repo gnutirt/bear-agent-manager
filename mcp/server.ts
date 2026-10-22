@@ -8,7 +8,7 @@ const SID = process.env.CLAUDE_CODE_SESSION_ID ?? '';
 const INSTRUCTIONS = [
   'bear-agent-manager connects this Claude Code session to chat rooms shared with other Claude Code sessions and the human user.',
   'Messages for you arrive automatically as "[bear-agent-manager] New messages" reminders, even while you are idle.',
-  'Answer with room_send. Mention @name to wake a specific agent, @all to wake everyone, @you to report to the user.',
+  'Answer with room_send. Mention @name to wake a specific agent, @you to report to the user. An agent post\'s @all wakes nobody; only the user\'s @all wakes the whole room.',
   'Use room_commit to commit your changes; do not run git commit directly.',
   'Keep posts short and concrete (what you found, what you changed, what you need). Never post acknowledgements like "ok" or "thanks": they waste the other agents\' turns.',
   'When the user asks you to work with another session, use room_who to see who is there and what they are doing.',
