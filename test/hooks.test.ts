@@ -12,8 +12,13 @@ import fs from 'node:fs';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function runHook(script: string, input: object | string, env: Record<string, string>, args: string[] = []) {
+  const childEnv = { ...process.env };
+  // These are test-run settings, not host settings. A caller may use them deliberately,
+  // but unrelated tests must not inherit them from the shell running the suite.
+  delete childEnv.BEAR_AGENT_HEADLESS;
+  delete childEnv.BEAR_AGENT_IDLE_MIN;
   const child = spawn(process.execPath, ['--no-warnings', path.join(ROOT, 'hooks', script), ...args], {
-    env: { ...process.env, ...env },
+    env: { ...childEnv, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stdout = '';
