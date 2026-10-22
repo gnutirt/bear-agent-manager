@@ -75,6 +75,34 @@ test('a ~ line with no mention does not wake a live lead either', async () => {
   } finally { await hub.close(); }
 });
 
+test('#165: an agent @all wakes nobody, a user @all still wakes the room', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    for (const [id, name] of [['a', 'alice'], ['b', 'bob'], ['l', 'lead']] as const) {
+      await call('/api/sessions/register', { id, cwd: `C:/${id}` });
+      await call(`/api/sessions/${id}/rename`, { name });
+      await call('/api/rooms/r/join', { sessionId: id });
+    }
+    await call('/api/rooms/r/lead', { sessionId: 'l' });
+
+    const agentAll = await call<any>('/api/rooms/r/messages', { sessionId: 'a', text: '@all ai rảnh?' });
+    assert.deepEqual(agentAll.message.wake, [], 'an agent @all wakes nobody, not even the live lead');
+    assert.equal(agentAll.message.text, '@all ai rảnh?', 'the text is stored as written');
+    assert.deepEqual(agentAll.message.mentions, ['all'], 'the word is still recorded as a mention');
+
+    const mixed = await call<any>('/api/rooms/r/messages', { sessionId: 'a', text: '@all @bob vào đây' });
+    assert.deepEqual(mixed.message.wake, ['b'], 'an explicit @bob in the same message still wakes');
+
+    const user = await call<any>('/api/rooms/r/messages', { text: '@all họp' });
+    assert.deepEqual([...user.message.wake].sort(), ['a', 'b', 'l'], 'the user @all still wakes every member');
+
+    // #165 also keeps an agent @all from subscribing the room to a topic, which would deliver the topic in full instead.
+    await call('/api/rooms/r/messages', { sessionId: 'a', text: '@all theo dõi đi', topic: 'agentbroadcast' });
+    const follows = (await call<any[]>('/api/rooms/r/topics?session=b')).find((t) => t.topic === 'agentbroadcast')?.follows ?? false;
+    assert.equal(follows, false, 'an agent @all subscribes nobody');
+  } finally { await hub.close(); }
+});
+
 test('a DM message an open tab cannot take is reported at once, once per deaf stretch', async () => {
   const { hub, call } = await makeHub();
   try {

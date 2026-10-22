@@ -43,10 +43,10 @@ export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
 const IDES = new Set<string>(['vscode', 'antigravity', 'cursor', 'cli']);
 const IDE_SUFFIX: Record<Ide, string> = { '': '', vscode: '', antigravity: '-ag', cursor: '-cursor', cli: '-cli' };
 export type Note = { id: number; text: string; by: string; byId: string | null; ts: number };
-export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; cwd?: string; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[]; dm?: string; dmHidden?: boolean };
+export type Room = { name: string; createdAt: number; paused: boolean; agentWakeStreak: number; cwd?: string; notes?: Note[]; notesAt?: number; lead?: string | null; done?: string[]; dm?: string; dmHidden?: boolean; pm?: [string, string] };
 const MAX_NOTE = 1000;
 const MAX_NOTES = 60;
-export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null; cwd?: string; dm?: string; dmHidden?: boolean };
+export type RoomInfo = { name: string; createdAt: number; paused: boolean; members: string[]; lead: string | null; cwd?: string; dm?: string; dmHidden?: boolean; pm?: [string, string] };
 type State = {
   sessions: Record<string, Session>; rooms: Record<string, Room>; aliases: Record<string, string>;
   autoJobs?: { runs: number[]; done: string[] };   // automatic osin jobs: start times (24h window) + keys already run
@@ -532,6 +532,8 @@ export class Store {
     if (room.startsWith('dm-') && owner !== s.id) {
       throw new StoreError(403, `#${room} là chat riêng của user với một agent, không vào được; muốn nói với agent đó thì @ trong phòng chung / #${room} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
+    // #160: a pm-* room belongs to its two agents and is made only by pmRoom (an unknown pm-* name is not a free room name)
+    if (room.startsWith('pm-') && !existing?.pm?.includes(s.id)) throw new StoreError(403, `#${room} là PM giữa hai agent, không vào được / #${room} is a private message room between two agents`);
     this.createRoom(room);
     if (!(room in s.rooms)) s.rooms[room] = this.lastId();
     this.save();
@@ -546,6 +548,22 @@ export class Store {
     const r = this.state.rooms[name];
     r.dm = s.id;
     delete r.dmHidden;
+    this.save();
+    return r;
+  }
+
+  /** #160: the PM room of two agents, `pm-<8 chars of each id>` (the user reads it, never writes). Idempotent for the pair, in either order. */
+  pmRoom(idA: string, idB: string): Room {
+    const pair = [this.session(idA).id, this.session(idB).id].sort() as [string, string];
+    if (pair[0] === pair[1]) throw new StoreError(400, 'a PM needs two different agents');
+    let r = Object.values(this.state.rooms).find((x) => x.pm?.[0] === pair[0] && x.pm[1] === pair[1]);
+    if (!r) {
+      const name = `pm-${pair[0].slice(0, 8)}-${pair[1].slice(0, 8)}`;
+      if (this.state.rooms[name]) throw new StoreError(409, `${name} already exists`);
+      r = this.createRoom(name);
+      r.pm = pair;
+    }
+    for (const id of pair) { const s = this.session(id); if (!(r.name in s.rooms)) s.rooms[r.name] = this.lastId(); }
     this.save();
     return r;
   }
@@ -600,7 +618,7 @@ export class Store {
   roomInfo(room: string): RoomInfo {
     const r = this.state.rooms[room];
     if (!r) throw new StoreError(404, `unknown room ${room}`);
-    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null, ...(r.cwd ? { cwd: r.cwd } : {}), ...(r.dm ? { dm: r.dm, dmHidden: r.dmHidden === true } : {}) };
+    return { name: r.name, createdAt: r.createdAt, paused: r.paused, members: this.members(room).map((s) => s.id), lead: r.lead ?? null, ...(r.cwd ? { cwd: r.cwd } : {}), ...(r.dm ? { dm: r.dm, dmHidden: r.dmHidden === true } : {}), ...(r.pm ? { pm: r.pm } : {}) };
   }
 
   /** A member finished its part: posts "✅ Xong: …"; when every live member (lead excepted) is done, adds one system line. */
@@ -670,6 +688,7 @@ export class Store {
       throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);
+    if (room.pm && (sender ? !room.pm.includes(sender.id) : !sys)) throw new StoreError(403, `#${roomName} là PM giữa hai agent; user chỉ đọc / #${roomName} is a private message room between two agents; the user may only read it`);
     // Posting proves the session is alive. A provider agent runs `--bare` (no hooks) and its pid is not in the session
     // record, so sweep() judges it by silence and can call it offline in the middle of a long turn; the first room_send
     // of that turn puts it back.
@@ -708,13 +727,15 @@ export class Store {
       room.agentWakeStreak++;
       if (room.agentWakeStreak > LOOP_LIMIT) { room.paused = true; wake = []; }
     }
+    if (room.pm && sender) wake = room.pm.filter((id) => id !== sender.id);   // a PM reaches the other agent as if tagged
     message.wake = silent ? [] : wake;
     if (message.topic) {   // following a topic: sending into it, or being @-ed in it
       const follow = (s: Session) => { if (!s.topics?.includes(message.topic!)) (s.topics ??= []).push(message.topic!); };
       if (sender) follow(sender);
       // A `~` status line wakes nobody, so it must not subscribe anyone either: otherwise a "@name" written in it
       // silently pulls that member into the topic and fills its next turn with messages it never asked for.
-      if (!silent) for (const mem of members) if (message.mentions.includes('all') || message.mentions.includes(mem.name.toLowerCase())) follow(mem);
+      // #165: an agent's `@all` subscribes nobody, for the same reason it wakes nobody; the user's still subscribes the room.
+      if (!silent) for (const mem of members) if ((!sender && message.mentions.includes('all')) || message.mentions.includes(mem.name.toLowerCase())) follow(mem);
     }
     const names = new Set(members.map((m) => m.name.toLowerCase()));
     const unknownMentions = message.mentions.filter((n) => n !== 'all' && n !== 'you' && !names.has(n));

@@ -23,7 +23,8 @@ test('fenced code blocks mention nobody; inline code and plain text still do', (
 
   const from = (text: string) => msg({ from: 'fw', fromId: 's-fw', mentions: parseMentions(text) });
   assert.equal(wakes(from('```\n@all\n```'), web, false), false, 'fenced @all wakes nobody');
-  assert.equal(wakes(from('@all'), web, false), true, 'plain @all wakes');
+  assert.equal(wakes(from('@all'), web, false), false, "an agent's plain @all wakes nobody (#165)");
+  assert.equal(wakes(msg({ mentions: parseMentions('@all') }), web, false), true, "the user's plain @all wakes");
   assert.equal(wakes(from('`@web` example'), web, false), true, 'inline backtick still wakes');
 });
 
@@ -42,11 +43,19 @@ test('agent message without mention wakes nobody', () => {
   assert.equal(wakes(msg({ from: 'fw', fromId: 's-fw' }), web, false), false);
 });
 
-test('agent message wakes the named and @all wakes all except sender', () => {
+test('#165: an agent wakes the named, but its @all wakes nobody', () => {
   assert.equal(wakes(msg({ fromId: 's-fw', mentions: ['web'] }), web, false), true);
   const all = msg({ fromId: 's-fw', mentions: ['all'] });
-  assert.equal(wakes(all, web, false), true);
+  assert.equal(wakes(all, web, false), false, 'an agent cannot broadcast to the room');
   assert.equal(wakes(all, fw, false), false);
+  const mixed = msg({ fromId: 's-fw', mentions: ['all', 'web'] });
+  assert.equal(wakes(mixed, web, false), true, 'an explicit @web in the same message still wakes');
+});
+
+test('#165: the user @all still wakes every member', () => {
+  const all = msg({ mentions: ['all'] });
+  assert.equal(wakes(all, fw, false), true);
+  assert.equal(wakes(all, web, false), true);
 });
 
 test('paused room: agent messages wake nobody, user messages still wake', () => {

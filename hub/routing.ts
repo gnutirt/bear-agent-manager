@@ -40,5 +40,7 @@ export function wakes(msg: Message, member: { id: string; name: string }, roomPa
   const all = msg.mentions.includes('all');
   if (msg.fromId === null) return msg.mentions.length === 0 || all || msg.mentions.includes(name);
   if (roomPaused) return false;
-  return all || msg.mentions.includes(name);
+  // #165: `all` is the user's broadcast. An agent may write the word (it stays in the text and in `mentions`) but it
+  // wakes nobody by itself; only an explicit @name in that same message wakes its addressee.
+  return msg.mentions.includes(name);
 }
