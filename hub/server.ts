@@ -578,7 +578,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const ids = store.idsFor(s.id);   // a turn started before a clear/resume runs under the old id
       if (s.ended || !ids.some((x) => isBackground(x))) continue;
       const p = profiles.find((x) => normAgent(x.name) === normAgent(s.name));
-      if (p && !p.enabled) { for (const x of ids) stopRevive(x); emitSession(store.markEnded(s.id)); }
+      if (p && !p.enabled) { for (const x of ids) endBackground(x); emitSession(store.markEnded(s.id)); }
     }
   }
   function setApiEnabled(id: string, on: boolean) {
@@ -702,7 +702,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       catch { if (claudePids(s).some(isAlive)) throw new StoreError(409, `${s.name}: its claude (pid ${claudePids(s).join(', ')}) could not be stopped`); emitSession(store.markEnded(s.id)); dead = true; }
       if (!dead) return false;   // a live claude still holds the chat; terminateSession already told the room
     }
-    stopRevive(s.id);
+    endBackground(s.id);
     const cur = store.session(s.id);
     carrySessionDirs(cur.configDir || path.join(usageHome, '.claude'), to, cur.id);   // B2: rewind history and todos come along
     cur.configDir = to; cur.limited = undefined; cur.ended = true; store.save();
@@ -884,7 +884,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → ${tr('sys.size.unknown')}`;
   };
   const reviving = new Set<string>();
-  const replacedByTab = new Set<string>();   // background wakes the hub ended itself because the tab came up: their exit is not a failure
+  const replacedByTab = new Set<string>();   // background wakes the hub ended itself (tab came up, Stop, account switch, profile off): their exit is not a failure
+  const revivingTurn = new Set<string>();   // held by revive() only: just its finally clears replacedByTab
+  /** Ends the background claude of a session on purpose; a revive() turn of it then ends quietly and never starts its next step. */
+  const endBackground = (sid: string) => { if (revivingTurn.has(sid)) replacedByTab.add(sid); return stopRevive(sid); };
   // S2: a chat opened inside BAM is one long-lived claude (stream-json); its events go to the UI as SSE 'live'
   // S4: a tool call a live chat is not allowed yet waits here for the person's Allow / Deny (SSE 'permission' / 'permission-done'; no answer = deny)
   const permissions = new PermissionBroker({
@@ -954,6 +957,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
     if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
     reviving.add(s.id);
+    revivingTurn.add(s.id);
     // T18b/T18c: a long chat is compacted first (setting wakeCompact, else the role-based compact.thresholds), so the wake does not re-read all of it.
     const cfg = loadSettings(opts.dir, envCap);
     const rule = cfg.agentCompact[normAgent(s.name)];
@@ -975,9 +979,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       .then(async () => {
         const blocked = api ? '' : await blockedAccount(s, job);   // the owner's account usage means nothing to a provider
         if (blocked) { failure = blocked; return; }
+        // #176: ended on purpose (a tab came up, Stop, account switch) while an await ran: never start the next claude on this chat
+        const ended = () => { if (replacedByTab.has(s.id)) failure = 'ended by the hub'; return !!failure; };
+        if (ended()) return;
         if (compactFirst) {
           // A failed compaction still wakes the agent with a plain resume.
           compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
+          if (ended()) return;
           if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
@@ -991,13 +999,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
-          if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
-          else if (!replaced) { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
+          if (replaced) { /* ended on purpose: nothing failed */ }
+          else if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
+          else { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
         if (api && !failure) apiState.delete(api.id);
         reviving.delete(s.id);
+        revivingTurn.delete(s.id);
         // A message that arrived while this turn ran met revive()'s "already running" guard. A provider agent has no Stop
         // hook and no waiter, so nothing else would ever hand it over: drain its queue here, one turn at a time, instead
         // of leaving the message unread until the next one is posted. A tab agent has a waiter, and chaining a revive
@@ -1150,7 +1160,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, why)); emitRoom(r); } catch { /* room gone */ } }
       return false;
     }
-    stopRevive(s.id);
+    endBackground(s.id);
     const w = waiters.get(s.id);
     if (w) { clearTimeout(w.timer); waiters.delete(s.id); }
     emitSession(store.markEnded(s.id));
@@ -1161,8 +1171,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   /** A tab of the member opened by hand while its background wake still runs: two claudes on one chat. The background one goes. */
   function tabCameUp(sid: string) {
-    if (!stopRevive(sid) && !liveChat.stop(sid)) return;
-    if (reviving.has(sid)) replacedByTab.add(sid);
+    if (!endBackground(sid) && !liveChat.stop(sid)) return;
     const s = store.session(sid);
     for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.replaced', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
@@ -2348,7 +2357,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
         const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
         if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
-        stopRevive(s.id);   // never two claude processes on one session
+        endBackground(s.id);   // never two claude processes on one session
         openTab(s);
         return json(res, 200, { ok: true, ide: s.ide || 'vscode' });
       }

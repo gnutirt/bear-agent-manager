@@ -136,7 +136,8 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   // down (every room, not only this session) — the same hole as livechat/agents. The exit handler below reports it.
   child.stdin?.on('error', () => { /* the exit handler below reports it */ });
   child.stdin?.end(text);
-  if (idleMin) live.set(job.id, child);
+  // a compact also writes the chat: a tab that comes up must be able to stop it (#176)
+  if (idleMin || label === 'compact') live.set(job.id, child);
   const timer = setTimeout(() => killTree(child), maxMs);
   return new Promise((resolve) => {
     // 'error' and 'close' can both fire (a spawn that fails, or a process that cannot be killed); resolving twice would

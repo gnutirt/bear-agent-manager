@@ -266,6 +266,69 @@ test('#169 revive: a tab that comes up ends the background wake without a "could
   } finally { await h.hub.close(); }
 });
 
+test('#176 revive: a tab that comes up while the wake compacts stops the compact and the wake never starts a claude', async () => {
+  const { adoptBackground } = await import('../hub/revive.ts');
+  const revives: string[] = [];
+  let compacting = false;
+  const h = await makeHub(undefined, (job: any) => { revives.push(job.id); return 0; }, {
+    compactRevive: (job: any) => new Promise<number>((r) => { compacting = true; adoptBackground(job.id, { kill: () => r(1) } as any); }),
+  });
+  try {
+    const tr = path.join(h.dir, 'fw.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 343_000 } } }) + '\n');
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: tr });
+    await h.call('/api/sessions/s1/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 's1' });
+    await h.call('/api/settings', { agentCompact: { fw: { wakeCompact: true } } }, { method: 'PUT' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw wake up please' });
+    await until(() => compacting, 5000, 'the wake to compact first');
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: tr });   // the editor tab opens
+    await until(() => h.hub.store.pending('s1').messages.some((m) => /wake up please/.test(m.text)), 5000, 'the message to be handed back to the tab');
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(revives, [], 'no second claude on the chat the tab now holds');
+    const texts = (await h.call<any[]>('/api/rooms/proj/messages?after=0')).map((m) => m.text as string);
+    assert.ok(!texts.some((t) => /không dậy được|bị lỗi/.test(t)), texts.join(' | '));
+    assert.equal(h.hub.store.session('s1').ended, false);
+  } finally { await h.hub.close(); }
+});
+
+test('#176 terminate: stopping an agent that runs a background wake is no failed wake', async () => {
+  const { adoptBackground } = await import('../hub/revive.ts');
+  const pid = 4_194_300;   // listed as a claude, never a live process here
+  const procs: any[] = [{ pid, ppid: 1, name: 'claude.exe', cmd: '"C:\\x\\claude.exe" --foo', started: 1 }];
+  let woke = false;
+  const h = await makeHub(undefined, (job: any) => new Promise<number>((r) => { woke = true; adoptBackground(job.id, { kill: () => r(1) } as any); }), { listProcs: async () => procs, kill: async () => {} });
+  try {
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT, pid });
+    await h.call('/api/sessions/s1/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 's1' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1', cwd: 'C:/fw' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw wake up please' });
+    await until(() => woke, 5000, 'the background wake');
+    await h.call('/api/sessions/s1/terminate', {});
+    await new Promise((r) => setTimeout(r, 100));
+    const texts = (await h.call<any[]>('/api/rooms/proj/messages?after=0')).map((m) => m.text as string);
+    assert.ok(!texts.some((t) => /không dậy được/.test(t)), texts.join(' | '));
+    assert.equal(h.hub.store.session('s1').ended, true);
+  } finally { await h.hub.close(); }
+});
+
+test('#176 revive: a background claude the tab replaced outside a wake turn does not hide the next real failure', async () => {
+  const { adoptBackground } = await import('../hub/revive.ts');
+  const h = await makeHub(undefined, (job: any) => { job.onOutput?.('boom\n'); return 1; });
+  try {
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT });
+    await h.call('/api/sessions/s1/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 's1' });
+    adoptBackground('s1', { kill: () => {} } as any);   // e.g. a provider agent the hub started itself
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT });   // a tab comes up: it goes
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1', cwd: 'C:/fw' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw wake up please' });
+    await until(async () => (await h.call<any[]>('/api/rooms/proj/messages?after=0')).some((m) => /không dậy được/.test(m.text)), 5000, 'the real failure to be told');
+  } finally { await h.hub.close(); }
+});
+
 test('revive: a provider-only stale model is omitted and failures use this run output, not the shared log tail', async () => {
   const jobs: any[] = [];
   const warnings: string[] = [];
