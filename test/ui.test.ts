@@ -574,17 +574,17 @@ test('Office #179: beds in a rest room, a rate-limited agent sleeps with 💤 an
   const { vi } = await import('../shared/i18n/vi.ts');
   const { en } = await import('../shared/i18n/en.ts');
   for (const s of [
-    // the rest room: three low-poly beds with a pillow, blanket and headboard, like the rest of the diorama
-    'const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];',
-    'box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);',
-    'box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);',
-    'box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false);',
+    // the rest room: three double beds with a mattress, pillows and a duvet, like the rest of the diorama
+    'const BEDS = [2.7, 6.1, 9.5].map((z) => ({ x: -21, z }));',
+    'box(2.14, .3, 3.24, 0xfbf7ee, 0, .5, 0, g, false);',
+    '[-.55, .55].forEach((px) => box(.85, .22, .6, 0xffffff, px, .72, -1.12, g, false));',
+    'box(2.2, .2, 2.0, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], 0, .66, .5, g, false);',
     // state law: busy wins over a stale limit flag; a limit that has not reset yet is its own state, not the error state
     "else if (s.status === 'busy') state = 'working';",
     "else if (until > Date.now()) state = 'sleep';",
     'sleepUntil: until > Date.now() ? until : 0,',
-    "if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x, b.z + 1.1), face: Math.PI, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }",
-    "else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }",
+    "if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x + 1.1, b.z), face: Math.PI / 2, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }",
+    "else if (t.kind === 'bed') { pts.push(V(-19.2, .8)); pts.push(V(-19.2, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.z0 + 1)); pts.push(V(LOFT.ais, LOFT.z0 + 1)); pts.push(V(LOFT.ais, t.pos.z)); pts.push(t.pos); }",
     // the agent lies down on the mattress (not curled up in a lounge chair) and shows a 💤 bubble
     "const lie = !moving && a.pose === 'lie'",
     'a.root.rotation.x += ((lie ? -Math.PI / 2 : 0) - a.root.rotation.x) * Math.min(1, dt * 6);',
@@ -629,17 +629,13 @@ test('Office #185: clicking a name in the dock roster inserts @handle into the c
   assert.ok(/\.office \.roster button\{[^}]*cursor:pointer/.test(css), 'roster rows keep a pointer cursor');
 });
 
-/* ---------- Office #186: the rest room is where the camera looks, cross-day wake time, HUD splits sleepers ---------- */
+/* ---------- Office #186: cross-day wake time, HUD splits sleepers ---------- */
 
-test('Office #186: beds sit in the visible front patch, a cross-day wake time shows dd/MM, HUD counts sleepers apart from free agents', async () => {
+test('Office #186: a cross-day wake time shows dd/MM, HUD counts sleepers apart from free agents', async () => {
   const src = await readOffice();
   const { vi } = await import('../shared/i18n/vi.ts');
   const { en } = await import('../shared/i18n/en.ts');
   for (const s of [
-    // front of the reception, not the back-left corner hidden behind the last desk row (the chat dock covers the bottom-left)
-    'const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];',
-    'box(6.6, .05, 4.4, 0x2c3358, -2.8, .03, 12.6, scene, false);',
-    "else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }",
     // a limit that resets on another day: the chip would otherwise look like today
     'const d = new Date(ts), sameDay = d.toDateString() === new Date().toDateString();',
     "sameDay ? { hour12: false, hour: '2-digit', minute: '2-digit' } : { hour12: false, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }",
@@ -665,4 +661,46 @@ test('Office #188: the idle chip reads "Đang rảnh" / "Free", matching the fre
   assert.equal(vi['office.stat.idle'], 'Đang rảnh');
   assert.equal(en['office.stat.idle'], 'Free');
   assert.equal(vi['office.pill.idle'], 'Rảnh', 'chip and pill agree in Vietnamese');
+});
+
+/* ---------- Office #197: the approved v3 diorama (rest loft, boardroom, obstacles, six species, home camera) ---------- */
+
+test('Office #197: the loft rest room, the walnut boardroom, obstacle push-out, six species and the new home camera', async () => {
+  const src = await readOffice();
+  for (const s of [
+    // (1) the loft replaces the beds on the floor: oak mezzanine, stairs and glass railing.
+    'const LOFT = { x0: -23, x1: -14.2, z0: .2, z1: 12, h: 3.7, sx: -20.6, sz: -6.2, n: 15, ais: -18.3 };',
+    'const stairIn = (x, z) => x > LOFT.sx - .95 && x < LOFT.sx + .95 && z >= LOFT.sz && z <= LOFT.z0;',
+    'const stairY = (z) => LOFT.h * (z - LOFT.sz) / (LOFT.z0 - LOFT.sz);',
+    'const BEDS = [2.7, 6.1, 9.5].map((z) => ({ x: -21, z }));',
+    'rail(ld - .1, LOFT.x1 - .05, lcz, true); rail(lw, lcx, LOFT.z1 - .05, false);',
+    'box(3.4, .04, 5.2, 0x2f6f73, -16.2, H + .08, 7.4, scene, false);',   // reading corner rug
+    // an agent walks up the stairs and stays on the mezzanine (`a.up`) until it comes back down
+    'if (stairIn(p.x, p.z)) { p.y = stairY(p.z); a.up = p.y > LOFT.h - .15 ? true : p.y < .05 ? false : a.up; } else p.y = a.up ? LOFT.h : 0;',
+    'if (p.y > .05) { pts.push(V(LOFT.ais, p.z)); pts.push(V(LOFT.ais, LOFT.z0 + 1));',
+    // (2) the boardroom replaces the old partitions and meeting table
+    'const phong = (m, c, o) => { m.material = P(c, o); return m; };',
+    'const chair = (x, z, bx, bz, c) => {',
+    'const backW = box(10, 3.8, .3, 0xffffff, 18.2, 1.9, 3);',
+    'box(.3, .9, 7, MWAL, 8, .45, 8.6);',
+    'const meetLight = new THREE.PointLight(0xffd9a0, .8, 18);',
+    // (3) round furniture is an obstacle, and the lounge has moved right of the loft
+    'const OBS = [[-12, 6.5, 1.35], [-9.5, 9.5, 1.35], [-6.5, 6, 1.35], [-1, 5.5, 1.65],',
+    'if (moving && !a.up) for (const [ox, oz, or] of OBS)',
+    'box(9, .06, 7, 0x8b5fd0, -8.4, .03, 7.5, scene, false);',
+    'box(4.4, .9, 1.6, 0x2aa79a, -4.5, .5, 11.6);',
+    'const ring = [[-9, 7.5], [-12, 9.4], [-7, 9.6], [-10.8, 3.2], [-4.2, 5], [-9.5, 5.3], [-4.6, 8.3], [-12.2, 8.5], [-8, 11]][slot.lounge % 9];',
+    // (4) six cute species, and a nap sits on the floor with the legs splayed
+    "const SPECIES = ['bear', 'cat', 'bunny', 'robot', 'sprout', 'blob'];",
+    'function makeAgent(hex, kind = 0) {',
+    'Object.assign(a, makeAgent(a.c, AG.indexOf(a)));',
+    "a.root.position.y = lie ? 1.24 + breathe : sit ? (a.pose === 'nap' ? -.7 : -.04) :",
+    "const floorSit = sit && a.pose === 'nap';",
+    // (5) the home camera frames the loft
+    'const HOME = { p: new THREE.Vector3(-10, 25, 30), t: new THREE.Vector3(-10, 0, 2) },',
+    'else { HOME.p.set(-10, 25, 30); HOME.t.set(-10, 0, 2);',
+  ]) assert.ok(src.includes(s), `missing v3 diorama: ${s}`);
+  assert.ok(!src.includes('window.__AG'), 'the demo-only global stays out of the tab');
+  assert.ok(!src.includes('0xa9cf6a'), 'the old green partitions are gone');
+  assert.ok(!src.includes('0x6b4226'), 'the old meeting table is gone');
 });

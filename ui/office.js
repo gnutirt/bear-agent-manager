@@ -523,7 +523,7 @@
       renderer.setPixelRatio(Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2)); renderer.shadowMap.enabled = true; renderer.setClearColor(0x000000, 0); stage.appendChild(renderer.domElement);
       const scene = new THREE.Scene();
       const cam = new THREE.PerspectiveCamera(40, 1, .1, 300);
-      const HOME = { p: new THREE.Vector3(-7, 25, 31), t: new THREE.Vector3(-6, 0, 1) }, MEET = { p: new THREE.Vector3(14, 14, 19), t: new THREE.Vector3(14.5, 0, 7) };
+      const HOME = { p: new THREE.Vector3(-10, 25, 30), t: new THREE.Vector3(-10, 0, 2) }, MEET = { p: new THREE.Vector3(14, 14, 19), t: new THREE.Vector3(14.5, 0, 7) };
       cam.position.copy(HOME.p);
       const ctl = new THREE.OrbitControls(cam, renderer.domElement); ctl.target.copy(HOME.t); ctl.enableDamping = true; ctl.maxPolarAngle = 1.45; ctl.minDistance = 4; ctl.maxDistance = 60;
       hemi = new THREE.HemisphereLight(0xffffff, 0x6a6080, .9); sun = new THREE.DirectionalLight(0xfff0d8, .85);
@@ -541,9 +541,8 @@
       box(.5, 8, 30, 0xc9d0b4, -23, 3.75, 0); box(46, 8, .5, 0xc9d0b4, 0, 3.75, -15);          // left + back wall
       box(.45, 8, 16, 0xfbe9a8, 23, 3.75, -7, scene, false); box(14, 8, .5, 0xfbe0a0, 16, 3.75, -14.8, scene, false); // lounge yellow
       box(14, .06, 14, 0xf0b27a, 15, .03, -8, scene, false); box(14, .06, 12, 0xe9a36b, 14, .03, 8.5, scene, false);
-      box(9, .06, 7, 0x8b5fd0, -13.5, .03, 7.5, scene, false);
-      // meeting room partitions (door gap at left of the back wall)
-      box(10, 2.4, .3, 0xa9cf6a, 18.2, 1.2, 3); box(.3, 2.4, 7, 0xa9cf6a, 8, 1.2, 8.6);
+      box(9, .06, 7, 0x8b5fd0, -8.4, .03, 7.5, scene, false);
+      // meeting room partitions live in the boardroom block below
       // windows + wall screen + neon
       box(7, 3.6, .2, 0x79c2f0, -14, 5, -14.7, scene, false, { emissive: 0x2a5f88 }); box(.2, 3.6, 7, 0x79c2f0, -22.7, 5, -4, scene, false, { emissive: 0x2a5f88 });
       const neon = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#160b24'; x.fillRect(0, 0, w, h); x.font = '700 46px Fredoka,sans-serif'; x.textAlign = 'center'; x.shadowColor = '#ff4fa8'; x.shadowBlur = 18; x.fillStyle = '#ff9fd2'; x.fillText('BEAR AGENT OFFICE', w / 2, 78); });
@@ -575,56 +574,130 @@
       cyl(1.4, 1.6, .9, 0x5a6f9a, BOX.x, .45, BOX.z); cyl(1.1, 1.1, .12, 0xd8e2ff, BOX.x, .96, BOX.z, scene, 24, false);
       const cube = box(1.1, 1.1, 1.1, 0x2b9cff, BOX.x, 1.6, BOX.z, scene, true, { emissive: 0x1166cc, emissiveIntensity: .6 });
       // lounge: beanbags, couch, arcade, ping pong
-      [[-17, 6.5, 0xff6fae], [-14.5, 9.5, 0x4fd16a], [-11.5, 6, 0xffd23f]].forEach(([x, z, c]) => { sph(1.35, c, x, .85, z, scene, .7); });
-      box(4.4, .9, 1.6, 0x2aa79a, -9.5, .5, 11.6); box(4.4, 1.3, .35, 0x2aa79a, -9.5, 1.3, 12.3);
+      [[-12, 6.5, 0xff6fae], [-9.5, 9.5, 0x4fd16a], [-6.5, 6, 0xffd23f]].forEach(([x, z, c]) => { sph(1.35, c, x, .85, z, scene, .7); });
+      box(4.4, .9, 1.6, 0x2aa79a, -4.5, .5, 11.6); box(4.4, 1.3, .35, 0x2aa79a, -4.5, 1.3, 12.3);
       box(1.6, 3.2, 1.4, 0x6c3ec1, -21.5, 1.6, 2); box(1.3, .9, .1, 0x77f0ff, -21.5, 2.5, 1.28, scene, false, { emissive: 0x33aacc });
       box(4.6, .14, 2.6, 0x1e7a52, 2.6, 1.15, 9); box(4.6, .3, .04, 0xffffff, 2.6, 1.35, 9, scene, false);[[-2, -1], [2, -1], [-2, 1], [2, 1]].forEach(([dx, dz]) => box(.12, 1.1, .12, 0x2c2c38, 2.6 + dx, .55, 9 + dz, scene, false));
-      // meeting room: long table + chairs + TV
-      box(8.2, .2, 2.6, 0x6b4226, 15, 1.15, 7.5); box(1, 1.1, 1, 0x4a2c18, 15, .55, 7.5, scene, false);
+      // meeting room (boardroom): walnut table, leather chairs, brass trim, credenza + wide screen, pendant lights
+      const glassO = { transparent: true, opacity: .2, depthWrite: false }, MBRASS = 0xc8a24a, MWAL = 0x4b2a16, P = (c, o = {}) => new THREE.MeshPhongMaterial(Object.assign({ color: c, shininess: 90, specular: 0x666666 }, o));
+      const phong = (m, c, o) => { m.material = P(c, o); return m; };
+      phong(box(8.8, .16, 2.8, MWAL, 15, 1.15, 7.5), MWAL); box(8.84, .04, 2.84, MBRASS, 15, 1.06, 7.5, scene, false); box(7.2, .02, .3, 0x8a6a2a, 15, 1.24, 7.5, scene, false);
+      [12.4, 17.6].forEach((x) => { phong(box(1, 1.0, 2.1, 0x2e1a0d, x, .5, 7.5, scene, false), 0x2e1a0d); box(1.5, .06, 2.5, MBRASS, x, .03, 7.5, scene, false); });
+      [13.4, 16.6].forEach((x) => { const gl = cyl(.18, .15, .45, 0xcfe8ff, x, 1.5, 7.5, scene, 14, false); gl.material = new THREE.MeshLambertMaterial(Object.assign({ color: 0xcfe8ff }, glassO)); gl.castShadow = false; });
+      phong(cyl(.2, .26, .5, MBRASS, 15, 1.48, 7.5, scene, 14, false), MBRASS); [[0, 0, 0xff8fb8], [.15, .1, 0xfff2f6], [-.15, .08, 0xffc2d6]].forEach(([dx, dz, c]) => sph(.22, c, 15 + dx, 1.95, 7.5 + dz));
+      // carpet + rug
+      box(14.2, .05, 11, 0x1b2340, 15.5, .06, 9.1, scene, false); box(11.2, .05, 4.8, 0x5a1f2e, 15, .09, 7.5, scene, false);
+      [[11.4, .1, 15, 4.9], [11.4, .1, 15, 10.1], [.1, 5.2, 9.4, 7.5], [.1, 5.2, 20.6, 7.5]].forEach(([w, d, x, z]) => box(w, .02, d, MBRASS, x, .13, z, scene, false));
+      // panelled back wall with sconces and two framed paintings
+      const slats = canvasTex(256, 64, (x, w, h) => { for (let i = 0; i < 32; i++) { x.fillStyle = ['#3b2213', '#4a2c18', '#432714', '#523320'][i % 4]; x.fillRect(i * 8, 0, 8, h); x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(i * 8, 0, 1, h); } });
+      const backW = box(10, 3.8, .3, 0xffffff, 18.2, 1.9, 3); backW.material = new THREE.MeshLambertMaterial({ map: slats.t });
+      box(10.1, .1, .36, MBRASS, 18.2, 3.75, 3, scene, false); box(10.1, .1, .36, MBRASS, 18.2, .3, 3, scene, false);
+      [14.6, 18.2, 21.8].forEach((x) => box(.28, .9, .1, 0xffe3a8, x, 2.4, 3.2, scene, false, { emissive: 0xffd9a0 }));
+      [[16.4, 'a'], [20, 'b']].forEach(([x, k]) => {
+        const art = canvasTex(128, 80, (c, w, h) => { const g = c.createLinearGradient(0, 0, w, h); g.addColorStop(0, k === 'a' ? '#1d3a6a' : '#6a1d3a'); g.addColorStop(1, k === 'a' ? '#e0b45a' : '#e8a07a'); c.fillStyle = g; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.arc(w * .65, h * .4, 22, 0, 7); c.fill(); });
+        box(2.5, 1.7, .08, MBRASS, x, 2.2, 3.18, scene, false); const cv = box(2.3, 1.5, .06, 0xffffff, x, 2.2, 3.22, scene, false); cv.material = new THREE.MeshBasicMaterial({ map: art.t });
+      });
+      // glass wall on the west side (walnut base, brass posts)
+      box(.3, .9, 7, MWAL, 8, .45, 8.6); box(.1, 2.3, 7, 0xcfe8ff, 8, 2.05, 8.6, scene, false, glassO).castShadow = false; box(.3, .1, 7.2, MBRASS, 8, 3.25, 8.6, scene, false);
+      [5.1, 8.6, 12.1].forEach((z) => box(.2, 3.2, .2, MBRASS, 8, 1.6, z, scene, false));
+      // chairs: leather seat + high back + arms + chrome base
       const MEETSEATS = [];
-      [12, 14, 16, 18].forEach((x) => {[[5.4, 0], [9.6, Math.PI]].forEach(([z, f]) => { box(1.1, .14, 1.1, [0xff7043, 0x26a69a, 0x7e57c2, 0x37474f][(x / 2) % 4], x, .62, z); box(1.1, 1.1, .14, 0x37474f, x, 1.25, z + (z < 7 ? -.55 : .55), scene, false); MEETSEATS.push({ x, z: z < 7 ? 5.7 : 9.3, face: f }); }); });
-      MEETSEATS.push({ x: 10.5, z: 7.5, face: Math.PI / 2 });
-      box(.2, 3, 5, 0x14192a, 22.4, 3, 8.5, scene, true, { emissive: 0x14325a, emissiveIntensity: .4 });
+      const chair = (x, z, bx, bz, c) => {
+        const alongZ = bz !== 0;
+        box(1.1, .2, 1.1, c, x, .6, z); box(alongZ ? 1.1 : .2, 1.4, alongZ ? .2 : 1.1, c, x + bx * .55, 1.3, z + bz * .55);
+        [-1, 1].forEach((s) => box(alongZ ? .12 : .8, .12, alongZ ? .8 : .12, c, x + (alongZ ? s * .62 : 0), .95, z + (alongZ ? 0 : s * .62), scene, false));
+        phong(cyl(.07, .07, .45, 0xcfd3d8, x, .32, z, scene, 8, false), 0xcfd3d8); phong(cyl(.5, .5, .06, 0xcfd3d8, x, .03, z, scene, 16, false), 0xcfd3d8);
+      };
+      [12, 14, 16, 18].forEach((x) => { chair(x, 5.4, 0, -1, 0x24262d); MEETSEATS.push({ x, z: 5.7, face: 0 }); chair(x, 9.6, 0, 1, 0x24262d); MEETSEATS.push({ x, z: 9.3, face: Math.PI }); });
+      chair(10.5, 7.5, -1, 0, 0x6a1d2e); MEETSEATS.push({ x: 10.5, z: 7.5, face: Math.PI / 2 });
+      // credenza + wide screen on the east wall
+      phong(box(1.1, 1.0, 6.4, 0x3b2213, 21.7, .5, 8.5), 0x3b2213); box(1.14, .06, 6.5, MBRASS, 21.7, 1.03, 8.5, scene, false);
+      box(.1, 3.3, 5.3, MBRASS, 22.55, 3.3, 8.5, scene, false); box(.2, 3.0, 5, 0x14192a, 22.4, 3.3, 8.5, scene, true, { emissive: 0x14325a, emissiveIntensity: .4 });
+      cyl(.26, .2, .5, MBRASS, 21.7, 1.3, 6.1, scene, 12, false); sph(.34, 0xfff2f6, 21.7, 1.85, 6.1); cyl(.26, .2, .5, MBRASS, 21.7, 1.3, 10.9, scene, 12, false); sph(.34, 0xff8fb8, 21.7, 1.85, 10.9);
+      // pendant lights + warm glow + corner plants
+      [12.6, 15, 17.4].forEach((x) => { box(2.2, .12, .28, 0xffe9bd, x, 4.6, 7.5, scene, false, { emissive: 0xffd9a0 }); [-.9, .9].forEach((dx) => box(.03, 1.4, .03, 0x333338, x + dx, 5.3, 7.5, scene, false)); });
+      const meetLight = new THREE.PointLight(0xffd9a0, .8, 18); meetLight.position.set(15, 5.2, 7.5); scene.add(meetLight);
+      [[22, 4.3], [22, 13.9]].forEach(([x, z]) => { phong(cyl(.55, .45, .8, 0x2a2a34, x, .4, z, scene, 14), 0x2a2a34); sph(.85, 0x2f9d63, x, 1.7, z); sph(.6, 0x3fae73, x, 2.4, z + .1); });
       // living room: couch, tv unit, rug, plants
       box(4.6, .9, 1.7, 0x9bd6b8, 15, .5, -9.6); box(4.6, 1.3, .4, 0x9bd6b8, 15, 1.3, -10.4); box(3, 1.2, .8, 0x8a5a2b, 17.5, .6, -13.8); box(1.8, 1, .12, 0x161b2b, 17.5, 1.9, -13.7);
       [[-21, -13], [21, -13], [-21, 13], [7, 13.5]].forEach(([x, z]) => { cyl(.5, .4, .7, 0xa8632f, x, .35, z, scene, 12); sph(.9, 0x2f9d63, x, 1.5, z); });
-      // rest room (#179, moved in #186): three low-poly beds on the open floor in front of the reception.
-      // The chat dock covers the bottom-left of the screen, so this is the empty patch the default camera and the
-      // overview actually show; the old back-left corner sat behind the last desk row.
-      const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];
-      box(6.6, .05, 4.4, 0x2c3358, -2.8, .03, 12.6, scene, false);   // rug marks the rest area
+      // rest loft: a roomy mezzanine along the left wall (oak floor, glass + brass rail, walnut stairs from the north end), three double beds head-to-wall, a reading corner.
+      const LOFT = { x0: -23, x1: -14.2, z0: .2, z1: 12, h: 3.7, sx: -20.6, sz: -6.2, n: 15, ais: -18.3 };   // sx/sz = foot of the stairs (they climb towards +z); ais = walking aisle on the loft
+      const stairIn = (x, z) => x > LOFT.sx - .95 && x < LOFT.sx + .95 && z >= LOFT.sz && z <= LOFT.z0;
+      const stairY = (z) => LOFT.h * (z - LOFT.sz) / (LOFT.z0 - LOFT.sz);
+      const H = LOFT.h, lw = LOFT.x1 - LOFT.x0, ld = LOFT.z1 - LOFT.z0, lcx = (LOFT.x0 + LOFT.x1) / 2, lcz = (LOFT.z0 + LOFT.z1) / 2;
+      const BRASS = 0xc8a24a;
+      const oak = canvasTex(256, 256, (x, w, h) => { for (let i = 0; i < 8; i++) { x.fillStyle = ['#d9b27c', '#cfa66c', '#dcb985', '#c99f66'][i % 4]; x.fillRect(0, i * 32, w, 32); x.fillStyle = 'rgba(80,50,20,.35)'; x.fillRect(0, i * 32, w, 2); x.fillRect((i * 97) % 220 + 10, i * 32, 2, 32); } });
+      const slab = box(lw, .4, ld, 0xf4efe6, lcx, H - .2, lcz);                                              // white fascia
+      const floorM = box(lw - .12, .06, ld - .12, 0xffffff, lcx, H + .03, lcz, scene, false); floorM.material = new THREE.MeshLambertMaterial({ map: oak.t });
+      box(.08, 3.3, ld - .1, 0xd9c3a8, -22.7, H + 1.65, lcz, scene, false);                                  // warm wall panel behind the beds
+      box(lw - .6, .06, .06, 0xffe3a8, lcx, H - .43, LOFT.z1 - .02, scene, false, { emissive: 0xffd9a0 }); box(.06, .06, ld - .4, 0xffe3a8, LOFT.x1 - .02, H - .43, lcz, scene, false, { emissive: 0xffd9a0 });   // LED strip under the edge
+      [1, 6.1, 11.4].forEach((z) => cyl(.15, .15, H - .4, 0xf4efe6, LOFT.x1 - .35, (H - .4) / 2, z, scene, 14, false));   // stilts
+      // stairs: white risers, oak treads
+      const stepD = (LOFT.z0 - LOFT.sz) / LOFT.n;
+      for (let i = 0; i < LOFT.n; i++) { const top = (i + 1) * H / LOFT.n; box(1.7, top, stepD, 0xf4efe6, LOFT.sx, top / 2, LOFT.sz + (i + .5) * stepD, scene, false); box(1.78, .07, stepD + .06, 0xb98450, LOFT.sx, top + .035, LOFT.sz + (i + .5) * stepD); }
+      // railings: glass panels, brass handrails
+      const rail = (len, x, z, alongZ) => { const g = box(alongZ ? .05 : len, 1, alongZ ? len : .05, 0xcfe8ff, x, H + .56, z, scene, false, glassO); g.castShadow = false; box(alongZ ? .09 : len, .08, alongZ ? len : .09, BRASS, x, H + 1.1, z, scene, false); };
+      rail(ld - .1, LOFT.x1 - .05, lcz, true); rail(lw, lcx, LOFT.z1 - .05, false);
+      rail(1.55, -22.2, LOFT.z0 + .05, false); rail(5.5, -16.95, LOFT.z0 + .05, false);
+      [LOFT.z0 + .1, 3.5, 6.1, 8.7, LOFT.z1 - .05].forEach((z) => box(.1, 1.1, .1, BRASS, LOFT.x1 - .05, H + .55, z, scene, false));
+      const slope = Math.atan2(H, LOFT.z0 - LOFT.sz), slen = Math.hypot(H, LOFT.z0 - LOFT.sz);
+      [LOFT.sx - .9, LOFT.sx + .9].forEach((x) => { const gl = box(.05, 1, slen, 0xcfe8ff, x, H / 2 + .56, (LOFT.sz + LOFT.z0) / 2, scene, false, glassO); gl.rotation.x = -slope; gl.castShadow = false; const hr = box(.09, .08, slen, BRASS, x, H / 2 + 1.1, (LOFT.sz + LOFT.z0) / 2, scene, false); hr.rotation.x = -slope; });
+      // three double beds, head against the wall (x = -23), nightstands with lamps between them
+      const BEDS = [2.7, 6.1, 9.5].map((z) => ({ x: -21, z }));
       BEDS.forEach((b, i) => {
-        box(1.8, .3, 3.1, 0x5b4128, b.x, .15, b.z);                                         // frame
-        box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);                          // mattress; top at y .57
-        box(1.8, 1, .16, 0x5b4128, b.x, .65, b.z - 1.55);                                   // headboard
-        box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);                   // pillow
-        box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false); // blanket
+        const g = new THREE.Group(); g.position.set(b.x, H, b.z); g.rotation.y = Math.PI / 2; scene.add(g);
+        box(2.3, .34, 3.4, 0x5a3b22, 0, .17, 0, g); box(2.14, .3, 3.24, 0xfbf7ee, 0, .5, 0, g, false);
+        box(2.3, 1.5, .2, 0x4a2f1a, 0, .95, -1.7, g); box(2.0, 1.1, .12, [0x6d7fb8, 0x4f9d86, 0xb87a52][i], 0, 1.0, -1.58, g, false);   // headboard + padded panel
+        [-.55, .55].forEach((px) => box(.85, .22, .6, 0xffffff, px, .72, -1.12, g, false));
+        box(2.2, .2, 2.0, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], 0, .66, .5, g, false); box(2.2, .12, .6, [0xe6ecff, 0xdff5ec, 0xfde7d0][i], 0, .74, -.35, g, false);   // duvet + folded throw
       });
-      cyl(.07, .09, 2.1, 0x2c2c38, 0.9, 1.05, 13.4, scene, 10, false); sph(.3, 0xffe3a8, 0.9, 2.25, 13.4, scene, 1); // bedside lamp
-      const restLight = new THREE.PointLight(0xffd9a0, .5, 9); restLight.position.set(-2.8, 2.8, 12.4); scene.add(restLight);
+      [4.4, 7.8, 11.3].forEach((z) => { box(.8, .75, .8, 0x5a3b22, -22.3, H + .4, z); cyl(.05, .06, .5, BRASS, -22.3, H + 1.05, z, scene, 8, false); cyl(.26, .2, .3, 0xfff0d0, -22.3, H + 1.4, z, scene, 14, false).material = new THREE.MeshBasicMaterial({ color: 0xffe9bd }); });
+      // wall art + fairy lights
+      [[3.4, 0x5f7bd0], [8.2, 0xd08a5f]].forEach(([z, c]) => { box(.06, 1.5, 2.2, BRASS, -22.68, H + 2.5, z, scene, false); box(.07, 1.3, 2.0, c, -22.66, H + 2.5, z, scene, false, { emissive: c, emissiveIntensity: .25 }); });
+      for (let z = .8; z < 11.6; z += .7) { const m = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), new THREE.MeshBasicMaterial({ color: [0xffe08a, 0xff9fd2, 0x9fe8ff][Math.round(z * 1.4) % 3] })); m.position.set(-22.62, H + 3.4 + Math.sin(z * 2) * .1, z); scene.add(m); }
+      // reading corner: rug, armchair, side table, floor lamp, plant
+      box(3.4, .04, 5.2, 0x2f6f73, -16.2, H + .08, 7.4, scene, false); box(3.0, .045, 4.8, 0xe8d9b8, -16.2, H + .085, 7.4, scene, false);
+      box(1.5, .5, 1.5, 0xd9904f, -16.2, H + .35, 10.3); box(1.5, 1.1, .3, 0xd9904f, -16.2, H + .9, 11.05); box(.3, .6, 1.2, 0xc07a3a, -15.5, H + .55, 10.3); box(.3, .6, 1.2, 0xc07a3a, -16.9, H + .55, 10.3);
+      cyl(.35, .35, .6, 0x5a3b22, -14.8, H + .3, 8.6, scene, 14); box(.9, .1, .9, 0x6a6a74, -14.8, H + .65, 8.6, scene, false);
+      cyl(.07, .09, 2.2, 0x2c2c38, -17.5, H + 1.1, 4.4, scene, 10, false); sph(.33, 0xffe3a8, -17.5, H + 2.3, 4.4, scene, 1);
+      cyl(.5, .4, .7, 0xf4efe6, -14.9, H + .35, 11.2, scene, 12); sph(.8, 0x2f9d63, -14.9, H + 1.5, 11.2);
+      const restLight = new THREE.PointLight(0xffd9a0, .7, 12); restLight.position.set(-19, H + 3, 6.5); scene.add(restLight);
       // agents
-      function makeAgent(hex) {
-        const col = new THREE.Color(hex), light = col.clone().lerp(new THREE.Color(0xffffff), .55);
+      // six cute species (bear / cat / bunny / robot / sprout / beanie blob), shared rig so poses and animation stay the same
+      const SPECIES = ['bear', 'cat', 'bunny', 'robot', 'sprout', 'blob'];
+      function makeAgent(hex, kind = 0) {
+        const sp = SPECIES[kind % SPECIES.length], col = new THREE.Color(hex), light = col.clone().lerp(new THREE.Color(0xffffff), .6), dark = col.clone().lerp(new THREE.Color(0x000000), .25);
         const g = new THREE.Group(), rootG = new THREE.Group(); g.add(rootG); g.userData.root = rootG;
-        const legs = [-1, 1].map((s) => { const l = new THREE.Group(); l.position.set(s * .22, .95, 0); const m = new THREE.Mesh(new THREE.CylinderGeometry(.16, .15, .9, 10), L(hex)); m.position.y = -.45; m.castShadow = true; outline(m, .04); l.add(m); rootG.add(l); return l; });
-        const torso = new THREE.Mesh(new THREE.CylinderGeometry(.36, .44, 1, 14), L(hex)); torso.position.y = 1.45; torso.castShadow = true; outline(torso, .04); rootG.add(torso);
-        const arms = [-1, 1].map((s) => { const a = new THREE.Group(); a.position.set(s * .52, 1.85, 0); const m = new THREE.Mesh(new THREE.CylinderGeometry(.12, .11, .8, 10), L(hex)); m.position.y = -.38; m.castShadow = true; outline(m, .035); a.add(m); rootG.add(a); return a; });
-        const head = new THREE.Group(); head.position.y = 2.55; rootG.add(head);
-        const hm = new THREE.Mesh(new THREE.SphereGeometry(.6, 22, 16), L(light)); hm.scale.y = 1.08; hm.castShadow = true; outline(hm, .05); head.add(hm);
-        [-1, 1].forEach((s) => {
-          const e = new THREE.Mesh(new THREE.SphereGeometry(.2, 14, 10), L(0xffffff)); e.position.set(s * .25, .08, .5); head.add(e);
-          const p = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), L(0x111111)); p.position.set(s * .25, .06, .67); head.add(p);
-          const cup = new THREE.Mesh(new THREE.CylinderGeometry(.2, .2, .14, 14), L(0x2e3350)); cup.rotation.z = Math.PI / 2; cup.position.set(s * .62, 0, 0); head.add(cup);
+        const fat = sp === 'blob' ? 1.25 : sp === 'robot' ? 1.05 : 1;
+        const legs = [-1, 1].map((s) => { const l = new THREE.Group(); l.position.set(s * .22, .95, 0); const m = new THREE.Mesh(new THREE.CylinderGeometry(.17, .16, .9, 12), L(hex)); m.position.y = -.45; m.castShadow = true; outline(m, .04); l.add(m); const f = new THREE.Mesh(new THREE.SphereGeometry(.22, 12, 8), L(dark)); f.scale.set(1, .55, 1.3); f.position.set(0, -.88, .06); l.add(f); rootG.add(l); return l; });
+        const torso = new THREE.Mesh(sp === 'robot' ? new THREE.BoxGeometry(.9, 1, .75) : new THREE.CylinderGeometry(.38 * fat, .46 * fat, 1, 16), L(hex)); torso.position.y = 1.45; torso.castShadow = true; outline(torso, .04); rootG.add(torso);
+        const belly = new THREE.Mesh(new THREE.SphereGeometry(.3, 14, 10), L(light)); belly.scale.set(1.05 * fat, 1.2, .5); belly.position.set(0, 1.4, .36 * fat); rootG.add(belly);   // lighter tummy patch
+        const arms = [-1, 1].map((s) => { const a = new THREE.Group(); a.position.set(s * .52 * fat, 1.85, 0); const m = new THREE.Mesh(new THREE.CylinderGeometry(.13, .12, .8, 10), L(hex)); m.position.y = -.38; m.castShadow = true; outline(m, .035); a.add(m); const h = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8), L(light)); h.position.y = -.8; a.add(h); rootG.add(a); return a; });
+        const head = new THREE.Group(); head.position.y = 2.6; rootG.add(head);
+        const hm = new THREE.Mesh(new THREE.SphereGeometry(.68, 24, 18), L(light)); hm.scale.set(1.08, .98, 1); hm.castShadow = true; outline(hm, .05); head.add(hm);
+        [-1, 1].forEach((s) => {   // big glossy eyes, blush, tiny ear cups of the headset
+          const e = new THREE.Mesh(new THREE.SphereGeometry(.17, 14, 10), L(0x1a1620)); e.scale.set(.9, 1.25, .6); e.position.set(s * .27, .04, .6); head.add(e);
+          const hl = new THREE.Mesh(new THREE.SphereGeometry(.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(s * .27 + .05, .12, .69); head.add(hl);
+          const bl = new THREE.Mesh(new THREE.SphereGeometry(.11, 10, 6), new THREE.MeshBasicMaterial({ color: 0xff9fb8, transparent: true, opacity: .75 })); bl.scale.set(1.3, .7, .3); bl.position.set(s * .46, -.15, .52); head.add(bl);
+          if (sp !== 'sprout') { const cup = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .12, 14), L(0x2e3350)); cup.rotation.z = Math.PI / 2; cup.position.set(s * .72, -.02, 0); head.add(cup); }
         });
-        const band = new THREE.Mesh(new THREE.TorusGeometry(.63, .05, 8, 22, Math.PI), L(0x2e3350)); band.position.y = 0; head.add(band);
-        const mic = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), L(0x2e3350)); mic.position.set(.42, -.32, .5); head.add(mic);
-        const mouth = new THREE.Mesh(new THREE.BoxGeometry(.28, .05, .04), L(0x3a1620)); mouth.position.set(0, -.22, .58); head.add(mouth);
-        const bang = new THREE.Mesh(new THREE.OctahedronGeometry(.24), new THREE.MeshBasicMaterial({ color: 0xff4b4b })); bang.position.y = 3.5; bang.visible = false; rootG.add(bang);
+        const smile = new THREE.Mesh(new THREE.TorusGeometry(.09, .022, 6, 12, Math.PI), new THREE.MeshBasicMaterial({ color: 0x3a1620 })); smile.rotation.z = Math.PI; smile.position.set(0, -.17, .65); head.add(smile);
+        const mic = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), L(0x2e3350)); mic.position.set(.55, -.3, .45); if (sp !== 'sprout') head.add(mic);
+        const add = (m, x, y, z, rx = 0, rz = 0) => { m.position.set(x, y, z); m.rotation.x = rx; m.rotation.z = rz; m.castShadow = true; head.add(m); return m; };
+        if (sp === 'bear') [-1, 1].forEach((s) => { add(new THREE.Mesh(new THREE.SphereGeometry(.23, 12, 10), L(light)), s * .46, .56, 0); add(new THREE.Mesh(new THREE.SphereGeometry(.12, 10, 8), L(0xffb0c4)), s * .46, .56, .12); });
+        else if (sp === 'cat') { [-1, 1].forEach((s) => add(new THREE.Mesh(new THREE.ConeGeometry(.22, .45, 4), L(light)), s * .4, .66, 0, 0, -s * .35)); const tail = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .9, 8), L(dark)); tail.position.set(0, 1.2, -.55); tail.rotation.x = .7; rootG.add(tail); }
+        else if (sp === 'bunny') { [-1, 1].forEach((s) => { add(new THREE.Mesh(new THREE.SphereGeometry(.17, 12, 10), L(light)), s * .25, 1.0, 0, 0, -s * .12).scale.set(1, 3.4, .7); }); const tl = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), L(0xffffff)); tl.position.set(0, 1.15, -.5); rootG.add(tl); }
+        else if (sp === 'robot') { add(new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .5, 6), L(0x9aa3b8)), 0, .88, 0); add(new THREE.Mesh(new THREE.SphereGeometry(.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd23f })), 0, 1.16, 0); }
+        else if (sp === 'sprout') { add(new THREE.Mesh(new THREE.SphereGeometry(.22, 10, 8), L(0x4fd16a)), -.15, .78, 0, 0, .6).scale.set(1.5, .5, .8); add(new THREE.Mesh(new THREE.SphereGeometry(.22, 10, 8), L(0x38b856)), .17, .8, 0, 0, -.6).scale.set(1.5, .5, .8); add(new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .22, 6), L(0x2f9d63)), 0, .72, 0); }
+        else { add(new THREE.Mesh(new THREE.SphereGeometry(.62, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), L(dark)), 0, .22, 0, -.15).scale.set(1.05, 1, 1.05); add(new THREE.Mesh(new THREE.SphereGeometry(.14, 10, 8), L(0xffffff)), 0, .85, -.05); }   // beanie + pompom
+        if (sp !== 'sprout' && sp !== 'blob') { const band = new THREE.Mesh(new THREE.TorusGeometry(.7, .045, 8, 22, Math.PI), L(0x2e3350)); band.position.y = 0; head.add(band); }
+        const bang = new THREE.Mesh(new THREE.OctahedronGeometry(.24), new THREE.MeshBasicMaterial({ color: 0xff4b4b })); bang.position.y = 3.6; bang.visible = false; rootG.add(bang);
         g.scale.setScalar(.72); return { g, root: rootG, legs, arms, head, bang };
       }
       function addAgentMesh(a) {
         if (a.g) return;
-        Object.assign(a, makeAgent(a.c));
+        Object.assign(a, makeAgent(a.c, AG.indexOf(a)));
         const i = AG.indexOf(a);
         a.g.position.set(-14.5 + (i % 5) * 1.6, 0, 7.5 + Math.floor(i / 5) * 2.2); scene.add(a.g);
         Object.assign(a, { state: a.state || 'idle', until: 0, bub: '', bubUntil: 0, tool: a.tool || '', askedAt: 0, log: a.log || [], ctx: a.ctx ?? 0, tkey: '', path: [], pose: 'stand', cache: {} });
@@ -649,24 +722,26 @@
         if (focus && !by[focus]) closeFocus();
         hud();
       };
+      const OBS = [[-12, 6.5, 1.35], [-9.5, 9.5, 1.35], [-6.5, 6, 1.35], [-1, 5.5, 1.65], [-21, -13, .85], [21, -13, .85], [-21, 13, .85], [7, 13.5, .85], [22, 4.3, .9], [22, 13.9, .9]];   // x, z, radius
       // targets + paths
       const V = (x, z) => new THREE.Vector3(x, 0, z);
       function targetFor(a, slot) {
-        if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x, b.z + 1.1), face: Math.PI, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }
+        if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x + 1.1, b.z), face: Math.PI / 2, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }
         if (meeting) return { kind: 'meet', pos: V(MEETSEATS[slot.meet % MEETSEATS.length].x, MEETSEATS[slot.meet % MEETSEATS.length].z), face: MEETSEATS[slot.meet % MEETSEATS.length].face, pose: 'sit', key: 'm' + slot.meet };
         const i = AG.indexOf(a);
         if (a.state === 'working' || a.state === 'error') { const s = SEATS[i % SEATS.length]; return { kind: 'desk', pos: V(s.x, s.z), col: s.col, face: Math.PI, pose: 'sit', key: 'd' + i }; }
         if (a.state === 'ask') { const ang = (Math.PI * .18) + slot.ask * (Math.PI * .64 / Math.max(1, slot.asks - 1 || 1)); const r = 2.9; return { kind: 'box', pos: V(BOX.x + Math.cos(ang) * r * 1.0, BOX.z + Math.sin(ang) * r), face: Math.atan2(-Math.cos(ang), -Math.sin(ang)), pose: 'wave', key: 'b' + slot.ask }; }
-        const ring = [[-14, 7.5], [-16, 9.2], [-12, 9.6], [-17.5, 6], [-11, 5.6], [-14.5, 5.3], [-9.6, 8.3], [-18, 8.6], [-13, 11]][slot.lounge % 9];
-        return { kind: 'lounge', pos: V(ring[0], ring[1]), face: Math.atan2(-14 - ring[0], 7.5 - ring[1]) + Math.PI, pose: a.state === 'idle' ? 'nap' : 'stand', key: 'l' + slot.lounge };
+        const ring = [[-9, 7.5], [-12, 9.4], [-7, 9.6], [-10.8, 3.2], [-4.2, 5], [-9.5, 5.3], [-4.6, 8.3], [-12.2, 8.5], [-8, 11]][slot.lounge % 9];
+        return { kind: 'lounge', pos: V(ring[0], ring[1]), face: Math.atan2(-8.4 - ring[0], 7.5 - ring[1]) + Math.PI, pose: a.state === 'idle' ? 'nap' : 'stand', key: 'l' + slot.lounge };
       }
       function planPath(a, t) {
         const p = a.g.position, pts = [];
+        if (p.y > .05) { pts.push(V(LOFT.ais, p.z)); pts.push(V(LOFT.ais, LOFT.z0 + 1)); pts.push(V(LOFT.sx, LOFT.z0 + 1)); pts.push(V(LOFT.sx, LOFT.sz)); pts.push(V(-19.2, LOFT.sz - .3)); pts.push(V(-19.2, .8)); }   // coming down from the loft
         if (p.z < .4) pts.push(V(p.x, .8));
         else if (p.x > 8.3 && p.z > 2.6) { pts.push(V(9.5, p.z > 7.5 ? 9.8 : 5.6)); pts.push(V(9.5, 5.6)); pts.push(V(9.5, .8)); }
         if (t.kind === 'desk') { pts.push(V(t.col, .8)); pts.push(t.pos); }
         else if (t.kind === 'meet') { pts.push(V(9.5, .8)); pts.push(V(9.5, 5.6)); if (t.pos.z > 7.5) pts.push(V(9.5, 9.8)); pts.push(t.pos); }
-        else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }   // around the couch / reception, then the foot of the bed
+        else if (t.kind === 'bed') { pts.push(V(-19.2, .8)); pts.push(V(-19.2, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.z0 + 1)); pts.push(V(LOFT.ais, LOFT.z0 + 1)); pts.push(V(LOFT.ais, t.pos.z)); pts.push(t.pos); }   // up the stairs, along the aisle
         else pts.push(t.pos);
         return pts;
       }
@@ -710,7 +785,7 @@
         const { W, H } = size();
         renderer.setSize(W, H); cam.aspect = W / H; cam.updateProjectionMatrix();
         if (W < 760) { HOME.p.set(0, 66, 76); HOME.t.set(0, 0, 2); if (!resize.m) { resize.m = 1; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); $('of-dock').classList.add('closed'); } }
-        else { HOME.p.set(-7, 25, 31); HOME.t.set(-6, 0, 1); if (resize.m) { resize.m = 0; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); } }
+        else { HOME.p.set(-10, 25, 30); HOME.t.set(-10, 0, 2); if (resize.m) { resize.m = 0; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); } }
       }
       addEventListener('resize', resize); resize();
       let ro = null;
@@ -739,13 +814,16 @@
             const w = a.path[0], d = w.clone().sub(p); d.y = 0; const dist = d.length();
             if (dist < .12) { a.path.shift(); } else { moving = true; d.normalize(); p.addScaledVector(d, Math.min(dist, dt * (reduced ? 9 : 5))); const fy = Math.atan2(d.x, d.z); let dr = fy - a.g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); a.g.rotation.y += dr * Math.min(1, dt * 10); }
           }
+          // keep clear of the round furniture (beanbags, reception, plant pots) while walking
+          if (moving && !a.up) for (const [ox, oz, or] of OBS) { const rx = p.x - ox, rz = p.z - oz, rd = Math.hypot(rx, rz), m = or + .45; if (rd < m && rd > 1e-3) { const tx = -rz / rd, tz = rx / rd, w0 = a.path[0], s0 = Math.sign(tx * (w0.x - p.x) + tz * (w0.z - p.z)) || 1; p.x = ox + rx / rd * m + tx * s0 * .04; p.z = oz + rz / rd * m + tz * s0 * .04; } }
           if (!moving && a.tgt) { let dr = a.tgt.face - a.g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); a.g.rotation.y += dr * Math.min(1, dt * 8); a.pose = a.tgt.pose; }
           // pose
           const lie = !moving && a.pose === 'lie', sit = !moving && (a.pose === 'sit' || a.pose === 'nap'), w = t * 9 + AG.indexOf(a), typing = !moving && a.pose === 'sit' && (a.state === 'working');
           a.root.rotation.x += ((lie ? -Math.PI / 2 : 0) - a.root.rotation.x) * Math.min(1, dt * 6);
           const breathe = lie && !reduced ? Math.sin(t * 1.3 + w) * .015 : 0;
-          a.root.position.y = lie ? 1.24 + breathe : sit ? (a.pose === 'nap' ? .1 : -.04) : (moving && !reduced ? Math.abs(Math.sin(w)) * .08 : 0);
+          if (stairIn(p.x, p.z)) { p.y = stairY(p.z); a.up = p.y > LOFT.h - .15 ? true : p.y < .05 ? false : a.up; } else p.y = a.up ? LOFT.h : 0; a.root.position.y = lie ? 1.24 + breathe : sit ? (a.pose === 'nap' ? -.7 : -.04) : (moving && !reduced ? Math.abs(Math.sin(w)) * .08 : 0);
           a.legs[0].rotation.x = lie ? 0 : sit ? -1.5 : (moving ? Math.sin(w) * .7 : 0); a.legs[1].rotation.x = lie ? 0 : sit ? -1.5 : (moving ? -Math.sin(w) * .7 : 0);
+          const floorSit = sit && a.pose === 'nap'; a.legs[0].rotation.z += ((floorSit ? .28 : 0) - a.legs[0].rotation.z) * .3; a.legs[1].rotation.z += ((floorSit ? -.28 : 0) - a.legs[1].rotation.z) * .3;   // sitting on the floor: legs splayed
           const wave = !moving && a.pose === 'wave';
           a.arms[0].rotation.x = lie ? 0 : typing && !reduced ? -1.1 + Math.sin(t * 14 + w) * .18 : (moving ? -Math.sin(w) * .7 : (sit ? -.5 : 0));
           a.arms[1].rotation.x = lie ? 0 : typing && !reduced ? -1.1 + Math.cos(t * 13 + w) * .18 : (moving ? Math.sin(w) * .7 : (sit ? -.5 : 0));
@@ -753,7 +831,7 @@
           a.head.rotation.x = a.pose === 'nap' && !moving ? .45 + (reduced ? 0 : Math.sin(t * 1.6) * .05) : 0;
           a.bang.visible = a.state === 'ask' || a.state === 'error'; a.bang.material.color.set(a.state === 'error' ? 0xff9a3a : 0xff4b4b); a.bang.rotation.y = t * 2.5; a.bang.position.y = 3.5 + (reduced ? 0 : Math.sin(t * 4) * .15);
           // tag
-          v3.copy(p); v3.y = 3.5; v3.project(cam);
+          v3.copy(p); v3.y = p.y + 3.5; v3.project(cam);
           if (v3.z > 1) { a.tg.style.display = 'none'; } else { a.tg.style.display = ''; a.tg.style.transform = `translate(${(v3.x * .5 + .5) * W}px,${(-v3.y * .5 + .5) * H}px) translate(-50%,-100%)`; }
           const key = meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state, S = st(key);
           let chip = S[0]; if (a.state === 'ask') chip += ' · ' + Math.floor(t - a.askedAt) + 's'; else if (a.state === 'sleep') chip = T('stat.sleepUntil', { t: fmtClock(a.sleepUntil) }) || S[0];
