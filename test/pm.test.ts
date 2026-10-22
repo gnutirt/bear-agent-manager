@@ -34,3 +34,23 @@ test('PM room (#160): two agents talk in pm-*; the third agent and the user cann
     assert.equal(await status(h.call('/api/rooms/pm-fake/join', { sessionId: 'cccccccc-3' })), 403, 'a pm-* name is not a free room name');
   } finally { await h.hub.close(); }
 });
+
+test('PM room (#173): after A is cleared/resumed under a new id, the new id still sends and the other agent is woken', async () => {
+  const { Store } = await import('../hub/store.ts');
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const st = new Store(fs.mkdtempSync(path.join(os.tmpdir(), 'ar-pm-')), () => 1_000_000);
+  st.register({ id: 'aaaaaaaa-1', cwd: 'C:/a' }); st.rename('aaaaaaaa-1', 'ann');
+  st.register({ id: 'bbbbbbbb-2', cwd: 'C:/b' }); st.rename('bbbbbbbb-2', 'ben');
+  const room = st.pmRoom('aaaaaaaa-1', 'bbbbbbbb-2').name;
+  st.markEnded('aaaaaaaa-1');
+  const next = st.register({ id: 'a2a2a2a2-9', cwd: 'C:/a', source: 'resume' });
+  assert.equal(next.name, 'ann');
+  assert.deepEqual(st.roomInfo(room).pm, ['a2a2a2a2-9', 'bbbbbbbb-2'], 'the pair follows the alias');
+  assert.equal(st.pmRoom('a2a2a2a2-9', 'bbbbbbbb-2').name, room, 'same room, not a second one');
+  assert.doesNotThrow(() => st.join('a2a2a2a2-9', room));
+  const r = st.post(room, 'a2a2a2a2-9', 'back after /clear');
+  assert.deepEqual(r.message.wake, ['bbbbbbbb-2']);
+  assert.throws(() => st.post(room, null, 'user'), /user/);
+  const back = st.post(room, 'bbbbbbbb-2', 'welcome back');
+  assert.deepEqual(back.message.wake, ['a2a2a2a2-9'], 'the other side wakes the new id, not the dead one');
+});

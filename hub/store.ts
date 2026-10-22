@@ -172,6 +172,7 @@ export class Store {
       }
     }
     for (const room of Object.values(this.state.rooms)) {
+      if (room.pm) { const now = this.pmIds(room).sort() as [string, string]; if (now.some((id, i) => id !== room.pm![i])) { room.pm = now; changed = true; } }
       const owner = this.dmOwner(room);
       if (owner) owners.add(owner);
     }
@@ -533,7 +534,7 @@ export class Store {
       throw new StoreError(403, `#${room} là chat riêng của user với một agent, không vào được; muốn nói với agent đó thì @ trong phòng chung / #${room} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     // #160: a pm-* room belongs to its two agents and is made only by pmRoom (an unknown pm-* name is not a free room name)
-    if (room.startsWith('pm-') && !existing?.pm?.includes(s.id)) throw new StoreError(403, `#${room} là PM giữa hai agent, không vào được / #${room} is a private message room between two agents`);
+    if (room.startsWith('pm-') && !this.pmIds(existing).includes(s.id)) throw new StoreError(403, `#${room} là PM giữa hai agent, không vào được / #${room} is a private message room between two agents`);
     this.createRoom(room);
     if (!(room in s.rooms)) s.rooms[room] = this.lastId();
     this.save();
@@ -552,11 +553,14 @@ export class Store {
     return r;
   }
 
+  /** #173: the two agents of a PM room by the id they have now (a clear/resume alias moves a session to a new id; room.pm keeps the id of creation). */
+  private pmIds(room?: Room): string[] { return room?.pm ? room.pm.map((id) => this.resolve(id)) : []; }
+
   /** #160: the PM room of two agents, `pm-<8 chars of each id>` (the user reads it, never writes). Idempotent for the pair, in either order. */
   pmRoom(idA: string, idB: string): Room {
     const pair = [this.session(idA).id, this.session(idB).id].sort() as [string, string];
     if (pair[0] === pair[1]) throw new StoreError(400, 'a PM needs two different agents');
-    let r = Object.values(this.state.rooms).find((x) => x.pm?.[0] === pair[0] && x.pm[1] === pair[1]);
+    let r = Object.values(this.state.rooms).find((x) => { const ids = this.pmIds(x); return ids[0] === pair[0] && ids[1] === pair[1]; });
     if (!r) {
       const name = `pm-${pair[0].slice(0, 8)}-${pair[1].slice(0, 8)}`;
       if (this.state.rooms[name]) throw new StoreError(409, `${name} already exists`);
@@ -688,7 +692,7 @@ export class Store {
       throw new StoreError(403, `#${roomName} là chat riêng của user với một agent, không gửi được; muốn nói với agent đó thì @ trong phòng chung / #${roomName} is a private chat between the user and one agent; @mention them in the shared room instead`);
     }
     if (sender && !(roomName in sender.rooms)) throw new StoreError(403, `${sender.name} is not in #${roomName}; join it first`);
-    if (room.pm && (sender ? !room.pm.includes(sender.id) : !sys)) throw new StoreError(403, `#${roomName} là PM giữa hai agent; user chỉ đọc / #${roomName} is a private message room between two agents; the user may only read it`);
+    if (room.pm && (sender ? !this.pmIds(room).includes(sender.id) : !sys)) throw new StoreError(403, `#${roomName} là PM giữa hai agent; user chỉ đọc / #${roomName} is a private message room between two agents; the user may only read it`);
     // Posting proves the session is alive. A provider agent runs `--bare` (no hooks) and its pid is not in the session
     // record, so sweep() judges it by silence and can call it offline in the middle of a long turn; the first room_send
     // of that turn puts it back.
@@ -727,7 +731,7 @@ export class Store {
       room.agentWakeStreak++;
       if (room.agentWakeStreak > LOOP_LIMIT) { room.paused = true; wake = []; }
     }
-    if (room.pm && sender) wake = room.pm.filter((id) => id !== sender.id);   // a PM reaches the other agent as if tagged
+    if (room.pm && sender) wake = this.pmIds(room).filter((id) => id !== sender.id);   // a PM reaches the other agent as if tagged
     message.wake = silent ? [] : wake;
     if (message.topic) {   // following a topic: sending into it, or being @-ed in it
       const follow = (s: Session) => { if (!s.topics?.includes(message.topic!)) (s.topics ??= []).push(message.topic!); };
