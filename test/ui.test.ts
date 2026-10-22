@@ -318,7 +318,8 @@ test('Flow tab ports the tiered room graph, replay controls, task actions and fi
       'class="flow-cols" id="flowCols"',
       'data-flow-close',
       '.flow-stage{position:relative;height:calc(100vh - 270px)',
-      'prefers-reduced-motion'
+      'prefers-reduced-motion',
+      "el.contains(ae) && ae.matches('select,input,textarea')"
     ]) assert.ok(html.includes(s), `missing Flow behavior: ${s}`);
     assert.ok(!html.includes('flowSprite') && !html.includes('flow.office'), 'the unapproved pixel-office view must be removed');
   } finally { await hub.close(); }

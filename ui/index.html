@@ -2719,6 +2719,9 @@ function flowPlayPulses() { flowDrawEdges(); }
 function renderFlow() {
   const el = $('view-flow');
   if (!el || S.tab !== 'flow' || S.flowDrag?.moved) return;
+  // rewriting innerHTML would close an open <select> and drop focus/caret in the task form: keep the DOM while a control is being used (handlers blur it before a deliberate render)
+  const ae = document.activeElement;
+  if (S.flowView && ae && ae !== document.body && el.contains(ae) && ae.matches('select,input,textarea')) { flowDrawEdges(); return; }
   const r = flowRoomName();
   if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; return; }
   S.flowRoom = r;
@@ -2785,6 +2788,7 @@ function saveFlowTier(agent, tier) {
 }
 function nodeNameForId(id) { return id && id !== 'you' ? S.sessions[id]?.name || (S.flowMessages[S.flowRoom] || []).find((m) => m.fromId === id)?.from || '' : ''; }
 $('view-flow').addEventListener('change', (e) => {
+  e.target.blur?.();
   if (e.target.id === 'flowRoom') flowSelectRoom(e.target.value);
   if (e.target.id === 'flowSeek') { const value = Number(e.target.value); flowSetReplay(value >= 299500 ? Date.now() : Date.now() - 300000 + value); renderFlow(); }
   if (e.target.id === 'flowSpeed') { S.flowSpeed = Number(e.target.value); renderFlow(); }
@@ -2822,7 +2826,7 @@ $('view-flow').addEventListener('submit', (e) => {
   if (!title || !agent) return;
   api(`/api/rooms/${enc(S.flowRoom)}/tasks`, { title, detail, owner: agent }).then((task) => {
     S.tasks[S.flowRoom] = [...(S.tasks[S.flowRoom] || []).filter((x) => x.id !== task.id), task];
-    S.flowTaskForm = false; S.flowTaskDraft = null; toast(t('flow.taskCreated')); renderFlow();
+    S.flowTaskForm = false; S.flowTaskDraft = null; toast(t('flow.taskCreated')); document.activeElement?.blur?.(); renderFlow();
   }).catch((err) => toast(err.message || t('flow.taskError')));
 });
 $('view-flow').addEventListener('pointerdown', (e) => {
