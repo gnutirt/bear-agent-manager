@@ -609,3 +609,21 @@ test('Office #179: beds in a rest room, a rate-limited agent sleeps with 💤 an
   assert.ok(vi['office.stat.sleepUntil'].includes('{t}') && en['office.stat.sleepUntil'].includes('{t}'), 'the tag carries the wake time');
   assert.ok(vi['office.stat.sleepUntil'].length > vi['office.stat.sleep'].length, 'the tag adds the wake time to the state label');
 });
+
+/* ---------- Office #185: a roster row tags that agent in the composer ---------- */
+
+test('Office #185: clicking a name in the dock roster inserts @handle into the chat input instead of opening the panel', async () => {
+  const src = await readOffice();
+  for (const s of [
+    "const token = '@' + h;",
+    'inp.value.split(/\\s+/).includes(token)',
+    "if (!inp.value.split(/\\s+/).includes(token)) inp.value = inp.value + (inp.value && !/\\s$/.test(inp.value) ? ' ' : '') + token + ' ';",
+    'data-h="${esc(a.h)}"',
+    'b.onclick = () => tagAgent(b.dataset.h);',
+    'inp.focus();',
+    "try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { /* older webviews */ }",
+  ]) assert.ok(src.includes(s), `missing roster tag behavior: ${s}`);
+  assert.ok(!src.includes('b.onclick = () => { setRoster(false); setFocus(b.dataset.id); };'), 'a roster click no longer opens the DM/panel');
+  const css = await readFile(new URL('../ui/office.css', import.meta.url), 'utf8');
+  assert.ok(/\.office \.roster button\{[^}]*cursor:pointer/.test(css), 'roster rows keep a pointer cursor');
+});

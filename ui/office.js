@@ -283,11 +283,20 @@
     }
     mountComposer($('of-form'), $('of-inp'), $('of-sugg'), null);
     $('of-bDock').onclick = () => { $('of-dock').classList.toggle('closed'); };
+    /** A roster row tags that agent in the dock composer (#185): insert "@handle " once, then focus the input. */
+    function tagAgent(h) {
+      const inp = $('of-inp'); if (!inp || !h) return;
+      const token = '@' + h;
+      if (!inp.value.split(/\s+/).includes(token)) inp.value = inp.value + (inp.value && !/\s$/.test(inp.value) ? ' ' : '') + token + ' ';
+      setRoster(false);
+      inp.focus();
+      try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { /* older webviews */ }
+    }
     function paintRoster() {
       const r = $('of-roster'); if (r.hidden) return;
-      const html = AG.map((a) => { const S = st(meeting && a.state !== 'ask' ? 'meet' : a.state); return `<button data-id="${esc(a.id)}"><i style="background:${S[1]}"></i><b>${esc(a.n)}</b><span>${esc(a.r)}</span><em>${esc(S[0])}</em></button>`; }).join('');
+      const html = AG.map((a) => { const S = st(meeting && a.state !== 'ask' ? 'meet' : a.state); return `<button data-id="${esc(a.id)}" data-h="${esc(a.h)}"><i style="background:${S[1]}"></i><b>${esc(a.n)}</b><span>${esc(a.r)}</span><em>${esc(S[0])}</em></button>`; }).join('');
       if (r.dataset.sig === html) return; r.dataset.sig = html; r.innerHTML = html;
-      r.querySelectorAll('button').forEach((b) => { b.onclick = () => { setRoster(false); setFocus(b.dataset.id); }; });
+      r.querySelectorAll('button').forEach((b) => { b.onclick = () => tagAgent(b.dataset.h); });
     }
     function setRoster(on) { $('of-roster').hidden = !on; $('of-bMem').setAttribute('aria-expanded', on); if (on) { $('of-dock').classList.remove('closed'); $('of-roster').dataset.sig = ''; paintRoster(); } }
     $('of-bMem').onclick = () => setRoster($('of-roster').hidden);
