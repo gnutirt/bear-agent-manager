@@ -9,3 +9,8 @@ TODOBUG*
 # screenshots / browser snapshots from UI checks
 .playwright-mcp/
 /s[0-9]*.png
+/loft*.png
+# per-machine settings and MCP servers
+/.mcp.json
+.claude/
+.vscode/
