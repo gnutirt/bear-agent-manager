@@ -2013,7 +2013,7 @@ function connect() {
   });
   es.addEventListener('session', (e) => {
     const s = JSON.parse(e.data); S.sessions[s.id] = s;
-    if (S.wantLive[s.id] && !s.tab) { delete S.wantLive[s.id]; liveStart(s.id, true).catch(() => {}); }   // the editor tab was closed after "Open in BAM": the chat moves here by itself
+    if (S.wantLive[s.id] && !s.tab) { const asked = S.wantLive[s.id]; delete S.wantLive[s.id]; if (Date.now() - asked < 5 * 60_000) liveStart(s.id, true).catch(() => {}); }   // the editor tab was closed soon after "Open in BAM": the chat moves here by itself; #164: a tab closed hours later (compact, reload) starts nothing
     if (S.renaming !== s.id) renderSessions();
     renderHeader(); renderPresence(); renderLogIfChanged(); if (typeof renderLive === 'function') renderLive();
     if (S.tab === 'workers') renderWorkersView();
@@ -2158,8 +2158,6 @@ $('composer').onsubmit = async (e) => {
   if (S.attach.some((a) => !a.id && !a.error)) return toast(t('attach.wait'));
   const text = $('text').value.trim() || ready.map((a) => '📎 ' + a.name).join('\n');
   if (!text || !S.current) return;
-  const dmSid = liveSid(), dmSess = dmSid && S.sessions[dmSid];
-  if (dmSess && dmSess.status === 'offline' && S.live[dmSid] && !S.live[dmSid].off && !S.live[dmSid].running) await liveStart(dmSid, true).catch(() => {});   // private chat defaults to live; a 409 (tab open, background run...) just falls back to the normal wake
   try {
     const ct = S.ctopic[S.current], body = { text, ...(S.reply ? { replyTo: S.reply.id } : {}), ...(ct && ct !== 'chung' ? { topic: ct } : {}), ...(ready.length ? { attachments: ready.map((a) => a.id) } : {}) };
     const r = await api(`/api/rooms/${enc(S.current)}/messages`, body);
@@ -2218,7 +2216,7 @@ function renderLive() {
   syncMore();
   const tabOpen = !!(sid && S.sessions[sid]?.tab), lb = $('liveBtn'), key = tabOpen ? (S.wantLive[sid] ? 'live.openBam.wait' : 'live.openBam') : 'live.title';
   if (lb.dataset.i18n !== key) { lb.dataset.i18n = key; lb.textContent = t(key); }
-  pane.hidden = !st || st.off || (!st.running && !st.items.length);
+  pane.hidden = !st || st.off || !st.running;   // #164: a stopped chat's old events never bring the pane back by themselves
   if (pane.hidden) return;
   const body = pane.querySelector('.lbody'), atEnd = !body || body.scrollHeight - body.scrollTop - body.clientHeight < 40;
   const item = (i) => {
@@ -2393,7 +2391,7 @@ function openFiles(sid, dirPath = '') {
 $('filesBtn').onclick = () => { const sid = liveSid(); if (sid) openFiles(sid); };
 $('liveBtn').onclick = () => {
   const sid = liveSid(); if (!sid) return;
-  if (S.sessions[sid]?.tab) { S.wantLive[sid] = true; toast(t('live.openBam.hint')); renderLive(); return; }   // one chat lives in one place: close the editor tab, then it starts here
+  if (S.sessions[sid]?.tab) { S.wantLive[sid] = Date.now(); toast(t('live.openBam.hint')); renderLive(); return; }   // one chat lives in one place: close the editor tab, then it starts here
   liveStart(sid).catch(() => {});
 };
 $('livePane').addEventListener('click', (e) => {

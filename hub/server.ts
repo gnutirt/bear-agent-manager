@@ -25,7 +25,7 @@ import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '..
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { editedFiles, MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
 import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
-import { isHubText, scrubSecrets } from './mirror.ts';
+import { isHubText, scrubSecrets, typedText } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
 import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, unblockReady, updateTask, type Task } from './tasks.ts';
@@ -1193,7 +1193,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const mirroring = new Map<string, { ts: number; last: string; answered: boolean; at: number }>();
   function mirrorUser(raw: string, prompt: unknown) {
     // #122: keyed by the resolved session, as mirrorAgent reads it: a resumed tab's hooks keep sending its old (aliased) id
-    const sid = store.resolve(raw), cur = mirroring.get(sid), text0 = String(prompt ?? '').trim();
+    const sid = store.resolve(raw), cur = mirroring.get(sid), text0 = typedText(String(prompt ?? ''));
     // Hub text (a delivery, a wake) in the middle of a tab turn that has not been answered yet must not drop the entry.
     if (!(text0 && isHubText(text0) && cur && !cur.answered && Date.now() - cur.at < 30 * 60_000)) mirroring.delete(sid);
     try {

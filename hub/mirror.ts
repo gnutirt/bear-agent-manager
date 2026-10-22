@@ -4,7 +4,12 @@
 export const isHubText = (prompt: string): boolean =>
   /^\s*\[bear-agent-manager\]/.test(prompt) ||
   /^\s*<(task-notification|system-reminder|browser_instruction)>/.test(prompt) ||
-  prompt.includes('[bear-agent-manager] New messages');
+  prompt.includes('[bear-agent-manager] New messages') ||
+  /^\s*Continue from where you left off\.?\s*$/.test(prompt);   // Claude Code's own prompt after a compact or resume
+
+/** #164: the text the user typed. Claude in Chrome and the IDE put their context blocks in front of it in the same prompt. */
+export const typedText = (prompt: string): string =>
+  prompt.replace(/^(?:\s*<(browser_instruction|ide_opened_file|ide_selection)>[\s\S]*?<\/\1>)+/, '').trim();
 
 const BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 const TOKENS: RegExp[] = [

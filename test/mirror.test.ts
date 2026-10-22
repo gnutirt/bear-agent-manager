@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { isHubText, scrubSecrets } from '../hub/mirror.ts';
+import { isHubText, scrubSecrets, typedText } from '../hub/mirror.ts';
 import { Store } from '../hub/store.ts';
 import { makeHub } from './helpers.ts';
 
@@ -21,6 +21,21 @@ test('scrubSecrets: tokens and key=value credentials are redacted, a private key
   assert.equal(isHubText('  <system-reminder>something unrelated</system-reminder>'), true);
   assert.equal(isHubText('please fix the <system-reminder> tag in this file'), false);
   assert.equal(isHubText('<browser_instruction># Claude in Chrome browser automation'), true, 'injected by the Chrome extension, not typed');
+});
+
+test('typedText (#164): the Chrome and IDE blocks in front of a typed prompt are dropped, the typed text stays', () => {
+  assert.equal(typedText('<browser_instruction># Claude in Chrome\n...</browser_instruction>\nmày còn việc gì nữa'), 'mày còn việc gì nữa');
+  assert.equal(typedText('<ide_opened_file>The user opened a.ts</ide_opened_file><ide_selection>const k = 1</ide_selection>\n\nfix it'), 'fix it');
+  assert.equal(typedText('<browser_instruction>x</browser_instruction>\n<system-reminder>y</system-reminder>'), '<system-reminder>y</system-reminder>', 'what is left still goes through isHubText');
+  assert.equal(typedText('<browser_instruction># Claude in Chrome (no end tag)'), '<browser_instruction># Claude in Chrome (no end tag)');
+  assert.equal(typedText('please keep <ide_selection>x</ide_selection> here'), 'please keep <ide_selection>x</ide_selection> here');
+});
+
+test('live chat (#164): only a click starts it; a send in a private chat does not', () => {
+  const ui = fs.readFileSync(path.join(import.meta.dirname, '..', 'ui', 'index.html'), 'utf8');
+  const at = ui.indexOf("$('composer').onsubmit"), submit = ui.slice(at, ui.indexOf('\n};', at));
+  assert.ok(at > 0 && submit.length > 100 && !submit.includes('liveStart'), 'composer submit must not call liveStart');
+  assert.ok(ui.includes('pane.hidden = !st || st.off || !st.running;'), 'a stopped chat keeps the pane hidden');
 });
 
 test('postMirror: private chat is created hidden, stays hidden, wakes nobody and is never delivered to the agent', () => {
@@ -188,5 +203,18 @@ test('tab mirror (#154): a DM posted under an id that later became an alias is s
     await hook('stop', { last_assistant_message: 'pong' });
     const lines = (await h.call<any[]>(`/api/rooms/${dm}/messages?after=0`)).filter((m) => m.kind === 'mirror').map((m) => m.text);
     assert.deepEqual(lines, ['[tab] agent: pong']);
+  } finally { await h.hub.close(); }
+});
+
+test('tab mirror (#164): a prompt the Chrome extension prefixed with <browser_instruction> still reaches the DM as the typed text', async () => {
+  const h = await makeHub();
+  const hook = (event: string, body: object) => fetch(`${h.hub.url}/hooks/${event}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'm9', ...body }) });
+  try {
+    await h.call('/api/sessions/register', { id: 'm9', cwd: 'C:/fw' });
+    await hook('prompt', { prompt: '<browser_instruction># Claude in Chrome browser automation\n...</browser_instruction>\nmày còn việc gì nữa' });
+    await hook('stop', { last_assistant_message: 'Không còn việc.' });
+    await hook('prompt', { prompt: 'Continue from where you left off.' });
+    const dm = (await h.call<any[]>('/api/rooms/dm-m9/messages?after=0')).filter((m) => m.kind === 'mirror').map((m) => m.text as string);
+    assert.deepEqual(dm, ['[tab] user: mày còn việc gì nữa', '[tab] agent: Không còn việc.']);
   } finally { await h.hub.close(); }
 });
