@@ -266,3 +266,35 @@ test('usage wake (#152): an agent woken in the room in the last 10 minutes (s: r
     assert.equal(again.store.history('proj').filter((m) => m.sys?.type === 'wake').length, 1, 'only the earlier resume wake: ' + again.store.history('proj').map((m) => m.text).join(' | '));
   } finally { await again.close(); }
 });
+
+test('usage wake (#178): with the account reset booked within 10 minutes the s: resume stays silent and the reset message is the only wake; without one the resume speaks', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-wake-one-'));
+  fs.mkdirSync(path.join(home, '.claude'));
+  const h = await makeHub(undefined, undefined, { usageFetch: null, usageHome: home });
+  const cfgDir = path.join(home, '.claude');
+  try {
+    for (const id of ['o1', 'o2']) {
+      await h.call('/api/sessions/register', { id, cwd: 'C:/fw' });
+      await h.call(`/api/sessions/${id}/rename`, { name: id === 'o1' ? 'alice' : 'bob' });
+      await h.call('/api/rooms/proj/join', { sessionId: id });
+    }
+    h.hub.store.state.usagePaused = { 'a@x.com': { until: Date.now() + 60_000, configDirs: [cfgDir] } };
+    h.hub.store.state.wakeAt = { 'a@x.com': { at: Date.now() + 120_000, tries: 0 }, 's:o1': { at: Date.now() + 300, tries: 0 } };
+    h.hub.store.save();
+  } finally { await h.hub.close(); }
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {} });
+  try {
+    await until(() => !again.store.state.wakeAt?.['s:o1'], 5_000, 'the s: wake fired');
+    assert.equal(again.store.history('proj').filter((m) => m.sys?.type === 'wake').length, 0, 'reset is booked: no resume message');
+    delete again.store.state.usagePaused!['a@x.com']; delete again.store.state.wakeAt!['a@x.com'];
+    again.store.state.wakeAt!['s:o2'] = { at: Date.now() + 300, tries: 0 };
+    again.store.save();
+  } finally { await again.close(); }
+  const third = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {} });
+  try {
+    await until(() => !third.store.state.wakeAt?.['s:o2'], 5_000, 'the s: wake fired');
+    const wakes = third.store.history('proj').filter((m) => m.sys?.type === 'wake');
+    assert.equal(wakes.length, 1);
+    assert.match(wakes[0].text, /@bob/);
+  } finally { await third.close(); }
+});

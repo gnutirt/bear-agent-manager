@@ -1473,6 +1473,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (s && key.startsWith('s:')) { delete s.limited; }
       store.save();
       if (!s) return;
+      // #178: after a reset one message wakes the agent, and it is the "account has reset" one: when this account's reset booking is due within 10 minutes it posts that message (the limit marker makes this session a target), so the resume wake stays silent
+      if (key.startsWith('s:')) {
+        const dir = path.resolve(s.configDir || path.join(usageHome, '.claude')).toLowerCase();
+        const resetSoon = Object.entries(store.state.usagePaused ?? {}).some(([k, p]) => (store.state.wakeAt?.[k]?.at ?? Infinity) <= Date.now() + 600_000 && p.configDirs.some((c) => path.resolve(c).toLowerCase() === dir));
+        if (resetSoon) return;
+      }
       for (const r of Object.keys(s.rooms)) {
         try {
           const posted = store.post(r, null, tr(key.startsWith('r:') ? 'sys.wake.apiRetry' : 'sys.wake.resume', { name: s.name }), undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });
