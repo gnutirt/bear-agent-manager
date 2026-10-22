@@ -89,3 +89,21 @@ test('release --skip-smoke needs a reason and writes it into the CHANGELOG of th
   assert.match(fs.readFileSync(path.join(r.root, 'CHANGELOG.md'), 'utf8'), /## 0\.2\.0 - 2026-10-19\n\n- Released WITHOUT the smoke test: no claude on this CI machine\n- New thing\./);
   assert.equal(r.git('tag', '--list'), 'v0.2.0');
 });
+
+test('release writes notes into the git directory when run from a linked worktree', () => {
+  const repo = tempRepo();
+  const worktree = path.join(os.tmpdir(), `rel-worktree-${process.pid}-${Date.now()}`);
+  let added = false;
+  try {
+    repo.git('worktree', 'add', '-q', '-b', 'release-worktree-test', worktree);
+    added = true;
+    const gitDir = repo.git('-C', worktree, 'rev-parse', '--git-dir');
+    const notesFile = path.join(path.isAbsolute(gitDir) ? gitDir : path.resolve(worktree, gitDir), 'release-notes-v0.2.0.md');
+    release(worktree, 'minor', { ...loud, test: false, smoke: false });
+    assert.equal(fs.readFileSync(notesFile, 'utf8'), '- New thing.\n');
+    assert.equal(repo.git('-C', worktree, 'tag', '--list'), 'v0.2.0');
+  } finally {
+    if (added) repo.git('worktree', 'remove', '--force', worktree);
+    fs.rmSync(repo.root, { recursive: true, force: true });
+  }
+});

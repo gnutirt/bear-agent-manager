@@ -92,7 +92,8 @@ export function release(root, version, { test = true, smoke = test, skipSmoke = 
   git('add', '--', ...files, 'CHANGELOG.md');
   git('commit', '-q', '-m', `release: v${version}`, '--', ...files, 'CHANGELOG.md');
   git('tag', '-a', `v${version}`, '-m', `v${version}`);
-  const notesFile = path.join(root, '.git', `release-notes-v${version}.md`);
+  const gitDir = git('rev-parse', '--git-dir');
+  const notesFile = path.join(path.isAbsolute(gitDir) ? gitDir : path.resolve(root, gitDir), `release-notes-v${version}.md`);
   fs.writeFileSync(notesFile, notes + '\n');
   log(`\nv${version} committed and tagged (not pushed). To publish:\n  git push origin HEAD v${version}\n  gh release create v${version} --title v${version} --notes-file "${notesFile}"`);
   return { files, notes };
