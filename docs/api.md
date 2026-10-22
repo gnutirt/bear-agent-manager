@@ -9,6 +9,11 @@
 | POST | `/hooks/:event` |  | không |
 | GET | `/` |  | không |
 | GET | `/api/health` |  | không |
+| POST | `/api/ide/hello` |  | có |
+| GET | `/api/ide/next` |  | có |
+| POST | `/api/ide/result` |  | có |
+| GET | `/api/ide/status` |  | có |
+| POST | `/api/sessions/:param/ide` |  | có |
 | GET | `/api/events` |  | có |
 | GET | `/api/sessions` |  | có |
 | GET | `/api/workers` |  | có |

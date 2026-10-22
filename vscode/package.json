@@ -6,7 +6,7 @@
   "publisher": "gnutirt",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "contributes": {
     "configuration": {
       "title": "Bear Agent Manager",

@@ -55,12 +55,14 @@ import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, 
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
+import { IdeBridge, type IdeOp } from './ide.ts';
 
 export type { ReviveJob };
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI_FILE = path.join(ROOT, 'ui', 'index.html');
 const MAX_BODY = 64 * 1024;
+const MAX_IDE_BODY = 6 * 1024 * 1024 + 16 * 1024;
 const OFFICE_ASSETS: Record<string, { file: string; type: string }> = {
   '/office.css': { file: path.join(ROOT, 'ui', 'office.css'), type: 'text/css; charset=utf-8' },
   '/office.js': { file: path.join(ROOT, 'ui', 'office.js'), type: 'text/javascript; charset=utf-8' },
@@ -102,12 +104,12 @@ function json(res: http.ServerResponse, code: number, data: unknown): void {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-async function readBody(req: http.IncomingMessage): Promise<any> {
+async function readBody(req: http.IncomingMessage, max = MAX_BODY): Promise<any> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const c of req) {
     size += (c as Buffer).length;
-    if (size > MAX_BODY) throw new StoreError(413, 'body too large');
+    if (size > max) throw new StoreError(413, 'body too large');
     chunks.push(c as Buffer);
   }
   const raw = Buffer.concat(chunks).toString('utf8');
@@ -203,6 +205,7 @@ const API_RETRY_MS = [30_000, 2 * 60_000, 5 * 60_000];
 const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
+  const ideBridge = new IdeBridge();
   const runRevive = opts.revive ?? spawnRevive;
   const runCompact = opts.compactRevive ?? spawnCompact;
   const warnedDroppedCliModels = new Set<string>();
@@ -1819,9 +1822,101 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     // app stays 'agent-room': tabs started before the rename run a client that checks that exact value.
     if (p === '/api/health') return json(res, 200, { ok: true, app: 'agent-room', name: 'bear-agent-manager' });
+    const ideEndpoint = p === '/api/ide/hello' || p === '/api/ide/next' || p === '/api/ide/result' ||
+      p === '/api/ide/status' || /^\/api\/sessions\/[^/]+\/ide$/.test(p);
     const given = req.headers['x-room-token'] ?? url.searchParams.get('token');
+    if (ideEndpoint && req.headers['x-room-token'] !== token) return json(res, 401, { error: 'bad or missing token' });
     if (given !== token) return json(res, 401, { error: 'bad or missing token' });
 
+    if (m === 'POST' && p === '/api/ide/hello') {
+      return json(res, 200, ideBridge.hello(await readBody(req)));
+    }
+    if (m === 'GET' && p === '/api/ide/next') {
+      const client = url.searchParams.get('client') ?? '';
+      if (!client) throw new StoreError(400, 'client is required');
+      const controller = new AbortController();
+      const disconnected = () => controller.abort();
+      res.once('close', disconnected);
+      try { return json(res, 200, await ideBridge.next(client, controller.signal)); }
+      finally { res.off('close', disconnected); }
+    }
+    if (m === 'POST' && p === '/api/ide/result') {
+      ideBridge.result(await readBody(req, MAX_IDE_BODY));
+      return json(res, 200, { ok: true });
+    }
+    if (m === 'GET' && p === '/api/ide/status') return json(res, 200, ideBridge.status());
+    const ideSession = m === 'POST' && p.match(/^\/api\/sessions\/([^/]+)\/ide$/);
+    if (ideSession) {
+      const session = store.session(decodeURIComponent(ideSession[1]));
+      const body = await readBody(req, MAX_IDE_BODY);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new StoreError(400, 'request body must be an object');
+      if (body.op === undefined && body.ide !== undefined) {
+        const updated = store.setIde(session.id, String(body.ide));
+        if (body.configDir) { updated.configDir = String(body.configDir); store.save(); }
+        emitSession(updated);
+        for (const room of Object.keys(updated.rooms)) emitRoom(room);
+        return json(res, 200, { session: publicSession(updated) });
+      }
+      const op = body.op;
+      const rawArgs = body.args;
+      if (!['open', 'diagnostics', 'selection', 'diff'].includes(op)) throw new StoreError(400, 'unknown IDE operation');
+      if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) throw new StoreError(400, 'args must be an object');
+      const args = rawArgs as Record<string, unknown>;
+      const profile = apiProfileOf(session);
+      const cwd = profile?.cwd ?? session.cwd;
+      let root: string;
+      try { root = fs.realpathSync(cwd); } catch { throw new StoreError(400, `agent working folder does not exist: ${cwd}`); }
+      const realFile = (value: unknown): string => {
+        if (typeof value !== 'string' || !value) throw new StoreError(400, 'path is required');
+        const guard = pathGuard(root, 'Read', { file_path: value }, false);
+        if (!guard.allow) throw new StoreError(403, guard.message ?? 'path is not allowed');
+        try { return fs.realpathSync(path.resolve(root, value)); }
+        catch { throw new StoreError(404, 'file not found'); }
+      };
+      let safeArgs: Record<string, unknown>;
+      if (op === 'open') {
+        const file = realFile(args.path);
+        if (!fs.statSync(file).isFile()) throw new StoreError(400, 'path must be a file');
+        const line = args.line;
+        const endLine = args.endLine;
+        if (line !== undefined && (!Number.isInteger(line) || Number(line) < 1)) throw new StoreError(400, 'line must be a positive integer');
+        if (endLine !== undefined && line === undefined) throw new StoreError(400, 'endLine requires line');
+        if (endLine !== undefined && (!Number.isInteger(endLine) || Number(endLine) < Number(line ?? 1))) throw new StoreError(400, 'endLine must be at or after line');
+        safeArgs = { path: file, ...(line === undefined ? {} : { line }), ...(endLine === undefined ? {} : { endLine }) };
+      } else if (op === 'diagnostics') {
+        const file = args.path === undefined || args.path === '' ? root : realFile(args.path);
+        if (file !== root && !fs.statSync(file).isFile()) throw new StoreError(400, 'path must be a file');
+        safeArgs = { cwd: root, path: file };
+      } else if (op === 'diff') {
+        const file = realFile(args.path);
+        if (!fs.statSync(file).isFile()) throw new StoreError(400, 'path must be a file');
+        if (typeof args.content !== 'string' || Buffer.byteLength(args.content, 'utf8') > 1024 * 1024) throw new StoreError(400, 'content must be a string no larger than 1 MB');
+        if (args.title !== undefined && (typeof args.title !== 'string' || args.title.length > 200)) throw new StoreError(400, 'title must be at most 200 characters');
+        safeArgs = { path: file, content: args.content, ...(args.title ? { title: args.title } : {}) };
+      } else {
+        if (profile) {
+          const provider = loadProviders(opts.dir, legacyKey).find((item) => item.id === profile.providerId);
+          if (provider?.tier !== 'local') throw new StoreError(403, 'ide_selection is available only to local agents');
+        } else if (!copilotAgents().some((agent) => agent.isRunning(session.id)) && (!session.ide || session.ide === 'cli')) {
+          throw new StoreError(403, 'ide_selection is available only to a local IDE tab or agent');
+        }
+        safeArgs = { cwd: root };
+      }
+      fs.appendFileSync(path.join(opts.dir, 'revive.log'), `${new Date().toISOString()} ide ${session.id} ${op}\n`);
+      const data = await ideBridge.request(cwd, op as IdeOp, safeArgs);
+      if (op === 'selection') {
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new StoreError(502, 'VS Code returned an invalid selection');
+        const selection = data as Record<string, unknown>;
+        const file = realFile(selection.path);
+        if (typeof selection.text !== 'string' || Buffer.byteLength(selection.text, 'utf8') > 20 * 1024) throw new StoreError(502, 'VS Code returned an invalid or oversized selection');
+        if (!Number.isInteger(selection.startLine) || Number(selection.startLine) < 1 || !Number.isInteger(selection.endLine) || Number(selection.endLine) < Number(selection.startLine)) throw new StoreError(502, 'VS Code returned invalid selection lines');
+        return json(res, 200, { path: file, startLine: selection.startLine, endLine: selection.endLine, text: selection.text });
+      }
+      if (!data || typeof data !== 'object' || Array.isArray(data) || typeof (data as Record<string, unknown>).text !== 'string') throw new StoreError(502, 'VS Code returned an invalid result');
+      const resultText = (data as { text: string }).text;
+      if (Buffer.byteLength(resultText, 'utf8') > 128 * 1024) throw new StoreError(502, 'VS Code returned an oversized result');
+      return json(res, 200, { text: op === 'diagnostics' ? resultText.split(/\r?\n/).slice(0, 200).join('\n') : resultText });
+    }
     if (m === 'GET' && p === '/api/events') return openSse(res);
     if (m === 'GET' && p === '/api/sessions') return json(res, 200, Object.values(store.state.sessions).map(publicSession));
     if (m === 'GET' && p === '/api/workers') {
@@ -2991,6 +3086,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
+      ideBridge.close();
       liveChat.stopAll();
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));

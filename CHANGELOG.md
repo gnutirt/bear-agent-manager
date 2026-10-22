@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add: a token-authenticated long-poll bridge connects room agents to local VS Code for opening files, diagnostics, selected text and read-only proposed diffs.
 - Add: the Flow tab now has a per-room, tiered workflow graph with validated member assignments, drag or keyboard tier changes, room-task creation from the selected agent, live/replayed wake edges and a 90-second per-agent timeline.
 - Add: the Office tab lazily loads the live 3D agent scene and room chat, serves Three.js r128 and OrbitControls locally for offline use, and stops its render loop and listeners when left.
 - Fix: worker resolves the native Claude CLI beside the Windows `claude.cmd` shim and invokes it directly, preserving each argv item instead of forwarding through `claude.ps1`; worker/osin never select paid providers, even when paid fallback is enabled.

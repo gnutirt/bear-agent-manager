@@ -24,6 +24,10 @@ export const TOOLS = [
   { name: 'room_note_remove', description: 'Remove an outdated room note by its number.', inputSchema: obj({ id: { type: 'number' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['id']) },
   { name: 'room_done', description: 'Report that your part of the current task is finished, with a one-line summary. The room lead (if any) is notified; when every member is done the room tells the user once. Use this instead of chatty "done" messages.', inputSchema: obj({ summary: { type: 'string' }, room: { type: 'string', description: 'Defaults to your only room' } }, ['summary']) },
   { name: 'room_commit', description: 'Commit only the listed paths inside this session folder. Remote agents may commit only files they edited. Use this instead of running git commit; returns the commit hash and line counts.', inputSchema: obj({ paths: { type: 'array', items: { type: 'string' }, description: 'Repo-relative paths inside this session folder' }, message: { type: 'string', description: 'Commit message' } }, ['paths', 'message']) },
+  { name: 'ide_open', description: 'Open a file in the matching local VS Code window, optionally at a line or line range. The file must be inside your working folder.', inputSchema: obj({ path: { type: 'string' }, line: { type: 'integer', minimum: 1 }, endLine: { type: 'integer', minimum: 1 } }, ['path']) },
+  { name: 'ide_diagnostics', description: 'Read diagnostics from the matching local VS Code window, optionally for one file. Results are limited to your working folder.', inputSchema: obj({ path: { type: 'string' } }) },
+  { name: 'ide_selection', description: 'Read the selected text from the matching local VS Code window. May be refused for a provider agent or a secret/out-of-folder file.', inputSchema: obj({}) },
+  { name: 'ide_diff', description: 'Show a proposed change beside a file in VS Code without writing it. The diff is only for the owner to review; use Edit to make a real change. The file must be inside your working folder.', inputSchema: obj({ path: { type: 'string' }, content: { type: 'string', maxLength: 1048576 }, title: { type: 'string', maxLength: 200 } }, ['path', 'content']) },
 ];
 
 type Note = { id: number; text: string; by: string };
@@ -80,6 +84,8 @@ function numberList(tool: string, arg: string, value: unknown): number[] | undef
 
 export async function callTool(api: Api, sid: string, name: string, args: Record<string, unknown>): Promise<string> {
   const me = async () => (await api<{ session: PublicSession }>(`/api/sessions/${enc(sid)}`)).session;
+  const ide = async (op: string, body: Record<string, unknown>) =>
+    api<{ text?: string; path?: string; startLine?: number; endLine?: number } & Record<string, unknown>>(`/api/sessions/${enc(sid)}/ide`, { body: { op, args: body } });
   const pickRoom = async (tool: string, room: unknown): Promise<string> => {
     // An object or a number used to fall through to the default room: the call would land somewhere the caller never asked for.
     if (typeof room === 'string') { if (room) return room; }
@@ -241,6 +247,34 @@ export async function callTool(api: Api, sid: string, name: string, args: Record
       if (!paths.length) throw new Error('room_commit needs at least one path in "paths".');
       const r = await api<{ commit: string; paths: string[]; insertions: number; deletions: number }>(`/api/sessions/${enc(sid)}/room-commit`, { body: { paths, message: stringArg('room_commit', 'message', args.message) } });
       return `Committed ${r.commit} (+${r.insertions}/-${r.deletions} lines):\n${r.paths.map((p) => `  ${p}`).join('\n')}`;
+    }
+    case 'ide_open': {
+      const path = stringArg('ide_open', 'path', args.path);
+      const line = optNumber('ide_open', 'line', args.line);
+      const endLine = optNumber('ide_open', 'endLine', args.endLine);
+      if (line !== undefined && (!Number.isInteger(line) || line < 1)) throw new Error('ide_open needs "line" as a positive integer.');
+      if (endLine !== undefined && line === undefined) throw new Error('ide_open needs "line" when "endLine" is supplied.');
+      if (endLine !== undefined && (!Number.isInteger(endLine) || endLine < 1 || endLine < (line ?? 1))) throw new Error('ide_open needs "endLine" at or after "line".');
+      const r = await ide('open', { path, ...(line === undefined ? {} : { line }), ...(endLine === undefined ? {} : { endLine }) });
+      return r.text ?? `Opened ${r.path ?? path}${line === undefined ? '' : `:${line}`}`;
+    }
+    case 'ide_diagnostics': {
+      const path = optString('ide_diagnostics', 'path', args.path);
+      const r = await ide('diagnostics', path === undefined ? {} : { path });
+      return r.text ?? 'No diagnostics.';
+    }
+    case 'ide_selection': {
+      const r = await ide('selection', {});
+      return `${r.path ?? 'selection'}:${r.startLine ?? 1}-${r.endLine ?? r.startLine ?? 1}\n${r.text ?? ''}`;
+    }
+    case 'ide_diff': {
+      const path = stringArg('ide_diff', 'path', args.path);
+      const content = stringArg('ide_diff', 'content', args.content);
+      if (Buffer.byteLength(content, 'utf8') > 1024 * 1024) throw new Error('ide_diff content exceeds 1 MB.');
+      const title = optString('ide_diff', 'title', args.title);
+      if (title && title.length > 200) throw new Error('ide_diff title exceeds 200 characters.');
+      const r = await ide('diff', { path, content, ...(title ? { title } : {}) });
+      return r.text ?? 'Diff shown. The original file was not changed.';
     }
     default:
       throw new Error(`unknown tool ${name}`);
