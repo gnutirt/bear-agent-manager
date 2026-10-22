@@ -43,6 +43,7 @@ import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLin
 import { endedOnLimit, limitErrorMarker, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
 import { listAccounts, maskEmail, publicUsage, UsageReader, usageAlerts, type AccountUsage } from './usage.ts';
 import { PluginUpdater, type Run } from './pluginupdate.ts';
+import * as mcpcfg from './mcpconfig.ts';
 import { apiEnv, apiPerm, claudeCliModel, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
 import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
@@ -151,6 +152,8 @@ export type HubOptions = {
   autoRevive?: boolean;
   /** Process table source and killer for workers (stubbed in tests). */
   listProcs?: () => Promise<Proc[]>;
+  /** Runs `claude <args>` for the MCP settings (tests fake it; the real one starts claude without a shell). */
+  mcpRun?: mcpcfg.Run;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -510,7 +513,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!prov || !prov.enabled) throw new Error(`provider ${p.providerId} is missing or off`);
     const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name));
     const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
-    fs.writeFileSync(mcp, JSON.stringify(leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined)));
+    const lean = leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined);
+    fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { ...mcpcfg.extraForAgent(opts.dir, p.id), ...lean.mcpServers } }));   // #155: the servers added for this agent in Settings; the hub's own win
     return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp, perm.guarded) };
   }
   /** The provider's claude runs `--bare`: no hook ever tells the hub where its chat is saved, so it is looked up on disk (and moved back from room_chat). */
@@ -1853,14 +1857,41 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, { ok: true, path: f.real });
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...loadSettings(opts.dir, envCap), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
-    // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
-    const libDir = () => opts.skillLibraryDir ?? path.join(ROOT, 'skill-library');
-    if (m === 'POST' && (p === '/api/skill-library/install' || p === '/api/skill-library/uninstall')) {
-      // S2: only into a Claude account the hub knows (config dir of a login or a session), only library skills; never overwrites.
-      const b = await readBody(req), lib = loadLibrary(libDir());
-      const dir = usageDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.configDir ?? '')).toLowerCase());
-      if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
-      const names: string[] = Array.isArray(b.names) ? b.names.map(String).slice(0, 200) : [];
+    // #155 (MCP-B): the MCP servers of Claude Code (claude mcp list|add-json|remove, no shell) or, with `agent`, of one claude-api agent (its own file).
+    const mcpSrv = p.match(/^\/api\/mcp\/servers$/);
+    const mcpSrvOne = p.match(/^\/api\/mcp\/servers\/([^/]+)$/);
+    if (mcpSrv || mcpSrvOne) {
+      const run = opts.mcpRun ?? mcpcfg.runClaude;
+      const q = (k: string, b?: any) => String((b ? b[k] : url.searchParams.get(k)) ?? '').trim();
+      const agentOf = (b?: any) => {
+        const id = q('agent', b);
+        if (!id) return '';
+        if (!apiProfiles().some((x) => x.id === id)) throw new StoreError(404, `no claude-api agent "${id}"`);
+        return id;
+      };
+      const cwdOf = (b?: any) => { try { return resolveWorkspace(q('cwd', b) || os.homedir(), true); } catch (e) { throw new StoreError(400, (e as Error).message); } };
+      try {
+        if (m === 'GET' && mcpSrv) {
+          const agent = agentOf();
+          return json(res, 200, agent ? { agent, servers: mcpcfg.listExtra(opts.dir, agent) } : { servers: await mcpcfg.listServers(run, cwdOf()) });
+        }
+        if (m === 'POST' && mcpSrv) {
+          const b = await readBody(req), agent = agentOf(b);
+          if (agent) mcpcfg.addExtra(opts.dir, agent, b.name, b.config);
+          else await mcpcfg.addServer(run, cwdOf(b), b.name, b.scope, b.config);
+          return json(res, 200, { ok: true });
+        }
+        if (m === 'DELETE' && mcpSrvOne) {
+          const name = decodeURIComponent(mcpSrvOne[1]), agent = agentOf();
+          if (agent) mcpcfg.removeExtra(opts.dir, agent, name);
+          else await mcpcfg.removeServer(run, cwdOf(), name, q('scope'));
+          return json(res, 200, { ok: true });
+        }
+      } catch (e) {
+        if (e instanceof mcpcfg.McpError) return json(res, e.status, { error: e.message });
+        throw e;
+      }
+    }
     if (m === 'GET' && p === '/api/mcp/connections') {
       const connections = Object.values(store.state.sessions)
         .filter((session) => session.id.startsWith('mcp-') && (session as Session & { mcpTokenHash?: string }).mcpTokenHash)
@@ -1891,6 +1922,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       store.forget(session.id);
       return json(res, 200, { ok: true });
     }
+    // ---- skill library (S1): filter by role / words / license, installed per Claude account ----
+    const libDir = () => opts.skillLibraryDir ?? path.join(ROOT, 'skill-library');
+    if (m === 'POST' && (p === '/api/skill-library/install' || p === '/api/skill-library/uninstall')) {
+      // S2: only into a Claude account the hub knows (config dir of a login or a session), only library skills; never overwrites.
+      const b = await readBody(req), lib = loadLibrary(libDir());
+      const dir = usageDirs().find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.configDir ?? '')).toLowerCase());
+      if (!dir || !fs.existsSync(dir)) throw new StoreError(400, 'configDir must be a Claude account of this machine');
+      const names: string[] = Array.isArray(b.names) ? b.names.map(String).slice(0, 200) : [];
       const results = names.map((n) => {
         const sk = lib.skills.find((x) => x.name === n);
         if (!sk) return { name: n, status: 'error', error: 'not in the library' };

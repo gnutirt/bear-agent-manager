@@ -25,6 +25,9 @@
 | GET | `/api/path/view` |  | có |
 | POST | `/api/path/reveal` | `room`, `id`, `path` | có |
 | GET | `/api/settings` |  | có |
+| GET | `/api/mcp/servers` |  | có |
+| POST | `/api/mcp/servers` | `name`, `config`, `scope` | có |
+| DELETE | `/api/mcp/servers/:param` |  | có |
 | GET | `/api/mcp/connections` |  | có |
 | POST | `/api/mcp/connections` |  | có |
 | DELETE | `/api/mcp/connections/:param` |  | có |
