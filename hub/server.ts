@@ -138,6 +138,7 @@ export type HubOptions = {
   /** Minimum interval between idle saved-chat compaction sweeps (default 10 minutes). */
   idleCompactEveryMs?: number;
   deafMs?: number;   // C3: how long an @ may wait on a tab with no waiter before the room is told (default 10 min)
+  settleMs?: number;   // #191: after a hub start the tabs' waiters reconnect within ~75 s; no deaf or two-tab notice before then (default 90 s)
   apiRetryMs?: number[];   // #159: waits before each automatic retry of a turn that died on a transient API error (default 30 s, 2 min, 5 min)
   revive?: (job: ReviveJob) => unknown;
   /** Runs `/compact` on a closed session before it is woken (T18b; stubbed in tests). Resolves the exit code. */
@@ -807,9 +808,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const batching = new Set<string>();
   const cannotTold = new Set<string>();         // C4: sessions already told "cannot be woken"; cleared once a waiter exists again
+  const blockedTold = new Set<string>();        // #191: "sid|until": a wake blocked by the account limit is told once per reset time
+  const blockedResetAt = new Map<string, number>();   // #191: session -> reset time of its last blocked wake
+  const startedAt = Date.now();
+  const settling = () => Date.now() - startedAt < (opts.settleMs ?? 90_000);
   const DEAF_MS = 10 * 60_000;
   /** C3: a live tab with no waiter and an @ waiting >10 min cannot be woken from outside; tell the room once per stuck message. */
   function checkDeaf() {
+    if (settling()) return;
     // store.deaf() owns the "already reported" marker (Session.deafSince): one notice per deaf stretch. A map here used to
     // forget a session as soon as one sweep found it busy/asleep, and the same stretch was reported again, sweep after sweep.
     for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
@@ -854,7 +860,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           cannotTold.add(sid);
           for (const r of Object.keys(st.rooms)) { try { broadcast('msg', postSys(r, tr('sys.wake.cannot', { name: st.name }), undefined, { type: 'wake', level: 'warn', agent: st.name })); emitRoom(r); } catch { /* room gone */ } }
         }
-      } else if (!st.ended && st.status !== 'busy') {
+      } else if (!st.ended && st.status !== 'busy' && !settling()) {
         // A tab that holds the chat and has no waiter cannot be woken from outside: its last turn died without reaching the
         // Stop hook (or without leaving a quota marker). The message would sit unread until the 10-minute sweeper; a message
         // the owner typed into a private chat must say so at once, once per deaf stretch (notes [72], [76]). A busy tab is
@@ -984,10 +990,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const text = `${delivery}\nYour editor tab is closed, so you were resumed in the background for this turn. Answer in the room with room_send. It is ${clock(Date.now(), { day: 'numeric', month: 'numeric' })} now (you have no clock in the background). ${perm.mode === 'bypass' ? 'You run with full permissions (the owner chose this in Settings > Permissions); work in your folder and report in the room.' : `You cannot ask the user for permissions now, so ${perm.allow.length ? `use only read tools and ${perm.allow.join(', ')}` : 'only read files'} and reply.`}`;
     let output = '';
     let failure = '';   // why the wake did not happen; the messages stay unread
+    let blockedKey = '';
     Promise.resolve()
       .then(async () => {
         const blocked = api ? '' : await blockedAccount(s, job);   // the owner's account usage means nothing to a provider
-        if (blocked) { failure = blocked; return; }
+        if (blocked) { failure = blocked; blockedKey = `${s.id}|${blockedResetAt.get(s.id)}`; return; }
         // #176: ended on purpose (a tab came up, Stop, account switch) while an await ran: never start the next claude on this chat
         const ended = () => { if (replacedByTab.has(s.id)) failure = 'ended by the hub'; return !!failure; };
         if (ended()) return;
@@ -1010,7 +1017,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           store.save();
           if (replaced) { /* ended on purpose: nothing failed */ }
           else if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
-          else { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
+          else {
+            if (!blockedTold.has(blockedKey)) tellRooms(tr('sys.wake.failed', { name: s.name, why: failure }));
+            if (blockedKey) blockedTold.add(blockedKey);
+            autoOpenTab(s.id);
+          }
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
@@ -1118,6 +1129,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       .map((p) => p.until));
     const until = Math.max(acc ? blockedUntil(acc) : 0, s.limited?.until ?? 0, pauseUntil);
     if (until <= Date.now()) return '';
+    blockedResetAt.set(s.id, until);
     // D2 on wake (2026-10-19: the user moved to the VS Code account, @-ed agents of the Antigravity account, and each one got
     // "cannot wake until 17:09"): with shared chats, another logged-in account with room left takes this turn, no question.
     let why = '';
@@ -2427,7 +2439,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       // #177: a second tab on the same chat: say it once (the hub never kills an editor's claude; the user closes one)
       if (tabCount(s.pids, isAlive) < 2) dupTold.delete(s.id);
-      else if (b.headless !== true && !dupTold.has(s.id)) {
+      else if (b.headless !== true && !dupTold.has(s.id) && !settling()) {
         dupTold.add(s.id);
         for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.duplicate', { name: s.name }))); } catch { /* room gone */ } }
       }

@@ -20,7 +20,7 @@ export async function makeHub(sweepMs?: number, revive: (job: ReviveJob) => unkn
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-hub-'));
   fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ language: 'vi' }));   // the tests read the hub's Vietnamese texts, whatever this machine's locale
   // listProcs is stubbed so tests never scan the real process table.
-  const hub: Hub = await startHub({ dir, port: 0, sweepMs, revive, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), usageFetch: null, versionFetch: null, usageHome: dir, openUrl: () => {}, ...extra });
+  const hub: Hub = await startHub({ dir, port: 0, sweepMs, revive, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no-legacy.key'), usageFetch: null, versionFetch: null, usageHome: dir, openUrl: () => {}, settleMs: 0, ...extra });
   async function call<T = any>(p: string, body?: unknown, init: RequestInit = {}): Promise<T> {
     const res = await fetch(hub.url + p, {
       method: body === undefined ? 'GET' : 'POST',
