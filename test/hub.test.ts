@@ -247,6 +247,25 @@ test('revive: a mentioned session that ended is resumed in the background, once'
   } finally { await h.hub.close(); }
 });
 
+test('#169 revive: a tab that comes up ends the background wake without a "could not wake" notice; the tab gets the messages back', async () => {
+  const { adoptBackground } = await import('../hub/revive.ts');
+  const h = await makeHub(undefined, (job: any) => new Promise<number>((r) => adoptBackground(job.id, { kill: () => r(1) } as any)));
+  try {
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT });
+    await h.call('/api/sessions/s1/rename', { name: 'fw' });
+    await h.call('/api/rooms/proj/join', { sessionId: 's1' });
+    await fetch(`${h.hub.url}/hooks/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 's1', cwd: 'C:/fw' }) });
+    await h.call('/api/rooms/proj/messages', { text: '@fw wake up please' });
+    await until(() => h.hub.store.pending('s1').messages.length === 0, 5000, 'the background wake to take the message');
+    await h.call('/api/sessions/register', { id: 's1', cwd: 'C:/fw', transcript: EXISTING_TRANSCRIPT });   // the editor tab opens
+    await until(() => h.hub.store.pending('s1').messages.some((m) => /wake up please/.test(m.text)), 5000, 'the message to be handed back to the tab');
+    const texts = (await h.call<any[]>('/api/rooms/proj/messages?after=0')).map((m) => m.text as string);
+    assert.ok(texts.some((t) => /hub đóng tiến trình nền/.test(t)), 'the tab took over');
+    assert.ok(!texts.some((t) => /không dậy được/.test(t)), 'nothing failed');
+    assert.equal(h.hub.store.session('s1').ended, false, 'the open tab is not marked closed');
+  } finally { await h.hub.close(); }
+});
+
 test('revive: a provider-only stale model is omitted and failures use this run output, not the shared log tail', async () => {
   const jobs: any[] = [];
   const warnings: string[] = [];

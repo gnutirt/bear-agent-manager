@@ -884,6 +884,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return after && after !== before ? `${kTokens(before)} → ${kTokens(after)}` : `${kTokens(before)} → ${tr('sys.size.unknown')}`;
   };
   const reviving = new Set<string>();
+  const replacedByTab = new Set<string>();   // background wakes the hub ended itself because the tab came up: their exit is not a failure
   // S2: a chat opened inside BAM is one long-lived claude (stream-json); its events go to the UI as SSE 'live'
   // S4: a tool call a live chat is not allowed yet waits here for the person's Allow / Deny (SSE 'permission' / 'permission-done'; no answer = deny)
   const permissions = new PermissionBroker({
@@ -985,12 +986,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
       .finally(() => {
+        const replaced = replacedByTab.delete(s.id);   // killed by tabCameUp: the tab reads the rewound messages, nothing failed
         if (failure) {
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
           if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
-          else { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
+          else if (!replaced) { tellRooms(tr('sys.wake.failed', { name: s.name, why: failure })); autoOpenTab(s.id); }
         }
         // Measured after the wake turn: its context is the compacted chat plus the new messages.
         if (compacted) tellRooms(tr('sys.wake.compacted', { name: s.name, size: compactSize(before, s.transcript) }));
@@ -1001,7 +1003,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // of leaving the message unread until the next one is posted. A tab agent has a waiter, and chaining a revive
         // there would put two claudes on one chat.
         const more = !!api && !failure && !waiters.has(s.id) && store.pending(s.id).wake;
-        if (!waiters.has(s.id) && !more) emitSession(store.markEnded(s.id));
+        if (!waiters.has(s.id) && !more && !replaced) emitSession(store.markEnded(s.id));
         const owed = compactAfter.get(s.id);
         if (owed) { compactAfter.delete(s.id); void compactTaskOwner(...owed); }
         if (more) setImmediate(() => {
@@ -1160,6 +1162,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** A tab of the member opened by hand while its background wake still runs: two claudes on one chat. The background one goes. */
   function tabCameUp(sid: string) {
     if (!stopRevive(sid) && !liveChat.stop(sid)) return;
+    if (reviving.has(sid)) replacedByTab.add(sid);
     const s = store.session(sid);
     for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, tr('sys.tab.replaced', { name: s.name }))); emitRoom(r); } catch { /* room gone */ } }
   }
