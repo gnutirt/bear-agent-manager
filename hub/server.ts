@@ -1279,6 +1279,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const status = (st: Status, activity: string) => emitSession(store.setStatus(id, st, activity));
     switch (event) {
       case 'prompt': {
+        clearAccountLimitsAfterSuccessfulSession(store.session(id));
         status('busy', 'thinking');
         mirrorUser(id, b.prompt);
         // The hook must never break a prompt: any failure here just means no reminder.
@@ -1313,7 +1314,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A turn woken by room messages that ended without any post to the room: the answer stayed in the agent's own
         // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
         const sess = store.session(id), w = relayWatch.get(sess.id);
-        clearAccountLimitsAfterSuccessfulStop(sess);
+        clearAccountLimitsAfterSuccessfulSession(sess);
         relayWatch.delete(sess.id);
         sess.apiRetry = undefined;
         mirrorAgent(sess, b);
@@ -1467,7 +1468,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     broadcast('claude-usage', { accounts: accounts.map(publicUsage) });
   }
   const wakeTimers = new Map<string, NodeJS.Timeout>();
-  function clearAccountLimitsAfterSuccessfulStop(session: Session): void {
+  function clearAccountLimitsAfterSuccessfulSession(session: Session): void {
     const accountDir = path.resolve(session.configDir || path.join(usageHome, '.claude')).toLowerCase();
     const accountSessions = Object.values(store.state.sessions).filter((candidate) =>
       path.resolve(candidate.configDir || path.join(usageHome, '.claude')).toLowerCase() === accountDir);

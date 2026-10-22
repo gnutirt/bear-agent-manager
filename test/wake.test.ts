@@ -244,6 +244,34 @@ test('successful Stop clears same-account session limits and wakes its pending m
   } finally { await h.hub.close(); }
 });
 
+test('a successful prompt clears stale limits only for sessions on the same account', async () => {
+  const h = await makeHub();
+  try {
+    for (const [id, configDir] of [['running', ''], ['stale', ''], ['other', path.join(h.dir, '.other-claude')]]) {
+      await h.call('/api/sessions/register', { id, cwd: h.dir, configDir });
+      await h.call('/api/rooms/proj/join', { sessionId: id });
+    }
+    h.hub.store.session('stale').limited = { until: Date.now() + 60_000, type: 'seven_day' };
+    h.hub.store.session('other').limited = { until: Date.now() + 60_000, type: 'five_hour' };
+    h.hub.store.state.wakeAt = {
+      's:stale': { at: Date.now() + 60_000, tries: 0 },
+      's:other': { at: Date.now() + 60_000, tries: 0 },
+    };
+    h.hub.store.save();
+
+    const response = await fetch(`${h.hub.url}/hooks/prompt`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'running', prompt: 'continue' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(h.hub.store.session('stale').limited, undefined);
+    assert.equal(h.hub.store.state.wakeAt?.['s:stale'], undefined);
+    assert.ok(h.hub.store.session('other').limited, 'a different account remains limited');
+    assert.ok(h.hub.store.state.wakeAt?.['s:other'], 'a different account keeps its wake booking');
+  } finally { await h.hub.close(); }
+});
+
 test('StopFailure server_error: retries the same chat with backoff, tells @you only after the last try (#159)', async () => {
   const h = await makeHub(undefined, undefined, { apiRetryMs: [20, 20] });
   const fail = (error: string) => fetch(`${h.hub.url}/hooks/stop-failure`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'rt1', error }) });
