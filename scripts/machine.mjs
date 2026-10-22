@@ -16,6 +16,87 @@ const EXPORT_FILES = ['CLAUDE.md', 'settings.json', 'keybindings.json'];
 export const NEVER = new Set(['.credentials.json', '.claude.json']);
 export const KEY_WARNING = 'Thư mục xuất có chứa key (providers.json, khối env của settings.json): đừng chia sẻ thư mục này.';
 
+// ---- MCP servers (#156): they live inside ~/.claude.json, a login file that never leaves the machine. Only the
+// mcpServers block is exported, and every value that looks like a secret becomes ${NAME} so the file can be copied
+// around; the new machine gets the real values from its own environment (Claude Code expands ${VAR} in configs).
+const SECRET_KEY = /(token|secret|passw|api[-_]?key|^key$|authorization|auth$|bearer|cookie|credential|private)/i;
+const SECRET_VALUE = /^(sk[-_]|ghp_|gho_|ghu_|ghs_|github_pat_|xox[baprs]-|AIza|eyJ|glpat-|npm_|shpat_|dckr_pat_)/;
+const NOT_SECRET_KEY = /(path|dir|home|url|uri|host|port|file|timeout|proxy|email|region|bucket|command)/i;
+const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
+
+/** Whether an env/header entry looks like a credential: by its name, its prefix, or a long random-looking value. */
+export function looksSecret(key, value) {
+  if (typeof value !== 'string' || !value || PLACEHOLDER.test(value)) return false;
+  if (SECRET_VALUE.test(value)) return true;
+  if (SECRET_KEY.test(String(key))) return true;
+  if (NOT_SECRET_KEY.test(String(key))) return false;
+  return value.length >= 24 && /^[A-Za-z0-9_\-+/=.]+$/.test(value) && /[0-9]/.test(value) && /[A-Za-z]/.test(value) && !/^[A-Za-z]:[\\/]/.test(value);
+}
+
+/** `${NAME}` for a header/env key: Authorization -> ${AUTHORIZATION}. */
+export const placeholderFor = (key) => `\${${String(key).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'SECRET'}}`;
+
+/** Only the mcpServers of ~/.claude.json, with secret-looking env/header values replaced by ${NAME}. */
+export function mcpServersForExport(home) {
+  const cfg = readJson(path.join(home, '.claude.json'), {});
+  const servers = cfg && typeof cfg === 'object' && cfg.mcpServers && typeof cfg.mcpServers === 'object' ? cfg.mcpServers : {};
+  const vars = new Set();
+  const out = {};
+  for (const [name, server] of Object.entries(servers)) {
+    if (!server || typeof server !== 'object' || Array.isArray(server)) continue;
+    const copyOf = JSON.parse(JSON.stringify(server));
+    for (const field of ['env', 'headers']) {
+      const box = copyOf[field];
+      if (!box || typeof box !== 'object' || Array.isArray(box)) continue;
+      for (const [k, v] of Object.entries(box)) {
+        if (!looksSecret(k, v)) continue;
+        const placeholder = placeholderFor(k);
+        box[k] = placeholder;
+        vars.add(placeholder.slice(2, -1));
+      }
+    }
+    // A token can also be typed as a CLI argument (`--api-key sk-…`) or sit in the query of the URL; both leak the
+    // same way, so they are replaced too, with a name the user can export before importing.
+    if (Array.isArray(copyOf.args)) {
+      copyOf.args = copyOf.args.map((a, i) => {
+        if (typeof a !== 'string' || !SECRET_VALUE.test(a)) return a;
+        const varName = `${String(name).toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_ARG_${i}`;
+        vars.add(varName);
+        return `\${${varName}}`;
+      });
+    }
+    // Plain string surgery, not URL(): the URL API would percent-encode the `${…}` placeholder and Claude Code would
+    // stop recognizing it.
+    if (typeof copyOf.url === 'string' && copyOf.url.includes('?')) {
+      copyOf.url = copyOf.url.replace(/([?&])([^=&]+)=([^&]*)/g, (whole, sep, k, v) => {
+        let key = k;
+        try { key = decodeURIComponent(k); } catch { /* keep as written */ }
+        let value = v;
+        try { value = decodeURIComponent(v); } catch { /* keep as written */ }
+        if (!looksSecret(key, value)) return whole;
+        const placeholder = placeholderFor(key);
+        vars.add(placeholder.slice(2, -1));
+        return `${sep}${k}=${placeholder}`;
+      });
+    }
+    out[name] = copyOf;
+  }
+  return { servers: out, vars: [...vars].sort() };
+}
+
+/** The `claude mcp add-json` calls that put an export's servers back, and the shell variables the user still has to set. */
+export function mcpImportPlan(dir, env = process.env) {
+  const file = path.join(dir, 'mcp.json');
+  if (!exists(file)) return { plan: [], vars: [], missing: [] };
+  const j = readJson(file, {});
+  const vars = Array.isArray(j.vars) ? j.vars.filter((v) => typeof v === 'string') : [];
+  const plan = Object.entries(j.servers ?? {}).map(([name, cfg]) => {
+    const argv = ['mcp', 'add-json', name, JSON.stringify(cfg), '--scope', 'user'];
+    return { name, argv, cmd: ['claude', ...argv].map((a) => (/[\s"'`$]/.test(a) ? `'${a}'` : a)).join(' ') };
+  });
+  return { plan, vars, missing: vars.filter((v) => !env[v]) };
+}
+
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const exists = (p) => { try { fs.lstatSync(p); return true; } catch { return false; } };
@@ -116,16 +197,24 @@ export function exportMachine({ home = os.homedir(), hubHome = path.join(home, '
   put(path.join('hub', 'settings.json'), path.join(hubHome, 'settings.json'));
   if (withKeys) put(path.join('hub', 'providers.json'), path.join(hubHome, 'providers.json'));
   const plugins = Object.fromEntries(Object.values(dirs(home)).filter(exists).map((d) => [path.basename(d), pluginsOf(d, home)]));
+  // mcp.json is not part of `items`: import must not copy it into a config dir, it is re-created with `claude mcp add-json`.
+  const mcp = mcpServersForExport(home);
+  const mcpNames = Object.keys(mcp.servers);
   fs.mkdirSync(out, { recursive: true });
+  if (mcpNames.length) fs.writeFileSync(path.join(out, 'mcp.json'), JSON.stringify({ vars: mcp.vars, servers: mcp.servers }, null, 2));
   fs.writeFileSync(path.join(out, 'plugins.json'), JSON.stringify(plugins, null, 2));
-  fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ exportedAt: new Date().toISOString(), from: os.hostname(), withKeys, items }, null, 2));
-  return { dir: out, items, warnings: withKeys ? [KEY_WARNING] : [], ...stats };
+  fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ exportedAt: new Date().toISOString(), from: os.hostname(), withKeys, items, mcp: { servers: mcpNames, vars: mcp.vars } }, null, 2));
+  const warnings = [
+    ...(withKeys ? [KEY_WARNING] : []),
+    ...(mcp.vars.length ? [`MCP: đặt biến môi trường ${mcp.vars.join(', ')} trên máy mới trước khi import, giá trị thật không nằm trong thư mục xuất.`] : []),
+  ];
+  return { dir: out, items, warnings, mcp: { servers: mcpNames, vars: mcp.vars }, ...stats };
 }
 
-export function importMachine({ home = os.homedir(), hubHome = path.join(home, '.bear-agent-manager'), dir, force = false } = {}) {
+export function importMachine({ home = os.homedir(), hubHome = path.join(home, '.bear-agent-manager'), dir, force = false, run, env = process.env } = {}) {
   const m = readJson(path.join(dir, 'manifest.json'), null);
   if (!m) throw new Error(`no manifest.json in ${dir}`);
-  const res = { copied: [], backedUp: [], skipped: [], plugins: [] };
+  const res = { copied: [], backedUp: [], skipped: [], plugins: [], mcp: [], mcpVars: [], mcpMissing: [] };
   for (const rel of m.items) {
     const [root, ...rest] = rel.split('/');
     const to = path.join(root === 'hub' ? hubHome : dirs(home).vs, ...rest);
@@ -142,6 +231,19 @@ export function importMachine({ home = os.homedir(), hubHome = path.join(home, '
   for (const [cfg, p] of Object.entries(readJson(path.join(dir, 'plugins.json'), {}))) {
     for (const [name, src] of Object.entries(p.marketplaces ?? {})) res.plugins.push({ configDir: cfg, cmd: `claude plugin marketplace add ${src}`, marketplace: name, localPath: /^(~|[A-Za-z]:|\/)/.test(String(src)) });
     for (const id of p.plugins ?? []) res.plugins.push({ configDir: cfg, cmd: `claude plugin install ${id}` });
+  }
+  // MCP servers are not files in the export: they are added back with the user's own claude CLI. Without a runner the
+  // caller gets the exact commands (that is what the skill shows), with one they are executed argv-only, never a shell.
+  const { plan, vars, missing } = mcpImportPlan(dir, env);
+  res.mcpVars = vars;
+  res.mcpMissing = missing;
+  for (const c of plan) {
+    const entry = { name: c.name, cmd: c.cmd, argv: c.argv, ran: false };
+    if (run) {
+      try { run('claude', c.argv); entry.ran = true; }
+      catch (e) { entry.error = String(e?.message ?? e); }
+    }
+    res.mcp.push(entry);
   }
   return res;
 }

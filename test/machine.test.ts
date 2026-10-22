@@ -41,6 +41,64 @@ test('export carries skills, agents, memory and settings, never logins; keys onl
   assert.deepEqual(k.warnings, [KEY_WARNING]);
 });
 
+test('#156: export keeps only mcpServers, turns secret env/header values into ${VAR}, never copies .claude.json', () => {
+  const { home, hub } = fakeHome();
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({
+    oauthAccount: { email: 'someone@example.com' },
+    projects: { 'D:/secret': { history: ['private'] } },
+    mcpServers: {
+      github: { command: 'npx', args: ['-y', 'server-github'], env: { GITHUB_TOKEN: 'ghp_SecretValue1234567890abcd', LOG_LEVEL: 'info' } },
+      notes: { type: 'http', url: 'https://notes.example/mcp', headers: { Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig', 'X-Trace': 'on' } },
+    },
+  }));
+  const out = path.join(home, 'out');
+  const r = exportMachine({ home, hubHome: hub, dir: out });
+  const file = path.join(out, 'mcp.json');
+  assert.ok(fs.existsSync(file), 'mcp.json written when the machine has servers');
+  const txt = fs.readFileSync(file, 'utf8');
+  for (const secret of ['ghp_SecretValue1234567890abcd', 'eyJhbGciOiJIUzI1NiJ9', 'someone@example.com', 'private']) assert.ok(!txt.includes(secret), `the export must not contain ${secret}`);
+  assert.ok(!fs.existsSync(path.join(out, 'claude', '.claude.json')), 'the login file itself is never copied');
+  const j = JSON.parse(txt);
+  assert.equal(j.servers.github.env.GITHUB_TOKEN, '${GITHUB_TOKEN}');
+  assert.equal(j.servers.github.env.LOG_LEVEL, 'info', 'a harmless value stays');
+  assert.equal(j.servers.notes.headers.Authorization, '${AUTHORIZATION}', 'a header value is redacted too');
+  assert.equal(j.servers.notes.headers['X-Trace'], 'on');
+  assert.deepEqual([...j.vars].sort(), ['AUTHORIZATION', 'GITHUB_TOKEN']);
+  assert.deepEqual(r.mcp.servers, ['github', 'notes']);
+  // A machine without servers gets no mcp.json at all, and import of that folder still works.
+  const bare = fakeHome();
+  exportMachine({ home: bare.home, hubHome: bare.hub, dir: path.join(bare.home, 'out') });
+  assert.ok(!fs.existsSync(path.join(bare.home, 'out', 'mcp.json')));
+});
+
+test('#156: import lists `claude mcp add-json … --scope user` per server and can run them argv-only', () => {
+  const { home, hub } = fakeHome();
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({
+    mcpServers: { github: { command: 'npx', args: ['-y', 'server-github'], env: { GITHUB_TOKEN: 'ghp_RealValueHere1234567890' } } },
+  }));
+  const out = path.join(home, 'out');
+  exportMachine({ home, hubHome: hub, dir: out });
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-mach-mcp-'));
+  const dry = importMachine({ home: target, hubHome: path.join(target, '.bear-agent-manager'), dir: out, env: {} });
+  assert.equal(dry.mcp.length, 1);
+  assert.equal(dry.mcp[0].ran, false, 'no runner: nothing is executed');
+  assert.match(dry.mcp[0].cmd, /^claude mcp add-json github /);
+  assert.match(dry.mcp[0].cmd, /--scope user$/);
+  assert.deepEqual(dry.mcpMissing, ['GITHUB_TOKEN'], 'the user is told which variable to set');
+
+  const seen: string[][] = [];
+  const run = (file: string, argv: string[]) => { seen.push([file, ...argv]); };
+  const real = importMachine({ home: target, hubHome: path.join(target, '.bear-agent-manager'), dir: out, run, env: { GITHUB_TOKEN: 'set' } });
+  assert.equal(real.mcp[0].ran, true);
+  assert.deepEqual(real.mcpMissing, []);
+  assert.deepEqual(seen[0].slice(0, 3), ['claude', 'mcp', 'add-json']);
+  assert.equal(seen[0][3], 'github');
+  assert.deepEqual(seen[0].slice(-2), ['--scope', 'user']);
+  const sent = seen[0][4];
+  assert.ok(!sent.includes('ghp_RealValueHere1234567890'), 'the command carries the placeholder, never the secret');
+  assert.equal(JSON.parse(sent).env.GITHUB_TOKEN, '${GITHUB_TOKEN}');
+});
+
 test('import never overwrites without --force, backs up with it, and lists plugin commands', () => {
   const { home, hub } = fakeHome();
   const out = path.join(home, 'out');
