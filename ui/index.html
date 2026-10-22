@@ -662,28 +662,12 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-sub{margin:2px 0 0;color:var(--muted);max-width:75ch;font-size:13px}
 .flow-stats{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted);align-items:center}
 .flow-stats b{color:var(--fg);font-variant-numeric:tabular-nums}
-.flow-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start;min-width:0}
-.flow-canvas,.flow-info,.flow-bar{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
-.flow-canvas{overflow:hidden;position:relative}
-.flow-svg{display:block;width:100%;height:calc(100vh - 250px);min-height:380px;cursor:default}
-.flow-svg.drag{cursor:grabbing}
-.flow-svg text,.flow-lanes-svg text{font-family:var(--font)}
-.flow-tier{fill:var(--tier);stroke:var(--line);stroke-width:1}
-.flow-tierlbl{fill:var(--muted);font:600 11px var(--font);text-anchor:middle}
-.flow-edge{fill:none;stroke-linecap:round}
-.flow-chip rect{fill:var(--chipbg);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px var(--font);text-anchor:middle}
-.flow-node{cursor:pointer;outline:none}.flow-node .card{fill:var(--card);stroke:var(--cardline);stroke-width:1.5}
-.flow-node:hover .card{stroke:var(--hi)}.flow-node.sel .card{stroke:var(--hi);stroke-width:3}.flow-node.st-ask .card{stroke:var(--bad);stroke-width:2.5}
-.flow-node:focus-visible .card{stroke:var(--hi);stroke-width:3;stroke-dasharray:4 3}
-.flow-node .nm{fill:var(--fg);font:700 12px var(--font);text-anchor:start}.flow-node .rl{fill:var(--muted);font:11px var(--font);text-anchor:start}.flow-node .last{fill:var(--muted);font:11px var(--font);text-anchor:start}
-.flow-node .ini{font:700 14px var(--font);text-anchor:middle}
-.flow-node .ping{fill:none;stroke:var(--ok);stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0}
-@media(prefers-reduced-motion:no-preference){.flow-node.st-done .ping{animation:flow-ping 1.4s ease-out infinite}.flow-node.st-ask .dot,.flow .livedot{animation:flow-throb .8s ease-in-out infinite}.flow-node.st-error .card{animation:flow-shake .35s linear 2}}
-@media(prefers-reduced-motion:reduce){.flow-node .flow-spin{display:none}}
+.flow-main{display:grid;gap:10px;min-width:0}
+.flow-info,.flow-bar{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
 @keyframes flow-ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.6);opacity:0}}@keyframes flow-throb{50%{transform:scale(1.5)}}@keyframes flow-shake{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 .flow-badge{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);border-radius:999px;padding:2px 12px;font-weight:600;background:var(--panel2)}
 .flow-badge.live{border-color:var(--ok);color:var(--ok)}.flow-badge.replay{border-color:var(--hi);color:var(--hi)}.flow .livedot{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
-.flow-info{padding:14px;display:grid;gap:8px;max-height:72vh;overflow:auto;align-content:start;font-size:13px}.flow-info li{padding:5px 0;border-top:1px solid var(--line)}.flow-info li:first-child{border-top:0}
+.flow-info{grid-auto-rows:max-content;position:absolute;z-index:3;top:10px;right:10px;bottom:10px;width:min(320px,calc(100% - 20px));padding:14px;display:grid;gap:8px;overflow:auto;align-content:start;font-size:13px;border-radius:14px;box-shadow:0 8px 28px rgba(27,34,51,.18);transform:translateX(calc(100% + 24px));visibility:hidden;transition:transform .3s ease,visibility 0s .3s}.flow-info.open{transform:none;visibility:visible;transition:transform .3s ease}.flow-info ul{max-height:none;overflow:visible}.flow .flow-x{position:absolute;top:8px;right:8px;border:0!important;background:none!important;font-size:18px;line-height:1;padding:2px 8px;color:var(--muted);min-width:0}.flow-info li{padding:5px 0;border-top:1px solid var(--line)}.flow-info li:first-child{border-top:0}
 .flow-info h2{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}.flow-info h3{font-size:12px;margin:2px 0 0;color:var(--muted);font-weight:600}
 .flow-info ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px;color:var(--muted);max-height:260px;overflow:auto}
 .flow-info li{overflow-wrap:anywhere}.flow-info li b{color:var(--fg);font-weight:600}.flow-info .sw{width:8px;height:8px;margin-right:5px}
@@ -705,16 +689,37 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow button{background:var(--panel2);border-color:var(--line)}.flow button:hover{border-color:var(--hi)}
 .flow button:focus-visible,.flow select:focus-visible,.flow input:focus-visible,.flow textarea:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 .flow button[aria-pressed=true]{background:var(--hi);color:var(--onhi);border-color:var(--hi);font-weight:600}
-.flow-tools{position:absolute;right:8px;bottom:8px;z-index:2;display:flex;gap:6px}.flow-tools button{padding:3px 10px}
-.flow-graph-wrap{min-width:0}.flow-tier-tools{display:flex;justify-content:flex-end;gap:8px;margin:0 0 6px}.flow-scroll-hint{display:none;color:var(--muted);font-size:11px}.flow-tier-tools button{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-weight:600;border-radius:8px}.flow-tier-tools button:not(:disabled):hover{border-color:var(--hi)}.flow-tier-tools button:disabled{opacity:.58;cursor:not-allowed}
+.flow-graph-wrap{min-width:0}.flow-tier-tools{display:flex;justify-content:flex-end;gap:8px;margin:0 0 6px}.flow-tier-tools button{padding:4px 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-weight:600;border-radius:8px}.flow-tier-tools button:not(:disabled):hover{border-color:var(--hi)}.flow-tier-tools button:disabled{opacity:.58;cursor:not-allowed}
 .flow-lanes-title{padding-left:2px;color:var(--muted);font-size:12px;font-weight:600}
 .flow-tier-select,.flow-task-form label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
 .flow-tier-select select,.flow-task-form input,.flow-task-form textarea{width:100%;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px}
 .flow-task-form{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .flow-task-form>div{display:flex;gap:6px;flex-wrap:wrap}.flow-task-form .btn{justify-self:start}
 .flow-empty{color:var(--muted);font-size:12.5px}
-@media(max-width:900px){.flow-main{grid-template-columns:minmax(0,1fr)}.flow-info{max-height:none;grid-row:2}}
-@media(max-width:650px){section.view:has(.flow){padding:16px 14px 40px}.flow{margin:-4px -6px 0;padding:12px 0 16px}.flow-stats{width:100%}.flow-main{gap:8px}.flow-info{grid-row:2}.flow-canvas{max-height:55vh}.flow-scroll-hint{display:block;margin-right:auto}.flow-ctl input[type=range]{flex-basis:100%;order:5}.flow-time{margin-left:auto}.flow-lanes-svg{min-width:960px}}
+.flow-stage{position:relative;height:calc(100vh - 270px);min-height:440px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.flow-cols{position:absolute;inset:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);column-gap:clamp(16px,2.6vw,56px);padding:0 clamp(12px,1.8vw,28px) 14px}
+.flow-tier{display:flex;flex-direction:column;min-width:0}
+.flow-tier h2{margin:0;padding:14px 0 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:6px;white-space:nowrap}
+.flow-tier h2 span{overflow:hidden;text-overflow:ellipsis}.flow-tier h2 em{font-style:normal;font-variant-numeric:tabular-nums;opacity:.7}
+.flow-lane{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;gap:10px;padding:12px 0;min-height:0}
+.flow-edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.flow-edge{fill:none;stroke-linecap:round}
+.flow-chip rect{fill:var(--panel);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px var(--font);text-anchor:middle}
+.flow .flow-card{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;max-width:210px;margin-inline:auto;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 10px 7px 8px;color:var(--fg);cursor:pointer;touch-action:manipulation;transition:border-color .2s,box-shadow .2s}
+.flow .flow-card:hover,.flow .flow-card:focus-visible{border-color:var(--hi);box-shadow:0 4px 14px rgba(27,34,51,.1)}
+.flow .flow-card[aria-pressed=true]{background:var(--panel);color:var(--fg);border-color:var(--hi);box-shadow:0 0 0 3px var(--panel2)}
+.flow-av{position:relative;flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px}
+.flow-av::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid transparent;pointer-events:none}
+.flow-card.st-working .flow-av::after{border-top-color:#f59e0b;border-right-color:#f59e0b}
+.flow-card.st-ask .flow-av::after{border-color:var(--bad)}.flow-card.st-done .flow-av::after{border-color:var(--ok)}.flow-card.st-error .flow-av::after{border-color:#f97316;border-style:dashed}
+.flow-tx{min-width:0;display:grid;gap:1px}.flow-nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flow-sb{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}.flow-sb span{overflow:hidden;text-overflow:ellipsis}.flow-dot{flex:none;width:7px;height:7px;border-radius:50%}
+.flow-ticker{display:flex;gap:8px;align-items:center;min-height:34px;overflow:hidden;font-size:12.5px;color:var(--muted)}.flow-ticker>b{flex:none;color:var(--fg);font-weight:600}
+.flow-tmsg{flex:1 1 0;min-width:0;display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}
+@media(prefers-reduced-motion:no-preference){.flow-card.st-working .flow-av::after{animation:flow-spin .9s linear infinite;animation-delay:var(--ph,0s)}.flow-card.st-ask .flow-av::after{animation:flow-pulse .9s ease-in-out infinite;animation-delay:var(--ph,0s)}.flow .livedot{animation:flow-throb .8s ease-in-out infinite}}
+@keyframes flow-spin{to{transform:rotate(360deg)}}@keyframes flow-pulse{50%{opacity:.3}}
+@media(max-width:760px){.flow-stage{height:auto;min-height:0;overflow:visible}.flow-cols{position:static;display:flex;flex-direction:column;padding:0 14px 8px}.flow-lane{flex-direction:row;flex-wrap:wrap;justify-content:flex-start;padding:10px 0}.flow .flow-card{width:calc(50% - 4px);max-width:none;margin:0}.flow-edges{display:none}.flow-info{position:fixed;left:8px;right:8px;bottom:8px;top:auto;width:auto;max-height:60vh;transform:translateY(calc(100% + 24px))}.flow-info.open{transform:none}.flow-ticker .flow-tmsg:nth-child(n+3){display:none}}
+@media(max-width:650px){section.view:has(.flow){padding:16px 14px 40px}.flow{margin:-4px -6px 0;padding:12px 0 16px}.flow-stats{width:100%}.flow-ctl input[type=range]{flex-basis:100%;order:5}.flow-time{margin-left:auto}.flow-lanes-svg{min-width:960px}}
 .vw{max-width:1600px}
 .vw h1{margin:0 0 4px;font-size:20px;font-weight:700}
 .vw .lede{margin:0 0 20px;color:var(--mute);font-size:13.5px;max-width:72ch}
@@ -2584,7 +2589,7 @@ function loadFlow() {
 function stopFlowReplay() { S.flowReplayAt = null; S.flowPlaying = false; }
 let flowFrame = 0;
 function queueFlow() {
-  if (flowFrame || S.tab !== 'flow' || document.hidden || S.flowDrag || S.flowPan) return;
+  if (flowFrame || S.tab !== 'flow' || document.hidden || S.flowDrag) return;
   flowFrame = requestAnimationFrame(() => { flowFrame = 0; renderFlow(); });
 }
 const FLOW_NODE_COLORS = ['#e8559a', '#6d5df0', '#0ea5e9', '#65a30d', '#e08a00', '#0d9488', '#3b82f6', '#a855f7', '#ea6a1f', '#06a6c4'];
@@ -2660,54 +2665,37 @@ function flowTierTitle(i, roomInfo, rows) {
   if (i === 1 && rows[i]?.some((n) => n.id === roomInfo?.lead)) return `${t('flow.tier', { n: i + 1 })}: ${t('flow.role.lead')}`;
   return t('flow.tier', { n: i + 1 });
 }
-function flowGeom(a, b) {
-  const A = a.node, B = b.node, back = B.tier < A.tier, off = back ? 10 : -10;
-  let x1, x2;
-  if (B.tier > A.tier) { x1 = A.x + 168; x2 = B.x; }
-  else if (B.tier < A.tier) { x1 = A.x; x2 = B.x + 168; }
-  else { x1 = A.x + 84; x2 = B.x + 84; }
-  const y1 = A.y + 29 + off, y2 = B.y + 29 + off, dx = (x2 - x1) / 2;
-  return { d: `M${x1} ${y1}C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 };
-}
-function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live) {
-  const nodeBy = new Map(nodes.map((n) => [n.id, n])), counts = new Map(), lastAt = new Map();
-  for (const e of events) if (e[0] <= cursor && e[0] > cursor - 90) {
-    const key = `${e[1]}>${e[2]}`, v = counts.get(key) || { from: e[1], to: e[2], count: 0, ts: 0 };
-    v.count++; v.ts = Math.max(v.ts, e[0]); counts.set(key, v); lastAt.set(key, v.ts);
-  }
-  const cols = L.rows.map((row, i) => `<g><rect class="flow-tier" x="${L.TX[i] + 4}" y="10" width="176" height="${L.H - 20}" rx="10"/><text class="flow-tierlbl" x="${L.TX[i] + 92}" y="28">${esc(flowTierTitle(i, roomInfo, L.rows))}</text></g>`).join('');
-  const edges = [...counts.values()].map((e) => {
-    const key = `${e.from}>${e.to}`, age = Math.max(0, cursor - e.ts), rel = selected && (e.from === selected || e.to === selected);
-    const heat = Math.max(0, 1 - age / 4), fade = Math.max(.3, 1 - age / 90), opacity = selected && !rel ? .08 : heat > .05 ? 1 : fade * .75;
-    const gm = flowGeom({ node: nodeBy.get(e.from) }, { node: nodeBy.get(e.to) });
-    const chip = age < 25 || rel;
-    return `<g class="flow-edge-group" style="opacity:${opacity.toFixed(2)}"><path class="flow-edge" data-edge="${esc(key)}" d="${gm.d}" stroke="${flowColor(e.from)}" stroke-width="${age < 4 ? 3.6 : 1.6 + Math.min(2, Math.log2(e.count + 1) * .45)}"/><g class="flow-chip" style="display:${chip ? '' : 'none'}"><rect x="${gm.mx - 11}" y="${gm.my - 8}" width="22" height="16" rx="8" stroke="${flowColor(e.from)}"/><text x="${gm.mx}" y="${gm.my + 4}">${e.count}</text></g></g>`;
-  }).join('');
-  const cards = nodes.map((n) => {
-    const status = flowStatusAt(n, events, cursor, live), selectedNode = selected === n.id;
-    const last = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => (m.fromId || 'you') === n.id && m.kind !== 'system' && m.kind !== 'mirror' && m.ts / 1000 <= cursor);
-    const latest = last ? flowShort(plain(last.text, 120), 15) : '';
-    const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })} · ${latest}`;
-    const dim = selected && n.id !== selected && ![...counts.values()].some((e) => (e.from === selected && e.to === n.id) || (e.to === selected && e.from === n.id));
-    const spin = status === 'working' ? `<path class="flow-spin" d="M43 8a20 20 0 0 1 9 9" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 29 29" to="360 29 29" dur=".9s" repeatCount="indefinite"/></path>` : '';
-    return `<g class="flow-node st-${status}${selectedNode ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" tabindex="0" role="button" aria-pressed="${String(selectedNode)}" aria-label="${esc(label)}" transform="translate(${n.x},${n.y})" style="opacity:${dim ? .3 : 1}"><title>${esc(label)}</title><rect class="card" x="0" y="0" width="168" height="58" rx="11"/><circle class="avatar" cx="29" cy="29" r="23" fill="${flowColor(n.id)}"/><text class="ini" x="29" y="34" fill="#fff">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</text><text class="nm" x="58" y="21">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 12))}</text><text class="rl" x="58" y="37">${esc(flowShort(n.role || t('flow.role.agent'), 18))}</text>${latest ? `<text class="last" x="58" y="51">${esc(latest)}</text>` : ''}<circle class="dot" cx="158" cy="10" r="5" fill="${FLOW_STATES[status][1]}"/><circle class="ping" cx="158" cy="10" r="5"/>${spin}</g>`;
-  }).join('');
-  return `${cols}<g class="flow-edges">${edges}</g><g class="flow-nodes">${cards}</g><g id="flowDots" class="flow-fx"></g>`;
-}
-function flowPaintDots(events, cursor, selected) {
-  const svg = $('view-flow').querySelector('#flowGraph'), layer = $('view-flow').querySelector('#flowDots');
-  if (!svg || !layer) return;
+function flowDrawEdges() {
+  const v = S.flowView, svg = $('view-flow').querySelector('#flowEdges');
+  if (!v || !svg || matchMedia('(max-width:760px)').matches) return;
+  const stage = svg.parentElement, s = stage.getBoundingClientRect(), focus = S.flowSelected || S.flowHover, pos = new Map(), nodeBy = new Map(v.nodes.map((n) => [n.id, n]));
+  stage.querySelectorAll('[data-flow-node]').forEach((c) => { const r = c.getBoundingClientRect(); pos.set(c.dataset.flowNode, { l: r.left - s.left, r: r.right - s.left, y: r.top + r.height / 2 - s.top }); });
+  const band = (stage.querySelector('.flow-lane')?.getBoundingClientRect().top ?? s.top) - s.top + 6, groups = new Map();
+  for (const e of v.events) if (e[0] <= v.cursor && e[0] > v.cursor - 90) { const k = `${e[1]}>${e[2]}`, g = groups.get(k) || { from: e[1], to: e[2], count: 0, ts: 0 }; g.count++; g.ts = Math.max(g.ts, e[0]); groups.set(k, g); }
+  let out = '';
+  groups.forEach((g, key) => {
+    const a = pos.get(g.from), b = pos.get(g.to), A = nodeBy.get(g.from), B = nodeBy.get(g.to); if (!a || !b || !A || !B) return;
+    const age = Math.max(0, v.cursor - g.ts), op = focus ? (g.from === focus || g.to === focus ? 1 : 0) : Math.max(0, 1 - age / 14); if (op < .05) return;
+    const fwd = B.tier > A.tier, same = B.tier === A.tier, d = fwd ? 1 : -1, x1 = same || fwd ? a.r : a.l, x2 = same ? b.r : fwd ? b.l : b.r;
+    let path, mx, my;
+    if (Math.abs(B.tier - A.tier) > 1) { const top = band + (A.tier + B.tier) % 3 * 5; path = `M${x1} ${a.y}C${x1 + d * 30} ${a.y} ${x1 + d * 30} ${top} ${x1 + d * 60} ${top}L${x2 - d * 60} ${top}C${x2 - d * 30} ${top} ${x2 - d * 30} ${b.y} ${x2} ${b.y}`; mx = (x1 + x2) / 2; my = top; }   // a skip-tier edge runs along the free band under the headers so it never crosses a card
+    else if (same) { path = `M${x1} ${a.y}C${x1 + 60} ${a.y} ${x2 + 60} ${b.y} ${x2} ${b.y}`; mx = x1 + 45; my = (a.y + b.y) / 2; }
+    else { const k = Math.max(30, Math.abs(x2 - x1) * .5) * d; path = `M${x1} ${a.y}C${x1 + k} ${a.y} ${x2 - k} ${b.y} ${x2} ${b.y}`; mx = (x1 + x2) / 2; my = (a.y + b.y) / 2; }
+    const color = flowColor(g.from);
+    out += `<g style="opacity:${op.toFixed(2)}"><path class="flow-edge" data-edge="${esc(key)}" d="${path}" stroke="${color}" stroke-width="${age < 4 ? 3.2 : 2}"/><g class="flow-chip"><rect x="${mx - 11}" y="${my - 8}" width="22" height="16" rx="8" stroke="${color}"/><text x="${mx}" y="${my + 4}">${g.count}</text></g></g>`;
+  });
+  svg.innerHTML = out;
   const dots = [];
-  for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i], age = cursor - e[0];
+  for (let j = v.events.length - 1; j >= 0; j--) {
+    const e = v.events[j], age = v.cursor - e[0];
     if (age < 0) continue;
     if (age > 1.6) break;
-    if (selected && e[1] !== selected && e[2] !== selected) continue;
+    if (focus && e[1] !== focus && e[2] !== focus) continue;
     const path = [...svg.querySelectorAll('.flow-edge')].find((x) => x.dataset.edge === `${e[1]}>${e[2]}`);
     if (!path) continue;
-    try { const p = path.getPointAtLength(path.getTotalLength() * Math.max(0, age / 1.6)); dots.push(`<circle cx="${p.x}" cy="${p.y}" r="6" fill="${flowColor(e[1])}" stroke="${e[3] === 'error' ? '#f97316' : '#fff'}" stroke-width="2"/>`); } catch {}
+    try { const p = path.getPointAtLength(path.getTotalLength() * age / 1.6); dots.push(`<circle cx="${p.x}" cy="${p.y}" r="6" fill="${flowColor(e[1])}" stroke="${e[3] === 'error' ? '#f97316' : 'var(--panel)'}" stroke-width="2"/>`); } catch {}
   }
-  layer.innerHTML = dots.join('');
+  svg.insertAdjacentHTML('beforeend', dots.join(''));
 }
 function flowLaneTimeline(nodes, events, cursor, selectedMsg, selected) {
   const W = 960, LX = 190, H = nodes.length * 22 + 26, start = cursor - 90;
@@ -2726,19 +2714,28 @@ function flowLaneTimeline(nodes, events, cursor, selectedMsg, selected) {
   return `<svg class="flow-lanes-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('flow.timelineAria'))}">${nodes.map((_, i) => `<rect x="0" y="${17 + i * 22}" width="${W}" height="22" fill="var(${i % 2 ? '--laneB' : '--laneA'})"/>`).join('')}${ticks}${rows}<line x1="${mark}" x2="${mark}" y1="14" y2="${H}" stroke="var(--fg)" stroke-width="2"/></svg>`;
 }
 function flowPulse(m) { if (!m || m.kind === 'system' || m.kind === 'mirror') return; }
-function flowPlayPulses() { flowPaintDots(flowEvents(S.flowMessages[S.flowRoom] || [], flowNodes(room(S.flowRoom), S.flowMessages[S.flowRoom] || [])), (S.flowReplayAt ?? Date.now()) / 1000, S.flowSelected); }
+function flowPlayPulses() { flowDrawEdges(); }
 function renderFlow() {
   const el = $('view-flow');
-  if (!el || S.tab !== 'flow') return;
+  if (!el || S.tab !== 'flow' || S.flowDrag?.moved) return;
   const r = flowRoomName();
-  const graphScrollLeft = S.flowRoom === r ? el.querySelector('#flowCanvas')?.scrollLeft || 0 : 0;
   if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; return; }
   S.flowRoom = r;
   const now = flowNow(), live = S.flowReplayAt === null, cursor = (S.flowReplayAt ?? now) / 1000;
   const roomInfo = room(r), messages = (S.flowMessages[r] || []).filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
   const nodes = flowNodes(roomInfo, messages), tiers = S.settings?.flowTiers?.[r] || {}, L = flowTierLayout(nodes, tiers), events = flowEvents(messages, nodes);
   S.flowPos = L.pos; S.flowLayout = L;
-  const world = flowTierWorld(L, nodes, events, cursor, S.flowSelected, roomInfo, live);
+  const related = new Set();
+  if (S.flowSelected) for (const e of events) if (e[0] <= cursor && e[0] > cursor - 90 && (e[1] === S.flowSelected || e[2] === S.flowSelected)) { related.add(e[1]); related.add(e[2]); }
+  const phase = Date.now() % 900;
+  const card = (n) => {
+    const status = flowStatusAt(n, events, cursor, live), isSel = S.flowSelected === n.id, dim = S.flowSelected && !isSel && !related.has(n.id);
+    const last = [...(S.flowMessages[S.flowRoom] || [])].reverse().find((m) => (m.fromId || 'you') === n.id && m.kind !== 'system' && m.kind !== 'mirror' && m.ts / 1000 <= cursor);
+    const label = `${n.name} · ${t(FLOW_STATES[status][0])} · ${t('flow.tier', { n: n.tier + 1 })}${last ? ' · ' + flowShort(plain(last.text, 120), 60) : ''}`;
+    const sub = status === 'working' && n.session?.activity ? n.session.activity : t(FLOW_STATES[status][0]);
+    return `<button type="button" class="flow-card st-${status}${isSel ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" aria-pressed="${String(isSel)}" aria-label="${esc(label)}" title="${esc(label)}" style="--ph:-${phase}ms${dim ? ';opacity:.35' : ''}"><span class="flow-av" style="background:${flowColor(n.id)}">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</span><span class="flow-tx"><span class="flow-nm">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 18))}</span><span class="flow-sb"><i class="flow-dot" style="background:${FLOW_STATES[status][1]}"></i><span>${esc(flowShort(sub, 24))}</span></span></span></button>`;
+  };
+  const tierCols = L.rows.map((row, i) => `<section class="flow-tier" data-flow-tier="${i + 1}"><h2><span title="${esc(flowTierTitle(i, roomInfo, L.rows))}">${esc(flowTierTitle(i, roomInfo, L.rows))}</span><em>${row.length}</em></h2><div class="flow-lane">${row.map(card).join('')}</div></section>`).join('');
   const waiting = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'ask');
   const busy = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'working').length;
   const rate = events.filter((e) => e[0] > cursor - 60 && e[0] <= cursor).length;
@@ -2761,13 +2758,11 @@ function renderFlow() {
     : `<h2>${t('flow.justHappened')}</h2><ul class="flow-feed">${events.slice(-8).reverse().map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b> → ${esc(nodeBy.get(e[2])?.name || '')}: ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul>`;
   const themeLabel = t(`flow.theme${S.flowTheme[0].toUpperCase()}${S.flowTheme.slice(1)}`);
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
-  const graphW = Math.max(760, L.W), lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
+  const lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
   const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
-  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><span class="flow-scroll-hint">${t('flow.scrollHint')}</span><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMidYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
-  const graph = el.querySelector('#flowGraph');
-  if (window.matchMedia('(max-width:650px)').matches) graph.style.width = `max(100%, ${graphW}px)`;
-  el.querySelector('#flowCanvas').scrollLeft = graphScrollLeft;
-  flowPaintDots(events, cursor, S.flowSelected);
+  el.innerHTML = `<div class="flow"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}${askBox}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-stage" id="flowStage"><svg class="flow-edges" id="flowEdges" aria-hidden="true"></svg><div class="flow-cols" id="flowCols" role="group" aria-label="${esc(t('flow.graphAria'))}">${tierCols}</div><aside class="flow-info${S.flowSelected ? ' open' : ''}" id="flowInfo" aria-live="polite"><button type="button" class="flow-x" data-flow-close aria-label="${esc(t('common.close'))}">×</button>${info}</aside></div><div class="flow-ticker"><b>${t('flow.justHappened')}</b>${events.slice(-3).reverse().map((e) => `<div class="flow-tmsg"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b>→ ${esc(nodeBy.get(e[2])?.name || '')} ${esc(flowShort(e[4], 70))}</div>`).join('') || `<span>${t('flow.noMessages')}</span>`}</div></div></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  S.flowView = { nodes, events, cursor };
+  flowDrawEdges();
 }
 function flowSetReplay(ts) {
   const now = Date.now(), bounded = Math.max(now - 300000, Math.min(now, ts));
@@ -2789,15 +2784,6 @@ function saveFlowTier(agent, tier) {
     .catch((err) => toast(err.message));
 }
 function nodeNameForId(id) { return id && id !== 'you' ? S.sessions[id]?.name || (S.flowMessages[S.flowRoom] || []).find((m) => m.fromId === id)?.from || '' : ''; }
-function flowScreenPoint(svg, x, y, target) {
-  const p = svg.createSVGPoint(); p.x = x; p.y = y;
-  return p.matrixTransform((target || svg).getScreenCTM().inverse());
-}
-function flowZoomBy(factor, cx, cy) {
-  const z = S.flowZoom, next = Math.max(.6, Math.min(2.5, z.k * factor));
-  if (cx != null && cy != null) { z.x = cx - (cx - z.x) * next / z.k; z.y = cy - (cy - z.y) * next / z.k; }
-  z.k = next; renderFlow();
-}
 $('view-flow').addEventListener('change', (e) => {
   if (e.target.id === 'flowRoom') flowSelectRoom(e.target.value);
   if (e.target.id === 'flowSeek') { const value = Number(e.target.value); flowSetReplay(value >= 299500 ? Date.now() : Date.now() - 300000 + value); renderFlow(); }
@@ -2812,8 +2798,7 @@ $('view-flow').addEventListener('click', (e) => {
   if (e.target.closest('[data-flow-add-tier]')) { if (S.flowSelected && S.flowSelected !== 'you') saveFlowTier(nodeNameForId(S.flowSelected), S.flowLayout.tierCount + 1); return; }
   if (e.target.closest('#flowLive')) { S.flowReplayAt = null; S.flowPlaying = false; S.flowSelectedMsg = null; renderFlow(); return; }
   if (e.target.closest('#flowPlay')) { S.flowPlaying = !S.flowPlaying; renderFlow(); return; }
-  const zoom = e.target.closest('[data-flow-zoom]');
-  if (zoom) { if (zoom.dataset.flowZoom === 'reset') { S.flowZoom = { k: 1, x: 0, y: 0 }; renderFlow(); } else flowZoomBy(zoom.dataset.flowZoom === 'in' ? 1.2 : .83); return; }
+  if (e.target.closest('[data-flow-close]')) { S.flowSelected = null; renderFlow(); return; }
   if (e.target.closest('[data-flow-task-open]')) { S.flowTaskForm = true; S.flowTaskDraft = { title: '', detail: '' }; renderFlow(); $('view-flow').querySelector('#flowTaskForm input[name=title]')?.focus(); return; }
   if (e.target.closest('[data-flow-task-cancel]')) { S.flowTaskForm = false; S.flowTaskDraft = null; renderFlow(); return; }
   const permission = e.target.closest('[data-flow-permission]');
@@ -2826,6 +2811,7 @@ $('view-flow').addEventListener('click', (e) => {
   if (lane) { flowJumpLane(lane.dataset.flowLane); return; }
   const node = e.target.closest('[data-flow-node]');
   if (node) { if (S.flowSuppressClick === node.dataset.flowNode) { S.flowSuppressClick = null; return; } S.flowSelected = node.dataset.flowNode; renderFlow(); return; }
+  if (e.target.closest('.flow-stage') && !e.target.closest('.flow-info') && S.flowSelected) { S.flowSelected = null; renderFlow(); return; }
   const chat = e.target.closest('[data-flow-chat]');
   if (chat) api(`/api/rooms/dm/${enc(chat.dataset.flowChat)}`, {}).then((d) => { S.rooms = [...S.rooms.filter((x) => x.name !== d.name), d].sort((a, b) => a.name.localeCompare(b.name)); select(d.name); showTab('dm'); }, (err) => toast(err.message));
 });
@@ -2840,42 +2826,25 @@ $('view-flow').addEventListener('submit', (e) => {
   }).catch((err) => toast(err.message || t('flow.taskError')));
 });
 $('view-flow').addEventListener('pointerdown', (e) => {
-  const svg = e.target.closest('#flowGraph'); if (!svg || e.button !== 0) return;
   const node = e.target.closest('[data-flow-tier-node]');
-  if (node && node.dataset.flowTierNode !== 'you') {
-    const world = svg.querySelector('#flowWorld'), p = flowScreenPoint(svg, e.clientX, e.clientY, world);
-    S.flowDrag = { id: node.dataset.flowTierNode, node, x: Number(node.getAttribute('transform').match(/translate\(([-.\d]+)/)?.[1]) || 0, y: Number(node.getAttribute('transform').match(/,\s*([-.\d]+)/)?.[1]) || Number(node.dataset.flowY) || 0, sx: p.x, sy: p.y, px: e.clientX, py: e.clientY, moved: false };
-    try { node.setPointerCapture(e.pointerId); } catch {}
-    return;
-  }
-  if (node) return;
-  S.flowPan = { svg, x: e.clientX, y: e.clientY, ox: S.flowZoom.x, oy: S.flowZoom.y, moved: false };
-  try { svg.setPointerCapture(e.pointerId); } catch {}
+  if (!node || e.button !== 0 || node.dataset.flowTierNode === 'you') return;
+  S.flowDrag = { id: node.dataset.flowTierNode, node, px: e.clientX, py: e.clientY, moved: false };
 });
 $('view-flow').addEventListener('pointermove', (e) => {
-  if (S.flowDrag) {
-    const d = S.flowDrag; if (Math.hypot(e.clientX - d.px, e.clientY - d.py) < 5) return;
-    d.moved = true; const p = flowScreenPoint($('view-flow').querySelector('#flowGraph'), e.clientX, e.clientY, $('view-flow').querySelector('#flowWorld'));
-    d.node.setAttribute('transform', `translate(${d.x + p.x - d.sx},${d.y + p.y - d.sy})`); return;
-  }
-  if (S.flowPan) {
-    const p = S.flowPan; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < 4) return; p.moved = true;
-  }
+  const d = S.flowDrag; if (!d || Math.hypot(e.clientX - d.px, e.clientY - d.py) < 6) return;
+  if (!d.moved) { d.moved = true; d.node.style.pointerEvents = 'none'; d.node.style.zIndex = 5; }
+  d.node.style.transform = `translate(${e.clientX - d.px}px,${e.clientY - d.py}px)`;
+  $('view-flow').querySelectorAll('.flow-tier').forEach((x) => { const r = x.getBoundingClientRect(); x.classList.toggle('drop', e.clientX >= r.left && e.clientX <= r.right); });
 });
 $('view-flow').addEventListener('pointerup', (e) => {
-  if (S.flowDrag) {
-    const d = S.flowDrag; S.flowDrag = null;
-    if (d.moved) {
-      const p = flowScreenPoint($('view-flow').querySelector('#flowGraph'), e.clientX, e.clientY, $('view-flow').querySelector('#flowWorld'));
-      const L = S.flowLayout, index = L.TX.reduce((best, x, i) => Math.abs(p.x - x - 92) < best.distance ? { index: i, distance: Math.abs(p.x - x - 92) } : best, { index: 0, distance: Infinity }).index;
-      const agent = nodeNameForId(d.id); S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
-      if (agent) saveFlowTier(agent, index + 1); else renderFlow();
-    }
-    return;
-  }
-  if (S.flowPan) { const p = S.flowPan; S.flowPan = null; if (!p.moved && e.target.closest('#flowGraph')) { S.flowSelected = null; renderFlow(); } else if (p.moved) renderFlow(); }
+  const d = S.flowDrag; S.flowDrag = null; if (!d?.moved) return;
+  const tier = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-flow-tier]'), agent = nodeNameForId(d.id);
+  S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
+  if (tier && agent) saveFlowTier(agent, Number(tier.dataset.flowTier)); else renderFlow();
 });
-$('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; S.flowPan = null; renderFlow(); });
+$('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; renderFlow(); });
+$('view-flow').addEventListener('mouseover', (e) => { const id = e.target.closest('.flow-card')?.dataset.flowNode || null; if (id !== (S.flowHover || null)) { S.flowHover = id; flowDrawEdges(); } });
+$('view-flow').addEventListener('mouseleave', () => { if (S.flowHover) { S.flowHover = null; flowDrawEdges(); } });
 $('view-flow').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   const node = e.target.closest('[data-flow-node]');

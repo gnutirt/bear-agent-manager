@@ -281,7 +281,7 @@ test('Office tab assets are served locally and without a token', async () => {
   } finally { await hub.close(); }
 });
 
-test('Flow tab ports the tiered room graph, replay controls, task actions and responsive pan/zoom', async () => {
+test('Flow tab ports the tiered room graph, replay controls, task actions and fixed 5-tier cards', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -297,7 +297,6 @@ test('Flow tab ports the tiered room graph, replay controls, task actions and re
       "es.addEventListener('tasks'",
       "es.addEventListener('session'",
       'function flowTierLayout(nodes, tiers)',
-      'function flowTierWorld(L, nodes, events, cursor, selected, roomInfo, live)',
       'function flowLaneTimeline(nodes, events, cursor, selectedMsg, selected)',
       'data-flow-tier-node=',
       'data-flow-tier-select',
@@ -311,27 +310,19 @@ test('Flow tab ports the tiered room graph, replay controls, task actions and re
       'api(`/api/rooms/${enc(S.flowRoom)}/tasks`, { title, detail, owner: agent })',
       'role="button"',
       'data-flow-message=',
-      'circle class="avatar"',
-      'width="168" height="58" rx="11"',
-      'text class="last"',
-      '.flow-node .rl{fill:var(--muted);font:11px',
-      '.flow-node .last{fill:var(--muted);font:11px',
-      'flowShort(n.role || t(\'flow.role.agent\'), 18)',
-      '${latest ? `<text class="last"',
       '<div class="flow-graph-wrap"><div class="flow-tier-tools">',
       '<div class="flow-lanes-title">${esc(t(\'flow.timelineWindow\'))}</div>${lanes}',
       'flowColorOrder = new Map(nodes.map((n, i) => [n.id, i]))',
-      'r="23" fill="${flowColor(n.id)}"',
-      'fill="#fff"',
-      'class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside>',
-      '.flow-tools{position:absolute;right:8px;bottom:8px;z-index:2',
       '.flow-tier-tools button{padding:4px 12px;border:1px solid var(--line);background:var(--panel)',
       '>+ ${t(\'flow.addTier\')}</button>',
       '.tdot.st-assigned{background:#3B82F6}',
       'function flowHash(value)',
-      '.flow-svg{display:block;width:100%;height:calc(100vh - 250px)',
-      'data-edge="${esc(key)}" d="${gm.d}" stroke="${flowColor(e.from)}"',
-      'function flowScreenPoint',
+      'function flowDrawEdges()',
+      'class="flow-stage" id="flowStage"',
+      'class="flow-edges" id="flowEdges"',
+      'class="flow-cols" id="flowCols"',
+      'data-flow-close',
+      '.flow-stage{position:relative;height:calc(100vh - 270px)',
       'prefers-reduced-motion'
     ]) assert.ok(html.includes(s), `missing Flow behavior: ${s}`);
     assert.ok(!html.includes('flowSprite') && !html.includes('flow.office'), 'the unapproved pixel-office view must be removed');
