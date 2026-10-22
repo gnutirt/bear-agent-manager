@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { COMPACT_ENV } from './apiagent.ts';
 
 export type ReviveJob = { id: string; cwd: string; configDir?: string; text: string; logDir: string; tools?: string[]; model?: string; idleMin?: number; perm?: Perm; env?: Record<string, string>; args?: string[]; onOutput?: (chunk: string) => void };   // env / args: extra environment and claude arguments (a 'claude-api' agent's provider and lean mode)
 /** What a hub-started claude may do (settings.permissions of that agent). */
@@ -114,8 +115,12 @@ const shellArg = (a: string) => (process.platform === 'win32' && /[\s()]/.test(a
 function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number, perm?: Perm, model?: string, idleMin?: number): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   if (job.configDir) env.CLAUDE_CONFIG_DIR = job.configDir;
-  if (job.env) Object.assign(env, job.env);
-  else {
+  if (job.env) {
+    Object.assign(env, job.env);
+    // #187: a 'claude-api' job (it is the only one that carries env) gets the auto-compact window too, because
+    // `--bare` skips ~/.claude/settings.json; an operator-set value in process.env or job.env still wins.
+    for (const [key, value] of Object.entries(COMPACT_ENV)) if (!env[key]) env[key] = value;
+  } else {
     delete env.ANTHROPIC_MODEL;
     delete env.ANTHROPIC_BASE_URL;
     delete env.ANTHROPIC_AUTH_TOKEN;

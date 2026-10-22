@@ -53,13 +53,22 @@ const SECRET_READS = ['**/.env*', '**/*.pem', '**/*.key', '**/*.pfx', '**/*.p12'
   '**/credentials*.json', '**/secrets.*', '**/*token*', '**/providers.json', '**/.bear-agent-manager/**', '**/.claude/**'].map((g) => `Read(${g})`);
 const NO_WRITE = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
 
+/**
+ * #187: `--bare` skips ~/.claude/settings.json, so the owner's env never reaches a 'claude-api' chat and the hub's own
+ * compact was the only guard (context 142k → 156k). Claude Code compacts at 80% of this window and its idle job uses
+ * the second value; a value the operator already set wins — the hub only fills in what is missing.
+ */
+export const COMPACT_ENV: Record<string, string> = { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000', CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '150000' };
+export const compactEnv = (base: Record<string, string | undefined> = process.env): Record<string, string> =>
+  Object.fromEntries(Object.entries(COMPACT_ENV).filter(([key]) => !base[key]));
+
 /** Environment of the claude process: the provider's endpoint and credential, never the owner's account. The key stays in this object (never logged). */
-export function apiEnv(p: AgentProfile, prov: Provider): Record<string, string> {
+export function apiEnv(p: AgentProfile, prov: Provider, base: Record<string, string | undefined> = process.env): Record<string, string> {
   const model = p.model || prov.models.read[0] || '';
   if (!model) throw new Error(`provider ${prov.id} has no model: set one on the profile or in providers.json`);
   const cred = prov.tier === 'local' && !prov.key ? 'ollama' : prov.key;
   if (!cred) throw new Error(`provider ${prov.id} has no key`);
-  const env: Record<string, string> = { ANTHROPIC_BASE_URL: prov.baseUrl, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  const env: Record<string, string> = { ...compactEnv(base), ANTHROPIC_BASE_URL: prov.baseUrl, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     ANTHROPIC_MODEL: model, ANTHROPIC_DEFAULT_HAIKU_MODEL: model, ANTHROPIC_DEFAULT_SONNET_MODEL: model, ANTHROPIC_DEFAULT_OPUS_MODEL: model };
   if (prov.auth === 'auth-token') { env.ANTHROPIC_AUTH_TOKEN = cred; env.ANTHROPIC_API_KEY = ''; }
   else { env.ANTHROPIC_API_KEY = cred; env.ANTHROPIC_AUTH_TOKEN = ''; }

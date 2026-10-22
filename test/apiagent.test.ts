@@ -7,7 +7,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { makeHub, until } from './helpers.ts';
-import { apiEnv, apiPerm, claudeCliModel, findTranscript, GUARD_TOOL, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, pathGuard, projectSlug } from '../hub/apiagent.ts';
+import { apiEnv, apiPerm, claudeCliModel, compactEnv, findTranscript, GUARD_TOOL, isQuotaError, LEAN_TOOL, leanArgs, leanMcpConfig, pathGuard, projectSlug } from '../hub/apiagent.ts';
 import { claudeArgs, killTree } from '../hub/revive.ts';
 import { agentArgs } from '../hub/agents.ts';
 import type { AgentProfile } from '../hub/settings.ts';
@@ -102,6 +102,16 @@ test('apiEnv: endpoint + credential of the provider, a local host needs no real 
   assert.equal(t.ANTHROPIC_MODEL, 'x/y:1');
   assert.throws(() => apiEnv(prof(), prov({ tier: 'free', key: '' })), /no key/);
   assert.throws(() => apiEnv(prof(), prov({ models: { read: [], edit: [] } })), /no model/);
+});
+
+test('#187: a claude-api chat carries the auto-compact window and idle threshold; an operator value wins', () => {
+  const e = apiEnv(prof(), prov(), {});
+  assert.equal(e.CLAUDE_CODE_AUTO_COMPACT_WINDOW, '300000', 'the hub compacts at 80% of this window');
+  assert.equal(e.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS, '150000');
+  const mine = apiEnv(prof(), prov(), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '999000' });
+  assert.equal(mine.CLAUDE_CODE_AUTO_COMPACT_WINDOW, undefined, 'a value the operator already set is never overridden');
+  assert.equal(mine.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS, '150000', 'the other one is still filled in');
+  assert.deepEqual(compactEnv({ CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS: '1' }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000' });
 });
 
 test('claudeCliModel: provider-only model is omitted when the session has no provider profile', () => {

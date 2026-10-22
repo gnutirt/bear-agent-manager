@@ -6,6 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnAgent } from '../hub/agents.ts';
 import { adoptBackground, countBackground, isBackground, spawnCompact, spawnRevive, stopRevive } from '../hub/revive.ts';
+import { apiEnv } from '../hub/apiagent.ts';
+import type { AgentProfile } from '../hub/settings.ts';
+import type { Provider } from '../hub/providers.ts';
 
 test('stopping a revive removes only its matching background process', () => {
   let firstKills = 0;
@@ -26,6 +29,55 @@ test('stopping a revive removes only its matching background process', () => {
     assert.equal(stopRevive('revive-test-one'), false);
   } finally {
     stopRevive('revive-test-two');
+  }
+});
+
+test('#187: a claude-api agent gets the auto-compact window and idle threshold, and an operator value wins', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-compact-env-'));
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin);
+  const command = path.join(bin, process.platform === 'win32' ? 'claude.cmd' : 'claude');
+  fs.writeFileSync(command, process.platform === 'win32'
+    ? '@echo off\r\necho WINDOW=%CLAUDE_CODE_AUTO_COMPACT_WINDOW%\r\necho IDLE=%CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS%\r\nexit /b 0\r\n'
+    : '#!/bin/sh\nprintf "WINDOW=%s\\n" "$CLAUDE_CODE_AUTO_COMPACT_WINDOW"\nprintf "IDLE=%s\\n" "$CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS"\nexit 0\n');
+  if (process.platform !== 'win32') fs.chmodSync(command, 0o755);
+  const oldPath = process.env.PATH;
+  const old = { window: process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW, idle: process.env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS };
+  delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+  delete process.env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS;
+  process.env.PATH = `${bin}${path.delimiter}${oldPath ?? ''}`;
+  try {
+    const profile = { model: 'deepseek-flash' } as unknown as AgentProfile;
+    const provider: Provider = { id: 'deepseek', label: 'DeepSeek', tier: 'paid', enabled: true, baseUrl: 'https://provider.example', auth: 'api-key', key: 'test-key', models: { read: ['deepseek-flash'], edit: [] } };
+    const env = apiEnv(profile, provider);
+    assert.equal(env.CLAUDE_CODE_AUTO_COMPACT_WINDOW, '300000');
+    assert.equal(env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS, '150000', 'the spawn env carries both values');
+
+    let out = '';
+    assert.equal(await spawnRevive({ id: 'compact-env', cwd: dir, text: 'synthetic prompt', logDir: dir, env, onOutput: (chunk) => { out += chunk; } }), 0);
+    assert.match(out, /WINDOW=300000/);
+    assert.match(out, /IDLE=150000/, 'the revive env carries them too, even for a job that names only the provider');
+
+    let fallback = '';
+    assert.equal(await spawnRevive({ id: 'compact-env-plain', cwd: dir, text: 'synthetic prompt', logDir: dir, env: { ANTHROPIC_MODEL: 'deepseek-flash' }, onOutput: (chunk) => { fallback += chunk; } }), 0);
+    assert.match(fallback, /WINDOW=300000/);
+    assert.match(fallback, /IDLE=150000/, 'revive.ts fills them for a claude-api job that does not name them');
+
+    const operator = apiEnv(profile, provider, { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '999000' });
+    assert.equal(operator.CLAUDE_CODE_AUTO_COMPACT_WINDOW, undefined, 'a value already in the environment is not overridden');
+    assert.equal(operator.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS, '150000');
+    let out2 = '';
+    assert.equal(await spawnRevive({ id: 'compact-env-set', cwd: dir, text: 'synthetic prompt', logDir: dir, env: { ...operator, CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'from-settings' }, onOutput: (chunk) => { out2 += chunk; } }), 0);
+    assert.match(out2, /WINDOW=from-settings/, 'an explicit value in the job env still wins');
+    assert.match(out2, /IDLE=150000/);
+  } finally {
+    if (oldPath === undefined) delete process.env.PATH;
+    else process.env.PATH = oldPath;
+    if (old.window === undefined) delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+    else process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = old.window;
+    if (old.idle === undefined) delete process.env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS;
+    else process.env.CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS = old.idle;
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
