@@ -72,7 +72,7 @@ export const vi: Record<string, string> = {
   'office.stat.working': 'Đang làm',
   'office.stat.ask': 'Chờ bạn',
   'office.stat.done': 'Xong ✓',
-  'office.stat.idle': 'Đang nghỉ',
+  'office.stat.idle': 'Đang rảnh',
   'office.stat.error': 'Hết hạn mức',
   'office.stat.meet': 'Đang họp',
   'office.stat.sleep': 'Hết hạn mức',

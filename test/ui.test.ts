@@ -654,3 +654,15 @@ test('Office #186: beds sit in the visible front patch, a cross-day wake time sh
   assert.equal(vi['office.pill.sleep'], 'Ngủ');
   assert.equal(en['office.pill.sleep'], 'Sleep');
 });
+
+/* ---------- Office #188: the idle chip uses the same word as the free pill ---------- */
+
+test('Office #188: the idle chip reads "Đang rảnh" / "Free", matching the free pill', async () => {
+  const src = await readOffice();
+  const { vi } = await import('../shared/i18n/vi.ts');
+  const { en } = await import('../shared/i18n/en.ts');
+  assert.ok(src.includes("idle: ['stat.idle', '#94a3b8']"), 'the chip label still comes from the idle state key');
+  assert.equal(vi['office.stat.idle'], 'Đang rảnh');
+  assert.equal(en['office.stat.idle'], 'Free');
+  assert.equal(vi['office.pill.idle'], 'Rảnh', 'chip and pill agree in Vietnamese');
+});
