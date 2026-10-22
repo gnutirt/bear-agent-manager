@@ -566,3 +566,46 @@ test('Office M4: every office label is a dictionary key, en and vi carry the sam
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
   assert.deepEqual(code.split('\n').filter((l) => VN.test(l)).map((l) => l.trim().slice(0, 80)), [], 'hard-coded Vietnamese in office.js');
 });
+
+/* ---------- Office rest room (#179): a rate-limited agent sleeps until the limit resets ---------- */
+
+test('Office #179: beds in a rest room, a rate-limited agent sleeps with 💤 and its reset time, then goes back to its desk', async () => {
+  const src = await readOffice();
+  const { vi } = await import('../shared/i18n/vi.ts');
+  const { en } = await import('../shared/i18n/en.ts');
+  for (const s of [
+    // the rest room: three low-poly beds with a pillow, blanket and headboard, like the rest of the diorama
+    'const BEDS = [{ x: -19.2, z: -12.6 }, { x: -17.5, z: -12.6 }, { x: -15.8, z: -12.6 }];',
+    'box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);',
+    'box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);',
+    'box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false);',
+    // state law: busy wins over a stale limit flag; a limit that has not reset yet is its own state, not the error state
+    "else if (s.status === 'busy') state = 'working';",
+    "else if (until > Date.now()) state = 'sleep';",
+    'sleepUntil: until > Date.now() ? until : 0,',
+    "if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x, b.z + 1.1), face: Math.PI, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }",
+    "else if (t.kind === 'bed') { pts.push(V(-20.4, .8)); pts.push(V(-20.4, -10.4)); pts.push(V(t.pos.x, -10.4)); pts.push(t.pos); }",
+    // the agent lies down on the mattress (not curled up in a lounge chair) and shows a 💤 bubble
+    "const lie = !moving && a.pose === 'lie'",
+    'a.root.rotation.x += ((lie ? -Math.PI / 2 : 0) - a.root.rotation.x) * Math.min(1, dt * 6);',
+    'a.root.position.y = lie ? 1.24 + breathe :',
+    "const sleeping = a.state === 'sleep', bub = sleeping ? (T('sleep.bubble') || '💤') : a.bub, on = sleeping || t < a.bubUntil;",
+    // the tag says when the limit resets, in the page's language and clock
+    'const fmtClock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour12: false, hour: \'2-digit\', minute: \'2-digit\' });',
+    "chip = T('stat.sleepUntil', { t: fmtClock(a.sleepUntil) }) || S[0];",
+    // when the limit has passed, the agent gets up and the live refresh puts it back at its desk
+    "if (a.state === 'sleep' && a.sleepUntil && Date.now() > a.sleepUntil) { a.state = 'idle'; a.sleepUntil = 0; woke = true; }",
+    'if (woke && live) liveRefresh();',
+    // meeting mode never drags a sleeper out of bed; sleep has its own chip colour
+    "const key = meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state, S = st(key);",
+    "sleep: ['stat.sleep', '#818cf8']",
+  ]) assert.ok(src.includes(s), `missing rest-room behavior: ${s}`);
+  assert.ok(!/sleep: \['stat\.error'/.test(src), 'sleep must not reuse the error label');
+  assert.ok(src.indexOf("else if (s.status === 'busy') state = 'working';") < src.indexOf("else if (until > Date.now()) state = 'sleep';"), 'a busy session is never put to bed by a stale limit flag');
+  for (const k of ['office.stat.sleep', 'office.stat.sleepUntil', 'office.sleep.bubble']) {
+    assert.ok(vi[k], `vi missing ${k}`);
+    assert.ok(en[k], `en missing ${k}`);
+  }
+  assert.ok(vi['office.stat.sleepUntil'].includes('{t}') && en['office.stat.sleepUntil'].includes('{t}'), 'the tag carries the wake time');
+  assert.ok(vi['office.stat.sleepUntil'].length > vi['office.stat.sleep'].length, 'the tag adds the wake time to the state label');
+});

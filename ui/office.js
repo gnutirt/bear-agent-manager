@@ -31,7 +31,7 @@
 
   // Every office label is a key of shared/i18n (office.*). The page may inject its t(); without it this module
   // reads GET /api/i18n once at mount, so the markup below never carries a language of its own.
-  const ST = { working: ['stat.working', '#f5a524'], ask: ['stat.ask', '#ef4444'], done: ['stat.done', '#34d399'], idle: ['stat.idle', '#94a3b8'], error: ['stat.error', '#fb923c'], meet: ['stat.meet', '#60a5fa'] };
+  const ST = { working: ['stat.working', '#f5a524'], ask: ['stat.ask', '#ef4444'], done: ['stat.done', '#34d399'], idle: ['stat.idle', '#94a3b8'], error: ['stat.error', '#fb923c'], meet: ['stat.meet', '#60a5fa'], sleep: ['stat.sleep', '#818cf8'] };
   const TOOLS = ['Edit ui/index.html', 'Read hub/server.ts', 'Bash npm test', 'Grep "flowTiers"', 'Write test/ui.test.ts', 'Playwright screenshot'];
   // The demo roster is fixture data too: names, roles and the simulated chat come from the dictionary.
   const mockAgents = (T) => [
@@ -136,6 +136,7 @@
     const pick = (a) => (a.length ? a[Math.floor(Math.random() * a.length)] : '');
     const t0 = performance.now() / 1000, now = () => performance.now() / 1000 - t0;
     const fmtT = (s) => { const d = new Date(Date.now() - (now() - s) * 1000); return d.toLocaleTimeString(locale(), { hour12: false }); };
+    const fmtClock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour12: false, hour: '2-digit', minute: '2-digit' });
 
     /* ---------- live hub mode (#147) ---------- */
     const live = typeof api.room === 'string' && api.room.trim() ? {
@@ -297,7 +298,7 @@
       const p = $('of-panel'), a = focus && by[focus];
       if (!a) { p.hidden = true; return; }
       p.hidden = false;
-      const S = st(meeting && a.state !== 'ask' ? 'meet' : a.state);
+      const S = st(meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state);
       if (!p.dataset.id || p.dataset.id !== a.id) {
         p.dataset.id = a.id;
         p.innerHTML = `<header><div><div class="kick" id="of-pk"></div><h2>${esc(a.n)}</h2><span class="stchip" id="of-pst"></span></div><button id="of-pclose" aria-label="${esc(T('panel.close'))}">✕</button></header>
@@ -343,19 +344,19 @@
       }).then((r) => { if (!r.ok) throw new Error(`${path} ${r.status}`); return r.json(); });
     }
 
-    /** Sessions of the room -> the AG entries the scene draws. State law: a pending permission = ask, a plan limit = error, busy = working, a done notice under 3 min = done, else idle. */
+    /** Sessions of the room -> the AG entries the scene draws. State law: a pending permission = ask, busy = working, a plan limit = sleep (rest room until the limit resets), a done notice under 3 min = done, else idle. Busy wins over a stale limit flag: a session that is actually working has not run out. */
     function liveAgents(sessions, tiers, lead) {
       return sessions.filter((s) => Array.isArray(s.rooms) && s.rooms.includes(live.room)).map((s) => {
-        const done = doneAt.get(s.name);
+        const done = doneAt.get(s.name), until = Number(s.limited && s.limited.until) || 0;
         let state = 'idle';
         if (asks.has(s.id)) state = 'ask';
-        else if (s.limited && Number(s.limited.until) > Date.now()) state = 'error';
         else if (s.status === 'busy') state = 'working';
+        else if (until > Date.now()) state = 'sleep';
         else if (done && Date.now() - done < 180_000) state = 'done';
         return {
           id: s.id, h: handleOf(s.name), n: s.name, r: s.activity || s.ide || 'agent',
           tier: Number(tiers[String(s.name).toLowerCase()]) || (s.id === lead ? 2 : 3),
-          c: `hsl(${hue(s.name)},62%,55%)`, s, state, tool: s.activity || '', ctx: Math.min(96, Math.round((Number(s.ctx) || 0) / 2000)),
+          c: `hsl(${hue(s.name)},62%,55%)`, s, state, sleepUntil: until > Date.now() ? until : 0, tool: s.activity || '', ctx: Math.min(96, Math.round((Number(s.ctx) || 0) / 2000)),
         };
       });
     }
@@ -561,6 +562,18 @@
       // living room: couch, tv unit, rug, plants
       box(4.6, .9, 1.7, 0x9bd6b8, 15, .5, -9.6); box(4.6, 1.3, .4, 0x9bd6b8, 15, 1.3, -10.4); box(3, 1.2, .8, 0x8a5a2b, 17.5, .6, -13.8); box(1.8, 1, .12, 0x161b2b, 17.5, 1.9, -13.7);
       [[-21, -13], [21, -13], [-21, 13], [7, 13.5]].forEach(([x, z]) => { cyl(.5, .4, .7, 0xa8632f, x, .35, z, scene, 12); sph(.9, 0x2f9d63, x, 1.5, z); });
+      // rest room (#179): three low-poly beds in the back-left corner; an agent whose plan limit ran out sleeps here
+      const BEDS = [{ x: -19.2, z: -12.6 }, { x: -17.5, z: -12.6 }, { x: -15.8, z: -12.6 }];
+      box(6.6, .05, 4.4, 0x2c3358, -17.5, .03, -12.5, scene, false);   // rug marks the rest area
+      BEDS.forEach((b, i) => {
+        box(1.8, .3, 3.1, 0x5b4128, b.x, .15, b.z);                                         // frame
+        box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);                          // mattress; top at y .57
+        box(1.8, 1, .16, 0x5b4128, b.x, .65, b.z - 1.55);                                   // headboard
+        box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);                   // pillow
+        box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false); // blanket
+      });
+      cyl(.07, .09, 2.1, 0x2c2c38, -21.2, 1.05, -11.1, scene, 10, false); sph(.3, 0xffe3a8, -21.2, 2.25, -11.1, scene, 1); // bedside lamp
+      const restLight = new THREE.PointLight(0xffd9a0, .5, 9); restLight.position.set(-17.5, 2.8, -12.4); scene.add(restLight);
       // agents
       function makeAgent(hex) {
         const col = new THREE.Color(hex), light = col.clone().lerp(new THREE.Color(0xffffff), .55);
@@ -611,6 +624,7 @@
       // targets + paths
       const V = (x, z) => new THREE.Vector3(x, 0, z);
       function targetFor(a, slot) {
+        if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x, b.z + 1.1), face: Math.PI, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }
         if (meeting) return { kind: 'meet', pos: V(MEETSEATS[slot.meet % MEETSEATS.length].x, MEETSEATS[slot.meet % MEETSEATS.length].z), face: MEETSEATS[slot.meet % MEETSEATS.length].face, pose: 'sit', key: 'm' + slot.meet };
         const i = AG.indexOf(a);
         if (a.state === 'working' || a.state === 'error') { const s = SEATS[i % SEATS.length]; return { kind: 'desk', pos: V(s.x, s.z), col: s.col, face: Math.PI, pose: 'sit', key: 'd' + i }; }
@@ -624,6 +638,7 @@
         else if (p.x > 8.3 && p.z > 2.6) { pts.push(V(9.5, p.z > 7.5 ? 9.8 : 5.6)); pts.push(V(9.5, 5.6)); pts.push(V(9.5, .8)); }
         if (t.kind === 'desk') { pts.push(V(t.col, .8)); pts.push(t.pos); }
         else if (t.kind === 'meet') { pts.push(V(9.5, .8)); pts.push(V(9.5, 5.6)); if (t.pos.z > 7.5) pts.push(V(9.5, 9.8)); pts.push(t.pos); }
+        else if (t.kind === 'bed') { pts.push(V(-20.4, .8)); pts.push(V(-20.4, -10.4)); pts.push(V(t.pos.x, -10.4)); pts.push(t.pos); }
         else pts.push(t.pos);
         return pts;
       }
@@ -681,11 +696,14 @@
         const { W, H } = size();
         if (t - simAt > 1.4) { simAt = t; step(); hud(); }
         // slots
-        const slot = { ask: 0, asks: AG.filter((a) => a.state === 'ask').length, lounge: 0, meet: 0 };
+        const slot = { ask: 0, asks: AG.filter((a) => a.state === 'ask').length, lounge: 0, meet: 0, sleep: 0 };
+        let woke = false;
         AG.forEach((a) => {
           if (!a.g) return;
-          const s = { ask: slot.ask, asks: slot.asks, lounge: slot.lounge, meet: slot.meet };
-          const tg = targetFor(a, s); if (tg.kind === 'box') slot.ask++; else if (tg.kind === 'lounge') slot.lounge++; else if (tg.kind === 'meet') slot.meet++;
+          // the plan limit ran out: the agent gets up and walks back to its desk (liveRefresh then picks busy/idle)
+          if (a.state === 'sleep' && a.sleepUntil && Date.now() > a.sleepUntil) { a.state = 'idle'; a.sleepUntil = 0; woke = true; }
+          const s = { ask: slot.ask, asks: slot.asks, lounge: slot.lounge, meet: slot.meet, sleep: slot.sleep };
+          const tg = targetFor(a, s); if (tg.kind === 'box') slot.ask++; else if (tg.kind === 'lounge') slot.lounge++; else if (tg.kind === 'meet') slot.meet++; else if (tg.kind === 'bed') slot.sleep++;
           if (a.tkey !== tg.key) { a.tkey = tg.key; a.tgt = tg; a.path = planPath(a, tg); a.pose = 'stand'; }
           // move
           const p = a.g.position; let moving = false;
@@ -695,25 +713,29 @@
           }
           if (!moving && a.tgt) { let dr = a.tgt.face - a.g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); a.g.rotation.y += dr * Math.min(1, dt * 8); a.pose = a.tgt.pose; }
           // pose
-          const sit = !moving && (a.pose === 'sit' || a.pose === 'nap'), w = t * 9 + AG.indexOf(a), typing = !moving && a.pose === 'sit' && (a.state === 'working');
-          a.root.position.y = sit ? (a.pose === 'nap' ? .1 : -.04) : (moving && !reduced ? Math.abs(Math.sin(w)) * .08 : 0);
-          a.legs[0].rotation.x = sit ? -1.5 : (moving ? Math.sin(w) * .7 : 0); a.legs[1].rotation.x = sit ? -1.5 : (moving ? -Math.sin(w) * .7 : 0);
+          const lie = !moving && a.pose === 'lie', sit = !moving && (a.pose === 'sit' || a.pose === 'nap'), w = t * 9 + AG.indexOf(a), typing = !moving && a.pose === 'sit' && (a.state === 'working');
+          a.root.rotation.x += ((lie ? -Math.PI / 2 : 0) - a.root.rotation.x) * Math.min(1, dt * 6);
+          const breathe = lie && !reduced ? Math.sin(t * 1.3 + w) * .015 : 0;
+          a.root.position.y = lie ? 1.24 + breathe : sit ? (a.pose === 'nap' ? .1 : -.04) : (moving && !reduced ? Math.abs(Math.sin(w)) * .08 : 0);
+          a.legs[0].rotation.x = lie ? 0 : sit ? -1.5 : (moving ? Math.sin(w) * .7 : 0); a.legs[1].rotation.x = lie ? 0 : sit ? -1.5 : (moving ? -Math.sin(w) * .7 : 0);
           const wave = !moving && a.pose === 'wave';
-          a.arms[0].rotation.x = typing && !reduced ? -1.1 + Math.sin(t * 14 + w) * .18 : (moving ? -Math.sin(w) * .7 : (sit ? -.5 : 0));
-          a.arms[1].rotation.x = typing && !reduced ? -1.1 + Math.cos(t * 13 + w) * .18 : (moving ? Math.sin(w) * .7 : (sit ? -.5 : 0));
+          a.arms[0].rotation.x = lie ? 0 : typing && !reduced ? -1.1 + Math.sin(t * 14 + w) * .18 : (moving ? -Math.sin(w) * .7 : (sit ? -.5 : 0));
+          a.arms[1].rotation.x = lie ? 0 : typing && !reduced ? -1.1 + Math.cos(t * 13 + w) * .18 : (moving ? Math.sin(w) * .7 : (sit ? -.5 : 0));
           a.arms[1].rotation.z = wave ? -2.6 + (reduced ? 0 : Math.sin(t * 7) * .4) : 0;
           a.head.rotation.x = a.pose === 'nap' && !moving ? .45 + (reduced ? 0 : Math.sin(t * 1.6) * .05) : 0;
           a.bang.visible = a.state === 'ask' || a.state === 'error'; a.bang.material.color.set(a.state === 'error' ? 0xff9a3a : 0xff4b4b); a.bang.rotation.y = t * 2.5; a.bang.position.y = 3.5 + (reduced ? 0 : Math.sin(t * 4) * .15);
           // tag
           v3.copy(p); v3.y = 3.5; v3.project(cam);
           if (v3.z > 1) { a.tg.style.display = 'none'; } else { a.tg.style.display = ''; a.tg.style.transform = `translate(${(v3.x * .5 + .5) * W}px,${(-v3.y * .5 + .5) * H}px) translate(-50%,-100%)`; }
-          const key = meeting && a.state !== 'ask' ? 'meet' : a.state, S = st(key);
-          let chip = S[0]; if (a.state === 'ask') chip += ' · ' + Math.floor(t - a.askedAt) + 's';
+          const key = meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state, S = st(key);
+          let chip = S[0]; if (a.state === 'ask') chip += ' · ' + Math.floor(t - a.askedAt) + 's'; else if (a.state === 'sleep') chip = T('stat.sleepUntil', { t: fmtClock(a.sleepUntil) }) || S[0];
           if (a.cache.chip !== chip) { a.cache.chip = chip; a.tChip.textContent = chip; a.tChip.style.background = S[1]; }
           const tool = a.state === 'working' && !meeting ? '▸ ' + a.tool : ''; if (a.cache.tool !== tool) { a.cache.tool = tool; a.tTool.textContent = tool; a.tTool.style.display = tool ? '' : 'none'; }
-          const on = t < a.bubUntil; if (a.cache.on !== on) { a.cache.on = on; a.tSay.classList.toggle('on', on); } if (a.cache.bub !== a.bub) { a.cache.bub = a.bub; a.tSay.textContent = a.bub; }
+          const sleeping = a.state === 'sleep', bub = sleeping ? (T('sleep.bubble') || '💤') : a.bub, on = sleeping || t < a.bubUntil;
+          if (a.cache.on !== on) { a.cache.on = on; a.tSay.classList.toggle('on', on); } if (a.cache.bub !== bub) { a.cache.bub = bub; a.tSay.textContent = bub; }
           a.tg.classList.toggle('sel', focus === a.id); hint.style.display = focus ? 'none' : '';
         });
+        if (woke && live) liveRefresh();
         // screens glow by activity
         AG.forEach((a, i) => { const sc = screens[i % screens.length]; if (sc) sc.material.emissive.set(a.state === 'working' && a.tgt && a.tgt.kind === 'desk' && !a.path.length ? 0x2a9d6f : 0x1d3a5a); });
         cube.position.y = 1.6 + (reduced ? 0 : Math.sin(t * 2) * .08); cube.rotation.y = t * .6;
