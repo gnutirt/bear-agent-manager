@@ -562,7 +562,7 @@ header .spacer{flex:1}
 .agent-spawn .aspawn-type{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;white-space:normal;min-height:88px}
 .agent-spawn .aspawn-type small{color:var(--mute);font-weight:400}
 .agent-spawn .aspawn-error{color:var(--bad,#E5484D);margin:8px 0}
-@media(max-width:650px){.agent-spawn .aspawn-types{grid-template-columns:1fr}}
+@media(max-width:650px){.flow-canvas{overflow-x:auto}.flow-svg{width:760px;height:auto;min-height:0}.agent-spawn .aspawn-types{grid-template-columns:1fr}}
 /* glass themes: message cards are real frosted glass (agent-tinted sheen, bright rim, depth) */
 html:root[data-theme=glass] .group{background:linear-gradient(135deg,color-mix(in srgb,var(--c) 26%,rgba(255,255,255,.20)),rgba(255,255,255,.05) 70%);border-color:rgba(255,255,255,.38);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08),0 10px 30px rgba(8,6,40,.38)}
@@ -654,10 +654,8 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 #view-office{display:flex;overflow:hidden;padding:0}
 #officeRoot{flex:1;min-height:0;min-width:0}
-.flow{--bg:#f3f5fb;--panel:#fff;--panel2:#eaeef8;--fg:#182036;--muted:#566080;--line:#d3d9ea;--card:#fff;--cardline:#c5cde2;--edge:#a3adc9;--chipbg:#fff;--laneA:#f6f8fd;--laneB:#ebeff8;--grid:#d3d9ea;--tier:rgba(60,80,140,.06);--hi:#d97706;--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;margin:-6px -8px 0;padding:16px max(8px,env(safe-area-inset-left,0px)) 20px;background:var(--bg);color:var(--fg);font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;min-height:100%;color-scheme:light}
+.flow{--fg:var(--text);--muted:var(--mute);--card:var(--panel);--cardline:var(--line);--edge:var(--mute);--chipbg:var(--panel);--laneA:var(--panel);--laneB:var(--bg);--grid:var(--line);--tier:color-mix(in srgb,var(--text) 4%,transparent);--panel2:var(--accent-soft);--hi:var(--accent);--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;min-width:0;color:var(--text);font:inherit}
 .flow *{box-sizing:border-box}
-@media(prefers-color-scheme:dark){.flow:not([data-theme=light]):not([data-theme=dark]){--bg:#0f1426;--panel:#171e38;--panel2:#1d2646;--fg:#eef1fb;--muted:#a9b4cc;--line:#2a3358;--card:#202a4f;--cardline:#3a4672;--edge:#59658f;--chipbg:#0f1426;--laneA:#10162a;--laneB:#141b33;--grid:#2a3358;--tier:rgba(255,255,255,.03);--hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff6b6b;color-scheme:dark}}
-.flow[data-theme=dark]{--bg:#0f1426;--panel:#171e38;--panel2:#1d2646;--fg:#eef1fb;--muted:#a9b4cc;--line:#2a3358;--card:#202a4f;--cardline:#3a4672;--edge:#59658f;--chipbg:#0f1426;--laneA:#10162a;--laneB:#141b33;--grid:#2a3358;--tier:rgba(255,255,255,.03);--hi:#ffc857;--onhi:#1a1405;--ok:#4fd1a5;--bad:#ff6b6b;color-scheme:dark}
 .flow-shell{max-width:none;margin:0;display:grid;gap:12px;min-width:0}
 .flow-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:none;border:0;border-radius:0;box-shadow:none;min-height:0;padding:0;color:inherit}
 .flow-head h1{font-size:20px;margin:0}
@@ -666,19 +664,19 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-stats b{color:var(--fg);font-variant-numeric:tabular-nums}
 .flow-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start;min-width:0}
 .flow-canvas,.flow-info,.flow-bar{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
-.flow-canvas{overflow:auto;position:relative;max-height:72vh;touch-action:pan-x pan-y}
-.flow-svg{display:block;width:max(100%,760px);height:auto;touch-action:pan-x pan-y;cursor:default}
+.flow-canvas{overflow:hidden;position:relative}
+.flow-svg{display:block;width:100%;height:calc(100vh - 250px);min-height:380px;cursor:default}
 .flow-svg.drag{cursor:grabbing}
-.flow-svg text,.flow-lanes-svg text{font-family:"IBM Plex Sans",system-ui,sans-serif}
+.flow-svg text,.flow-lanes-svg text{font-family:var(--font)}
 .flow-tier{fill:var(--tier);stroke:var(--line);stroke-width:1}
-.flow-tierlbl{fill:var(--muted);font:600 11px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-tierlbl{fill:var(--muted);font:600 11px var(--font);text-anchor:middle}
 .flow-edge{fill:none;stroke-linecap:round}
-.flow-chip rect{fill:var(--chipbg);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-chip rect{fill:var(--chipbg);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px var(--font);text-anchor:middle}
 .flow-node{cursor:pointer;outline:none}.flow-node .card{fill:var(--card);stroke:var(--cardline);stroke-width:1.5}
 .flow-node:hover .card{stroke:var(--hi)}.flow-node.sel .card{stroke:var(--hi);stroke-width:3}.flow-node.st-ask .card{stroke:var(--bad);stroke-width:2.5}
 .flow-node:focus-visible .card{stroke:var(--hi);stroke-width:3;stroke-dasharray:4 3}
-.flow-node .nm{fill:var(--fg);font:700 12px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .rl{fill:var(--muted);font:11px "IBM Plex Sans",sans-serif;text-anchor:start}.flow-node .last{fill:var(--muted);font:11px "IBM Plex Sans",sans-serif;text-anchor:start}
-.flow-node .ini{font:700 14px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-node .nm{fill:var(--fg);font:700 12px var(--font);text-anchor:start}.flow-node .rl{fill:var(--muted);font:11px var(--font);text-anchor:start}.flow-node .last{fill:var(--muted);font:11px var(--font);text-anchor:start}
+.flow-node .ini{font:700 14px var(--font);text-anchor:middle}
 .flow-node .ping{fill:none;stroke:var(--ok);stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0}
 @media(prefers-reduced-motion:no-preference){.flow-node.st-done .ping{animation:flow-ping 1.4s ease-out infinite}.flow-node.st-ask .dot,.flow .livedot{animation:flow-throb .8s ease-in-out infinite}.flow-node.st-error .card{animation:flow-shake .35s linear 2}}
 @media(prefers-reduced-motion:reduce){.flow-node .flow-spin{display:none}}
@@ -697,7 +695,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-bar{padding:10px 12px;display:grid;gap:8px}.flow-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .flow-ctl input[type=range]{flex:1;min-width:140px;accent-color:var(--hi)}.flow-time{font-variant-numeric:tabular-nums;color:var(--muted);min-width:90px;text-align:right}
 .flow-lanes{overflow-x:auto}.flow-lanes-svg{display:block;min-width:960px;width:100%;height:auto;cursor:pointer}
-.flow-lbl{fill:var(--fg);font:600 12px "IBM Plex Sans",sans-serif}.flow-tk{fill:var(--muted);font:10px "IBM Plex Sans",sans-serif;text-anchor:middle}
+.flow-lbl{fill:var(--fg);font:600 12px var(--font)}.flow-tk{fill:var(--muted);font:10px var(--font);text-anchor:middle}
 .flow-lane-hit{fill:transparent}.flow-lane:hover .flow-lane-hit{fill:var(--panel2)}.flow-lane{cursor:pointer}
 .flow-legend{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:12px;color:var(--muted);align-items:center}
 .flow-legend button{display:inline-flex;align-items:center;gap:6px;padding:1px 9px;border-radius:999px;font-size:12px}
@@ -2765,9 +2763,8 @@ function renderFlow() {
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
   const graphW = Math.max(760, L.W), lanes = flowLaneTimeline(nodes, events, cursor, S.flowSelectedMsg, S.flowSelected);
   const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
-  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label><button type="button" data-flow-theme>${t('flow.theme')}: ${themeLabel}</button></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><span class="flow-scroll-hint">${t('flow.scrollHint')}</span><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMinYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
+  el.innerHTML = `<div class="flow" data-theme="${S.flowTheme}"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><span class="flow-scroll-hint">${t('flow.scrollHint')}</span><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-canvas" id="flowCanvas"><svg id="flowGraph" class="flow-svg" viewBox="0 0 ${graphW} ${L.H}" role="img" aria-label="${esc(t('flow.graphAria'))}" preserveAspectRatio="xMidYMin meet"><g id="flowWorld" transform="translate(${S.flowZoom.x} ${S.flowZoom.y}) scale(${S.flowZoom.k})">${world}</g></svg></div></div><aside class="flow-info" id="flowInfo" aria-live="polite">${askBox}${info}</aside></main><section class="flow-bar"><div class="flow-ctl"><button type="button" id="flowLive" aria-pressed="${live}">${t('flow.live')}</button><button type="button" id="flowPlay" ${live?'hidden':''} aria-pressed="${S.flowPlaying}">${S.flowPlaying?t('flow.pause'):t('flow.play')}</button><select id="flowSpeed" aria-label="${esc(t('flow.speed'))}" ${live?'hidden':''}>${[1,2,4].map((v)=>`<option value="${v}"${v===S.flowSpeed?' selected':''}>${v}×</option>`).join('')}</select><label for="flowSeek">${t('flow.replayWindow')}</label><input id="flowSeek" type="range" min="0" max="300000" step="1000" value="${seek}" aria-label="${esc(t('flow.replayWindow'))}"><span class="flow-time">${live?t('flow.now'):flowShort(new Date(S.flowReplayAt).toLocaleTimeString(),16)}</span></div><div class="flow-lanes"><div class="flow-lanes-title">${esc(t('flow.timelineWindow'))}</div>${lanes}</div>${selectedMessage?`<div class="flow-sub">${esc(messageName(selectedMessage))}: ${esc(plain(selectedMessage.text,180))}</div>`:''}<div class="flow-legend">${nodes.map((n)=>`<button type="button" data-flow-filter="${esc(n.id)}" aria-pressed="${String(S.flowSelected===n.id)}"><i class="flow-swatch" style="background:${flowColor(n.id)}"></i>${esc(flowShort(n.name,24))}</button>`).join('')}<em>${t('flow.legendHint')}</em></div></section></div></div>`;
   const graph = el.querySelector('#flowGraph');
-  graph.style.width = `max(100%, ${Math.round(graphW * .8)}px)`;
   if (window.matchMedia('(max-width:650px)').matches) graph.style.width = `max(100%, ${graphW}px)`;
   el.querySelector('#flowCanvas').scrollLeft = graphScrollLeft;
   flowPaintDots(events, cursor, S.flowSelected);
@@ -2812,7 +2809,6 @@ $('view-flow').addEventListener('input', (e) => {
   if (e.target.closest('#flowTaskForm')) { const f = e.target.closest('#flowTaskForm'); S.flowTaskDraft = { title: f.elements.title.value, detail: f.elements.detail.value }; }
 });
 $('view-flow').addEventListener('click', (e) => {
-  if (e.target.closest('[data-flow-theme]')) { S.flowTheme = ({ auto: 'light', light: 'dark', dark: 'auto' })[S.flowTheme]; try { localStorage.setItem('bear-agent-manager:flowTheme', S.flowTheme); } catch {} renderFlow(); return; }
   if (e.target.closest('[data-flow-add-tier]')) { if (S.flowSelected && S.flowSelected !== 'you') saveFlowTier(nodeNameForId(S.flowSelected), S.flowLayout.tierCount + 1); return; }
   if (e.target.closest('#flowLive')) { S.flowReplayAt = null; S.flowPlaying = false; S.flowSelectedMsg = null; renderFlow(); return; }
   if (e.target.closest('#flowPlay')) { S.flowPlaying = !S.flowPlaying; renderFlow(); return; }
