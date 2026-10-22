@@ -28,7 +28,7 @@ import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
 import { isHubText, scrubSecrets, typedText } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
-import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, unblockReady, updateTask, type Task } from './tasks.ts';
+import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, staleTasks, taskKpi, unblockReady, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -2658,6 +2658,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     }
 
+    // #195: progress per task owner (done, doing, median wait/work minutes, reopened, stale, commit rate)
+    const km = p.match(/^\/api\/rooms\/([^/]+)\/kpi$/);
+    if (km && m === 'GET') {
+      const room = decodeURIComponent(km[1]);
+      store.room(room);   // 404 for an unknown room
+      return json(res, 200, taskKpi(opts.dir, room, Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 7)), Date.now(), (loadSettings(opts.dir, envCap).lead.monitor?.staleMin ?? 60) * 60_000));
+    }
+
     // ---- K1 tasklist of a room: only the lead (or the owner of the repo from the UI) adds, assigns and deletes; an agent updates its own tasks ----
     const tm = p.match(/^\/api\/rooms\/([^/]+)\/tasks(?:\/(import|\d+)(?:\/(delete))?)?$/);
     if (tm) {
@@ -2732,7 +2740,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           try {
             // #190: ONE message per finished task; it asks the lead to audit unless the owner already pinged the lead about this #id in the last 10 minutes
             const done = { id: task.id, title: task.title, by: task.owner ? ` (${task.owner})` : '', commit: task.commit ? ` · ${task.commit.slice(0, 9)}` : '', note: task.note ? ` — ${task.note.slice(0, 200)}` : '' };
-            const leadId = store.state.rooms[room]?.lead, lead = leadId ? store.state.sessions[leadId] : undefined;
+            const leadId = store.state.rooms[room]?.lead;
+            let lead = leadId ? store.state.sessions[leadId] : undefined;
+            const fb = loadSettings(opts.dir, envCap).lead.fallback.toLowerCase();
+            if (lead && fb && accountUsageBlocked(lead)) lead = store.members(room).find((m) => m.id !== leadId && m.name?.toLowerCase() === fb && !accountUsageBlocked(m)) ?? lead;   // #193: the lead's account is out of usage, so its audit ping goes to the fallback member
             const owner = task.owner ? store.members(room).find((m) => m.name.toLowerCase() === task.owner!.toLowerCase()) : undefined;
             const pinged = !!lead && !!owner && store.messages.some((m) => m.room === room && m.fromId && store.resolve(m.fromId) === owner.id && m.wake.some((w) => store.resolve(w) === lead.id) && m.text.includes(`#${task.id}`) && store.now() - m.ts < 600_000);
             if (lead?.name && lead.name.toLowerCase() !== (task.owner ?? '').toLowerCase() && !pinged) {
@@ -3026,6 +3037,48 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
   };
 
+  // #195 progress monitor (settings lead.monitor): a doing task with no update, or an owned todo nobody took, for staleMin
+  // nudges its owner (at most once an hour); an owner still silent nudgeMin later wakes the lead (at most once an hour per
+  // task). An owner that is offline, out of usage or gone from the room cannot answer, so the lead is told at once and why.
+  const HOUR_MS = 60 * 60_000;
+  const nudged = new Map<string, number>(), escalated = new Map<string, number>();
+  const monitorTasks = (now = Date.now()) => {
+    const cfg = loadSettings(opts.dir, envCap).lead.monitor;
+    if (!cfg?.on) return;
+    for (const room of Object.keys(store.state.rooms)) {
+      let stale: Task[];
+      try { stale = staleTasks(opts.dir, room, now, cfg.staleMin * 60_000); } catch { continue; }
+      const open = new Set(stale.map((t) => `${room}|${t.id}`));
+      for (const k of nudged.keys()) if (k.startsWith(`${room}|`) && !open.has(k)) nudged.delete(k);   // moved again: a new stretch starts fresh
+      const leadId = store.state.rooms[room]?.lead, lead = leadId ? store.state.sessions[leadId] : undefined;
+      const say = (key: string, vars: Record<string, string | number>) => {
+        try {
+          const r = store.post(room, null, tr(key, vars), undefined, undefined, undefined, undefined, { type: 'task', level: 'warn' });
+          broadcast('msg', r.message);
+          for (const id of r.message.wake) deliver(store.resolve(id));
+          emitRoom(room);
+        } catch { /* room gone */ }
+      };
+      for (const t of stale) {
+        const key = `${room}|${t.id}`, min = Math.round((now - t.updatedAt) / 60_000);
+        const owner = store.members(room).find((x) => x.name.toLowerCase() === t.owner!.toLowerCase());
+        const toLead = !!lead?.name && lead.id !== owner?.id && now - (escalated.get(key) ?? 0) >= HOUR_MS;
+        const why = !owner ? 'absent' : owner.ended || owner.status === 'offline' ? 'offline' : owner.limited || usagePaused(owner) ? 'limited' : '';
+        if (why) {
+          if (toLead) { escalated.set(key, now); say('sys.task.ownerAway', { lead: lead!.name, id: t.id, min, owner: t.owner!, why: tr(`sys.task.away.${why}`) }); }
+          continue;
+        }
+        const at = nudged.get(key);
+        if (at === undefined || now - at >= HOUR_MS) { nudged.set(key, now); say('sys.task.nudge', { owner: owner!.name, id: t.id, min }); continue; }
+        const answered = store.messages.some((m) => m.room === room && m.fromId && store.resolve(m.fromId) === owner!.id && m.ts > at);
+        if (!answered && toLead && now - at >= cfg.nudgeMin * 60_000) {
+          escalated.set(key, now);
+          say('sys.task.escalate', { lead: lead!.name, id: t.id, owner: owner!.name, min: Math.round((now - at) / 60_000) });
+        }
+      }
+    }
+  };
+
   const afterLimitRecovering = new Set<string>();
   async function recoverAfterLimitDelivery(s: Session): Promise<void> {
     const delivered = s.afterLimitDelivered;
@@ -3100,6 +3153,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (changedBudgetAlerts) { store.save(); syncApiAgents(); }
     checkDeaf();
     autoNextTasks();
+    monitorTasks();
   }, opts.sweepMs ?? 30_000);
   sweeper.unref();
   const heartbeat = setInterval(() => { for (const r of sse) r.write(': ping\n\n'); }, 25_000);

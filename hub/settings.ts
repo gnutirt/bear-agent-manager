@@ -32,7 +32,7 @@ export type Settings = {
   flowTiers: FlowTiers;
   compact: { thresholds: CompactThresholds; onTaskDone: boolean };   // T18c: wakeCompact fallback by room role, for an agent with no agentCompact rule; #79 onTaskDone: a task done/blocked compacts its owner's chat past the role threshold
   workerRoutes: Record<'read' | 'edit' | 'osin', WorkerRoute>;   // P1b: per turn type, who runs it (worker.ps1 reads this)
-  lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
+  lead: { wake: { enabled: boolean; atPct: number; afterResetMin: number }; delegate: boolean; distribute: boolean; handoffOnDone: boolean; idleMin: number; fallback: string };   // P2: what the lead prompt asks of a room lead   // T-C: when an account's 5-hour usage is nearly used up, wake its agents after the reset
   agentModel: Record<string, string>;   // --model for the background turns (revive, compact) of an agent; none = Claude Code's default
   autoUpdatePlugin: boolean;   // the hub keeps this plugin's copy in every Claude account at the hub's version (no button)
   agents: { maxBackground: number; profiles: AgentProfile[]; autoRevive: boolean };   // maxBackground: background claudes at once, for agents created without an IDE (POST /api/agents); profiles: headless provider agents (M3b); autoRevive: resume a closed or limit-killed chat when a room message wakes it (on)
@@ -182,7 +182,7 @@ function migrateProfiles(raw: any): any {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30 }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '' }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
   };
@@ -276,6 +276,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     wake: { enabled: bool(lw.enabled, s.lead.wake.enabled), atPct: int(lw.atPct, s.lead.wake.atPct, 50, 100), afterResetMin: int(lw.afterResetMin, s.lead.wake.afterResetMin, 0, 120) },
     delegate: bool(p?.lead?.delegate, s.lead.delegate ?? true), distribute: bool(p?.lead?.distribute, s.lead.distribute ?? true), handoffOnDone: bool(p?.lead?.handoffOnDone, s.lead.handoffOnDone ?? true),
     idleMin: int(p?.lead?.idleMin, s.lead.idleMin ?? 30, 1, 240),   // a woken agent stays alive this long after its last turn
+    fallback: typeof p?.lead?.fallback === 'string' ? (/^[\w.-]{1,40}$/.test(p.lead.fallback.trim()) ? p.lead.fallback.trim() : '') : (s.lead.fallback ?? ''),   // member who gets the lead's audit pings while the lead's account is out of usage ('' = off)
   };
   const routes = {} as Settings['workerRoutes'];
   for (const k of ROUTE_KINDS) {

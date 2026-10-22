@@ -1,0 +1,6 @@
+{
+  "autoCompactWindow": 300000,
+  "env": {
+    "CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS": "150000"
+  }
+}

@@ -11,6 +11,8 @@ export type Task = {
   /** ids this task waits for: while one is not done the task is blocked; the hub moves it to todo when all are done */
   after?: number[];
   status: TaskStatus; createdAt: number; updatedAt: number; doneAt?: number; commit?: string; note?: string;
+  /** #195: first time the task went to doing; how often a done task was reopened (a failed audit) */
+  startedAt?: number; reopened?: number;
 };
 type File = { next: number; tasks: Task[] };
 
@@ -89,8 +91,11 @@ function apply(t: Task, b: TaskInput, fresh: boolean): void {
   }
   if (b.status !== undefined) {
     if (!(STATUSES as readonly string[]).includes(String(b.status))) throw new StoreError(400, `status must be one of ${STATUSES.join(', ')}`);
+    const was = t.status;
     t.status = b.status as TaskStatus;
     if (t.status === 'done') t.doneAt = Date.now(); else delete t.doneAt;
+    if (t.status === 'doing' && !t.startedAt) t.startedAt = Date.now();
+    if (was === 'done' && t.status !== 'done') t.reopened = (t.reopened ?? 0) + 1;
   }
 }
 
@@ -154,6 +159,41 @@ export function importTodo(home: string, room: string, text: string): Task[] {
   }
   if (added.length) write(home, room, f);
   return added;
+}
+
+/** #195: owned tasks that have not moved for `ms`: in doing with no update, or todo that nobody took. */
+export const staleTasks = (home: string, room: string, now = Date.now(), ms = 60 * 60_000): Task[] =>
+  listTasks(home, room, { status: 'doing,todo' }).filter((t) => t.owner && now - t.updatedAt > ms);
+
+const median = (xs: number[]): number | null => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const minutes = (ms: number | null) => (ms === null ? null : Math.round(ms / 60_000));
+
+/** #195: progress per owner over the last `days` (open tasks always count). Times are in minutes; null = no sample. */
+export function taskKpi(home: string, room: string, days = 7, now = Date.now(), staleMs = 60 * 60_000) {
+  const since = now - days * 86_400_000, by = new Map<string, Task[]>();
+  for (const t of listTasks(home, room)) {
+    if (!t.owner || (t.status === 'done' && (t.doneAt ?? t.updatedAt) < since)) continue;
+    const k = t.owner.toLowerCase();
+    by.set(k, [...(by.get(k) ?? []), t]);
+  }
+  const owners = [...by.values()].map((ts) => {
+    const done = ts.filter((t) => t.status === 'done');
+    return {
+      owner: ts[0].owner!,
+      done: done.length,
+      doing: ts.filter((t) => t.status === 'doing').length,
+      waitMedianMin: minutes(median(ts.filter((t) => t.startedAt).map((t) => t.startedAt! - t.createdAt))),
+      workMedianMin: minutes(median(done.filter((t) => t.startedAt && t.doneAt).map((t) => t.doneAt! - t.startedAt!))),
+      reopened: ts.reduce((n, t) => n + (t.reopened ?? 0), 0),
+      stale: ts.filter((t) => t.status === 'doing' && now - t.updatedAt > staleMs).length,
+      commitRate: done.length ? done.filter((t) => t.commit).length / done.length : null,
+    };
+  }).sort((a, b) => a.owner.localeCompare(b.owner));
+  return { room, days, since, owners };
 }
 
 /** Open tasks as handoff lines; with `owner` only that agent's. */

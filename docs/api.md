@@ -94,6 +94,7 @@
 | GET | `/api/rooms` |  | có |
 | POST | `/api/rooms` | `name` | có |
 | POST | `/api/sessions/:id/room-commit` |  | có |
+| GET | `/api/rooms/:param/kpi` |  | có |
 
 ## attachments (A1): raw upload (name and mime in headers), download by id; files live in rooms/<room>/files
 

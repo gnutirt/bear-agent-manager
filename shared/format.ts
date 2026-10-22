@@ -66,7 +66,7 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
   }
   for (const r of leadOf) {
     lines.push(agentComms === 'terse'
-      ? `Lead #${r}: delegate actionable user requests with room_tasks add (one job per task; fromMsg = message id; owner = best-fit member). Track with room_tasks list; collect results, update room notes, then report one summary to @you. Handle only work with no suitable member.`
+      ? `Lead #${r}: delegate actionable user requests with room_tasks add (one job per task; fromMsg = message id; owner = best-fit member). Track with room_tasks list; collect results, update room notes, then report one summary to @you. Handle only work with no suitable member. Check room_tasks for stuck tasks each wake; reassign when the owner is silent.`
       : `You are the lead (★) of #${r}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
   }
   if (trimmed) lines.push('Some messages were trimmed; use room_read to see them in full.');

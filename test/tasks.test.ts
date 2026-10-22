@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addTask, importTodo, listTasks, openTasksText, updateTask } from '../hub/tasks.ts';
+import { addTask, importTodo, listTasks, openTasksText, staleTasks, taskKpi, updateTask } from '../hub/tasks.ts';
 import { compactContext } from '../hub/compact.ts';
 import { callTool, type Api } from '../mcp/tools.ts';
 import { makeHub, until } from './helpers.ts';
@@ -183,4 +183,51 @@ test('Q3 sweeper: an idle owner with a todo and nothing in progress is given the
     await call(`/api/rooms/r/tasks/${t1.id}`, { sessionId: 'c1', status: 'done' });
     await new Promise((r) => setTimeout(r, 400));
     assert.equal((await call<any[]>('/api/rooms/r/tasks')).find((t) => t.id === t2.id).status, 'todo');  } finally { await hub.close(); }
+});
+test('#195 KPI: startedAt is the first doing, a reopened done counts, medians/stale/commit rate per owner', () => {
+  const home = tmp(), H = 3_600_000, file = path.join(home, 'rooms', 'r', 'tasks.json');
+  const a = addTask(home, 'r', { title: 'A', owner: 'coder' });
+  addTask(home, 'r', { title: 'B', owner: 'coder' });
+  addTask(home, 'r', { title: 'C', owner: 'Boss' });
+  addTask(home, 'r', { title: 'no owner' });
+  const first = updateTask(home, 'r', a.id, { status: 'doing' }).task.startedAt!;
+  assert.ok(first);
+  updateTask(home, 'r', a.id, { status: 'done', commit: 'abc1234' });
+  assert.equal(updateTask(home, 'r', a.id, { status: 'doing' }).task.reopened, 1);   // audit failed: done → doing
+  assert.equal(listTasks(home, 'r').find((t) => t.id === a.id)!.startedAt, first);  // startedAt keeps the first start
+  updateTask(home, 'r', a.id, { status: 'done', commit: 'abc1234' });
+  // fixed times: A waited 1 h and took 2 h; B is doing for 3 h with no update for 2 h (stale); C is done without a commit
+  const now = Date.now(), j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  Object.assign(j.tasks[0], { createdAt: now - 4 * H, startedAt: now - 3 * H, doneAt: now - H, updatedAt: now - H });
+  Object.assign(j.tasks[1], { status: 'doing', createdAt: now - 3 * H, startedAt: now - 3 * H, updatedAt: now - 2 * H });
+  Object.assign(j.tasks[2], { status: 'done', createdAt: now - 10 * 86_400_000, doneAt: now - 9 * 86_400_000, updatedAt: now - 9 * 86_400_000 });
+  fs.writeFileSync(file, JSON.stringify(j));
+  assert.deepEqual(staleTasks(home, 'r', now).map((t) => t.id), [2]);
+  const k = taskKpi(home, 'r', 7, now);
+  assert.deepEqual(k.owners, [{ owner: 'coder', done: 1, doing: 1, waitMedianMin: 30, workMedianMin: 120, reopened: 1, stale: 1, commitRate: 1 }]);   // waits 60 and 0 → 30; Boss's task is older than 7 days
+  assert.equal(taskKpi(home, 'r', 14, now).owners.find((o) => o.owner === 'Boss')!.commitRate, 0);
+});
+
+test('#195 hub: GET /kpi, and a task in doing for over an hour wakes the lead once per hour', async () => {
+  const { hub, dir, call } = await makeHub(50);
+  try {
+    for (const [id, name] of [['l1', 'boss'], ['c1', 'coder']]) {
+      await call('/api/sessions/register', { id, cwd: `C:/${name}` });
+      await call(`/api/sessions/${id}/rename`, { name });
+      await call('/api/rooms/r/join', { sessionId: id });
+    }
+    await call('/api/rooms/r/lead', { sessionId: 'l1' });
+    const t = await call('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Slow', owner: 'coder' });
+    await call(`/api/rooms/r/tasks/${t.id}`, { sessionId: 'c1', status: 'doing' });
+    assert.equal((await call<any>('/api/rooms/r/kpi?days=7')).owners[0].doing, 1);
+    await assert.rejects(call('/api/rooms/nope/kpi'), /404|not found|unknown/i);
+    const file = path.join(dir, 'rooms', 'r', 'tasks.json'), j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    j.tasks[0].updatedAt = Date.now() - 61 * 60_000;
+    fs.writeFileSync(file, JSON.stringify(j));
+    const stale = async () => (await call<any[]>('/api/rooms/r/messages?limit=20')).filter((x) => /^⏳ @boss việc #1 đứng 6\d phút \(người làm coder: /.test(x.text));
+    const hit = await until(async () => { const m = await stale(); return m.length ? m : null; }, 5000, 'stale notice');
+    assert.ok(hit[0].wake.includes('l1'), 'lead woken');
+    await new Promise((r) => setTimeout(r, 300));   // several more sweeps: still one notice
+    assert.equal((await stale()).length, 1);
+  } finally { await hub.close(); }
 });
