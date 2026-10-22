@@ -214,6 +214,36 @@ test('StopFailure rate_limit: reads the reset from the transcript, marks the ses
   } finally { await h.hub.close(); }
 });
 
+test('successful Stop clears same-account session limits and wakes its pending message', async () => {
+  const h = await makeHub();
+  try {
+    await h.call('/api/sessions/register', { id: 'a', name: 'A', cwd: 'C:/a', configDir: '' });
+    await h.call('/api/sessions/register', { id: 'b', name: 'B', cwd: 'C:/b', configDir: '' });
+    for (const id of ['a', 'b']) await h.call('/api/rooms/proj/join', { sessionId: id });
+    const a = h.hub.store.session('a');
+    a.limited = { until: Date.now() + 60_000, type: 'seven_day' };
+    h.hub.store.state.wakeAt = { 's:a': { at: Date.now() + 60_000, tries: 0 } };
+    h.hub.store.save();
+
+    const waiting = h.call<any>('/api/sessions/a/wait?timeout=30');
+    await until(() => h.hub.waiting('a'), 5_000, 'session A waiter');
+    await h.call('/api/rooms/proj/messages', { sessionId: 'b', text: '@A please continue' });
+    assert.ok(h.hub.store.pending('a').messages.length, 'message stays queued while the stale session limit is set');
+    assert.equal(h.hub.store.pending('a').wake, true);
+
+    const stopped = await fetch(`${h.hub.url}/hooks/stop`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'b' }),
+    });
+    assert.equal(stopped.status, 200);
+    assert.equal(a.limited, undefined);
+    assert.equal(h.hub.store.state.wakeAt?.['s:a'], undefined);
+    const delivered = await waiting;
+    assert.ok(delivered.messages.some((message: any) => message.text === '@A please continue'));
+  } finally { await h.hub.close(); }
+});
+
 test('StopFailure server_error: retries the same chat with backoff, tells @you only after the last try (#159)', async () => {
   const h = await makeHub(undefined, undefined, { apiRetryMs: [20, 20] });
   const fail = (error: string) => fetch(`${h.hub.url}/hooks/stop-failure`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: 'rt1', error }) });

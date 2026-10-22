@@ -1313,6 +1313,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A turn woken by room messages that ended without any post to the room: the answer stayed in the agent's own
         // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
         const sess = store.session(id), w = relayWatch.get(sess.id);
+        clearAccountLimitsAfterSuccessfulStop(sess);
         relayWatch.delete(sess.id);
         sess.apiRetry = undefined;
         mirrorAgent(sess, b);
@@ -1466,6 +1467,31 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     broadcast('claude-usage', { accounts: accounts.map(publicUsage) });
   }
   const wakeTimers = new Map<string, NodeJS.Timeout>();
+  function clearAccountLimitsAfterSuccessfulStop(session: Session): void {
+    const accountDir = path.resolve(session.configDir || path.join(usageHome, '.claude')).toLowerCase();
+    const accountSessions = Object.values(store.state.sessions).filter((candidate) =>
+      path.resolve(candidate.configDir || path.join(usageHome, '.claude')).toLowerCase() === accountDir);
+    let changed = false;
+    for (const candidate of accountSessions) {
+      if (candidate.limited) {
+        delete candidate.limited;
+        emitSession(candidate);
+        changed = true;
+      }
+      const key = `s:${candidate.id}`;
+      if (store.state.wakeAt?.[key]) {
+        delete store.state.wakeAt[key];
+        clearTimeout(wakeTimers.get(key));
+        wakeTimers.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) store.save();
+    for (const candidate of accountSessions) {
+      const pending = store.pending(candidate.id);
+      if (pending.wake && pending.messages.length) deliver(candidate.id, true);
+    }
+  }
   function scheduleWake(key: string) {
     const e = store.state.wakeAt?.[key];
     if (!e) return;
