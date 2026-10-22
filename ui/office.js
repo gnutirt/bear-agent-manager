@@ -55,6 +55,7 @@
   <div class="pills">
     <span class="pill"><i style="background:#f5a524"></i><span data-of="pill.working"></span> <b id="of-nWork">0</b></span>
     <span class="pill"><i style="background:#ef4444"></i><span data-of="pill.ask"></span> <b id="of-nNeed">0</b></span>
+    <span class="pill"><i style="background:#818cf8"></i><span data-of="pill.sleep"></span> <b id="of-nSleep">0</b></span>
     <span class="pill"><i style="background:#94a3b8"></i><span data-of="pill.idle"></span> <b id="of-nNap">0</b></span>
     <button id="of-bMeet" aria-pressed="false"><span data-of="meet"></span><kbd>M</kbd></button>
     <button id="of-bWalk" aria-pressed="false"><span data-of="walk"></span><kbd>F</kbd></button><button id="of-bOver"><span data-of="overview"></span><kbd>O</kbd></button>
@@ -136,7 +137,11 @@
     const pick = (a) => (a.length ? a[Math.floor(Math.random() * a.length)] : '');
     const t0 = performance.now() / 1000, now = () => performance.now() / 1000 - t0;
     const fmtT = (s) => { const d = new Date(Date.now() - (now() - s) * 1000); return d.toLocaleTimeString(locale(), { hour12: false }); };
-    const fmtClock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour12: false, hour: '2-digit', minute: '2-digit' });
+    /** Wake time; a limit that resets on another day also shows dd/MM, so "13:00" is not read as today (#186). */
+    const fmtClock = (ts) => {
+      const d = new Date(ts), sameDay = d.toDateString() === new Date().toDateString();
+      return d.toLocaleString(locale(), sameDay ? { hour12: false, hour: '2-digit', minute: '2-digit' } : { hour12: false, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    };
 
     /* ---------- live hub mode (#147) ---------- */
     const live = typeof api.room === 'string' && api.room.trim() ? {
@@ -334,7 +339,19 @@
     function toast(a, txt) { const t = $('of-toast'); t.textContent = '✋ ' + txt; t.hidden = false; toastFor = a.id; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000); }
     $('of-toast').onclick = () => { if (toastFor) setFocus(toastFor); $('of-toast').hidden = true; };
     function toastMsg(t) { const e = $('of-toast'); e.textContent = t; e.hidden = false; toastFor = null; clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.hidden = true; }, 3500); }
-    function hud() { const c = { w: 0, n: 0, z: 0 }; AG.forEach((a) => { if (a.state === 'working' || a.state === 'error') c.w++; else if (a.state === 'ask') c.n++; else c.z++; }); $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nNap').textContent = c.z; $('of-mem').textContent = T('hud.mem', { n: AG.length }) || String(AG.length); paintRoster(); }
+    /** Sleepers are counted on their own pill: the rest room must not inflate the "free" number (#186). */
+    function hud() {
+      const c = { w: 0, n: 0, s: 0, z: 0 };
+      AG.forEach((a) => {
+        if (a.state === 'working' || a.state === 'error') c.w++;
+        else if (a.state === 'ask') c.n++;
+        else if (a.state === 'sleep') c.s++;
+        else c.z++;
+      });
+      $('of-nWork').textContent = c.w; $('of-nNeed').textContent = c.n; $('of-nSleep').textContent = c.s; $('of-nNap').textContent = c.z;
+      $('of-mem').textContent = T('hud.mem', { n: AG.length }) || String(AG.length);
+      paintRoster();
+    }
 
     /* ---------- live hub data (#147): real sessions, states, room chat, DM, permission asks ---------- */
     const enc = encodeURIComponent;
@@ -571,9 +588,11 @@
       // living room: couch, tv unit, rug, plants
       box(4.6, .9, 1.7, 0x9bd6b8, 15, .5, -9.6); box(4.6, 1.3, .4, 0x9bd6b8, 15, 1.3, -10.4); box(3, 1.2, .8, 0x8a5a2b, 17.5, .6, -13.8); box(1.8, 1, .12, 0x161b2b, 17.5, 1.9, -13.7);
       [[-21, -13], [21, -13], [-21, 13], [7, 13.5]].forEach(([x, z]) => { cyl(.5, .4, .7, 0xa8632f, x, .35, z, scene, 12); sph(.9, 0x2f9d63, x, 1.5, z); });
-      // rest room (#179): three low-poly beds in the back-left corner; an agent whose plan limit ran out sleeps here
-      const BEDS = [{ x: -19.2, z: -12.6 }, { x: -17.5, z: -12.6 }, { x: -15.8, z: -12.6 }];
-      box(6.6, .05, 4.4, 0x2c3358, -17.5, .03, -12.5, scene, false);   // rug marks the rest area
+      // rest room (#179, moved in #186): three low-poly beds on the open floor in front of the reception.
+      // The chat dock covers the bottom-left of the screen, so this is the empty patch the default camera and the
+      // overview actually show; the old back-left corner sat behind the last desk row.
+      const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];
+      box(6.6, .05, 4.4, 0x2c3358, -2.8, .03, 12.6, scene, false);   // rug marks the rest area
       BEDS.forEach((b, i) => {
         box(1.8, .3, 3.1, 0x5b4128, b.x, .15, b.z);                                         // frame
         box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);                          // mattress; top at y .57
@@ -581,8 +600,8 @@
         box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);                   // pillow
         box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false); // blanket
       });
-      cyl(.07, .09, 2.1, 0x2c2c38, -21.2, 1.05, -11.1, scene, 10, false); sph(.3, 0xffe3a8, -21.2, 2.25, -11.1, scene, 1); // bedside lamp
-      const restLight = new THREE.PointLight(0xffd9a0, .5, 9); restLight.position.set(-17.5, 2.8, -12.4); scene.add(restLight);
+      cyl(.07, .09, 2.1, 0x2c2c38, 0.9, 1.05, 13.4, scene, 10, false); sph(.3, 0xffe3a8, 0.9, 2.25, 13.4, scene, 1); // bedside lamp
+      const restLight = new THREE.PointLight(0xffd9a0, .5, 9); restLight.position.set(-2.8, 2.8, 12.4); scene.add(restLight);
       // agents
       function makeAgent(hex) {
         const col = new THREE.Color(hex), light = col.clone().lerp(new THREE.Color(0xffffff), .55);
@@ -647,7 +666,7 @@
         else if (p.x > 8.3 && p.z > 2.6) { pts.push(V(9.5, p.z > 7.5 ? 9.8 : 5.6)); pts.push(V(9.5, 5.6)); pts.push(V(9.5, .8)); }
         if (t.kind === 'desk') { pts.push(V(t.col, .8)); pts.push(t.pos); }
         else if (t.kind === 'meet') { pts.push(V(9.5, .8)); pts.push(V(9.5, 5.6)); if (t.pos.z > 7.5) pts.push(V(9.5, 9.8)); pts.push(t.pos); }
-        else if (t.kind === 'bed') { pts.push(V(-20.4, .8)); pts.push(V(-20.4, -10.4)); pts.push(V(t.pos.x, -10.4)); pts.push(t.pos); }
+        else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }   // around the couch / reception, then the foot of the bed
         else pts.push(t.pos);
         return pts;
       }

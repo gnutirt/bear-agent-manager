@@ -575,7 +575,7 @@ test('Office #179: beds in a rest room, a rate-limited agent sleeps with 💤 an
   const { en } = await import('../shared/i18n/en.ts');
   for (const s of [
     // the rest room: three low-poly beds with a pillow, blanket and headboard, like the rest of the diorama
-    'const BEDS = [{ x: -19.2, z: -12.6 }, { x: -17.5, z: -12.6 }, { x: -15.8, z: -12.6 }];',
+    'const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];',
     'box(1.62, .3, 2.9, 0xf3ecdc, b.x, .42, b.z, scene, false);',
     'box(1.2, .22, .58, 0xfdfaf2, b.x, .62, b.z - 1.02, scene, false);',
     'box(1.66, .16, 1.5, [0x7f9cf5, 0x63c9a8, 0xf0a35e][i], b.x, .64, b.z + .62, scene, false);',
@@ -584,14 +584,15 @@ test('Office #179: beds in a rest room, a rate-limited agent sleeps with 💤 an
     "else if (until > Date.now()) state = 'sleep';",
     'sleepUntil: until > Date.now() ? until : 0,',
     "if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x, b.z + 1.1), face: Math.PI, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }",
-    "else if (t.kind === 'bed') { pts.push(V(-20.4, .8)); pts.push(V(-20.4, -10.4)); pts.push(V(t.pos.x, -10.4)); pts.push(t.pos); }",
+    "else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }",
     // the agent lies down on the mattress (not curled up in a lounge chair) and shows a 💤 bubble
     "const lie = !moving && a.pose === 'lie'",
     'a.root.rotation.x += ((lie ? -Math.PI / 2 : 0) - a.root.rotation.x) * Math.min(1, dt * 6);',
     'a.root.position.y = lie ? 1.24 + breathe :',
     "const sleeping = a.state === 'sleep', bub = sleeping ? (T('sleep.bubble') || '💤') : a.bub, on = sleeping || t < a.bubUntil;",
     // the tag says when the limit resets, in the page's language and clock
-    'const fmtClock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour12: false, hour: \'2-digit\', minute: \'2-digit\' });',
+    'const d = new Date(ts), sameDay = d.toDateString() === new Date().toDateString();',
+    "sameDay ? { hour12: false, hour: '2-digit', minute: '2-digit' } : { hour12: false, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }",
     "chip = T('stat.sleepUntil', { t: fmtClock(a.sleepUntil) }) || S[0];",
     // when the limit has passed, the agent gets up and the live refresh puts it back at its desk
     "if (a.state === 'sleep' && a.sleepUntil && Date.now() > a.sleepUntil) { a.state = 'idle'; a.sleepUntil = 0; woke = true; }",
@@ -626,4 +627,30 @@ test('Office #185: clicking a name in the dock roster inserts @handle into the c
   assert.ok(!src.includes('b.onclick = () => { setRoster(false); setFocus(b.dataset.id); };'), 'a roster click no longer opens the DM/panel');
   const css = await readFile(new URL('../ui/office.css', import.meta.url), 'utf8');
   assert.ok(/\.office \.roster button\{[^}]*cursor:pointer/.test(css), 'roster rows keep a pointer cursor');
+});
+
+/* ---------- Office #186: the rest room is where the camera looks, cross-day wake time, HUD splits sleepers ---------- */
+
+test('Office #186: beds sit in the visible front patch, a cross-day wake time shows dd/MM, HUD counts sleepers apart from free agents', async () => {
+  const src = await readOffice();
+  const { vi } = await import('../shared/i18n/vi.ts');
+  const { en } = await import('../shared/i18n/en.ts');
+  for (const s of [
+    // front of the reception, not the back-left corner hidden behind the last desk row (the chat dock covers the bottom-left)
+    'const BEDS = [{ x: -5, z: 12.6 }, { x: -2.8, z: 12.6 }, { x: -0.6, z: 12.6 }];',
+    'box(6.6, .05, 4.4, 0x2c3358, -2.8, .03, 12.6, scene, false);',
+    "else if (t.kind === 'bed') { pts.push(V(-6.8, .8)); pts.push(V(-6.8, 14.4)); pts.push(V(t.pos.x, 14.4)); pts.push(t.pos); }",
+    // a limit that resets on another day: the chip would otherwise look like today
+    'const d = new Date(ts), sameDay = d.toDateString() === new Date().toDateString();',
+    "sameDay ? { hour12: false, hour: '2-digit', minute: '2-digit' } : { hour12: false, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }",
+    // HUD: sleeping is its own count, and the pills read working / ask / sleep / free
+    '<span class="pill"><i style="background:#818cf8"></i><span data-of="pill.sleep"></span> <b id="of-nSleep">0</b></span>',
+    "else if (a.state === 'sleep') c.s++;",
+    "$('of-nSleep').textContent = c.s; $('of-nNap').textContent = c.z;",
+  ]) assert.ok(src.includes(s), `missing rest-room audit fix: ${s}`);
+  assert.ok(src.indexOf('data-of="pill.sleep"') < src.indexOf('data-of="pill.idle"'), 'the sleep pill sits before the free pill');
+  assert.equal(vi['office.pill.idle'], 'Rảnh', 'the free label no longer collides with "Phòng nghỉ"');
+  assert.equal(en['office.pill.idle'], 'Free');
+  assert.equal(vi['office.pill.sleep'], 'Ngủ');
+  assert.equal(en['office.pill.sleep'], 'Sleep');
 });
