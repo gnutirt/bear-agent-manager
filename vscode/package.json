@@ -2,7 +2,7 @@
   "name": "bear-agent-manager-vscode",
   "displayName": "Bear Agent Manager",
   "description": "Watch and command your Claude Code agents' shared chat rooms.",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "gnutirt",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
