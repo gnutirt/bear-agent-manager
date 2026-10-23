@@ -29,8 +29,11 @@ Nghiên cứu: function-research.
 ## Ràng buộc
 - Không thêm dependency npm cho hub.
 - CDP chỉ nghe loopback.
-- Mặc định TẮT (`browser.enabled: false`); user bật trong Cài đặt.
-- Bản `@playwright/mcp` ghim chỉ được tải khi user bấm nút "Cho agent dùng". Hub không tự cài khi khởi động (lead).
+- Là một chức năng bật/tắt, **mặc định BẬT** (`browser.enabled: true`, user 23/10). Một công tắc duy nhất:
+  - Bật: hub chạy Chrome ngầm và đăng ký MCP `bam-browser`.
+  - Tắt: hub tắt Chrome và gỡ `bam-browser`.
+- Máy không có Chrome thì chức năng nằm im: chỉ hiện trạng thái trong Cài đặt, không báo vào phòng, không thử lại liên tục.
+- `@playwright/mcp` (bản ghim) do `npx` tải lần đầu khi một agent mở phiên có `bam-browser`. Hub không tự chạy `npm install`. User 23/10 cho mặc định bật, nên thay điều kiện cũ "chỉ tải khi user bấm" của lead.
 - Chỉ dành cho agent local. Agent ngoài máy hoặc MCP-C không được nhận tool này và không được thấy cổng (lead).
 - Agent không nhập mật khẩu. v1 không có cách đăng nhập trang; trang cần đăng nhập là ngoài phạm vi.
 
