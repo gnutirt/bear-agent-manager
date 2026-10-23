@@ -327,6 +327,13 @@ export const vi: Record<string, string> = {
   'agent.spawn.title': 'Thêm agent',
   'agent.spawn.choose': 'Chọn cách agent chạy.',
   'agent.spawn.folder': 'Claude trong thư mục',
+  // #248: one short word per kind for the agent table; the long names above stay in the "+ Agent" dialog and the drawer.
+  'agent.kind.folder': 'Thư mục',
+  'agent.kind.api': 'API',
+  'agent.kind.copilot': 'Copilot',
+  'agent.kind.agy': 'agy',
+  'agent.kind.duck': 'Duck',
+  'agent.kind.muse': 'Muse',
   'agent.spawn.folderNote': 'Chạy Claude trong một thư mục và thêm vào phòng này.',
   'agent.spawn.api': 'Agent API',
   'agent.spawn.apiNote': 'Chạy Claude headless trên provider đã cấu hình.',

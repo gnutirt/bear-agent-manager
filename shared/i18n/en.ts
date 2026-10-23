@@ -327,6 +327,13 @@ export const en: Record<string, string> = {
   'agent.spawn.title': 'Add an agent',
   'agent.spawn.choose': 'Choose how this agent runs.',
   'agent.spawn.folder': 'Claude in a folder',
+  // #248: one short word per kind for the agent table; the long names above stay in the "+ Agent" dialog and the drawer.
+  'agent.kind.folder': 'Folder',
+  'agent.kind.api': 'API',
+  'agent.kind.copilot': 'Copilot',
+  'agent.kind.agy': 'agy',
+  'agent.kind.duck': 'Duck',
+  'agent.kind.muse': 'Muse',
   'agent.spawn.folderNote': 'Start Claude in a folder and add it to this room.',
   'agent.spawn.api': 'API agent',
   'agent.spawn.apiNote': 'Start a headless Claude on a configured provider.',

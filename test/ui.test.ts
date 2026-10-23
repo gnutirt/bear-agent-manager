@@ -736,8 +736,8 @@ test('#237 every agent is listed in one table and its settings are edited only i
     }
     // #245: AGENT_KIND is a lazy() map of already-translated strings, so wrapping it in t() prints an empty kind.
     assert.ok(!script.includes('t(AGENT_KIND'), 'AGENT_KIND is translated twice, so the kind column goes blank');
-    for (const s of ['<td>${AGENT_KIND[a.kind]}</td>', '...kinds.map((k) => [k, AGENT_KIND[k]])', '<span class="lic">${AGENT_KIND[a.kind]}</span>']) {
-      assert.ok(script.includes(s), `the kind is not read straight from AGENT_KIND: ${s}`);
+    for (const s of ['<td class="kind">${AGENT_KIND_SHORT[a.kind]}</td>', '...kinds.map((k) => [k, AGENT_KIND_SHORT[k]])', '<span class="lic">${AGENT_KIND[a.kind]}</span>']) {
+      assert.ok(script.includes(s), `the kind is not read straight from its lazy map: ${s}`);
     }
     // #245: the agent table carries the "+ Agent" button of the spec (settings-ia §3), next to the kind filter.
     assert.ok(script.includes("data-open-agent-dialog>${t('agent.spawn.add')}"), 'the agent table has no "+ Agent" button');
@@ -777,6 +777,29 @@ test('#237 every agent is listed in one table and its settings are edited only i
     for (const key of ['agent.table.title', 'agent.col.name', 'agent.col.kind', 'agent.col.runs', 'agent.col.model', 'agent.col.tier', 'agent.col.status', 'agent.settings', 'agent.noSession', 'agent.tierDefault', 'agent.blk.basic', 'agent.blk.context', 'agent.blk.activity']) {
       assert.ok(key in vi && key in en, `missing translated string ${key}`);
     }
+  } finally { await hub.close(); }
+});
+
+test('#248 the agent table uses short kind words and wraps the name/path so it fits the 1440 frame', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = html.slice(html.indexOf('<script>'), html.lastIndexOf('</script>'));
+    // The long kind names ("Claude trong thư mục", "Agent API", "Duck (trò chuyện)") stretched the kind column past the frame.
+    assert.ok(script.includes("const AGENT_KIND_SHORT = lazy({ copilot: 'agent.kind.copilot'"), 'the table has no short kind map');
+    for (const key of ['agent.kind.folder', 'agent.kind.api', 'agent.kind.copilot', 'agent.kind.agy', 'agent.kind.duck', 'agent.kind.muse']) {
+      assert.ok(key in vi && key in en, `missing translated string ${key}`);
+      assert.ok(vi[key].length <= 12 && en[key].length <= 12, `${key} is not a short word: ${vi[key]} / ${en[key]}`);
+    }
+    // The table and its filter take the short word; the drawer header keeps the long name.
+    assert.ok(script.includes('<td class="kind">${AGENT_KIND_SHORT[a.kind]}</td>'), 'the kind cell does not use the short word');
+    assert.ok(script.includes('...kinds.map((k) => [k, AGENT_KIND_SHORT[k]])'), 'the kind filter does not use the short word');
+    assert.ok(script.includes('<span class="lic">${AGENT_KIND[a.kind]}</span>'), 'the drawer lost the long kind name');
+    // CSS: no horizontal scroll — the kind is one line, the name/folder column wraps instead of widening the table.
+    for (const s of ['.agent-tbl .tbl td:first-child{white-space:normal;overflow-wrap:anywhere', '.agent-tbl .tbl td.kind{white-space:nowrap}']) {
+      assert.ok(html.includes(s), `the agent table does not fit the frame: ${s}`);
+    }
+    assert.ok(script.includes("table(head, body, 'agent-tbl')"), 'the agent table does not carry its own class');
   } finally { await hub.close(); }
 });
 
