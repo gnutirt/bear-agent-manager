@@ -893,6 +893,11 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   header .meta,.stack{display:none}
   #banner{margin:10px 12px 0}
 }
+@media (max-width:600px){   /* #229: Bộ nhớ on a phone (390px) — label on top, its field full-width underneath */
+  #view-settings :is(.mempane,.mem-entry) .setrow{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:6px}
+  #view-settings :is(.mempane,.mem-entry) .setrow>span{align-self:start}
+  #view-settings :is(.mempane,.mem-entry) .setrow>:is(input,select,textarea){width:100%;min-width:0}
+}
 </style>
 <script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
 </head>
@@ -3644,7 +3649,7 @@ function memoryBlock() {
   </div>`).join('');
   const status = S.memoryError ? `<p class="small bad" role="alert">${esc(S.memoryError)}</p>` : entries === null ? `<p class="small muted">${t('set.memory.loading')}</p>` : entries.length ? rows : `<p class="small muted">${t('set.memory.none')}</p>`;
   return `<h2>${t('set.memory.title')}</h2><p class="small muted">${t('set.memory.note')}</p>
-    <div class="setbox">
+    <div class="setbox mempane">
       <label class="setrow"><span><b>${t('set.memory.room')}</b></span><input class="txtin" data-memory-filter="room" value="${esc(filters.room || '')}"></label>
       <label class="setrow"><span><b>${t('set.memory.project')}</b></span><input class="txtin" data-memory-filter="project" value="${esc(filters.project || '')}"></label>
       <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-filter="kind">${kinds(filters.kind)}</select></label>
@@ -3652,7 +3657,7 @@ function memoryBlock() {
       <div class="row" style="display:flex;gap:8px"><button type="button" class="btn" data-memory-search>${t('set.memory.search')}</button><button type="button" class="btn" data-memory-refresh>${t('data.refresh')}</button>
         <button type="button" class="btn" data-memory-clear="room"${filters.room ? '' : ' disabled'}>${t('set.memory.clearRoom')}</button><button type="button" class="btn" data-memory-clear="project"${filters.project ? '' : ' disabled'}>${t('set.memory.clearProject')}</button></div>
     </div>
-    <h2>${t('set.memory.add')}</h2><div class="setbox" id="memoryNew">
+    <h2>${t('set.memory.add')}</h2><div class="setbox mempane" id="memoryNew">
       <label class="setrow"><span><b>${t('set.memory.text')}</b></span><textarea data-memory-new-text rows="3"></textarea></label>
       <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-new-kind>${kindOptions('context')}</select></label>
       <label class="setrow"><span><b>${t('set.memory.scope')}</b></span><select data-memory-new-scope>${scopeOptions('user')}</select></label>
