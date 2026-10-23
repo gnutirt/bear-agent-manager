@@ -70,11 +70,11 @@ export const MAT = {
 export function poolMaterial(color = PALETTE.lampWarm, opacity = 0.5) {
   return new THREE.MeshBasicMaterial({
     map: lightPool(), color, transparent: true, opacity, depthWrite: false,
-    blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2,
+    blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, visible: false,   // vũng sáng ấm tắt: bớt hiệu ứng
   });
 }
 
-const shadowMat = new THREE.MeshBasicMaterial({ map: contactShadow(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
+const shadowMat = new THREE.MeshBasicMaterial({ map: contactShadow(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, visible: false });   // bóng giả tắt
 shadowMat.userData.shared = true;
 const shadowGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 shadowGeo.userData.shared = true;

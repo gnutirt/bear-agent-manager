@@ -21,7 +21,7 @@ import * as L from './leisure.js';
 const FLOOR = { w: 36, d: 28 };
 const TERRACE = 2.6;
 const STATUS_RING = { working: '#ffd38a', waiting: '#ff9a4d', queued: '#8fb3ff', error: '#ff6b6b' };
-const MAX_POINT_LIGHTS = 8;
+const MAX_POINT_LIGHTS = 0;   // không đèn điểm: bớt hiệu ứng
 
 /** Hướng nhìn: người dựng quay về -z; trả yaw để nhìn từ (fx,fz) về (tx,tz) */
 const faceToward = (fx, fz, tx, tz) => Math.atan2(-(tx - fx), -(tz - fz));
@@ -839,8 +839,8 @@ export class Office3D {
     try { localStorage.setItem('office.quality', q); } catch { /* bỏ qua */ }
     const r = this.renderer;
     r.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1.25));
-    r.shadowMap.enabled = q !== 'low';
-    this.moon.castShadow = q !== 'low';
+    r.shadowMap.enabled = false;   // không đổ bóng thật ở mọi mức
+    this.moon.castShadow = false;
     const size = q === 'high' ? 2048 : 1024;
     if (this.moon.shadow.mapSize.x !== size) { this.moon.shadow.mapSize.set(size, size); this.moon.shadow.map?.dispose(); this.moon.shadow.map = null; }
     this.composer?.dispose?.();
@@ -857,7 +857,6 @@ export class Office3D {
         ao.blendIntensity = 0.85;
         c.addPass(ao);
       }
-      c.addPass(this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.38, 0.45, 0.82));
       c.addPass(new OutputPass());
     }
     this.applyShadows();
@@ -865,7 +864,7 @@ export class Office3D {
     this.resize();
   }
   applyShadows() {
-    const on = this.quality !== 'low';
+    const on = false;
     this.scene?.traverse(o => { if (o.isMesh && o.userData._cast === undefined) o.userData._cast = o.castShadow; if (o.isMesh) o.castShadow = on && o.userData._cast; });
   }
 
