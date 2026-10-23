@@ -46,6 +46,8 @@ export const en: Record<string, string> = {
   'tab.office': 'Office 3D',
   'tab.settings': 'Settings',
   'office.loadError': 'Could not load the 3D Office view.',
+  'office.v4.try': 'Try the new office (beta)',
+  'office.v4.back': 'Back to the classic office',
   'office.sub': 'Drag to orbit, scroll to zoom, click a person to see what they are doing and message them.',
   'office.pill.working': 'Working',
   'office.pill.ask': 'Needs you',

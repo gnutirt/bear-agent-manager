@@ -655,7 +655,8 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 #tabs #tabsMenu{display:none;width:34px;padding:0;place-items:center;border:0}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
-#view-office{display:flex;overflow:hidden;padding:0}
+#view-office{display:flex;overflow:hidden;padding:0;position:relative}
+#officeVer{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;padding:4px 12px;font-size:12px;border-radius:999px;background:rgba(14,17,26,.7);color:#eef0f6;border:1px solid rgba(255,255,255,.18);cursor:pointer}
 #officeRoot{flex:1;min-height:0;min-width:0}
 .flow{--fg:var(--text);--muted:var(--mute);--card:var(--panel);--cardline:var(--line);--edge:var(--mute);--chipbg:var(--panel);--laneA:var(--panel);--laneB:var(--bg);--grid:var(--line);--tier:color-mix(in srgb,var(--text) 4%,transparent);--panel2:var(--accent-soft);--hi:var(--accent);--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;min-width:0;color:var(--text);font:inherit}
 .flow *{box-sizing:border-box}
@@ -881,6 +882,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   #banner{margin:10px 12px 0}
 }
 </style>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <aside id="side">
@@ -968,7 +970,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
 <section id="view-flow" class="view" hidden aria-label="Luồng agent" data-i18n-aria="flow.title"></section>
-<section id="view-office" class="view" hidden aria-label="Office 3D"><div id="officeRoot"></div></section>
+<section id="view-office" class="view" hidden aria-label="Office 3D"><div id="officeRoot"></div><button id="officeVer" type="button"></button></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
 <section id="view-settings" class="view" hidden aria-label="Cài đặt" data-i18n-aria="tab.settings"></section>
 </div>
@@ -2512,7 +2514,13 @@ async function openOffice() {
     await ensureOfficeAssets();
     if (S.tab !== 'office' || officeInstance) return;
     if (typeof window.mountOffice !== 'function' || typeof window.unmountOffice !== 'function') throw new Error('office module unavailable');
-    officeInstance = window.mountOffice($('officeRoot'), { room: flowRoomName() || 'bear-agent-manager', base: location.origin, token: TOKEN });
+    const room = flowRoomName() || 'bear-agent-manager';
+    paintOfficeVer();
+    if (officeV4()) {
+      const mod = await import('/office4/main.js');
+      if (S.tab !== 'office' || officeInstance) return;
+      officeInstance = { ...mod.mountOffice4($('officeRoot'), { room, base: location.origin, token: TOKEN }), v4: true };
+    } else officeInstance = window.mountOffice($('officeRoot'), { room, base: location.origin, token: TOKEN });
   } catch (err) {
     if (S.tab !== 'office') return;
     const root = $('officeRoot'), message = document.createElement('p');
@@ -2523,9 +2531,12 @@ async function openOffice() {
 }
 function closeOffice() {
   if (!officeInstance) return;
-  if (typeof window.unmountOffice === 'function') window.unmountOffice();
+  if (officeInstance.v4) officeInstance.unmount(); else if (typeof window.unmountOffice === 'function') window.unmountOffice();
   officeInstance = null;
 }
+const officeV4 = () => { try { return localStorage.getItem('bear-agent-manager:officeV4') === '1'; } catch { return false; } };
+function paintOfficeVer() { $('officeVer').textContent = t(officeV4() ? 'office.v4.back' : 'office.v4.try'); }
+$('officeVer').onclick = () => { try { localStorage.setItem('bear-agent-manager:officeV4', officeV4() ? '0' : '1'); } catch { /* storage blocked: stays on this version */ } closeOffice(); openOffice(); };
 /** Phòng and Chat riêng share the chat view but never each other's conversations: each tab keeps its own last conversation. */
 function syncChatTabs() {
   const dm = !!room(S.current)?.dm, chat = S.tab === 'rooms';

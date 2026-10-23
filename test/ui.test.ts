@@ -277,6 +277,9 @@ test('Office tab assets are served locally and without a token', async () => {
       ['/office.js', 'text/javascript', 'window.mountOffice = mountOffice'],
       ['/vendor/office/three.min.js', 'text/javascript', 'const e="128"'],
       ['/vendor/office/OrbitControls.js', 'text/javascript', 'THREE.OrbitControls = OrbitControls'],
+      ['/office4/main.js', 'text/javascript', 'export function mountOffice4'],
+      ['/vendor/three/three.module.min.js', 'text/javascript', 'REVISION'],
+      ['/vendor/three/examples/jsm/postprocessing/GTAOPass.js', 'text/javascript', 'class GTAOPass'],
     ]) {
       const response = await fetch(hub.url + url);
       assert.equal(response.status, 200, `${url} should be public static asset`);

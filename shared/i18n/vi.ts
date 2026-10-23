@@ -46,6 +46,8 @@ export const vi: Record<string, string> = {
   'tab.office': 'Văn phòng 3D',
   'tab.settings': 'Cài đặt',
   'office.loadError': 'Không thể tải giao diện Văn phòng 3D.',
+  'office.v4.try': 'Thử văn phòng bản mới',
+  'office.v4.back': 'Về văn phòng bản cũ',
   'office.sub': 'Kéo để xoay, cuộn để zoom, bấm vào một người để xem họ làm gì và nhắn riêng.',
   'office.pill.working': 'Đang làm',
   'office.pill.ask': 'Chờ bạn',

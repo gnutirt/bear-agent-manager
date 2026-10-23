@@ -1948,6 +1948,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       res.writeHead(200, { 'content-type': officeAsset.type, 'cache-control': 'no-cache' });
       return res.end(fs.readFileSync(officeAsset.file));
     }
+    // Office 4 (trial): the ai-office scene (ui/office4) and the three.js ES-module build it imports (ui/vendor/three). Static code only.
+    const modPrefix = ['/office4/', '/vendor/three/'].find((x) => p.startsWith(x));
+    if (m === 'GET' && modPrefix) {
+      const base = path.join(ROOT, 'ui', ...modPrefix.split('/').filter(Boolean)), file = path.resolve(base, decodeURIComponent(p.slice(modPrefix.length)));
+      if (!file.startsWith(base + path.sep) || path.extname(file) !== '.js' || !fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' });
+      return res.end(fs.readFileSync(file));
+    }
     // Monaco editor, served from the local node_modules (no CDN, works offline). Static code only, no token needed (the web worker cannot send one).
     if (m === 'GET' && p.startsWith('/vendor/monaco/')) {
       const base = path.join(ROOT, 'node_modules', 'monaco-editor', 'min'), file = path.resolve(base, decodeURIComponent(p.slice('/vendor/monaco/'.length)));
