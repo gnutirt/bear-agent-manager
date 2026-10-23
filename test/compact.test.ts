@@ -308,3 +308,64 @@ test('#79 compact.onTaskDone: a task done/blocked compacts its offline owner pas
     assert.deepEqual(order, ['compact', 'revive'], 'the open tab is not compacted');
   } finally { await h.hub.close(); }
 });
+
+test('#201 committed task completion compacts an idle owner; no commit or an open IDE tab does not spawn compact', async () => {
+  const makeCase = async (id: string, { commit, tab = false }: { commit: boolean; tab?: boolean }) => {
+    const compacts: string[] = [];
+    const killed: number[] = [];
+    const pid = 4242;
+    const h = await makeHub(undefined, () => {}, {
+      autoRevive: false,
+      compactRevive: async (job: any) => {
+        compacts.push(job.id);
+        fs.appendFileSync(path.join(h.dir, `${job.id}.jsonl`), JSON.stringify({ type: 'system', subtype: 'compact_boundary', compactMetadata: { preTokens: 10_000, postTokens: 1000 } }) + '\n');
+        return 0;
+      },
+      isAlive: (candidate: number) => candidate === pid && tab,
+      kill: async (candidate: number) => { killed.push(candidate); },
+    });
+    const transcript = path.join(h.dir, `${id}.jsonl`);
+    fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5-5', usage: { input_tokens: 10_000 } } }) + '\n');
+    await h.call('/api/sessions/register', { id, cwd: h.dir, name: 'coder', transcript, ...(tab ? { pid } : {}) });
+    await h.call(`/api/sessions/${id}/rename`, { name: 'coder' });
+    await h.call('/api/rooms/proj/join', { sessionId: id });
+    if (tab) await h.call(`/api/sessions/${id}/ide`, { ide: 'vscode' });
+    await fetch(`${h.hub.url}/hooks/end`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: id }),
+    });
+    await h.call('/api/sessions/register', { id: `lead-${id}`, cwd: h.dir, name: `lead-${id}` });
+    await h.call(`/api/rooms/proj/join`, { sessionId: `lead-${id}` });
+    await h.call('/api/rooms/proj/lead', { sessionId: `lead-${id}` });
+    const task = await h.call('/api/rooms/proj/tasks', { sessionId: `lead-${id}`, title: 'Committed task', owner: 'coder' });
+    await h.call(`/api/rooms/proj/tasks/${task.id}`, {
+      sessionId: `lead-${id}`,
+      status: 'done',
+      ...(commit ? { commit: 'abc1234' } : {}),
+    });
+    return { h, compacts, killed, task };
+  };
+
+  const committed = await makeCase('committed-small-context', { commit: true });
+  try {
+    await until(() => committed.compacts.length === 1, 5_000, 'committed task compaction below threshold');
+    assert.deepEqual(committed.compacts, ['committed-small-context']);
+    assert.deepEqual(committed.killed, []);
+  } finally { await committed.h.hub.close(); }
+
+  const uncommitted = await makeCase('uncommitted-small-context', { commit: false });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(uncommitted.compacts, [], 'done without a commit keeps the existing threshold-only behavior');
+  } finally { await uncommitted.h.hub.close(); }
+
+  const openTab = await makeCase('tab-open-commit', { commit: true, tab: true });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(openTab.compacts, [], 'a live IDE tab is never stopped to compact');
+    assert.deepEqual(openTab.killed, [], 'the tab process is not killed');
+    const messages = await openTab.h.call<any[]>('/api/rooms/proj/messages?after=0');
+    assert.ok(messages.some((message) => /gõ \/compact trong tab của coder/i.test(message.text)), 'the user is asked to run /compact in the tab');
+  } finally { await openTab.h.hub.close(); }
+});

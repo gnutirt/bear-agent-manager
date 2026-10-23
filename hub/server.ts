@@ -633,6 +633,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const leadRooms = (sid: string) => Object.values(store.state.rooms).filter((r) => r.lead === sid).map((r) => r.name);
+  /**
+   * #202: everything the fixed rules say that can change while a chat lives — the style, the rooms it leads, and the
+   * context itself (a compaction boundary). A new key means the rules the agent holds are stale, so they ride again;
+   * a boolean flag never noticed a promotion to lead or a switch to BAMshort until the next compaction.
+   */
+  const rulesKeyFor = (s: Session) => `${loadSettings(opts.dir, envCap).agentComms}|${leadRooms(s.id).join(',')}|${readCompactMark(s.transcript)}`;
 
   function deliverTo(res: http.ServerResponse, sid: string, messages: Message[], afterLimit = false) {
     const fromCursor = store.session(sid).cursor;
@@ -643,7 +649,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       store.save();
     }
     // #200: `rules` carries the fixed part of a delivery to the waiter, which prints it for the first one of a context only.
-    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms, rules: messages.length ? store.takeRules(sid) : false });
+    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms, rules: messages.length ? store.takeRules(sid, rulesKeyFor(store.session(sid))) : false });
   }
 
   // Every wake is a full turn that re-reads the session's whole context, so a burst of messages
@@ -838,7 +844,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
-      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id, loadSettings(opts.dir, envCap).agentComms, store.takeRules(st.id)))) consume(st.id, p.messages[p.messages.length - 1].id);
+      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id, loadSettings(opts.dir, envCap).agentComms, store.takeRules(st.id, rulesKeyFor(st))))) consume(st.id, p.messages[p.messages.length - 1].id);
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
@@ -977,9 +983,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // throws the old context away, so it carries them even when an earlier context already had them.
     // A provider agent is worse off: Claude Code auto-compacts it at 300k with no hook at all, so the hub learns about
     // that compaction only from the transcript — a newer boundary than the one recorded means the rules are gone.
-    const ruleMark = readCompactMark(s.transcript);
-    if (compactFirst || (ruleMark && ruleMark !== (s.rulesMark ?? ''))) store.resetRules(s.id);
-    const gaveRules = store.takeRules(s.id, ruleMark);
+    const ruleKey = rulesKeyFor(s);
+    if (compactFirst) store.resetRules(s.id);   // everything the context held goes; the wake below carries the rules
+    const gaveRules = store.takeRules(s.id, ruleKey);
     const delivery = p.messages.length
       ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id, cfg.agentComms, gaveRules)
       : formatDelivery([], takeNotes(s.id), leadRooms(s.id), undefined, cfg.agentComms, gaveRules).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
@@ -1012,6 +1018,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           compacted = (await Promise.resolve(runCompact(job)).catch(() => 1)) === 0;
           if (ended()) return;
           if (!compacted) tellRooms(tr('sys.wake.compactFailed', { name: s.name }));
+          // #202: the rules ride on the prompt below, which is read after the compaction: record the new context so the
+          // next wake does not repeat them (the compact subprocess fires SessionStart(compact) on a hooked chat).
+          if (compacted) store.markRules(s.id, rulesKeyFor(s));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
         const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, perm, onOutput: (chunk) => { output = (output + chunk).slice(-4096); } }));
@@ -1073,17 +1082,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   const compactAfter = new Map<string, [string, Task]>();   // #79: owners who closed a task mid-turn; compacted when that turn ends
-  /** #79 (settings compact.onTaskDone): a task done or blocked compacts its owner's chat past the role threshold, so the next task does not re-read it all. */
-  async function compactTaskOwner(room: string, task: Task) {
+  /** #79/#201: compact after a task closes past the role threshold, or after a committed done task regardless of size. */
+  async function compactTaskOwner(room: string, task: Task, committedDone = false) {
     const cfg = loadSettings(opts.dir, envCap);
     const s = store.members(room).find((x) => x.name.toLowerCase() === (task.owner ?? '').toLowerCase());
-    if (!cfg.compact.onTaskDone || !cfg.compact.thresholds.enabled || !s || !hasTranscript(s) || liveChat.has(s.id)) return;
+    if (!cfg.compact.onTaskDone || !s || !hasTranscript(s) || liveChat.has(s.id)) return;
     const ctx = readContextTokens(s.transcript);
-    if (!ctx || ctx < cfg.compact.thresholds[wakeRole(s)]) return;
-    if (reviving.has(s.id)) { compactAfter.set(s.id, [room, task]); return; }
+    if (!committedDone && (!cfg.compact.thresholds.enabled || !ctx || ctx < cfg.compact.thresholds[wakeRole(s)])) return;
+    if (committedDone && s.ide && (tabHolds(s) || waiters.has(s.id))) {
+      try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ }
+      return;
+    }
+    if (reviving.has(s.id)) {
+      if (!committedDone) compactAfter.set(s.id, [room, task]);
+      return;
+    }
     if (waiters.has(s.id) || (!s.ended && s.status !== 'offline')) {
       // an open tab is never killed for this (see the compact route): the person types /compact there
-      if (s.ide) { try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ } }
+      if (!committedDone && s.ide) { try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ } }
       return;
     }
     if (await dirtyUnlessForced(s, false).catch(() => true)) return;   // uncommitted own files: the owner commits first
@@ -1408,7 +1424,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const pend = store.pending(sid);
         if (pend.wake && pend.messages.length) {
           consume(sid, pend.messages[pend.messages.length - 1].id);
-          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms, store.takeRules(sid)) } });
+          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms, store.takeRules(sid, rulesKeyFor(store.session(sid)))) } });
         }
         break;
       }
@@ -1976,9 +1992,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const sid = store.resolve(String(url.searchParams.get('session') ?? ''));
       const source = String(url.searchParams.get('source') ?? '');
       if (!store.state.sessions[sid]) return json(res, 404, { error: `unknown session ${sid}` });
+      // #202: a wake that compacts on the way in starts /compact, whose SessionStart(compact) lands here; that wake's
+      // prompt already carries the rules, so printing them again would be the one duplicate the move was meant to remove.
+      if (reviving.has(sid)) return json(res, 200, { text: '' });
       if (source === 'compact' || source === 'clear') store.resetRules(sid);
       const s = store.state.sessions[sid];
-      return json(res, 200, { text: store.takeRules(sid, readCompactMark(s.transcript)) ? fixedRules(loadSettings(opts.dir, envCap).agentComms, leadRooms(sid)) : '' });
+      return json(res, 200, { text: store.takeRules(sid, rulesKeyFor(s)) ? fixedRules(loadSettings(opts.dir, envCap).agentComms, leadRooms(sid)) : '' });
     }
     if (m === 'GET' && p === '/api/workers') {
       if (Date.now() - scannedAt > 2000) await scanWorkers();
@@ -2779,7 +2798,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         if (freed.length) for (const t of freed) if (t.owner) assign(t);
         if (!selfFreed && task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
-        if ((task.status === 'done' || task.status === 'blocked') && before.status !== task.status) void compactTaskOwner(room, task).catch(() => {});
+        if ((task.status === 'done' || task.status === 'blocked') && before.status !== task.status) {
+          void compactTaskOwner(room, task, task.status === 'done' && !!task.commit).catch(() => {});
+        }
         return json(res, 200, task);
       }
     }
