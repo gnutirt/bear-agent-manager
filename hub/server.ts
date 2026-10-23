@@ -59,6 +59,7 @@ import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
 import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyStatus, type AgyTurn } from './agy.ts';
 import { Memory, MemoryError, type MemKind, type MemEntry } from './memory.ts';
+import { DuckHost } from './duckhost.ts';
 
 export type { ReviveJob };
 
@@ -207,6 +208,8 @@ export type HubOptions = {
   mcpRun?: mcpcfg.Run;
   /** Browser lifecycle; null disables it for tests that do not exercise the feature. */
   browser?: BrowserHost | null;
+  /** Duck2api lifecycle; null disables it for tests that do not exercise the feature. */
+  duck?: DuckHost | null;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -297,6 +300,37 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     cfg: () => loadSettings(opts.dir, envCap).browser,
     onCrash: () => applyBrowser(),
   });
+  let applyDuck: () => Promise<void> = async () => {};
+  const duck = opts.duck === null ? undefined : opts.duck ?? new DuckHost({
+    dir: opts.dir,
+    cfg: () => loadSettings(opts.dir, envCap).duck,
+    onCrash: () => applyDuck(),
+  });
+  let duckApplyError = '';
+  let appliedDuckCfg = '';
+  let duckApplyQueue = Promise.resolve();
+  applyDuck = (): Promise<void> => {
+    const task = duckApplyQueue.then(async () => {
+      if (!duck) return;
+      const cfg = loadSettings(opts.dir, envCap).duck;
+      const key = JSON.stringify(cfg);
+      duckApplyError = '';
+      try {
+        if (!cfg.exePath) {
+          await duck.stop();
+        } else {
+          if (appliedDuckCfg && appliedDuckCfg !== key && duck.running()) await duck.stop();
+          await duck.start();
+        }
+        appliedDuckCfg = key;
+      } catch (error) {
+        appliedDuckCfg = key;
+        duckApplyError = (error as Error).message;
+      }
+    });
+    duckApplyQueue = task.catch(() => {});
+    return task;
+  };
   let browserApplyError = '';
   let browserAgents = false;
   let appliedBrowserCfg = '';
@@ -2096,6 +2130,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         mcpVersion: PLAYWRIGHT_MCP_VERSION,
       });
     }
+    if (m === 'GET' && p === '/api/duck/host') {
+      const cfg = loadSettings(opts.dir, envCap).duck;
+      return json(res, 200, {
+        configured: !!cfg.exePath,
+        running: duck?.running() ?? false,
+        endpoint: duck?.endpoint() ?? '',
+        lastError: duckApplyError || duck?.lastError() || '',
+      });
+    }
     if (m === 'POST' && p === '/api/ide/hello') {
       return json(res, 200, ideBridge.hello(await readBody(req)));
     }
@@ -2668,6 +2711,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const next = patchSettings(loadSettings(opts.dir, envCap), patch);
       saveSettings(opts.dir, next);
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
+      if (patch && Object.prototype.hasOwnProperty.call(patch, 'duck')) await applyDuck();
       void syncCopilots();
       syncApiAgents();
       autoCfg.at = 0;
@@ -3312,6 +3356,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   });
 
   void applyBrowser();
+  void applyDuck();
 
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
@@ -3513,6 +3558,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
       await browserApplyQueue.catch(() => {});
       if (browser) await browser.stop();
+      await duckApplyQueue.catch(() => {});
+      if (duck) await duck.stop();
       ideBridge.close();
       liveChat.stopAll();
       server.closeAllConnections();

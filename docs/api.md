@@ -11,6 +11,7 @@
 | GET | `/api/health` |  | không |
 | GET | `/api/agy/check` |  | có |
 | GET | `/api/browser` |  | có |
+| GET | `/api/duck/host` |  | có |
 | POST | `/api/ide/hello` |  | có |
 | GET | `/api/ide/next` |  | có |
 | POST | `/api/ide/result` |  | có |

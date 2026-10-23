@@ -22,6 +22,14 @@ test('browser defaults on; invalid port keeps the current value', () => {
   assert.deepEqual(patchSettings(d, { browser: { port: 65536 } }).browser, d.browser);
 });
 
+test('Duck2api defaults off; settings accept an executable path and a valid loopback port', () => {
+  const d = defaultSettings();
+  assert.deepEqual(d.duck, { exePath: '', port: 8080 });
+  assert.deepEqual(patchSettings(d, { duck: { exePath: ' C:\\tools\\duck2api.exe ', port: 8089 } }).duck, { exePath: 'C:\\tools\\duck2api.exe', port: 8089 });
+  assert.deepEqual(patchSettings(d, { duck: { exePath: 'x'.repeat(501), port: 1023 } }).duck, d.duck);
+  assert.deepEqual(patchSettings(d, { workerCap: 5 }).duck, d.duck);
+});
+
 test('API agents get all tools by default; the switch validates and migrates older settings', () => {
   const d = defaultSettings();
   assert.deepEqual(d.apiAgents, { allTools: true });
