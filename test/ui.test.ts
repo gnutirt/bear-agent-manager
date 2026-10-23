@@ -718,3 +718,28 @@ test('Office #197: the loft rest room, the walnut boardroom, obstacle push-out, 
   assert.ok(!src.includes('0xa9cf6a'), 'the old green partitions are gone');
   assert.ok(!src.includes('0x6b4226'), 'the old meeting table is gone');
 });
+
+/* ---------- Office #211: fixes from the frontend photo audit (label collisions, dock height, phone 390) ---------- */
+
+test('Office #211: close labels stack and stay inside the canvas, the dock is shorter, and the phone camera frames the VIP room', async () => {
+  const src = await readOffice();
+  for (const s of [
+    // labels are placed after the pass, so a tag that collides is stacked upward instead of drawn on top
+    'const placedTags = [];',
+    'function layoutTags(W) {',
+    'const hit = placedTags.find((r) => Math.abs(r.x - x) * 2 < r.w + w + 6 && y > r.y - r.h - 4 && y - h < r.y + 4);',
+    'y = hit.y - hit.h - 4;',
+    // and clamped inside the canvas, which is what clipped tags at 390px
+    'x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));',
+    'a._vis = v3.z <= 1; a._tx = (v3.x * .5 + .5) * W; a._ty = (-v3.y * .5 + .5) * H;',
+    'layoutTags(W);',
+    // phone camera: VIP room + boardroom, with the floor edge below the frame so no white band shows
+    'if (W < 760) { HOME.p.set(15, 30, 26); HOME.t.set(15, 0, -4);',
+  ]) assert.ok(src.includes(s), `missing #211 fix: ${s}`);
+  assert.ok(!src.includes('HOME.p.set(0, 66, 76)'), 'the old phone camera stopped short of the floor edge and missed the VIP room');
+  const css = await readFile(new URL('../ui/office.css', import.meta.url), 'utf8');
+  assert.ok(/\.office \.dock\{[^}]*height:min\(32vh,286px\)/.test(css), 'the dock no longer covers the lower half of the loft beds');
+  assert.ok(/\.office \.tag \.tool\{[^}]*max-width:min\(240px,60vw\)[^}]*text-overflow:ellipsis/.test(css), 'a long tool line is truncated instead of spilling out on a phone');
+  assert.ok(/@media\(max-width:760px\)\{[\s\S]*\.office \.pills\{[^}]*flex-wrap:nowrap[^}]*overflow-x:auto/.test(css), 'the phone pill row scrolls on one line instead of wrapping misaligned');
+  assert.ok(css.includes('.office .pills kbd{display:none}'), 'keyboard hints are hidden on a phone');
+});

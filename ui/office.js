@@ -808,13 +808,35 @@
       function resize() {
         const { W, H } = size();
         renderer.setSize(W, H); cam.aspect = W / H; cam.updateProjectionMatrix();
-        if (W < 760) { HOME.p.set(0, 66, 76); HOME.t.set(0, 0, 2); if (!resize.m) { resize.m = 1; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); $('of-dock').classList.add('closed'); } }
+        // phone: frame the VIP room + boardroom and keep the floor edge below the frame, otherwise the
+        // transparent renderer shows the near-white sky gradient as a band under the canvas (#211)
+        if (W < 760) { HOME.p.set(15, 30, 26); HOME.t.set(15, 0, -4); if (!resize.m) { resize.m = 1; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); $('of-dock').classList.add('closed'); } }
         else { HOME.p.set(-10, 25, 30); HOME.t.set(-10, 0, 2); if (resize.m) { resize.m = 0; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); } }
       }
       addEventListener('resize', resize); resize();
       let ro = null;
       if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(() => { resize(); start(); }); ro.observe(root); }   // pane shown/hidden by the tab bar
       const v3 = new THREE.Vector3();
+      /** Screen-space labels (#211): keep every tag inside the canvas and stack a tag upward when two agents stand close. */
+      const placedTags = [];
+      function layoutTags(W) {
+        placedTags.length = 0;
+        for (const a of AG) {
+          if (!a.tg) continue;
+          if (!a._vis) { if (a.tg.style.display !== 'none') a.tg.style.display = 'none'; continue; }
+          a.tg.style.display = '';
+          const w = a.tg.offsetWidth || 60, h = a.tg.offsetHeight || 20;
+          let x = a._tx, y = a._ty;
+          x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));   // never clipped by the canvas edge (phone, 390px)
+          for (let n = 0; n < 8; n++) {
+            const hit = placedTags.find((r) => Math.abs(r.x - x) * 2 < r.w + w + 6 && y > r.y - r.h - 4 && y - h < r.y + 4);
+            if (!hit) break;
+            y = hit.y - hit.h - 4;   // stack above the label it collided with
+          }
+          placedTags.push({ x, y, w, h });
+          a.tg.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`;
+        }
+      }
       function frame() {
         if (!running) return;
         if (document.hidden || !shown()) { running = false; last = now(); return; }   // paused: no simulation, no render, no rAF
@@ -854,9 +876,9 @@
           a.arms[1].rotation.z = wave ? -2.6 + (reduced ? 0 : Math.sin(t * 7) * .4) : 0;
           a.head.rotation.x = a.pose === 'nap' && !moving ? .45 + (reduced ? 0 : Math.sin(t * 1.6) * .05) : 0;
           a.bang.visible = a.state === 'ask' || a.state === 'error'; a.bang.material.color.set(a.state === 'error' ? 0xff9a3a : 0xff4b4b); a.bang.rotation.y = t * 2.5; a.bang.position.y = 3.5 + (reduced ? 0 : Math.sin(t * 4) * .15);
-          // tag
+          // tag: project here, place after the pass so labels of agents standing close can stack (#211)
           v3.copy(p); v3.y = p.y + 3.5; v3.project(cam);
-          if (v3.z > 1) { a.tg.style.display = 'none'; } else { a.tg.style.display = ''; a.tg.style.transform = `translate(${(v3.x * .5 + .5) * W}px,${(-v3.y * .5 + .5) * H}px) translate(-50%,-100%)`; }
+          a._vis = v3.z <= 1; a._tx = (v3.x * .5 + .5) * W; a._ty = (-v3.y * .5 + .5) * H;
           const key = meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state, S = st(key);
           let chip = S[0]; if (a.state === 'ask') chip += ' · ' + Math.floor(t - a.askedAt) + 's'; else if (a.state === 'sleep') chip = T('stat.sleepUntil', { t: fmtClock(a.sleepUntil) }) || S[0];
           if (a.cache.chip !== chip) { a.cache.chip = chip; a.tChip.textContent = chip; a.tChip.style.background = S[1]; }
@@ -865,6 +887,7 @@
           if (a.cache.on !== on) { a.cache.on = on; a.tSay.classList.toggle('on', on); } if (a.cache.bub !== bub) { a.cache.bub = bub; a.tSay.textContent = bub; }
           a.tg.classList.toggle('sel', focus === a.id); hint.style.display = focus ? 'none' : '';
         });
+        layoutTags(W);
         if (woke && live) liveRefresh();
         // screens glow by activity
         AG.forEach((a, i) => { const sc = screens[i % screens.length]; if (sc) sc.material.emissive.set(a.state === 'working' && a.tgt && a.tgt.kind === 'desk' && !a.path.length ? 0x2a9d6f : 0x1d3a5a); });
