@@ -70,15 +70,21 @@ function writeJson(file: string, data: unknown): void {
   renameRetry(tmp, file);
 }
 
-function readJson<T>(file: string, fallback: T): T {
+type JsonRead<T> = { value: T; readOnly: boolean };
+function readJson<T>(file: string, fallback: T): JsonRead<T> {
   let raw: string;
   try { raw = fs.readFileSync(file, 'utf8'); } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return fallback;
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { value: fallback, readOnly: false };
     throw e;
   }
-  try { return JSON.parse(raw) as T; } catch {
-    fs.renameSync(file, `${file}.bad-${Date.now()}`);
-    return fallback;
+  try { return { value: JSON.parse(raw) as T, readOnly: false }; } catch {
+    try {
+      renameRetry(file, `${file}.bad-${Date.now()}`);
+      return { value: fallback, readOnly: false };
+    } catch (error) {
+      console.warn(`[memory] could not quarantine corrupt JSON at ${file}; using read-only fallback: ${(error as Error).message}`);
+      return { value: fallback, readOnly: true };
+    }
   }
 }
 
@@ -123,7 +129,7 @@ export function historyFile(home: string, agentId: string, room: string): string
 }
 
 export function loadHistory(home: string, agentId: string, room: string): ChatHistory {
-  const raw = readJson<unknown>(historyFile(home, agentId, room), null);
+  const { value: raw } = readJson<unknown>(historyFile(home, agentId, room), null);
   if (!raw || typeof raw !== 'object') return emptyHistory();
   const h = raw as Partial<ChatHistory>;
   const turns = Array.isArray(h.turns) ? h.turns
@@ -133,10 +139,12 @@ export function loadHistory(home: string, agentId: string, room: string): ChatHi
 }
 
 export function saveHistory(home: string, agentId: string, room: string, h: ChatHistory): void {
+  const file = historyFile(home, agentId, room);
+  if (readJson<unknown>(file, null).readOnly) throw new MemoryError(503, 'chat history is read-only because its corrupt file could not be quarantined');
   const turns = (Array.isArray(h && h.turns) ? h.turns : [])
     .filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.text === 'string')
     .map((t) => ({ role: t.role, text: redactHistoryText(t.text), at: Number(t.at) || 0 }));
-  writeJson(historyFile(home, agentId, room), { summary: redactHistoryText(String((h && h.summary) || '')), turns });
+  writeJson(file, { summary: redactHistoryText(String((h && h.summary) || '')), turns });
 }
 
 export function clearHistory(home: string, agentId: string, room: string): void {
@@ -150,12 +158,14 @@ export class Memory {
   private readonly now: () => number;
   private entries: MemEntry[];
   private readonly file: string;
+  private readOnly = false;
 
   constructor(home: string, now: () => number = Date.now) {
     this.home = home;
     this.now = now;
     this.file = path.join(home, 'memory', 'entries.json');
-    const raw = readJson<unknown>(this.file, null);
+    const { value: raw, readOnly } = readJson<unknown>(this.file, null);
+    this.readOnly = readOnly;
     const list = Array.isArray(raw) ? raw : raw && Array.isArray((raw as { entries?: unknown }).entries) ? (raw as { entries: unknown[] }).entries : [];
     this.entries = list.filter((e) => e && typeof e === 'object' && Number.isFinite((e as MemEntry).id)).map((e) => ({
       ...(e as MemEntry),
@@ -166,7 +176,13 @@ export class Memory {
     }));
   }
 
-  private save(): void { writeJson(this.file, { entries: this.entries }); }
+  private save(): void {
+    this.assertWritable();
+    writeJson(this.file, { entries: this.entries });
+  }
+  private assertWritable(): void {
+    if (this.readOnly) throw new MemoryError(503, 'memory is read-only because its corrupt file could not be quarantined');
+  }
 
   private nextId(): number { return this.entries.reduce((m, e) => Math.max(m, e.id), 0) + 1; }
 
@@ -188,6 +204,7 @@ export class Memory {
     const tags = checkTags(e.tags);
     const urls = Array.isArray(e.urls) ? e.urls.map(String) : undefined;
     if (urls?.some(isSecretText)) throw new MemoryError(400, 'memory URLs look like a secret');
+    this.assertWritable();
     if (this.entries.length >= MAX_ENTRIES) this.dropOldest();
     const ts = this.now();
     const entry: MemEntry = {
@@ -203,6 +220,7 @@ export class Memory {
   update(id: number, patch: Partial<Pick<MemEntry, 'text' | 'kind' | 'tags' | 'scope' | 'project' | 'room'>>): MemEntry {
     const e = this.entries.find((x) => x.id === id);
     if (!e) throw new MemoryError(404, 'memory entry not found');
+    this.assertWritable();
     const next: MemEntry = { ...e };
     if ('text' in patch) next.text = checkText(patch.text);
     if ('kind' in patch) next.kind = checkKind(patch.kind);
@@ -221,6 +239,7 @@ export class Memory {
   remove(id: number): void {
     const i = this.entries.findIndex((x) => x.id === id);
     if (i < 0) throw new MemoryError(404, 'memory entry not found');
+    this.assertWritable();
     this.entries.splice(i, 1);
     this.save();
   }
@@ -230,6 +249,7 @@ export class Memory {
     const room = by && by.room !== undefined ? String(by.room) : undefined;
     const project = by && by.project !== undefined ? String(by.project) : undefined;
     if (room === undefined && project === undefined) throw new MemoryError(400, 'clear needs a room or a project');
+    this.assertWritable();
     const hit = (e: MemEntry) =>
       (room !== undefined && e.scope === 'room' && e.room === room) ||
       (project !== undefined && e.scope === 'project' && e.project === project);

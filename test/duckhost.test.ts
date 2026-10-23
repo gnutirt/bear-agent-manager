@@ -29,6 +29,9 @@ test('spawn uses loopback, per-run auth, the Duck working directory and only a m
   fs.writeFileSync(exe, '');
   const proc = child(4321);
   let serving = false, spawnArgs: unknown[] = [];
+  const oldHttpProxy = process.env.HTTP_PROXY, oldHttpsProxy = process.env.HTTPS_PROXY;
+  process.env.HTTP_PROXY = 'http://proxy.example:8000';
+  process.env.HTTPS_PROXY = 'http://secure-proxy.example:8000';
   const host = new DuckHost({
     dir,
     cfg: () => ({ exePath: exe, port: 8089 }),
@@ -48,11 +51,15 @@ test('spawn uses loopback, per-run auth, the Duck working directory and only a m
     assert.equal(options.env.SERVER_PORT, '8089');
     assert.match(options.env.Authorization ?? '', /^[a-f0-9]{64}$/);
     assert.equal(options.env.Authorization, host.key());
+    assert.equal(options.env.HTTP_PROXY, 'http://proxy.example:8000');
+    assert.equal(options.env.HTTPS_PROXY, 'http://secure-proxy.example:8000');
     assert.ok(!Object.keys(options.env).some((name) => /^BEAR_|TOKEN|SECRET/i.test(name)));
-    assert.ok(Object.keys(options.env).every((name) => ['SystemRoot', 'PATH', 'TEMP', 'TMP', 'SERVER_HOST', 'SERVER_PORT', 'Authorization'].includes(name)));
+    assert.ok(Object.keys(options.env).every((name) => ['SystemRoot', 'PATH', 'TEMP', 'TMP', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'SERVER_HOST', 'SERVER_PORT', 'Authorization'].includes(name)));
     assert.equal(fs.readFileSync(path.join(dir, 'duck', 'duck2api.pid'), 'utf8'), '4321');
   } finally {
     await host.stop();
+    if (oldHttpProxy === undefined) delete process.env.HTTP_PROXY; else process.env.HTTP_PROXY = oldHttpProxy;
+    if (oldHttpsProxy === undefined) delete process.env.HTTPS_PROXY; else process.env.HTTPS_PROXY = oldHttpsProxy;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

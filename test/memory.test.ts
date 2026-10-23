@@ -167,6 +167,39 @@ test('corrupt memory and history JSON are quarantined before falling back to emp
   assert.equal(fs.existsSync(history), false);
 });
 
+test('a locked corrupt JSON file keeps Memory available but blocks writes without overwriting it', () => {
+  const h = home();
+  const entriesFile = path.join(h, 'memory', 'entries.json');
+  fs.mkdirSync(path.dirname(entriesFile), { recursive: true });
+  fs.writeFileSync(entriesFile, '{broken');
+  const corrupt = fs.readFileSync(entriesFile, 'utf8');
+  const history = historyFile(h, 'agent-1', 'room_a');
+  fs.mkdirSync(path.dirname(history), { recursive: true });
+  fs.writeFileSync(history, '{broken');
+  const corruptHistory = fs.readFileSync(history, 'utf8');
+  const originalRename = fs.renameSync;
+  fs.renameSync = ((from: fs.PathLike, to: fs.PathLike) => {
+    if (String(to).includes('.bad-')) throw Object.assign(new Error('file is locked'), { code: 'EPERM' });
+    return originalRename(from, to);
+  }) as typeof fs.renameSync;
+  try {
+    const m = new Memory(h);
+    assert.deepEqual(m.list(), []);
+    assert.throws(() => m.add(entry() as never), (error: unknown) => error instanceof MemoryError && error.status === 503);
+    assert.equal(fs.readFileSync(entriesFile, 'utf8'), corrupt, 'a read-only fallback must not overwrite the corrupt file');
+    assert.ok(fs.existsSync(entriesFile));
+    assert.ok(!fs.readdirSync(path.dirname(entriesFile)).some((name) => name.startsWith('entries.json.bad-')));
+    assert.deepEqual(loadHistory(h, 'agent-1', 'room_a'), { summary: '', turns: [] });
+    assert.throws(
+      () => saveHistory(h, 'agent-1', 'room_a', { summary: 'update', turns: [] }),
+      (error: unknown) => error instanceof MemoryError && error.status === 503,
+    );
+    assert.equal(fs.readFileSync(history, 'utf8'), corruptHistory, 'a locked history file must not be overwritten either');
+  } finally {
+    fs.renameSync = originalRename;
+  }
+});
+
 test('memory: the 5001st entry drops the oldest non-preference entry', () => {
   const h = home();
   const dir = path.join(h, 'memory');

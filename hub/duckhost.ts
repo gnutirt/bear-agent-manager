@@ -181,7 +181,7 @@ export class DuckHost {
     fs.mkdirSync(duckDir, { recursive: true });
     this.authKey = this.randomKey();
     const env: NodeJS.ProcessEnv = {};
-    for (const name of ['SystemRoot', 'PATH', 'TEMP', 'TMP']) {
+    for (const name of ['SystemRoot', 'PATH', 'TEMP', 'TMP', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']) {
       const value = process.env[name];
       if (value !== undefined) env[name] = value;
     }
