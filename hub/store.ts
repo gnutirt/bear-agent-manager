@@ -27,6 +27,7 @@ export type Session = {
   transcript?: string;           // transcript_path; revive requires it to exist
   ctx?: number;                  // context tokens of the last turn (each wake re-reads about this much)
   limited?: { until: number; type: string };   // StopFailure rate_limit: the chat is stopped by its plan limit until then
+  agyConversation?: string;                    // Antigravity CLI conversation id, resumed on the next room turn
   apiRetry?: number;             // #159: turns in a row that died on a transient API error and were retried; a turn that ends normally clears it
   limitNotice?: string;          // last rate-limit line for which the waiting notice was posted
   limitHandled?: string;         // last rate-limit line whose recovery was handled
