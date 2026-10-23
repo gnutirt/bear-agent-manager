@@ -708,6 +708,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .flow-edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .flow-edge{fill:none;stroke-linecap:round}
 .flow-chip rect{fill:var(--panel);stroke-width:1.2}.flow-chip text{fill:var(--fg);font:600 10px var(--font);text-anchor:middle}
+.flow .flow-tier-desc{margin:0 0 6px;padding:0 4px;font-size:11px;line-height:1.35;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:text}
+.flow .flow-card.dragging{cursor:grabbing;box-shadow:0 8px 22px rgba(0,0,0,.28)}.flow .flow-tier-edit{width:100%;font:inherit;padding:1px 4px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--fg)}
 .flow .flow-card{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;max-width:210px;margin-inline:auto;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 10px 7px 8px;color:var(--fg);cursor:pointer;touch-action:manipulation;transition:border-color .2s,box-shadow .2s}
 .flow .flow-card:hover,.flow .flow-card:focus-visible{border-color:var(--hi);box-shadow:0 4px 14px rgba(27,34,51,.1)}
 .flow .flow-card[aria-pressed=true]{background:var(--panel);color:var(--fg);border-color:var(--hi);box-shadow:0 0 0 3px var(--panel2)}
@@ -2664,7 +2666,19 @@ function flowStatusAt(node, events, cursor, live) {
   if (last && cursor - last[0] < 5 && (last[1] === node.id || last[2] === node.id)) return 'working';
   return 'idle';
 }
+// Tier names are a per-viewer label (localStorage, per room): the hub only stores which tier an agent is in.
+const flowTierNames = () => { try { return JSON.parse(localStorage.getItem('bear-agent-manager:flowTierNames') || '{}'); } catch { return {}; } };
+function flowTierRename(i, name, max = 40) {
+  const all = flowTierNames(), mine = { ...(all[S.flowRoom] || {}) };
+  if (name) mine[i] = name.slice(0, max); else delete mine[i];
+  all[S.flowRoom] = mine;
+  try { localStorage.setItem('bear-agent-manager:flowTierNames', JSON.stringify(all)); } catch {}
+  S.flowKey = ''; renderFlow();
+}
+const flowTierDesc = (i) => flowTierNames()[S.flowRoom]?.['d' + i] || (i < 5 ? t(`flow.tierDesc.${i + 1}`) : '');
 function flowTierTitle(i, roomInfo, rows) {
+  const custom = flowTierNames()[S.flowRoom]?.[i];
+  if (custom) return custom;
   if (i === 0) return `${t('flow.tier', { n: 1 })}: ${t('flow.role.user')}`;
   if (i === 1 && rows[i]?.some((n) => n.id === roomInfo?.lead)) return `${t('flow.tier', { n: i + 1 })}: ${t('flow.role.lead')}`;
   return t('flow.tier', { n: i + 1 });
@@ -2726,7 +2740,7 @@ function renderFlow() {
   const ae = document.activeElement;
   if (S.flowView && ae && ae !== document.body && el.contains(ae) && ae.matches('select,input,textarea')) { flowDrawEdges(); return; }
   const r = flowRoomName();
-  if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; return; }
+  if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; S.flowKey = ''; return; }
   S.flowRoom = r;
   const now = flowNow(), live = S.flowReplayAt === null, cursor = (S.flowReplayAt ?? now) / 1000;
   const roomInfo = room(r), messages = (S.flowMessages[r] || []).filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
@@ -2742,7 +2756,7 @@ function renderFlow() {
     const sub = status === 'working' && n.session?.activity ? n.session.activity : t(FLOW_STATES[status][0]);
     return `<button type="button" class="flow-card st-${status}${isSel ? ' sel' : ''}" data-flow-node="${esc(n.id)}" data-flow-tier-node="${esc(n.id)}" data-status="${status}" aria-pressed="${String(isSel)}" aria-label="${esc(label)}" title="${esc(label)}" style="--ph:-${phase}ms${dim ? ';opacity:.35' : ''}"><span class="flow-av" style="background:${flowColor(n.id)}">${esc((n.name || '?').trim().slice(0, 1).toLocaleUpperCase())}</span><span class="flow-tx"><span class="flow-nm">${n.id === roomInfo?.lead ? '★ ' : ''}${esc(flowShort(n.name, 18))}</span><span class="flow-sb"><i class="flow-dot" style="background:${FLOW_STATES[status][1]}"></i><span>${esc(flowShort(sub, 24))}</span></span></span></button>`;
   };
-  const tierCols = L.rows.map((row, i) => `<section class="flow-tier" data-flow-tier="${i + 1}"><h2><span title="${esc(flowTierTitle(i, roomInfo, L.rows))}">${esc(flowTierTitle(i, roomInfo, L.rows))}</span><em>${row.length}</em></h2><div class="flow-lane">${row.map(card).join('')}</div></section>`).join('');
+  const tierCols = L.rows.map((row, i) => `<section class="flow-tier" data-flow-tier="${i + 1}"><h2><span data-flow-tier-name="${i}" title="${esc(flowTierTitle(i, roomInfo, L.rows))}">${esc(flowTierTitle(i, roomInfo, L.rows))}</span><em>${row.length}</em></h2><p class="flow-tier-desc" data-flow-tier-name="d${i}" title="${esc(flowTierDesc(i) || t('flow.tierDescAdd'))}">${esc(flowTierDesc(i) || t('flow.tierDescAdd'))}</p><div class="flow-lane">${row.map(card).join('')}</div></section>`).join('');
   const waiting = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'ask');
   const busy = nodes.filter((n) => n.id !== 'you' && flowStatusAt(n, events, cursor, live) === 'working').length;
   const rate = events.filter((e) => e[0] > cursor - 60 && e[0] <= cursor).length;
@@ -2766,8 +2780,15 @@ function renderFlow() {
   const themeLabel = t(`flow.theme${S.flowTheme[0].toUpperCase()}${S.flowTheme.slice(1)}`);
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
   const selectedMessage = (S.flowMessages[r] || []).find((m) => m.id === S.flowSelectedMsg);
-  el.innerHTML = `<div class="flow"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}${askBox}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-stage" id="flowStage"><svg class="flow-edges" id="flowEdges" aria-hidden="true"></svg><div class="flow-cols" id="flowCols" role="group" aria-label="${esc(t('flow.graphAria'))}">${tierCols}</div><aside class="flow-info${S.flowSelected ? ' open' : ''}" id="flowInfo" aria-live="polite"><button type="button" class="flow-x" data-flow-close aria-label="${esc(t('common.close'))}">×</button>${info}</aside></div><div class="flow-ticker"><b>${t('flow.justHappened')}</b>${events.slice(-3).reverse().map((e) => `<div class="flow-tmsg"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b>→ ${esc(nodeBy.get(e[2])?.name || '')} ${esc(flowShort(e[4], 70))}</div>`).join('') || `<span>${t('flow.noMessages')}</span>`}</div></div></main></div></div>`;
+  const html = `<div class="flow"><div class="flow-shell"><header class="flow-head"><div><h1>${t('flow.title')}</h1><p class="flow-sub">${t('flow.lede')}</p></div><div class="flow-stats"><span class="flow-badge ${live?'live':'replay'}"><i class="livedot"></i>${live?t('flow.live'):t('flow.replay')}</span><span>${t('flow.rate')} <b>${rate}</b></span><span>${t('flow.busy')} <b>${busy}</b></span><span>${t('flow.needsReply')} <b>${waiting.length}</b></span><span>${t('flow.agentCount',{n:nodes.length-1})}</span><label>${t('flow.room')} <select id="flowRoom" aria-label="${esc(t('flow.room'))}">${S.rooms.filter((x)=>!x.dm).map((x)=>`<option value="${esc(x.name)}"${x.name===r?' selected':''}>#${esc(x.name)}</option>`).join('')}</select></label></div></header>${S.flowErr?`<div class="verr">${esc(S.flowErr)}</div>`:''}${askBox}<main class="flow-main"><div class="flow-graph-wrap"><div class="flow-tier-tools"><button type="button" data-flow-add-tier title="${esc(t('flow.addTierHint'))}"${sid && L.tierCount < 9 ? '' : ' disabled'}>+ ${t('flow.addTier')}</button></div><div class="flow-stage" id="flowStage"><svg class="flow-edges" id="flowEdges" aria-hidden="true"></svg><div class="flow-cols" id="flowCols" role="group" aria-label="${esc(t('flow.graphAria'))}">${tierCols}</div><aside class="flow-info${S.flowSelected ? ' open' : ''}" id="flowInfo" aria-live="polite"><button type="button" class="flow-x" data-flow-close aria-label="${esc(t('common.close'))}">×</button>${info}</aside></div><div class="flow-ticker"><b>${t('flow.justHappened')}</b>${events.slice(-3).reverse().map((e) => `<div class="flow-tmsg"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b>→ ${esc(nodeBy.get(e[2])?.name || '')} ${esc(flowShort(e[4], 70))}</div>`).join('') || `<span>${t('flow.noMessages')}</span>`}</div></div></main></div></div>`;
   S.flowView = { nodes, events, cursor };
+  // Replacing the DOM every tick swallowed clicks (the × is gone between mousedown and mouseup) and dropped keyboard focus: only rewrite when the markup really changed (the animation phase doesn't count).
+  const key = html.replace(/--ph:-\d+ms/g, '');
+  if (key !== S.flowKey) {
+    const focusId = ae?.closest?.('[data-flow-node]')?.dataset.flowNode;
+    el.innerHTML = html; S.flowKey = key;
+    if (focusId) el.querySelector(`[data-flow-node="${CSS.escape(focusId)}"]`)?.focus({ preventScroll: true });
+  }
   flowDrawEdges();
 }
 function flowSetReplay(ts) {
@@ -2785,9 +2806,17 @@ function flowSelectRoom(name) {
   loadFlow();
 }
 function saveFlowTier(agent, tier) {
-  api('/api/settings', { flowTiers: { [S.flowRoom]: { [agent]: tier } } }, 'PUT')
+  // show the move at once and roll back on error; waiting for the server made the card snap back and then jump
+  const before = S.settings, rm = S.flowRoom;
+  if (before) {
+    const cur = { ...(before.flowTiers?.[rm] || {}) }, k = agent.trim().toLowerCase();
+    if (tier) cur[k] = tier; else delete cur[k];
+    S.settings = { ...before, flowTiers: { ...before.flowTiers, [rm]: cur } };
+    renderFlow();
+  }
+  api('/api/settings', { flowTiers: { [rm]: { [agent]: tier } } }, 'PUT')
     .then((settings) => { S.settings = settings; renderFlow(); })
-    .catch((err) => toast(err.message));
+    .catch((err) => { if (before) S.settings = before; renderFlow(); toast(err.message); });
 }
 function nodeNameForId(id) { return id && id !== 'you' ? S.sessions[id]?.name || (S.flowMessages[S.flowRoom] || []).find((m) => m.fromId === id)?.from || '' : ''; }
 $('view-flow').addEventListener('change', (e) => {
@@ -2832,24 +2861,38 @@ $('view-flow').addEventListener('submit', (e) => {
     S.flowTaskForm = false; S.flowTaskDraft = null; toast(t('flow.taskCreated')); document.activeElement?.blur?.(); renderFlow();
   }).catch((err) => toast(err.message || t('flow.taskError')));
 });
+// The drag listens on window: a release outside the Flow view used to leave S.flowDrag set and freeze the graph.
+function flowDragMove(e) {
+  const d = S.flowDrag; if (!d || (!d.moved && Math.hypot(e.clientX - d.px, e.clientY - d.py) < 6)) return;
+  if (!d.moved) { d.moved = true; d.node.style.pointerEvents = 'none'; d.node.style.zIndex = 5; d.node.classList.add('dragging'); }
+  d.node.style.transform = `translate(${e.clientX - d.px}px,${e.clientY - d.py}px)`;
+  $('view-flow').querySelectorAll('.flow-tier').forEach((x) => { const r = x.getBoundingClientRect(); x.classList.toggle('drop', e.clientX >= r.left && e.clientX <= r.right); });
+}
+function flowDragEnd(e) {
+  window.removeEventListener('pointermove', flowDragMove); window.removeEventListener('pointerup', flowDragEnd); window.removeEventListener('pointercancel', flowDragEnd);
+  const d = S.flowDrag; S.flowDrag = null; if (!d?.moved) return;
+  d.node.style.cssText = ''; d.node.classList.remove('dragging');   // the markup may be unchanged, so the card must be put back by hand
+  $('view-flow').querySelectorAll('.flow-tier.drop').forEach((x) => x.classList.remove('drop'));
+  const tier = e.type === 'pointerup' ? document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-flow-tier]') : null, agent = nodeNameForId(d.id);
+  S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
+  if (tier && agent) saveFlowTier(agent, Number(tier.dataset.flowTier)); else renderFlow();
+}
 $('view-flow').addEventListener('pointerdown', (e) => {
   const node = e.target.closest('[data-flow-tier-node]');
   if (!node || e.button !== 0 || node.dataset.flowTierNode === 'you') return;
   S.flowDrag = { id: node.dataset.flowTierNode, node, px: e.clientX, py: e.clientY, moved: false };
+  window.addEventListener('pointermove', flowDragMove); window.addEventListener('pointerup', flowDragEnd); window.addEventListener('pointercancel', flowDragEnd);
 });
-$('view-flow').addEventListener('pointermove', (e) => {
-  const d = S.flowDrag; if (!d || Math.hypot(e.clientX - d.px, e.clientY - d.py) < 6) return;
-  if (!d.moved) { d.moved = true; d.node.style.pointerEvents = 'none'; d.node.style.zIndex = 5; }
-  d.node.style.transform = `translate(${e.clientX - d.px}px,${e.clientY - d.py}px)`;
-  $('view-flow').querySelectorAll('.flow-tier').forEach((x) => { const r = x.getBoundingClientRect(); x.classList.toggle('drop', e.clientX >= r.left && e.clientX <= r.right); });
+$('view-flow').addEventListener('dblclick', (e) => {
+  const sp = e.target.closest('[data-flow-tier-name]'); if (!sp) return;
+  const i = sp.dataset.flowTierName, desc = i[0] === 'd', inp = document.createElement('input');
+  inp.className = 'flow-tier-edit'; inp.maxLength = desc ? 120 : 40; inp.value = desc ? flowTierDesc(Number(i.slice(1))) : sp.textContent; inp.setAttribute('aria-label', t('flow.renameTier'));
+  sp.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = (save) => { if (done) return; done = true; inp.blur(); flowTierRename(i, save ? inp.value.trim() : flowTierNames()[S.flowRoom]?.[i] || '', desc ? 120 : 40); };
+  inp.addEventListener('keydown', (k) => { if (k.key === 'Enter') finish(true); else if (k.key === 'Escape') finish(false); });
+  inp.addEventListener('blur', () => finish(true));
 });
-$('view-flow').addEventListener('pointerup', (e) => {
-  const d = S.flowDrag; S.flowDrag = null; if (!d?.moved) return;
-  const tier = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-flow-tier]'), agent = nodeNameForId(d.id);
-  S.flowSelected = d.id; S.flowSuppressClick = d.id; setTimeout(() => { if (S.flowSuppressClick === d.id) S.flowSuppressClick = null; }, 500);
-  if (tier && agent) saveFlowTier(agent, Number(tier.dataset.flowTier)); else renderFlow();
-});
-$('view-flow').addEventListener('pointercancel', () => { S.flowDrag = null; renderFlow(); });
 $('view-flow').addEventListener('mouseover', (e) => { const id = e.target.closest('.flow-card')?.dataset.flowNode || null; if (id !== (S.flowHover || null)) { S.flowHover = id; flowDrawEdges(); } });
 $('view-flow').addEventListener('mouseleave', () => { if (S.flowHover) { S.flowHover = null; flowDrawEdges(); } });
 $('view-flow').addEventListener('keydown', (e) => {
