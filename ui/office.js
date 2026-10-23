@@ -102,6 +102,7 @@
 
     const $ = (id) => root.querySelector('#' + id);
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let chromeDirty = true;   // the floating HUD/dock/panel moved: labels re-measure their safe area (#215)
     /** Paints the static chrome; also runs again when the dictionary arrives after the first paint. */
     function applyI18n() {
       root.querySelectorAll('[data-of]').forEach((node) => { const v = T(node.getAttribute('data-of')); if (v) node.textContent = v; });
@@ -117,6 +118,7 @@
       if (th) $('of-bTheme').textContent = th;
       const fb = $('of-fallback'), fv = T('webglFallback');   // a specific "three.js missing" line set later wins
       if (fb && !fb.textContent && fv) fb.textContent = fv;
+      chromeDirty = true;   // the title/subtitle height may have changed with the language
     }
     applyI18n();
     const loadI18n = () => {
@@ -287,7 +289,7 @@
       }, 500 + k * 250));
     }
     mountComposer($('of-form'), $('of-inp'), $('of-sugg'), null);
-    $('of-bDock').onclick = () => { $('of-dock').classList.toggle('closed'); };
+    $('of-bDock').onclick = () => { $('of-dock').classList.toggle('closed'); chromeDirty = true; };
     /** A roster row tags that agent in the dock composer (#185): insert "@handle " once, then focus the input. */
     function tagAgent(h) {
       const inp = $('of-inp'); if (!inp || !h) return;
@@ -303,15 +305,16 @@
       if (r.dataset.sig === html) return; r.dataset.sig = html; r.innerHTML = html;
       r.querySelectorAll('button').forEach((b) => { b.onclick = () => tagAgent(b.dataset.h); });
     }
-    function setRoster(on) { $('of-roster').hidden = !on; $('of-bMem').setAttribute('aria-expanded', on); if (on) { $('of-dock').classList.remove('closed'); $('of-roster').dataset.sig = ''; paintRoster(); } }
+    function setRoster(on) { $('of-roster').hidden = !on; $('of-bMem').setAttribute('aria-expanded', on); chromeDirty = true; if (on) { $('of-dock').classList.remove('closed'); $('of-roster').dataset.sig = ''; paintRoster(); } }
     $('of-bMem').onclick = () => setRoster($('of-roster').hidden);
 
     /* ---------- agent panel ---------- */
     let tab = 'chat';
     function paintPanel() {
-      const p = $('of-panel'), a = focus && by[focus];
-      if (!a) { p.hidden = true; return; }
+      const p = $('of-panel'), a = focus && by[focus], wasHidden = p.hidden;
+      if (!a) { if (!p.hidden) { p.hidden = true; chromeDirty = true; } return; }
       p.hidden = false;
+      if (wasHidden) chromeDirty = true;
       const S = st(meeting && a.state !== 'ask' && a.state !== 'sleep' ? 'meet' : a.state);
       if (!p.dataset.id || p.dataset.id !== a.id) {
         p.dataset.id = a.id;
@@ -546,7 +549,7 @@
       // windows + wall screen + neon
       box(7, 3.6, .2, 0x79c2f0, -14, 5, -14.7, scene, false, { emissive: 0x2a5f88 }); box(.2, 3.6, 7, 0x79c2f0, -22.7, 5, -4, scene, false, { emissive: 0x2a5f88 });
       const neon = canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#160b24'; x.fillRect(0, 0, w, h); x.font = '700 46px Fredoka,sans-serif'; x.textAlign = 'center'; x.shadowColor = '#ff4fa8'; x.shadowBlur = 18; x.fillStyle = '#ff9fd2'; x.fillText('BEAR AGENT OFFICE', w / 2, 78); });
-      box(8, 2, .2, 0x160b24, -7.5, 5.6, -14.6, scene, false).material = new THREE.MeshBasicMaterial({ map: neon.t });
+      const neonSign = box(8, 2, .2, 0x160b24, -7.5, 5.6, -14.6, scene, false); neonSign.material = new THREE.MeshBasicMaterial({ map: neon.t });
       const wall = canvasTex(512, 256, () => {}); const wallMesh = box(8.5, 4.2, .2, 0x0b1220, 5, 4.6, -14.6, scene, false); wallMesh.material = new THREE.MeshBasicMaterial({ map: wall.t });
       function paintWall() {
         const x = wall.x; x.fillStyle = '#0a1222'; x.fillRect(0, 0, 512, 256); x.fillStyle = '#35e0a1'; x.font = '700 20px Consolas,monospace'; x.fillText(T('wall.title'), 16, 30); x.font = '16px Consolas,monospace';
@@ -723,7 +726,7 @@
         a.g.position.set(-14.5 + (i % 5) * 1.6, 0, 7.5 + Math.floor(i / 5) * 2.2); scene.add(a.g);
         Object.assign(a, { state: a.state || 'idle', until: 0, bub: '', bubUntil: 0, tool: a.tool || '', askedAt: 0, log: a.log || [], ctx: a.ctx ?? 0, tkey: '', path: [], pose: 'stand', cache: {} });
         const hit = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 2; hit.userData.id = a.id; a.root.add(hit); a.hit = hit;
-        const tg = document.createElement('div'); tg.className = 'tag'; tg.innerHTML = `<div class="say"></div><div class="nm"><i style="background:${a.c}"></i>${esc(a.n)}</div><div class="chip"></div><div class="tool"></div>`; tagsEl.appendChild(tg);
+        const tg = document.createElement('div'); tg.className = 'tag'; tg.innerHTML = `<div class="say"></div><div class="nm"><i style="background:${a.c}"></i><span class="nmt">${esc(a.n)}</span></div><div class="chip"></div><div class="tool"></div>`; tagsEl.appendChild(tg);
         a.tg = tg; a.tSay = tg.querySelector('.say'); a.tChip = tg.querySelector('.chip'); a.tTool = tg.querySelector('.tool'); a.cache = {};
       }
       AG.forEach(addAgentMesh);
@@ -775,9 +778,9 @@
       const camOff = (a, h) => { const y = a.g.rotation.y, f = new THREE.Vector3(Math.sin(y), 0, Math.cos(y)), r = new THREE.Vector3(Math.cos(y), 0, -Math.sin(y)); return h.clone().addScaledVector(f, 3.6).addScaledVector(r, 4.2).add(new THREE.Vector3(0, 3.4, 0)); };
       const focusOn = (a) => { const h = a.g.position.clone(); h.y = 1.8; flyTo({ p: camOff(a, h), t: h }); goal.follow = a; };
       setFocus = (id) => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); focus = id; meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); const a = by[id]; $('of-panel').dataset.id = ''; panelDirty = true; chatDirty = true; if (live) liveDm(id); if (a) focusOn(a); };
-      closeFocus = () => { focus = null; $('of-panel').hidden = true; $('of-panel').dataset.id = ''; flyTo(meeting ? MEET : HOME); };
+      closeFocus = () => { focus = null; $('of-panel').hidden = true; $('of-panel').dataset.id = ''; chromeDirty = true; flyTo(meeting ? MEET : HOME); };
       $('of-bOver').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); closeFocus(); flyTo(HOME); };
-      $('of-bMeet').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = !meeting; $('of-bMeet').setAttribute('aria-pressed', meeting); if (meeting) { focus = null; $('of-panel').hidden = true; flyTo(MEET); post('sys', [], T('msg.meeting')); } else flyTo(HOME); };
+      $('of-bMeet').onclick = () => { walk = false; $('of-bWalk').setAttribute('aria-pressed', 'false'); meeting = !meeting; $('of-bMeet').setAttribute('aria-pressed', meeting); if (meeting) { focus = null; $('of-panel').hidden = true; chromeDirty = true; flyTo(MEET); post('sys', [], T('msg.meeting')); } else flyTo(HOME); };
       $('of-bTheme').onclick = () => { themeI = (themeI + 1) % 3; const m = ['', 'light', 'dark'][themeI]; m ? root.setAttribute('data-theme', m) : root.removeAttribute('data-theme'); root.dataset.themeI = String(themeI); $('of-bTheme').textContent = T(['themeAuto', 'themeLight', 'themeDark'][themeI]); applyTheme(); };
       function setWalk(on) { walk = on; $('of-bWalk').setAttribute('aria-pressed', on); if (on) { meeting = false; $('of-bMeet').setAttribute('aria-pressed', 'false'); if (focus) closeFocus(); flyTo({ p: new THREE.Vector3(-3, 5.5, 18), t: new THREE.Vector3(-3, 2.2, 6) }); setTimeout(() => { if (walk) goal = null; }, 1800); toastMsg(T('toast.walk')); } else flyTo(HOME); }
       $('of-bWalk').onclick = () => setWalk(!walk);
@@ -812,29 +815,94 @@
         // transparent renderer shows the near-white sky gradient as a band under the canvas (#211)
         if (W < 760) { HOME.p.set(15, 30, 26); HOME.t.set(15, 0, -4); if (!resize.m) { resize.m = 1; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); $('of-dock').classList.add('closed'); } }
         else { HOME.p.set(-10, 25, 30); HOME.t.set(-10, 0, 2); if (resize.m) { resize.m = 0; cam.position.copy(HOME.p); ctl.target.copy(HOME.t); } }
+        chromeDirty = true;
       }
       addEventListener('resize', resize); resize();
       let ro = null;
       if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(() => { resize(); start(); }); ro.observe(root); }   // pane shown/hidden by the tab bar
       const v3 = new THREE.Vector3();
-      /** Screen-space labels (#211): keep every tag inside the canvas and stack a tag upward when two agents stand close. */
+      /** Floating chrome that labels must not sit under, in canvas pixels (#215). */
+      let chrome = [], chromeW = 0, chromeH = 0;
+      function measureChrome(W, H) {
+        const r = root.getBoundingClientRect();
+        const rect = (el) => {
+          if (!el || el.hidden) return null;
+          const b = el.getBoundingClientRect();
+          return b.width && b.height ? { l: b.left - r.left, t: b.top - r.top, r: b.right - r.left, b: b.bottom - r.top } : null;
+        };
+        chrome = [];
+        const top = rect(root.querySelector('.top'));   // title + pill/filter row
+        if (top) chrome.push({ l: 0, t: 0, r: W, b: top.b + 6 });
+        const dock = rect($('of-dock'));                // the chat dock covers the lower-left corner
+        if (dock) chrome.push({ l: dock.l - 6, t: dock.t - 6, r: dock.r + 6, b: H });
+        const panel = rect($('of-panel'));              // an open agent panel covers the right side
+        if (panel) chrome.push({ l: panel.l - 6, t: panel.t - 6, r: panel.r + 6, b: panel.b + 6 });
+        chromeW = W; chromeH = H;
+      }
+      /** Screen-space labels (#211/#215): stay inside the canvas, clear of the HUD, dock and panel, next to the agent,
+       *  and draw a thin leader line when a collision has pushed a label away from its character. */
       const placedTags = [];
-      function layoutTags(W) {
+      function layoutTags(W, H) {
+        if (chromeDirty || W !== chromeW || H !== chromeH) { chromeDirty = false; measureChrome(W, H); }
         placedTags.length = 0;
+        // the neon sign is scene geometry, but it reads as chrome: labels do not cover it either (#215)
+        const sign = (() => {
+          neonSign.updateWorldMatrix(true, false);
+          const g = neonSign.geometry; if (!g.boundingBox) g.computeBoundingBox();
+          const bb = g.boundingBox, pts = [];
+          for (const px of [bb.min.x, bb.max.x]) for (const py of [bb.min.y, bb.max.y]) for (const pz of [bb.min.z, bb.max.z]) {
+            v3.set(px, py, pz).applyMatrix4(neonSign.matrixWorld).project(cam);
+            if (v3.z > 1) return null;
+            pts.push([(v3.x * .5 + .5) * W, (-v3.y * .5 + .5) * H]);
+          }
+          const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+          return { l: Math.min(...xs) - 4, r: Math.max(...xs) + 4, t: Math.min(...ys) - 4, b: Math.max(...ys) + 4 };
+        })();
+        const solids = sign ? chrome.concat([sign]) : chrome;
+        const clampX = (x, w) => Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));   // never clipped by the canvas edge (phone, 390px)
+        const overlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+        const free = (r) => r.t >= 2 && r.b <= H - 2 && !placedTags.some((p) => overlap(r, p)) && !solids.some((p) => overlap(r, p));
         for (const a of AG) {
           if (!a.tg) continue;
-          if (!a._vis) { if (a.tg.style.display !== 'none') a.tg.style.display = 'none'; continue; }
+          const hide = () => { if (a.tg.style.display !== 'none') a.tg.style.display = 'none'; };
+          if (!a._vis) { hide(); continue; }
+          const x0 = a._tx, y0 = a._ty;   // y0 is the agent's head: a label above it ends on this line
+          if (chrome.some((p) => overlap({ l: x0 - 1, r: x0 + 1, t: y0 - 1, b: y0 + 1 }, p))) { hide(); continue; }   // the agent itself is behind the HUD/dock/panel
           a.tg.style.display = '';
           const w = a.tg.offsetWidth || 60, h = a.tg.offsetHeight || 20;
-          let x = a._tx, y = a._ty;
-          x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));   // never clipped by the canvas edge (phone, 390px)
-          for (let n = 0; n < 8; n++) {
-            const hit = placedTags.find((r) => Math.abs(r.x - x) * 2 < r.w + w + 6 && y > r.y - r.h - 4 && y - h < r.y + 4);
-            if (!hit) break;
-            y = hit.y - hit.h - 4;   // stack above the label it collided with
+          // above the head, then beside it, then under it: a label always stays next to its character (#215)
+          const spots = [
+            [x0, y0 - h], [x0 + w / 2 + 12, y0 - h], [x0 - w / 2 - 12, y0 - h],
+            [x0, y0 + 8], [x0 + w / 2 + 12, y0 + 8], [x0 - w / 2 - 12, y0 + 8],
+            ...(sign ? [[x0, sign.b + 6]] : []),
+          ];
+          let spot = null;
+          for (const [sx, sy] of spots) {
+            const x = clampX(sx, w), r = { l: x - w / 2, t: sy, r: x + w / 2, b: sy + h };
+            if (free(r)) { spot = r; break; }
           }
-          placedTags.push({ x, y, w, h });
-          a.tg.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`;
+          if (!spot) {   // a crowded cluster: stack upward, but only clear of what it actually hits
+            let top = y0 - h;
+            for (let n = 0; n < 12 && !spot; n++) {
+              const x = clampX(x0, w), r = { l: x - w / 2, t: top, r: x + w / 2, b: top + h };
+              if (free(r)) spot = r; else top -= h + 4;
+            }
+          }
+          if (!spot) {   // everything is packed: keep the label on screen, below the HUD band
+            const x = clampX(x0, w);
+            let top = Math.max((chrome[0] ? chrome[0].b : 0) + 2, Math.min(H - h - 4, y0 - h));
+            if (sign && overlap({ l: x - w / 2, t: top, r: x + w / 2, b: top + h }, sign)) top = Math.min(H - h - 4, sign.b + 6);
+            spot = { l: x - w / 2, t: top, r: x + w / 2, b: top + h };
+          }
+          placedTags.push(spot);
+          const cx = spot.l + w / 2;
+          a.tg.style.transform = `translate(${cx}px,${spot.t}px) translate(-50%,0)`;
+          // leader line (#215): when a collision moved the label sideways or upward, connect it to the agent
+          const ax = x0 - cx, ay = y0 - spot.b, L = Math.hypot(ax, ay);
+          if (spot.b <= y0 + 1 && L > 10) {
+            a.tg.style.setProperty('--lead', L.toFixed(1) + 'px');
+            a.tg.style.setProperty('--leadA', (Math.atan2(ax, ay) * 180 / Math.PI).toFixed(1) + 'deg');
+          } else { a.tg.style.removeProperty('--lead'); a.tg.style.removeProperty('--leadA'); }
         }
       }
       function frame() {
@@ -887,7 +955,7 @@
           if (a.cache.on !== on) { a.cache.on = on; a.tSay.classList.toggle('on', on); } if (a.cache.bub !== bub) { a.cache.bub = bub; a.tSay.textContent = bub; }
           a.tg.classList.toggle('sel', focus === a.id); hint.style.display = focus ? 'none' : '';
         });
-        layoutTags(W);
+        layoutTags(W, H);
         if (woke && live) liveRefresh();
         // screens glow by activity
         AG.forEach((a, i) => { const sc = screens[i % screens.length]; if (sc) sc.material.emissive.set(a.state === 'working' && a.tgt && a.tgt.kind === 'desk' && !a.path.length ? 0x2a9d6f : 0x1d3a5a); });

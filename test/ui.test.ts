@@ -751,15 +751,15 @@ test('Office #197: the loft rest room, the walnut boardroom, obstacle push-out, 
 test('Office #211: close labels stack and stay inside the canvas, the dock is shorter, and the phone camera frames the VIP room', async () => {
   const src = await readOffice();
   for (const s of [
-    // labels are placed after the pass, so a tag that collides is stacked upward instead of drawn on top
+    // labels are placed after the pass, so a tag that collides is moved instead of drawn on top (#215 refines this)
     'const placedTags = [];',
-    'function layoutTags(W) {',
-    'const hit = placedTags.find((r) => Math.abs(r.x - x) * 2 < r.w + w + 6 && y > r.y - r.h - 4 && y - h < r.y + 4);',
-    'y = hit.y - hit.h - 4;',
+    'function layoutTags(W, H) {',
+    'if (free(r)) { spot = r; break; }',
+    'top -= h + 4;',
     // and clamped inside the canvas, which is what clipped tags at 390px
-    'x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));',
+    'const clampX = (x, w) => Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));',
     'a._vis = v3.z <= 1; a._tx = (v3.x * .5 + .5) * W; a._ty = (-v3.y * .5 + .5) * H;',
-    'layoutTags(W);',
+    'layoutTags(W, H);',
     // phone camera: VIP room + boardroom, with the floor edge below the frame so no white band shows
     'if (W < 760) { HOME.p.set(15, 30, 26); HOME.t.set(15, 0, -4);',
   ]) assert.ok(src.includes(s), `missing #211 fix: ${s}`);
@@ -769,4 +769,42 @@ test('Office #211: close labels stack and stay inside the canvas, the dock is sh
   assert.ok(/\.office \.tag \.tool\{[^}]*max-width:min\(240px,60vw\)[^}]*text-overflow:ellipsis/.test(css), 'a long tool line is truncated instead of spilling out on a phone');
   assert.ok(/@media\(max-width:760px\)\{[\s\S]*\.office \.pills\{[^}]*flex-wrap:nowrap[^}]*overflow-x:auto/.test(css), 'the phone pill row scrolls on one line instead of wrapping misaligned');
   assert.ok(css.includes('.office .pills kbd{display:none}'), 'keyboard hints are hidden on a phone');
+});
+
+/* ---------- Office #215: labels clear of the title/sign and the dock, kept next to their agent ---------- */
+
+test('Office #215: labels avoid the floating HUD, dock and panel, sit beside their agent, and draw a leader when moved', async () => {
+  const src = await readOffice();
+  for (const s of [
+    // the safe area is measured from the real DOM, so the title/pill row, the dock and an open panel are respected
+    'function measureChrome(W, H) {',
+    "const top = rect(root.querySelector('.top'));",
+    'chrome.push({ l: 0, t: 0, r: W, b: top.b + 6 });',
+    "const dock = rect($('of-dock'));",
+    "const panel = rect($('of-panel'));",
+    'if (chromeDirty || W !== chromeW || H !== chromeH)',
+    // the neon sign on the back wall also counts as chrome, so the labels of far agents do not cover it
+    'const neonSign = box(8, 2, .2, 0x160b24, -7.5, 5.6, -14.6, scene, false);',
+    'neonSign.updateWorldMatrix(true, false);',
+    'const solids = sign ? chrome.concat([sign]) : chrome;',
+    '...(sign ? [[x0, sign.b + 6]] : []),',
+    // an agent standing behind the chrome has no floating label on top of it
+    '// the agent itself is behind the HUD/dock/panel',
+    '// above the head, then beside it, then under it: a label always stays next to its character (#215)',
+    'const spots = [',
+    '[x0, y0 - h], [x0 + w / 2 + 12, y0 - h], [x0 - w / 2 - 12, y0 - h],',
+    '// leader line (#215): when a collision moved the label sideways or upward, connect it to the agent',
+    "a.tg.style.setProperty('--lead', L.toFixed(1) + 'px');",
+    "a.tg.style.setProperty('--leadA', (Math.atan2(ax, ay) * 180 / Math.PI).toFixed(1) + 'deg');",
+    // the tag is positioned by its top-left corner, so a label below the head needs no second transform mode
+    'a.tg.style.transform = `translate(${cx}px,${spot.t}px) translate(-50%,0)`;',
+    // a long name is truncated inside a pill instead of widening the whole label
+    '<span class="nmt">',
+  ]) assert.ok(src.includes(s), `missing #215 label placement: ${s}`);
+  assert.ok(!src.includes('translate(-50%,-100%)'), 'labels no longer end exactly on the projected head point');
+  const css = await readFile(new URL('../ui/office.css', import.meta.url), 'utf8');
+  assert.ok(/\.office \.tag::after\{[^}]*height:var\(--lead,0px\)[^}]*rotate\(var\(--leadA,0deg\)\)/.test(css), 'the leader line is a hairline scaled by the computed distance');
+  assert.ok(/\.office \.tag \.nm \.nmt\{[^}]*text-overflow:ellipsis/.test(css), 'the name truncates with an ellipsis instead of pushing the label out');
+  assert.ok(/@media\(max-width:760px\)\{[\s\S]*\.office \.tag \.nm\{max-width:min\(72vw,230px\)\}/.test(css), 'a phone caps the name pill width');
+  assert.ok(/\.office \.tag \.chip\{max-width:72vw[^}]*text-overflow:ellipsis/.test(css), 'a long state chip is capped on a phone too');
 });

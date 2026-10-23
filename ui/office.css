@@ -30,10 +30,13 @@
 @media(prefers-color-scheme:dark){.office:not([data-theme="light"]) .stars{opacity:.9}}
 .office #of-tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .office .tag{position:absolute;left:0;top:0;will-change:transform;text-align:center;white-space:nowrap;display:grid;justify-items:center;gap:3px;font-weight:700}
+/* #215: a hairline back to the agent when a collision pushed the label sideways or upward */
+.office .tag::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:var(--lead,0px);background:var(--muted);opacity:.55;transform:rotate(var(--leadA,0deg));transform-origin:50% 0;pointer-events:none}
 .office .tag .say{background:var(--bubble);color:var(--bubblefg);border-radius:12px;padding:3px 10px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .35s;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .office .tag .say.on{opacity:1}
 .office .tag .nm{display:inline-flex;align-items:center;gap:6px;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:1px 10px 1px 7px;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .office .tag .nm i{width:9px;height:9px;border-radius:50%}
+.office .tag .nm .nmt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .office .tag .chip{border-radius:999px;padding:0 9px;font-size:11px;font-weight:800;color:#14192a}
 .office .tag.sel .nm{border-color:var(--hi);box-shadow:0 0 0 2px var(--hi)}
 .office .tag .tool{display:block;max-width:min(240px,60vw);font:600 11px ui-monospace,Consolas,monospace;background:rgba(10,14,28,.78);color:#dbe3ff;border-radius:6px;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -104,6 +107,9 @@
   .office .pill{padding:2px 10px;font-size:12px}
   .office .pills button{padding:3px 9px;font-size:12px}
   .office .pills kbd{display:none}
+  /* #215: a long agent name or state is shortened instead of making a label wider than the phone */
+  .office .tag .nm{max-width:min(72vw,230px)}
+  .office .tag .chip{max-width:72vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .office .dock{left:0;right:0;bottom:0;width:auto;height:46vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
   .office .dock.closed{height:auto}.office .dock.closed .msgs,.office .dock.closed .compose{display:none}
   .office .panel{left:0;right:0;top:auto;bottom:0;width:auto;height:62vh;border-radius:16px 16px 0 0}
