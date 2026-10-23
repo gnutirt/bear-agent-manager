@@ -692,6 +692,50 @@ test('#235 settings has six groups and every old sub-tab id still lands in one o
   } finally { await hub.close(); }
 });
 
+/* ---------- Settings IA S3 (#237): one agent table + one drawer, one edit place ---------- */
+
+test('#237 every agent is listed in one table and its settings are edited only in the drawer', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = html.slice(html.indexOf('<script>'), html.lastIndexOf('</script>'));
+    // The catalog merges saved profiles (api / agy / duck / copilot) with the live member sessions.
+    for (const s of ['function agentCatalog()', 'st.agents?.profiles', 'S.skills?.members', 'agentKind(', 'agentRunsWith(', 'function agentModel(a)']) {
+      assert.ok(script.includes(s), `the agent catalog is missing ${s}`);
+    }
+    // One table: kind filter, one row per agent, one button into the drawer.
+    for (const s of ['function agentTableBlock(st)', 'id="agentKindFilter"', 'data-agent-open="${esc(a.key)}"', "t('agent.col.name')", "t('agent.col.tier')", "t('agent.settings')"]) {
+      assert.ok(script.includes(s), `the agent table is missing ${s}`);
+    }
+    // The drawer is the one place for model, permissions, compact, skill, tier and MCP.
+    const paint = script.slice(script.indexOf('function paintAgentSettings()'), script.indexOf('function renderSettingsView()'));
+    for (const s of ['id="agentModelInput"', 'id="agentTier"', 'permRadios(', 'permLists(', 'data-cagent="${esc(a.key)}"', 'data-cmode', 'data-cpct', 'data-cwake', 'data-rtools', 'data-agent-skill', 'data-agent-mcp', 'data-agent-close']) {
+      assert.ok(paint.includes(s), `the agent drawer is missing ${s}`);
+    }
+    assert.ok(script.includes('function openAgentSettings(key)'), 'no function opens the drawer');
+    assert.ok(script.includes("const ao = e.target.closest('[data-agent-open]'); if (ao) return openAgentSettings(ao.dataset.agentOpen);"), 'the table does not open the drawer');
+    assert.ok(script.includes("if (e.target.id === 'agentKindFilter')"), 'the kind filter is not wired');
+    // The old per-agent editors are now links: model in the member popup, permissions in the permissions card.
+    assert.ok(!script.includes('data-model='), 'the member popup still edits the model outside the drawer');
+    assert.ok(script.includes('data-agentsettings='), 'the member popup does not link to the drawer');
+    const perms = script.slice(script.indexOf('function permsBlock(st)'), script.indexOf('function createAgent('));
+    assert.ok(!perms.includes('permRadios(r.mode'), 'the permissions card still has a second per-agent editor');
+    assert.ok(!perms.includes('permLists(n, r)'), 'the permissions card still has a second per-agent editor');
+    assert.ok(perms.includes('data-agent-open="${esc(n)}"'), 'the permissions card does not link to the drawer');
+    // Saving in the drawer keeps the drawer and the table in sync.
+    for (const s of ['if (S.agentOpen) paintAgentSettings();', 'function saveAgentTier(a, tier, room = S.current)', 'function saveAgentModel(a, model)']) {
+      assert.ok(script.includes(s), `drawer save is missing ${s}`);
+    }
+    // The agent group opens with the table, and the group keeps spec §3 cards ≤ 5.
+    assert.ok(script.includes('agent: `${agentTableBlock(st)}'), 'the agent group does not start with the table');
+    const group = script.slice(script.indexOf('agent: `${agentTableBlock(st)}'), script.indexOf('accounts: `${account.accounts}'));
+    assert.ok((group.match(/<h2>/g) || []).length <= 5, 'the agent group has more than five cards');
+    for (const key of ['agent.table.title', 'agent.col.name', 'agent.col.kind', 'agent.col.runs', 'agent.col.model', 'agent.col.tier', 'agent.col.status', 'agent.settings', 'agent.noSession', 'agent.tierDefault', 'agent.blk.basic', 'agent.blk.context', 'agent.blk.activity']) {
+      assert.ok(key in vi && key in en, `missing translated string ${key}`);
+    }
+  } finally { await hub.close(); }
+});
+
 /* ---------- Office M4 (#148): mount/unmount, no-WebGL fallback, paused loop, reduced motion, i18n ---------- */
 
 test('Office M4: the tab mounts into a scoped root and unmounts every listener, timer and GPU resource it made', async () => {

@@ -561,6 +561,14 @@ header .spacer{flex:1}
 #menu .mfoot{padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px;display:flex;justify-content:flex-end}
 .agent-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:650;color:var(--accent);white-space:nowrap}
 .agent-spawn{width:min(720px,100%)!important;font-size:14px!important;line-height:1.5!important}
+/* #237: the agent drawer reuses the settings card look inside the zoom layer. */
+.agent-settings{width:min(720px,100%)!important;font-size:14px!important;line-height:1.5!important}
+.agent-settings .pfh{display:flex;align-items:center;gap:8px;margin-bottom:2px}.agent-settings .pfh h2{margin:0;font-size:18px}
+.agent-settings .mblk{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.agent-settings .mblk h4{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+.agent-settings .setrow{padding:10px 0;gap:12px}.agent-settings .setrow span{min-width:0}
+.agent-settings select,.agent-settings .txtin,.agent-settings .numin{max-width:260px}
+@media(max-width:600px){.agent-settings .setrow{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}.agent-settings select,.agent-settings .txtin,.agent-settings .numin{width:100%;max-width:none}.agent-settings .plists{grid-template-columns:1fr}}
 .agent-spawn .aspawn-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
 .agent-spawn .aspawn-type{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;white-space:normal;min-height:88px}
 .agent-spawn .aspawn-type small{color:var(--mute);font-weight:400}
@@ -1348,7 +1356,7 @@ async function fillFollows(m) {
 /** The settings of one member (role, model, topics, skill, danger zone) in a popup over the page; the members menu only lists them. */
 const memberBody = (s) => `
 <section class="mblk"><h4>${t('members.blk.role')}</h4><div class="mrow"><button class="btn sm${isLead(s.id) ? '' : ' primary'}" data-lead="${esc(s.id)}">${isLead(s.id) ? t('members.unlead') : t('members.lead')}</button><button class="btn sm" data-dm="${esc(s.id)}">${t('members.chatDm')}</button><button class="btn sm" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out} ${t('members.leave')}</button></div></section>
-      <section class="mblk"><h4>${t('members.blk.model')}</h4><input class="mmodel" data-model="${esc(s.id)}" list="modelList" value="${esc(S.settings?.agentModel?.[normAgent(s.name)] || '')}" placeholder="${t('members.model.ph')}" aria-label="${t('members.model.aria', { name: esc(s.name) })}" spellcheck="false"></section>
+      <section class="mblk"><h4>${t('members.blk.model')}</h4><div class="mrow"><span class="small mono">${esc(S.settings?.agentModel?.[normAgent(s.name)] || t('common.default'))}</span><button type="button" class="btn sm" data-agentsettings="${esc(normAgent(s.name))}">${t('agent.settings')}</button></div></section>
       <section class="mblk" data-mtop="${esc(s.id)}" hidden></section>
       <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button class="btn sm" data-goskill="${esc(normAgent(s.name))}">${t('members.goSkill')}</button>${s.status === 'offline' ? `<button class="btn sm" data-opentab="${esc(s.id)}" title="${t('members.openTab.tip')}">${t('members.openTab')}</button>` : ''}</div></section>
       <section class="mblk danger"><h4>${t('members.blk.danger')}</h4><div class="mrow"><button class="btn sm" data-compact="${esc(s.id)}" title="${t('members.compact.tip')}">${t('members.compact')}</button><button class="btn sm danger" data-end="${esc(s.id)}" title="${t('members.end.tip')}">${t('members.end')}</button>${isLead(s.id) ? `<button class="btn sm danger" data-clearlead="${esc(s.id)}" title="${t('members.clearLead.tip')}">${t('members.clearLead')}</button>` : ''}</div></section>
@@ -1382,7 +1390,7 @@ function wireMember(m, list) {
       if (!g.repo || !g.dirty) return;
       m.querySelector(`[data-compact="${CSS.escape(s.id)}"]`)?.before(Object.assign(document.createElement('span'), { className: 'dirtytag', textContent: t('members.dirty', { n: g.dirty }), title: (g.files || []).join('\n') }));
     }, () => {});   // old hub without /git: no warning
-    m.querySelectorAll('[data-model]').forEach((i) => i.onchange = () => api(`/api/sessions/${enc(i.dataset.model)}/model`, { model: i.value.trim() }).then((r) => toast(t(r.model ? 'members.model.saved' : 'members.model.cleared', { model: r.model })), (e) => toast(e.message)));
+    m.querySelectorAll('[data-agentsettings]').forEach((b) => b.onclick = () => { done(); openAgentSettings(b.dataset.agentsettings); });
     m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { done(); toast(t('members.removed')); }, (e) => toast(e.message)));
 }
 function memberPopup(id) {
@@ -2565,8 +2573,11 @@ function syncChatTabs() {
 function showTab(name) {
   // #234: #settings/<group>/<key> (or #settings/<key>) is a deep link into one setting.
   const deep = typeof name === 'string' && name.startsWith('settings/') ? settingsDeepLink('#' + name) : undefined;
+  const agentDeep = typeof name === 'string' ? new RegExp('^settings/agent/([\\w.-]+)$').exec(name)?.[1] : undefined;
+  if (agentDeep) S.agentDeep = agentDeep;
   if (name.startsWith('settings/')) name = 'settings';
   if (deep) { S.setSub = deep.sub; S.setFocusRow = deep.key; }
+  if (agentDeep) S.setSub = 'agent';
   if (name === 'dm' || name === 'rooms') {
     const wantDm = name === 'dm', isDm = !!room(S.current)?.dm;
     if (wantDm !== isDm) {
@@ -3504,14 +3515,10 @@ function compactBlock() {
   const bar = `<div class="skfind"><input class="search" id="cmpQuery" placeholder="${t('compact.search')}" value="${esc(S.cmpQuery || '')}" aria-label="${t('compact.search')}"><button class="btn" id="cmpAll" aria-pressed="${!!S.cmpAll}">${S.cmpAll ? t('compact.hideOffline') : t('compact.showOffline', { n: hidden })}</button></div>`;
   const rows = shown.map((n) => {
     const r = ac[n] || { mode: 'auto' };
-    return `<tr data-cagent="${esc(n)}"><td>${esc(n)}</td>
-      <td><select data-cmode aria-label="${t('compact.aria.mode', { n: esc(n) })}">${Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${r.mode === k ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
-      <td><input type="number" class="numin" data-cpct min="10" max="85" value="${r.pct ?? ''}" placeholder="${r.mode === 'hold' ? '70' : t('common.default')}" aria-label="${t('compact.aria.pct', { n: esc(n) })}"></td>
-      <td><input type="checkbox" class="switch" data-cwake${r.wakeCompact ? ' checked' : ''} aria-label="${t('compact.aria.wake', { n: esc(n) })}"></td>
-      <td><input type="text" data-rtools value="${esc((S.settings.reviveTools?.[n] || []).join(', '))}" placeholder="${t('worker.readOnly')}" aria-label="${t('compact.aria.tools', { n: esc(n) })}"></td></tr>`;
+    return `<tr><td>${esc(n)}</td><td>${CMODES[r.mode]}</td><td class="small">${r.pct ?? ''}</td><td class="small">${r.wakeCompact ? t('common.on') : t('common.off')}</td><td><button type="button" class="btn sm" data-agent-open="${esc(n)}">${t('agent.settings')}</button></td></tr>`;
   }).join('');
   return `<div class="setbox"><p class="small muted note">${t('compact.note')}</p>${bar}
-    ${table(['Agent', t('compact.col.mode'), t('compact.col.pct'), t('compact.col.wake'), t('compact.col.tools')], rows)}</div>`;
+    ${table(['Agent', t('compact.col.mode'), t('compact.col.pct'), t('compact.col.wake'), ''], rows)}</div>`;
 }
 async function saveCompact(tr) {
   const pct = tr.querySelector('[data-cpct]').value.trim();
@@ -3519,7 +3526,7 @@ async function saveCompact(tr) {
   const tools = tr.querySelector('[data-rtools]').value.split(/[\s,]+/).filter(Boolean);
   try { S.settings = await api('/api/settings', { agentCompact: { [tr.dataset.cagent]: rule }, reviveTools: { [tr.dataset.cagent]: tools } }, 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
-  renderSettingsView();
+  renderSettingsView(); if (S.agentOpen) paintAgentSettings();
 }
 /** worker.ps1 fills empty model lists with Intern ids only for Intern; any other provider without models is skipped. */
 const isIntern = (p) => /intern-ai\.org\.cn/.test(p.baseUrl);
@@ -3707,16 +3714,17 @@ function pollMachine() {
 const PERM_MODES = ['bypass', 'acceptEdits', 'default', 'plan'];
 const PMODE = lazy({ bypass: 'perm.mode.bypass', acceptEdits: 'perm.mode.acceptEdits', default: 'perm.mode.default', plan: 'perm.mode.plan' });
 const PHINT = lazy({ bypass: 'perm.hint.bypass', acceptEdits: 'perm.hint.acceptEdits', default: 'perm.hint.default', plan: 'perm.hint.plan' });
+/** One mode picker and one allow/deny pair, shared by the default card and the per-agent drawer (#237). */
+const permRadios = (cur, who, inherit) => `<div class="pmodes" role="radiogroup">${(inherit ? [''] : []).concat(PERM_MODES).map((m) => `<button type="button" class="pmode${m === 'bypass' ? ' free' : ''}" role="radio" aria-checked="${(cur || '') === m}" data-pmode="${esc(who)}" data-pv="${m}">${m ? PMODE[m] : t('perm.inherit')}</button>`).join('')}</div>`;
+const permLists = (who, rule) => `<div class="plists"><label><span>${t('perm.allow')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="allow" spellcheck="false" placeholder="Read\nBash(npm test:*)">${esc((rule.allow || []).join('\n'))}</textarea></label><label><span>${t('perm.deny')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="deny" spellcheck="false" placeholder="Bash(git push:*)\nBash(rm -rf:*)">${esc((rule.deny || []).join('\n'))}</textarea></label></div>`;
 function permsBlock(st) {
   const pm = st.permissions || { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: {} };
-  const radios = (cur, who, inherit) => `<div class="pmodes" role="radiogroup">${(inherit ? [''] : []).concat(PERM_MODES).map((m) => `<button type="button" class="pmode${m === 'bypass' ? ' free' : ''}" role="radio" aria-checked="${(cur || '') === m}" data-pmode="${esc(who)}" data-pv="${m}">${m ? PMODE[m] : t('perm.inherit')}</button>`).join('')}</div>`;
-  const lists = (who, rule) => `<div class="plists"><label><span>${t('perm.allow')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="allow" spellcheck="false" placeholder="Read\nBash(npm test:*)">${esc((rule.allow || []).join('\n'))}</textarea></label><label><span>${t('perm.deny')}</span><textarea rows="2" data-plist="${esc(who)}" data-pk="deny" spellcheck="false" placeholder="Bash(git push:*)\nBash(rm -rf:*)">${esc((rule.deny || []).join('\n'))}</textarea></label></div>`;
   const dm = pm.default.mode;
   const names = Object.keys(pm.perAgent).sort();
   const free = (S.skills?.members || []).map((m) => normAgent(m.name)).filter((v, i, a) => v && a.indexOf(v) === i && !names.includes(v));
-  const rows = names.map((n) => { const r = pm.perAgent[n]; return `<div class="pagent"><div class="pah"><b>${esc(n)}</b>${(r.mode || dm) === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-prem="${esc(n)}">${t('perm.remove')}</button></div>${radios(r.mode, n, true)}${lists(n, r)}</div>`; }).join('');
+  const rows = names.map((n) => { const r = pm.perAgent[n]; return `<div class="pagent"><div class="pah"><b>${esc(n)}</b>${(r.mode || dm) === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}<span class="small muted">${r.mode ? PMODE[r.mode] : t('perm.inherit')}</span><span style="flex:1"></span><button type="button" class="btn sm" data-agent-open="${esc(n)}">${t('agent.settings')}</button><button type="button" class="btn sm" data-prem="${esc(n)}">${t('perm.remove')}</button></div></div>`; }).join('');
   return `<h2>${t('perm.title')}</h2><div class="setbox permbox"><p class="small muted note">${t('perm.note')}</p>
-    <h3>${t('perm.default')} ${dm === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}</h3>${radios(dm, 'default', false)}<p class="small ${dm === 'bypass' ? 'pwarn' : 'muted'}">${PHINT[dm]}</p>${lists('default', pm.default)}<p class="small muted">${t('perm.list.hint')}</p></div>
+    <h3>${t('perm.default')} ${dm === 'bypass' ? `<span class="pfree">${t('perm.free.badge')}</span>` : ''}</h3>${permRadios(dm, 'default', false)}<p class="small ${dm === 'bypass' ? 'pwarn' : 'muted'}">${PHINT[dm]}</p>${permLists('default', pm.default)}<p class="small muted">${t('perm.list.hint')}</p></div>
     <h2>${t('perm.perAgent')}</h2><div class="setbox permbox">${rows || `<p class="small muted">${t('perm.noneAgent')}</p>`}${free.length ? `<select id="permAdd" aria-label="${t('perm.addAgent')}"><option value="">${t('perm.addAgent')}</option>${free.map((n) => `<option>${esc(n)}</option>`).join('')}</select>` : ''}</div>`;
 }
 function createAgent(body, inDialog = false) {
@@ -3736,7 +3744,7 @@ function createAgent(body, inDialog = false) {
 }
 function savePerm(who, patch) {
   const body = { permissions: who === 'default' ? { default: patch } : { perAgent: { [who]: patch } } };
-  api('/api/settings', body, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (e) => toast(e.message));
+  return api('/api/settings', body, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); if (S.agentOpen) paintAgentSettings(); }, (e) => toast(e.message));
 }
 /** Summaries by an AI on this machine (settings.localSummarize, GET /api/local/status): off by default, warns when the address is not this machine. */
 function loadLocal() { api('/api/local/status').then((d) => { S.local = d; }, () => { S.local = { reachable: false, hasModel: false }; }).then(() => { if (S.tab === 'settings' || S.tab === 'skills') renderSettingsView(); }); }
@@ -4106,10 +4114,10 @@ function accountParts(st) {
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>`,
     copilot: `<h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}</div>`,
-    agents: `<h2>${t('agent.defaults.title')}</h2><div class="setbox">
+    agents: `
       ${num('agents.maxBackground', st.agents?.maxBackground ?? 4)}
       <h3>${t('ac.agent')}</h3><p class="small muted note">${t('ac.agent.note')}</p>${agent}
-      <h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>`,
+      <h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}`,
     mcp: `<h2>${t('set.mcp.title')}</h2><div class="setbox"><h3>${t('mcp.title')}</h3><p class="small muted note">${t('mcp.note')}</p><form class="cprofile-new" id="mcpConnectionNew"><input name="name" required maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" placeholder="${t('mcp.name')}" aria-label="${t('mcp.name')}"><button class="btn primary">${t('mcp.create')}</button></form>${mcpIssued}${mcpRows}<h3>${t('mcps.title')}</h3><p class="small muted note">${t('mcps.note')}</p>
     <div class="pf"><select id="mcpsTarget" aria-label="${t('mcps.target')}"><option value="">${t('mcps.claude')}</option>${srvAgents.map((p) => `<option value="${esc(p.id)}"${p.id === srvTarget ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${srvTarget ? '' : `<select id="mcpsDelScope" aria-label="${t('mcps.delScope')}">${['local', 'project', 'user'].map((x) => `<option${x === (S.mcpDelScope || 'local') ? ' selected' : ''}>${x}</option>`).join('')}</select>`}<button type="button" class="btn sm" id="mcpsRefresh">${t('hc.refresh')}</button></div>
     ${srvRows}
@@ -4398,6 +4406,106 @@ function setupBlock(st) {
   const body5 = `<span>${t('sm.s5.share', { s: shared ? t('ac.share.on') : t('ac.share.off') })}</span><span>${t('sm.s5.auto', { s: !au?.supported ? t('ac.auto.unsupported') : au.on ? t('ac.auto.on') : t('ac.auto.off') })}</span><div><button type="button" class="btn sm" data-hgo="settings:account">${t('sm.s5.open')}</button></div>`;
   return `<h2>${t('sm.title')}</h2><p class="small muted">${t('sm.note')}</p><div class="hlist">${step(l1, t('sm.s1'), t('sm.s1.note'), body1)}${step(l2, t('sm.s2'), t('sm.s2.note'), body2)}${step(l3, t('sm.s3'), t('sm.s3.note'), body3)}${step(l4, t('sm.s4'), t('sm.s4.note'), body4)}${step(l5, t('sm.s5'), t('sm.s5.note'), body5)}</div>`;
 }
+/* #237 (S3): one table of every agent and one drawer per agent (spec §4). The drawer is the only place a
+   single agent's model, permissions, compact rule and tier are edited; other screens link here. */
+S.agentFilter = 'all'; S.agentOpen = undefined;
+const AGENT_KIND = lazy({ copilot: 'agent.spawn.copilot', api: 'agent.spawn.api', agy: 'agent.spawn.agy', duck: 'agent.spawn.duck', tab: 'agent.spawn.folder' });
+const agentKind = (p) => p.provider === 'claude-api' ? 'api' : p.provider === 'agy' ? 'agy' : p.provider === 'duck' ? 'duck' : 'copilot';
+const agentRunsWith = (p) => { const k = agentKind(p); return k === 'api' ? (p.providerId || '?') : k === 'agy' ? t('agents.agy.title') : k === 'duck' ? t('agents.duck.title') : 'GitHub Copilot'; };
+function agentCatalog() {
+  const st = S.settings || {}, out = new Map();
+  for (const p of st.agents?.profiles || []) {
+    const k = normAgent(p.name);
+    out.set(k, { key: k, name: p.name, kind: agentKind(p), profile: p, cwd: p.cwd || '', model: p.model || '', runWith: agentRunsWith(p), enabled: !!p.enabled });
+  }
+  for (const m of S.skills?.members || []) {
+    const k = normAgent(m.name), runtime = m.id ? S.sessions[m.id] : undefined, cur = out.get(k);
+    if (cur) { cur.id = m.id; cur.session = runtime; cur.cwd = cur.cwd || runtime?.cwd || ''; continue; }
+    out.set(k, { key: k, name: m.name, kind: 'tab', id: m.id, session: runtime, cwd: runtime?.cwd || '', model: st.agentModel?.[k] || '', runWith: 'Claude', enabled: true });
+  }
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+function agentModel(a) { return a.model || S.settings?.agentModel?.[a.key] || ''; }
+function agentTier(a, room = S.current) { const v = S.settings?.flowTiers?.[room]?.[a.key]; return v ? t('flow.tier', { n: v }) : t('agent.tierDefault'); }
+const CPS = lazy({ error: 'ac.copilot.error', busy: 'ac.copilot.busy', starting: 'ac.copilot.starting', ready: 'ac.copilot.ready', off: 'ac.copilot.off' });
+function agentState(a) {
+  const st = a.profile ? S.copilotProfiles?.[a.profile.id] : undefined;
+  if (a.session?.limited?.until > Date.now()) return t('flow.limited');
+  if (a.session) return LABEL[a.session.status] || t('status.idle');
+  if (!a.profile) return t('status.offline');
+  if (!a.enabled) return t('ac.copilot.off');
+  if (st?.limited) return t('ac.api.limited', { at: fmtWhen(st.limited) });
+  return CPS[st?.state === 'idle' ? 'ready' : st?.state || 'off'] || t('ac.copilot.off');
+}
+function agentTableBlock(st) {
+  const all = agentCatalog(), kinds = [...new Set(all.map((a) => a.kind))], f = S.agentFilter || 'all';
+  const rows = all.filter((a) => f === 'all' || a.kind === f);
+  const head = [t('agent.col.name'), t('agent.col.kind'), t('agent.col.runs'), t('agent.col.model'), t('agent.col.tier'), t('agent.col.status'), t('common.on'), ''];
+  const body = rows.map((a) => `<tr><td><b>${esc(a.name)}</b>${a.profile ? ` <span class="lic">${esc(a.key)}</span>` : ''}<div class="small muted mono">${esc(a.cwd || '')}</div></td><td>${t(AGENT_KIND[a.kind])}</td><td class="small">${esc(a.runWith)}</td><td class="small mono">${esc(agentModel(a) || t('common.default'))}</td><td class="small">${esc(agentTier(a))}</td><td class="small">${esc(agentState(a))}</td><td>${a.profile ? `<input type="checkbox" class="switch" data-agent-enabled="${esc(a.key)}"${a.enabled ? ' checked' : ''} aria-label="${esc(t('common.on'))}">` : `<span class="small muted">—</span>`}</td><td><button type="button" class="btn sm" data-agent-open="${esc(a.key)}">${t('agent.settings')}</button></td></tr>`).join('');
+  const filter = `<select id="agentKindFilter" aria-label="${t('agent.col.kind')}">${[['all', t('agent.filter.all')], ...kinds.map((k) => [k, t(AGENT_KIND[k])])].map(([v, l]) => `<option value="${esc(v)}"${v === f ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><span class="small muted">${rows.length}/${all.length}</span>`;
+  return `<h2>${t('agent.table.title')}</h2><div class="setbox"><div class="pf">${filter}</div>${rows.length ? table(head, body) : `<p class="small muted">${t('agent.none')}</p>`}</div>`;
+}
+async function saveAgentTier(a, tier, room = S.current) {
+  try { S.settings = await api('/api/settings', { flowTiers: { [room]: { [a.key]: tier ? Number(tier) : null } } }, 'PUT'); toast(t('settings.saved')); }
+  catch (e) { toast(e.message); }
+  renderSettingsView(); if (S.agentOpen) paintAgentSettings();
+}
+function saveAgentModel(a, model) {
+  if (a.profile) {
+    const profiles = (S.settings.agents?.profiles || []).map((p) => {
+      if (p.id !== a.profile.id) return p;
+      const next = { ...p };
+      if (model) next.model = model; else delete next.model;
+      return next;
+    });
+    return saveCopilotProfiles(profiles).then(() => { if (S.agentOpen) paintAgentSettings(); });
+  }
+  if (!a.id) return toast(t('agent.noSession'));
+  return api(`/api/sessions/${enc(a.id)}/model`, { model }).then((r) => { toast(t(r.model ? 'members.model.saved' : 'members.model.cleared', { model: r.model })); renderSettingsView(); if (S.agentOpen) paintAgentSettings(); }, (e) => toast(e.message));
+}
+function openAgentSettings(key) {
+  S.agentOpen = key; zoomBack = null; closeMenu(); zoom.hidden = false;
+  paintAgentSettings();
+}
+function paintAgentSettings() {
+  const a = agentCatalog().find((x) => x.key === S.agentOpen);
+  if (!a) { S.agentOpen = undefined; zoom.hidden = true; zoom.innerHTML = ''; return; }
+  const st = S.settings || {}, rule = st.permissions?.perAgent?.[a.key] || { mode: null, allow: [], deny: [] };
+  const ac = st.agentCompact?.[a.key] || { mode: 'auto' }, tools = st.reviveTools?.[a.key] || [], skills = Object.keys(st.agentSkills?.[a.key] || {}).length;
+  const room = a.session?.room || S.current, tier = st.flowTiers?.[room]?.[a.key] || '';
+  const tierOpts = `<option value="">${t('agent.tierDefault')}</option>${Array.from({ length: 6 }, (_, i) => `<option value="${i + 1}"${String(tier) === String(i + 1) ? ' selected' : ''}>${t('flow.tier', { n: i + 1 })}</option>`).join('')}`;
+  const modeOpts = Object.entries(CMODES).map(([k, l]) => `<option value="${k}"${ac.mode === k ? ' selected' : ''}>${l}</option>`).join('');
+  const status = agentState(a), extra = a.session?.activity || (a.profile && S.copilotProfiles?.[a.profile.id]?.error) || '';
+  zoom.innerHTML = `<div class="zbox agent-settings" role="dialog" aria-modal="true" aria-label="${esc(a.name)}"><div class="pfh"><h2>${esc(a.name)}</h2><span class="lic">${t(AGENT_KIND[a.kind])}</span><span style="flex:1"></span><button type="button" class="btn sm" data-agent-close>${t('common.close')}</button></div>
+    <div class="small mono">${esc(a.cwd || '')}</div><p class="small muted">${esc(a.runWith)} · ${esc(status)}${extra ? ` · ${esc(extra)}` : ''}</p>
+    <section class="mblk"><h4>${t('agent.blk.basic')}</h4>
+      <label class="setrow"><span><b>${t('agent.model')}</b></span><input class="txtin" id="agentModelInput" list="modelList" value="${esc(agentModel(a))}" placeholder="${t('common.default')}" spellcheck="false"></label>
+      <label class="setrow"><span><b>${t('agent.tier')}</b><small>${esc(room)}</small></span><select id="agentTier">${tierOpts}</select></label>
+    </section>
+    <section class="mblk"><h4>${t('perm.title')}</h4>${permRadios(rule.mode, a.key, true)}${permLists(a.key, rule)}<p class="small muted">${t('perm.list.hint')}</p></section>
+    <section class="mblk"><h4>${t('agent.blk.context')}</h4><div data-cagent="${esc(a.key)}"><label class="setrow"><span><b>${t('compact.col.mode')}</b></span><select data-cmode>${modeOpts}</select></label>
+      <label class="setrow"><span><b>${t('compact.col.pct')}</b></span><input type="number" class="numin" data-cpct min="10" max="85" value="${ac.pct ?? ''}" placeholder="${t('common.default')}"></label>
+      <label class="setrow"><span><b>${t('compact.col.wake')}</b></span><input type="checkbox" class="switch" data-cwake${ac.wakeCompact ? ' checked' : ''}></label>
+      <label class="setrow"><span><b>${t('compact.col.tools')}</b></span><input type="text" class="txtin" data-rtools value="${esc(tools.join(', '))}" placeholder="${t('worker.readOnly')}" spellcheck="false"></label></div></section>
+    <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button type="button" class="btn sm" data-agent-skill>${t('agent.skill.count', { n: skills })}</button></div></section>
+    <section class="mblk"><h4>${t('agent.mcp')}</h4><div class="mrow"><button type="button" class="btn sm" data-agent-mcp${a.profile?.provider === 'claude-api' ? '' : ' disabled'}>${t('mcps.title')}</button><span class="small muted">${t('agent.browser')}</span></div></section>
+    <section class="mblk"><h4>${t('agent.blk.activity')}</h4><p class="small muted">${esc(status)}${a.session?.ide ? ` · ${esc(a.session.ide)}` : ''}</p></section></div>`;
+  const box = zoom.querySelector('.agent-settings');
+  if (!box) return;
+  box.addEventListener('click', (e) => {
+    if (e.target.closest('[data-agent-close]')) return closeZoom();
+    const pm = e.target.closest('[data-pmode]');
+    if (pm) return savePerm(pm.dataset.pmode, { mode: pm.dataset.pv || null });
+    if (e.target.closest('[data-agent-skill]')) { S.skAgent = a.key; closeZoom(); showTab('skills'); loadSkillUse(a.key); return; }
+    if (e.target.closest('[data-agent-mcp]')) { S.mcpSrvTarget = a.name; closeZoom(); S.setSub = 'tools'; showTab('settings'); return; }
+  });
+  box.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.id === 'agentModelInput') return saveAgentModel(a, el.value.trim());
+    if (el.id === 'agentTier') return saveAgentTier(a, el.value, room);
+    if (el.closest('[data-cagent]')) return saveCompact(el.closest('[data-cagent]'));
+  });
+}
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
@@ -4419,16 +4527,16 @@ function renderSettingsView() {
     ${setupBlock(st)}
     <h2>Hub</h2><div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
       <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>`,
-    agent: `${permsBlock(st)}
+    agent: `${agentTableBlock(st)}
+    ${permsBlock(st)}
     <h2>${t('agent.defaults.title')}</h2><div class="setbox">
       ${sw('openTabOnWake', !!st.openTabOnWake)}
       ${sw('relayChat', st.relayChat ?? true)}
-    </div>
-    <h2>${t('set.apiAgents')}</h2><div class="setbox">
+      <h3>${t('set.apiAgents')}</h3>
       ${sw('apiAgents.allTools', st.apiAgents?.allTools ?? true)}
       <p class="small muted note">${t('set.apiAgents.allTools.warning')}</p>
-    </div>
-    ${account.agents}`,
+      ${account.agents}
+    </div>`,
     accounts: `${account.accounts}
     ${account.copilot}
     <h2>${t('prov.workerTitle')}</h2>
@@ -4508,6 +4616,7 @@ function renderSettingsView() {
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
   applySettingsFilter();
+  if (S.agentDeep) { const k = S.agentDeep; S.agentDeep = undefined; if (agentCatalog().some((x) => x.key === k)) openAgentSettings(k); else toast(t('agent.none')); }
   if (S.setFocusRow) {
     const row = $('view-settings').querySelector(`[data-row="${S.setFocusRow}"]`);
     S.setFocusRow = undefined;
@@ -4573,6 +4682,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     }
     if (e.target.matches('[data-set]')) return saveSetting(e.target);
     if (e.target.id === 'machineKeys') { S.machineWithKeys = e.target.checked; return; }
+    if (e.target.id === 'agentKindFilter') { S.agentFilter = e.target.value; return renderSettingsView(); }
     if (e.target.id === 'permAdd') { if (e.target.value) savePerm(e.target.value, { mode: 'bypass' }); return; }
     if (e.target.matches('[data-plist]')) { const list = e.target.value.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean); return savePerm(e.target.dataset.plist, { [e.target.dataset.pk]: list }); }
     if (e.target.closest('[data-cagent]')) return saveCompact(e.target.closest('[data-cagent]'));
@@ -4734,6 +4844,9 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const profileConfirm = e.target.closest('[data-profile-confirm]');
     if (profileConfirm) return setCopilotProfile(profileConfirm.dataset.profileConfirm, S.copilotProfileAsk?.on === true);
     if (e.target.closest('#profileStatusRefresh')) return loadCopilotProfiles().then(renderSettingsView);
+    const ae = e.target.closest('[data-agent-enabled]');
+    if (ae) { const pr = (S.settings.agents?.profiles || []).find((x) => normAgent(x.name) === ae.dataset.agentEnabled); if (pr) { S.copilotProfileAsk = { id: pr.id, on: ae.checked }; renderSettingsView(); } return; }
+    const ao = e.target.closest('[data-agent-open]'); if (ao) return openAgentSettings(ao.dataset.agentOpen);
     const pmb = e.target.closest('[data-pmode]'); if (pmb) return savePerm(pmb.dataset.pmode, { mode: pmb.dataset.pv || null });
     const prm = e.target.closest('[data-prem]'); if (prm) return api('/api/settings', { permissions: { perAgent: { [prm.dataset.prem]: null } } }, 'PUT').then((s) => { S.settings = s; renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#localCheck')) { S.local = null; renderSettingsView(); return loadLocal(); }
@@ -4783,7 +4896,7 @@ if (![...fontSel.options].some((o) => o.value === fontSel.value)) setFont('');
 // right-click a message group -> enlarged popup (copy of the rendered group, Esc / click outside closes)
 const zoom = document.createElement('div'); zoom.id = 'zoom'; zoom.hidden = true; document.body.appendChild(zoom);
 let zoomBack = null;   // the members menu a member popup was opened from: closing the popup brings that list back
-const closeZoom = () => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } if (zoom.querySelector('[data-agent-dialog]')) S.agentDialog = null; zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
+const closeZoom = () => { if (monacoEd) { monacoEd.dispose(); monacoEd = null; } if (zoom.querySelector('[data-agent-dialog]')) S.agentDialog = null; if (zoom.querySelector('.agent-settings')) S.agentOpen = undefined; zoom.hidden = true; zoom.innerHTML = ''; const b = zoomBack; zoomBack = null; if (b?.isConnected) membersMenu(b); };
 zoom.onclick = (e) => { if (e.target === zoom || e.target.closest('.zx')) closeZoom(); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoom.hidden) closeZoom(); });
 $('log').addEventListener('contextmenu', (e) => {
