@@ -8,13 +8,12 @@ function port() {
 }
 
 let bridgeStop;
-const SECRET_FILE = /(^|[\\/])(\.env(\..*)?|\.npmrc|\.pypirc|\.netrc|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|pfx|p12|kdbx)|credentials(\.json)?|\.credentials\.json|secrets?\.(json|ya?ml|toml)|.*token.*|providers\.json)$/i;
+const SECRET_FILE = /(^|[\\/])(\.env(\..*)?|\.npmrc|\.pypirc|\.netrc|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|pfx|p12|kdbx|token)|credentials(\.json)?|\.credentials\.json|secrets?\.(json|ya?ml|toml)|tokens?\.(json|ya?ml|toml)|token|providers\.json)$/i;
 
 function startBridge(context) {
   let stopped = false;
   let client = '';
   let pollController;
-  let refreshPending = false;
   const proposals = new Map();
   const url = (route) => `http://127.0.0.1:${port()}${route}`;
   const token = () => {
@@ -100,18 +99,28 @@ function startBridge(context) {
       proposals.set(id, args.content);
       const document = await vscode.workspace.openTextDocument(proposal);
       await vscode.commands.executeCommand('vscode.diff', vscode.Uri.file(args.path), document.uri, args.title || `Proposed: ${path.basename(args.path)}`);
-      setTimeout(() => proposals.delete(id), 5 * 60_000).unref?.();
+      setTimeout(() => proposals.delete(id), 30 * 60_000).unref?.();   // safety net if the close event never fires
       return { text: 'Diff shown. The original file was not changed.' };
     }
     throw new Error('unknown op');
   };
-  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('bear-proposal', {
-    provideTextDocumentContent(uri) { return proposals.get(uri.path.slice(1)) ?? ''; },
-  }));
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider('bear-proposal', {
+      provideTextDocumentContent(uri) { return proposals.get(uri.path.slice(1)) ?? ''; },
+    }),
+    // Free the proposed text when the diff tab closes, not while it is still on screen (VS Code may re-read
+    // the right side at any time, which would otherwise show an empty file after five minutes).
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      if (document.uri.scheme === 'bear-proposal') proposals.delete(document.uri.path.slice(1));
+    }),
+  );
 
+  // Focus/folder changes only re-announce: aborting the long-poll would lose a request the hub already handed
+  // to this client (the hub drops it, then the agent waits 10 s for a 504). The poll keeps running.
   const refresh = () => {
-    refreshPending = true;
-    pollController?.abort();
+    const auth = token();
+    if (!client || !auth) return;   // run() owns the first hello; it reads folders/focus itself
+    void announce(auth).catch(() => {});
   };
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(refresh),
@@ -124,15 +133,13 @@ function startBridge(context) {
         const auth = token();
         if (!auth) throw new Error('hub token unavailable');
         await announce(auth);
-        refreshPending = false;
-        while (!stopped && !refreshPending) {
+        while (!stopped) {
           pollController = new AbortController();
           let item;
           try {
             item = await send(`/api/ide/next?client=${encodeURIComponent(client)}`, auth, undefined, pollController.signal);
           } catch (error) {
             if (stopped) return;
-            if (refreshPending) break;
             throw error;
           } finally { pollController = undefined; }
           if (item.req) {
