@@ -30,7 +30,7 @@ const behind = (x, z, facing, dist) => ({ x: x + Math.sin(facing) * dist, z: z +
 const rand = (a, b) => a + Math.random() * (b - a);
 const at = (obj, x, z) => { obj.position.set(x, 0, z); return obj; };
 // Thời gian nghỉ (giây): ngồi rảnh bao lâu thì đi, ở lại bao lâu
-const BREAK = { first: [6, 40], again: [45, 150], stay: [45, 120] };
+const BREAK = { first: [1, 4], again: [8, 20], stay: [45, 120] };   // rảnh là đi ngay; hết chỗ thì thử lại sau vài giây
 
 /** GTAO bỏ qua sprite, kính, vũng sáng (tránh quầng tối giả) */
 class OfficeGTAO extends GTAOPass {
@@ -658,7 +658,7 @@ export class Office3D {
     const home = { x, z, facing, seatH: y, variant, prop: null, exit: exit ?? behind(x, z, facing, 0.95) };
     this.agents.set(agent.id, {
       id: agent.id, person, screen, theme, ring, label, alert, hit, cluster, focus, status: null, pos: new THREE.Vector3(x, 1.25, z),
-      home, where: 'home', spot: null, breakIn: null, stay: 0, firstBreak: true, observer: agent.provider === 'observer',
+      home, tier: agent.tier, where: 'home', spot: null, breakIn: null, stay: 0, firstBreak: true, observer: agent.provider === 'observer',
     });
   }
 
@@ -679,7 +679,7 @@ export class Office3D {
         if (!free) { this.goHome(v, v.status !== 'offline'); continue; }
         if (v.where === 'leisure') {
           v.stay -= k;
-          if (v.stay <= 0) Math.random() < 0.3 ? this.goLeisure(v) : this.goHome(v);
+          // rảnh thì ở lại khu nghỉ, chỉ về bàn khi có việc
         }
       }
     }
@@ -687,7 +687,8 @@ export class Office3D {
 
   /** Chọn chỗ trống, ưu tiên bàn đang có người (cho vui) */
   pickSpot(v) {
-    const free = this.spots.filter(s => !s.occupant);
+    const want = v.tier >= 5 ? 'game' : 'cafe';   // tầng 5 vào khu game, còn lại vào cà phê
+    const free = this.spots.filter(s => !s.occupant && s.kind === want);
     if (!free.length) return null;
     const busy = new Map();
     for (const s of this.spots) if (s.occupant) busy.set(s.group, (busy.get(s.group) ?? 0) + 1);
