@@ -2521,7 +2521,7 @@ async function openOffice() {
     if (officeV4()) {
       const mod = await import('/office4/main.js');
       if (S.tab !== 'office' || officeInstance) return;
-      officeInstance = { ...mod.mountOffice4($('officeRoot'), { room, base: location.origin, token: TOKEN }), v4: true };
+      officeInstance = { ...mod.mountOffice4($('officeRoot'), { room, base: location.origin, token: TOKEN, onPick: (sid) => api(`/api/rooms/dm/${enc(sid)}`, {}).then((d) => { S.rooms = [...S.rooms.filter((x) => x.name !== d.name), d].sort((x, y) => x.name.localeCompare(y.name)); select(d.name); showTab('dm'); }, (err) => toast(err.message)) }), v4: true };
     } else officeInstance = window.mountOffice($('officeRoot'), { room, base: location.origin, token: TOKEN });
   } catch (err) {
     if (S.tab !== 'office') return;

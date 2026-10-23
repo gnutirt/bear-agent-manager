@@ -1,5 +1,5 @@
 // Office 4 (trial): the scene of linhvvn/ai-office (MIT, see LICENSE-ai-office.txt) fed with this hub's sessions.
-// mountOffice4(el, { room, base, token, t? }) -> { unmount }. Quality starts on "low"; the button in the HUD cycles it.
+// mountOffice4(el, { room, base, token, onPick(sessionId)? }) -> { unmount }. Quality starts on "low"; the button in the HUD cycles it.
 import { Office3D, QUALITY } from './office3d.js';
 
 const LAYOUT = [   // positions and styles of the ai-office floor; names and the tier-to-zone map are ours
@@ -82,7 +82,7 @@ export function mountOffice4(el, api) {
 
   (async () => {
     try {
-      office = new Office3D(host, { onPick: () => {}, onProgress: (m) => { loading.textContent = m; } });
+      office = new Office3D(host, { onPick: (id) => api.onPick && api.onPick(id), onProgress: (m) => { loading.textContent = m; } });
       office.quality = 'low'; office.autoQuality = false;
       await office.init();
       if (dead) { office.renderer?.setAnimationLoop(null); return; }
