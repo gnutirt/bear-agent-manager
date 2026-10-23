@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renameRetry } from './atomic.ts';
+import type { BrowserCfg } from './browser.ts';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
@@ -49,6 +50,7 @@ export type Settings = {
   language: 'auto' | 'vi' | 'en';   // I1: UI and hub notices; auto = this computer's locale
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
+  browser: BrowserCfg;
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
 
@@ -184,7 +186,7 @@ export function defaultSettings(envCap = 4): Settings {
   return {
     skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '', monitor: { on: true, staleMin: 60, nudgeMin: 15 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
-    allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' },
+    allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' }, browser: { enabled: true, port: 9333, chromePath: '' },
   };
 }
 
@@ -288,6 +290,12 @@ export function patchSettings(s: Settings, p: any): Settings {
     routes[k] = { enabled: bool(r?.enabled, cur.enabled), provider, model: provider === 'auto' ? 'auto' : model };   // a model only means something with a provider
   }
   const aj = p?.autoJobs ?? {};
+  const browserPatch = p?.browser ?? {};
+  const browser: BrowserCfg = {
+    enabled: bool(browserPatch.enabled, s.browser.enabled),
+    port: typeof browserPatch.port === 'number' && Number.isInteger(browserPatch.port) && browserPatch.port >= 1024 && browserPatch.port <= 65535 ? browserPatch.port : s.browser.port,
+    chromePath: typeof browserPatch.chromePath === 'string' && browserPatch.chromePath.length <= 500 ? browserPatch.chromePath : s.browser.chromePath,
+  };
   return {
     skills: {
       worker: { enabled: bool(p?.skills?.worker?.enabled, s.skills.worker.enabled) },
@@ -327,6 +335,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     language: ['auto', 'vi', 'en'].includes(p?.language) ? p.language : s.language ?? 'auto',
     openTabOnWake: bool(p?.openTabOnWake, s.openTabOnWake ?? false),
     updates: { check: bool(p?.updates?.check, s.updates?.check ?? true) },
+    browser,
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },
       digest: { enabled: bool(aj.digest?.enabled, s.autoJobs.digest.enabled), minChars: int(aj.digest?.minChars, s.autoJobs.digest.minChars, 1000, 100_000) },

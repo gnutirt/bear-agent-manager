@@ -15,6 +15,13 @@ test('defaults: workers on, everything automatic off, no skill rules', () => {
   assert.equal(d.agentComms, 'off');
 });
 
+test('browser defaults on; invalid port keeps the current value', () => {
+  const d = defaultSettings();
+  assert.deepEqual(d.browser, { enabled: true, port: 9333, chromePath: '' });
+  assert.deepEqual(patchSettings(d, { browser: { port: 1023 } }).browser, d.browser);
+  assert.deepEqual(patchSettings(d, { browser: { port: 65536 } }).browser, d.browser);
+});
+
 test('agentComms: optional style is validated and preserved by unrelated patches', () => {
   let s = patchSettings(defaultSettings(4), { agentComms: 'terse' });
   assert.equal(s.agentComms, 'terse');
