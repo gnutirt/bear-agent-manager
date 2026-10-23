@@ -975,18 +975,21 @@ export class Office3D {
     this.animateCamera(target.clone().add(dir.multiplyScalar(4.2)).setY(target.y + 3.4), target);
   }
   overview() { const v = this.homeView ?? this.home; this.animateCamera(v.pos.clone(), v.target.clone()); }
-  /** "Toàn cảnh" theo tỉ lệ khung. Ngang: lùi vừa đủ thấy chiều ngang sàn như trước. Dọc (điện thoại): sàn
-   *  rộng hơn màn hình nên chúc camera xuống và lùi xa, để mép trước của sàn rơi đúng đáy khung — không còn
-   *  dải đen dưới cảnh (#240). Hai bên chấp nhận cắt bớt, nhãn tầng vẫn nằm gần mép. */
+  /** "Toàn cảnh" theo tỉ lệ khung. Ngang: lùi vừa đủ thấy chiều ngang sàn như trước. Dọc (điện thoại): canh theo
+   *  bề ngang sàn — chọn khoảng cách để bề ngang nhìn thấy ở hàng cà phê/giải trí là ±17,5 m (98% khung), nhờ vậy
+   *  cả bốn khu tầng và hai phòng hai bên (x ±17,9) đều nằm trong khung; rồi hạ camera để mép trước sàn rơi ở 86%
+   *  nửa chiều cao, ngay trên thanh nút. Phần dọc còn dư để trống phía trên (trời/thành phố) thay vì cắt hai bên. */
   homeFor(aspect) {
     if (aspect >= 1) {
       const scale = aspect < 1.6 ? Math.min(2.1, 1.6 / aspect) : 1;
       return { pos: this.home.pos.clone().multiplyScalar(scale), target: this.home.target.clone(), d: this.home.pos.distanceTo(this.home.target) * scale };
     }
-    const pitch = (62 * Math.PI) / 180, half = (this.camera.fov * Math.PI) / 360, margin = (0.8 * Math.PI) / 180;
-    const d = Math.min(82, Math.max(46, 9.9 / (Math.tan(half) * aspect)));   // ~9,9 m nửa bề ngang sàn nhìn thấy
-    const z = 14 + d * Math.cos(pitch) * (Math.tan(pitch) / Math.tan(pitch + half + margin));   // mép trước sàn (z=14) ở đáy khung
-    return { pos: new THREE.Vector3(0, d * Math.sin(pitch), z), target: new THREE.Vector3(0, 0, z - d * Math.cos(pitch)), d };
+    const tanH = Math.tan((this.camera.fov * Math.PI) / 360), pitch = (64 * Math.PI) / 180, sa = Math.sin(pitch), ca = Math.cos(pitch);
+    const near = 14, row = 13.35;                              // mép trước sàn (cửa kính) và hàng cà phê/giải trí
+    const depth = 17.5 / (0.98 * tanH * aspect);               // sâu tới hàng đó: ±17,5 m vừa đúng 98% bề ngang khung
+    const back = (0.86 * tanH * (depth - (near - row) * ca)) / sa;   // near − target.z, để mép trước ở 86% nửa cao
+    const d = depth + (back - (near - row)) * ca;
+    return { pos: new THREE.Vector3(0, d * sa, near - back + d * ca), target: new THREE.Vector3(0, 0, near - back), d };
   }
   animateCamera(pos, target, dur = 0.9) {
     this.camAnim = { p0: this.camera.position.clone(), t0: this.controls.target.clone(), p1: pos, t1: target, t: 0, dur };

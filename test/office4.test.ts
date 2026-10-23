@@ -63,9 +63,11 @@ test('Office 4 #240: the overview fills a portrait screen and the model fetches 
     'this.assets = new Assets(this.headers);',
     'this.people = new MixamoLibrary(this.headers);',
     'homeFor(aspect) {',
-    // portrait: steep, pulled-back camera whose near floor edge lands on the bottom edge of the frame
-    'const z = 14 + d * Math.cos(pitch) * (Math.tan(pitch) / Math.tan(pitch + half + margin));',
-    'return { pos: new THREE.Vector3(0, d * Math.sin(pitch), z), target: new THREE.Vector3(0, 0, z - d * Math.cos(pitch)), d };',
+    // portrait: the camera is picked to fit the floor across (no zone cut off at the sides) and the near edge
+    // sits at 86% of the half height, right above the HUD buttons; the spare height stays empty at the top
+    'const depth = 17.5 / (0.98 * tanH * aspect);',
+    'const back = (0.86 * tanH * (depth - (near - row) * ca)) / sa;',
+    'return { pos: new THREE.Vector3(0, d * sa, near - back + d * ca), target: new THREE.Vector3(0, 0, near - back), d };',
     // the pulled-back portrait camera needs a larger orbit limit, and "Toàn cảnh" uses the same view
     'this.controls.maxDistance = Math.max(70, Math.ceil(this.homeView.d + 10));',
     'overview() { const v = this.homeView ?? this.home;',
