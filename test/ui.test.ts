@@ -651,6 +651,23 @@ test('#234 the settings registry matches the UI and the server defaults, and eve
   } finally { await hub.close(); }
 });
 
+test('#244 isChanged of a key missing from SETTING_DEFS returns false instead of throwing', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const at = html.indexOf('const isChanged = ');
+    assert.ok(at > 0, 'isChanged is missing');
+    const src = html.slice(at + 'const isChanged = '.length, html.indexOf('\n', at)).replace(/;\s*$/, '');
+    const build = (settingAt: (k: string) => unknown) => new Function('settingAt', `return ${src};`)(settingAt) as (d?: { key: string; default?: unknown } | null) => boolean;
+    const live = build((k) => (k === 'lead.wake.atPct' ? 95 : undefined));
+    assert.equal(live({ key: 'lead.wake.atPct', default: 90 }), true, 'a value that differs from its default is changed');
+    assert.equal(live({ key: 'lead.wake.atPct', default: 95 }), false);
+    const missing = build(() => undefined);
+    assert.equal(missing(undefined), false, 'a key with no registry entry has no row to mark');
+    assert.equal(missing(null), false);
+  } finally { await hub.close(); }
+});
+
 test('#234 settings search, deep link and changed dot are wired, and the old duplicate archive rows are gone', async () => {
   const { hub } = await makeHub();
   try {

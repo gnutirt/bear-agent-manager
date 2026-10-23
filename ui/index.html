@@ -3412,7 +3412,8 @@ const SETTING_DEFS = [
 const DEF = (key) => SETTING_DEFS.find((d) => d.key === key);
 /** The live value at a dotted path ("lead.wake.atPct"), read from the settings the server sent. */
 const settingAt = (key) => key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), S.settings);
-const isChanged = (d) => { const v = settingAt(d.key); return d && v !== undefined && JSON.stringify(v) !== JSON.stringify(d.default); };
+// #244: a key that is not in SETTING_DEFS (DEF -> undefined) must not throw: no row, so nothing to mark as changed.
+const isChanged = (d) => { if (!d) return false; const v = settingAt(d.key); return v !== undefined && JSON.stringify(v) !== JSON.stringify(d.default); };
 /** A settings row: label and one-line hint from the table, a dot and "back to default" when it differs. */
 function settingRow(key, input) {
   const d = DEF(key), changed = isChanged(d);
