@@ -123,7 +123,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 
 /** Headless agents (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
 // 'claude-api' permissions follow apiAgents.allTools; agy uses the user's Antigravity CLI login.
-export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'agy'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean; effort?: string; path?: string };
+export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'agy' | 'duck' | 'muse'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean; effort?: string; path?: string; baseUrl?: string; useHubDuck2api?: boolean; timeoutMs?: number; experimental?: boolean };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
@@ -153,19 +153,35 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
   const errors: AgentProfileError[] = [];
   for (const [index, r] of raw.slice(0, 16).entries()) {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
-    const api = r?.provider === 'claude-api', agy = r?.provider === 'agy', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
+    const api = r?.provider === 'claude-api', agy = r?.provider === 'agy', duck = r?.provider === 'duck', muse = r?.provider === 'muse';
+    const providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
     const safeId = /^[a-z0-9][a-z0-9-]{0,31}$/.test(id) ? id : '';
     const fail = (field: string, reason: string) => errors.push({ index, id: safeId, field, reason });
     if (!r || typeof r !== 'object' || Array.isArray(r)) { fail('profile', 'must be an object'); continue; }
     let unusable = false;
     if (!safeId) { fail('id', 'must be 1-32 lowercase letters, digits, or hyphens and start with a letter or digit'); unusable = true; }
     if (!/^[\w.-]{1,40}$/.test(name)) { fail('name', 'must be 1-40 letters, digits, dots, underscores, or hyphens'); unusable = true; }
-    if (r.provider !== 'copilot' && !api && !agy) { fail('provider', 'must be copilot, claude-api, or agy'); unusable = true; }
+    if (r.provider !== 'copilot' && !api && !agy && !duck && !muse) { fail('provider', 'must be copilot, claude-api, agy, duck, or muse'); unusable = true; }
     if (!localAbs(r.cwd)) { fail('cwd', 'must be an absolute local folder, not a network share'); unusable = true; }
     if (api && !/^[\w-]{1,32}$/.test(providerId)) { fail('providerId', 'must be 1-32 letters, digits, underscores, or hyphens'); unusable = true; }
     if (model && !new RegExp(`^[\\w.:/-]{1,${agy ? 64 : 80}}$`).test(model)) { fail('model', `must be 1-${agy ? 64 : 80} letters, digits, _, ., :, /, or -`); unusable = true; }
     if (r.home != null && r.home !== '' && !localAbs(r.home)) fail('home', 'must be an absolute local folder, not a network share');
     if (agy && r.path != null && r.path !== '' && (typeof r.path !== 'string' || r.path.length > 500)) { fail('path', 'must be at most 500 characters'); unusable = true; }
+    let baseUrl = '';
+    if (duck && r.baseUrl != null && r.baseUrl !== '') {
+      try {
+        const url = new URL(String(r.baseUrl).trim());
+        if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.host || url.username || url.password) throw new Error();
+        baseUrl = url.toString().replace(/\/+$/, '');
+      } catch { fail('baseUrl', 'must be an absolute http or https URL without embedded credentials'); unusable = true; }
+    } else if (duck && r.baseUrl != null && typeof r.baseUrl !== 'string') {
+      fail('baseUrl', 'must be a string'); unusable = true;
+    }
+    if (duck && r.useHubDuck2api != null && typeof r.useHubDuck2api !== 'boolean') { fail('useHubDuck2api', 'must be true or false'); unusable = true; }
+    if (duck && r.timeoutMs != null && (!Number.isInteger(r.timeoutMs) || r.timeoutMs < 5000 || r.timeoutMs > 300000)) { fail('timeoutMs', 'must be an integer from 5000 to 300000'); unusable = true; }
+    if (duck && r.experimental != null && typeof r.experimental !== 'boolean') { fail('experimental', 'must be true or false'); unusable = true; }
+    if (duck && r.enabled === true && (!r.useHubDuck2api && !baseUrl)) { fail('baseUrl', 'choose Duck2api from the hub or provide a baseUrl before enabling'); unusable = true; }
+    if (duck && r.enabled === true && r.experimental !== true) { fail('experimental', 'must be true before enabling the experimental Duck provider'); unusable = true; }
     if (r.enabled != null && typeof r.enabled !== 'boolean') fail('enabled', 'must be true or false');
     if (r.edit != null && typeof r.edit !== 'boolean') fail('edit', 'must be true or false');
     if (safeId && ids.has(safeId)) { fail('id', 'must be unique'); unusable = true; }
@@ -175,7 +191,9 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
     const effort = agy && ['low', 'medium', 'high', 'xhigh', 'max'].includes(r.effort) ? r.effort : undefined;
     out.push({ id, provider: agy ? 'agy' : api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
       ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}),
-      ...(effort ? { effort } : {}), ...(agy && typeof r.path === 'string' && r.path ? { path: r.path.trim() } : {}) });
+      ...(effort ? { effort } : {}), ...(agy && typeof r.path === 'string' && r.path ? { path: r.path.trim() } : {}),
+      ...(duck ? { ...(baseUrl ? { baseUrl } : {}), ...(r.useHubDuck2api === true ? { useHubDuck2api: true } : {}), ...(Number.isInteger(r.timeoutMs) ? { timeoutMs: r.timeoutMs } : {}), ...(typeof r.experimental === 'boolean' ? { experimental: r.experimental } : {}) } : {}),
+      ...(duck ? { provider: 'duck' as const } : muse ? { provider: 'muse' as const } : {}) });
   }
   if (raw.length > 16) errors.push({ index: 16, id: '', field: 'profiles', reason: 'at most 16 profiles are allowed' });
   return { profiles: out, errors };

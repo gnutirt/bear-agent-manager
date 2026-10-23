@@ -1,6 +1,5 @@
 // agy (Antigravity CLI) as a BAM worker: one `agy` turn per wake, the prompt on stdin, the answer read from its NDJSON
 // stdout (#207, plan docs/superpowers/plans/2026-10-23-agy-worker.md, spec docs/superpowers/specs/2026-10-23-agy-worker.md).
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,7 +9,7 @@ import { killTree } from './workers.ts';
 import type { Store } from './store.ts';
 import type { Message } from './routing.ts';
 import { permFor, type Settings } from './settings.ts';
-import { renameRetry } from './atomic.ts';
+import { HubMember, type MemberStatus } from './member.ts';
 
 export type FindAgyOpts = {
   exists?: (p: string) => boolean;
@@ -180,12 +179,9 @@ export function runAgyTurn(
 }
 
 const AGY_ROOM = 'bear-agent-manager';
-const RESPONSE_LIMIT = 8000;
-const RESPONSE_SUFFIX = '… (cắt bớt)';
 
 export type AgyProfile = { id: string; name: string; cwd: string; model?: string; effort?: string; path?: string };
-export type AgyStatus = { id: string; name: string; state: 'off' | 'idle' | 'busy' | 'error'; room: string; cwd: string; error?: string; kind: 'agy' };
-type AgyIdentity = { hubId: string };
+export type AgyStatus = MemberStatus<'agy'>;
 
 export type AgyAgentOptions = {
   dir: string;
@@ -201,246 +197,57 @@ export type AgyAgentOptions = {
   now?: () => number;
 };
 
-function readAgyIdentity(file: string): AgyIdentity {
-  if (!fs.existsSync(file)) return { hubId: crypto.randomUUID() };
-  const value: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (!value || typeof value !== 'object' || typeof (value as AgyIdentity).hubId !== 'string' || !/^[0-9a-f-]{36}$/i.test((value as AgyIdentity).hubId)) {
-    throw new Error(`Invalid agy agent identity file: ${file}`);
-  }
-  return value as AgyIdentity;
-}
-
-function saveAgyIdentity(file: string, identity: AgyIdentity): void {
-  const temp = `${file}.tmp`;
-  fs.writeFileSync(temp, JSON.stringify(identity, null, 2));
-  renameRetry(temp, file);
-}
-
 function staleConversation(error: string): boolean {
   return /conversation.*(?:not found|does not exist|unknown|expired|invalid|missing)|(?:not found|does not exist|unknown|expired|invalid|missing).*conversation/i.test(error);
 }
 
-function cutAgyResponse(response: string): string {
-  return response.length > RESPONSE_LIMIT
-    ? response.slice(0, RESPONSE_LIMIT - RESPONSE_SUFFIX.length) + RESPONSE_SUFFIX
-    : response;
-}
-
-function workerBoard(dir: string, sid: string, cwd: string, model: string, promptLength: number, now: () => number): (turn: AgyTurn) => void {
-  const id = crypto.randomBytes(6).toString('hex');
-  const file = path.join(dir, 'workers.jsonl');
-  const write = (value: object) => {
-    try { fs.mkdirSync(dir, { recursive: true }); fs.appendFileSync(file, JSON.stringify(value) + '\n'); } catch { /* the board is a convenience */ }
-  };
-  write({ id, pid: process.pid, kind: 'agy', provider: 'agy', tier: 'free', task: `agy turn (${promptLength} characters)`, by: sid || 'unknown', skill: 'agy', dir: cwd, ts: now(), event: 'start' });
-  return (turn) => write({ id, model, provider: 'agy', tier: 'free', exit: turn.code ?? (turn.ok ? 0 : 1), ...(turn.error ? { error: turn.error.slice(0, 200) } : {}), usage: turn.usage, ts: now(), event: 'end' });
-}
-
 /** Hub-driven room member: one short-lived agy process for each batch of unread room messages. */
-export class AgyAgent {
-  private readonly opts: AgyAgentOptions;
-  private readonly file: string;
-  private readonly name: string;
-  private readonly now: () => number;
-  private cwd: string;
-  private status: AgyStatus;
-  private identity?: AgyIdentity;
-  private started = false;
-  private startTask?: Promise<void>;
-  private stopTask?: Promise<void>;
-  private wakeTask?: Promise<void>;
-  private stopping = false;
-
+export class AgyAgent extends HubMember<'agy'> {
   constructor(opts: AgyAgentOptions) {
-    this.opts = opts;
-    this.cwd = opts.profile.cwd;
-    this.name = opts.profile.name;
-    this.now = opts.now ?? Date.now;
-    this.file = path.join(opts.dir, `agy-agent-${opts.profile.id}.json`);
-    this.status = { id: opts.profile.id, name: this.name, state: 'off', room: AGY_ROOM, cwd: this.cwd, kind: 'agy' };
-  }
-
-  snapshot(): AgyStatus {
-    return { ...this.status };
-  }
-
-  hasSession(id: string): boolean {
-    return this.started && this.identity?.hubId === id;
-  }
-
-  isRunning(id: string): boolean {
-    return this.hasSession(id);
-  }
-
-  hubSessionId(): string | undefined {
-    return this.identity?.hubId;
-  }
-
-  isQuotaLimited(): boolean {
-    return false;
-  }
-
-  resetQuotaLimit(): void {}
-
-  async start(): Promise<void> {
-    if (this.started) return;
-    if (this.startTask) return this.startTask;
-    this.startTask = this.startInner();
-    try {
-      await this.startTask;
-    } finally {
-      this.startTask = undefined;
-    }
-  }
-
-  private async startInner(): Promise<void> {
-    try {
-      this.identity ??= readAgyIdentity(this.file);
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      if (!fs.existsSync(this.file)) saveAgyIdentity(this.file, this.identity);
-      this.ensureRoom(this.identity);
-      this.started = true;
-      this.setStatus({ state: 'idle', error: undefined });
-      void this.wake(this.identity.hubId).catch((error) => this.reportError(error));
-    } catch (error) {
-      const message = this.safeError(error);
-      this.setStatus({ state: 'error', error: message });
-      this.opts.store.createRoom(AGY_ROOM);
-      this.opts.onMessage(AGY_ROOM, this.opts.store.postSystem(AGY_ROOM, `${this.name} (agy) could not start: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
-      throw error;
-    }
-  }
-
-  private ensureRoom(identity: AgyIdentity): void {
-    this.opts.store.createRoom(AGY_ROOM);
-    const existing = Object.values(this.opts.store.state.sessions).find((s) => s.name.toLowerCase() === this.name.toLowerCase() && s.id !== identity.hubId);
-    if (existing && existing.status !== 'offline' && !existing.ended) {
-      throw new Error(`A different hub session is already named ${this.name}; rename it before starting agy.`);
-    }
-    if (existing) {
-      let oldName = `${this.name}-old-${existing.id.slice(0, 8)}`;
-      for (let suffix = 2; Object.values(this.opts.store.state.sessions).some((s) => s.id !== existing.id && s.name.toLowerCase() === oldName.toLowerCase()); suffix++) {
-        oldName = `${this.name}-old-${existing.id.slice(0, 8)}-${suffix}`;
-      }
-      this.opts.store.rename(existing.id, oldName);
-    }
-    const session = this.opts.store.register({ id: identity.hubId, name: this.name, cwd: this.cwd, source: 'agy' });
-    if (session.name !== this.name) throw new Error(`Could not reserve the hub identity ${this.name}.`);
-    this.opts.store.join(identity.hubId, AGY_ROOM);
-    this.opts.store.setStatus(identity.hubId, 'idle', 'Starting agy');
-    this.opts.onChange(this.snapshot());
-    this.opts.onRoom(AGY_ROOM);
-    this.opts.onRooms();
-  }
-
-  async wake(id: string): Promise<void> {
-    if (!this.hasSession(id)) return;
-    if (this.wakeTask) return this.wakeTask;
-    this.wakeTask = this.drain(id);
-    try {
-      await this.wakeTask;
-    } finally {
-      this.wakeTask = undefined;
-    }
-  }
-
-  private async drain(id: string): Promise<void> {
-    for (;;) {
-      const pending = this.opts.store.pending(id);
-      if (!pending.wake || !pending.messages.length) {
-        this.opts.store.setStatus(id, 'idle');
-        this.setStatus({ state: 'idle', error: undefined });
-        return;
-      }
-      const batch = pending.messages;
-      const upTo = batch[batch.length - 1].id;
-      const prompt = this.opts.format(id, batch);
-      this.opts.store.setStatus(id, 'busy', `Working in #${AGY_ROOM}`);
-      this.setStatus({ state: 'busy', error: undefined });
-
-      const found = findAgy(this.opts.profile.path ?? '');
-      if (!found.exe) {
-        this.failedTurn(id, `agy was not found (looked in: ${found.tried.join(', ') || 'no paths'})`);
-        return;
-      }
-      const session = this.opts.store.state.sessions[id];
-      let conversation = session?.agyConversation;
-      const rule = permFor(this.opts.settings(), this.name);
-      const args = () => agyArgs({
-        model: this.opts.profile.model,
-        effort: this.opts.profile.effort,
-        bypass: rule.mode === 'bypass',
-        ...(conversation ? { conversation } : {}),
-      });
-      const finishBoard = workerBoard(this.opts.dir, id, this.cwd, this.opts.profile.model?.trim() || AGY_DEFAULT_MODEL, prompt.length, this.now);
-      let turn = await (this.opts.run ?? runAgyTurn)(found.exe, args(), this.cwd, prompt);
-      if (!turn.ok && conversation && staleConversation(turn.error)) {
-        conversation = undefined;
-        if (session) { delete session.agyConversation; this.opts.store.save(); }
-        turn = await (this.opts.run ?? runAgyTurn)(found.exe, args(), this.cwd, prompt);
-      }
-      finishBoard(turn);
-      if (!turn.ok || !turn.response.trim()) {
-        this.failedTurn(id, turn.error || 'agy returned an empty response');
-        return;
-      }
-      if (session && turn.conversation) {
-        session.agyConversation = turn.conversation;
-        this.opts.store.save();
-      }
-      const posted = this.opts.store.post(AGY_ROOM, id, cutAgyResponse(turn.response));
-      this.opts.onMessage(AGY_ROOM, posted.message);
-      this.opts.store.consume(id, upTo);
-      this.opts.store.setStatus(id, 'idle');
-      this.setStatus({ state: 'idle', error: undefined });
-    }
-  }
-
-  private failedTurn(id: string, why: string): void {
-    this.setStatus({ state: 'error', error: why });
-    this.opts.store.setStatus(id, 'idle', 'agy needs attention');
-    const text = this.opts.store.tr('sys.agy.failed', { name: this.name, why });
-    this.opts.onMessage(AGY_ROOM, this.opts.store.postSystem(AGY_ROOM, text, undefined, { type: 'error', level: 'error', agent: this.name }));
-  }
-
-  async stop(): Promise<void> {
-    if (this.stopTask) return this.stopTask;
-    this.stopTask = this.stopInner();
-    try { await this.stopTask; } finally { this.stopTask = undefined; }
-  }
-
-  private async stopInner(): Promise<void> {
-    if (this.startTask) await this.startTask.catch(() => {});
-    this.stopping = true;
-    if (this.wakeTask) await this.wakeTask.catch(() => {});
-    const id = this.identity?.hubId;
-    this.started = false;
-    this.setStatus({ state: 'off', error: undefined });
-    if (id && this.opts.store.state.sessions[id]) {
-      this.opts.store.markEnded(id);
-      this.opts.onChange(this.snapshot());
-    }
-    this.stopping = false;
-  }
-
-  reportError(error: unknown): void {
-    if (this.stopping) return;
-    const message = this.safeError(error);
-    this.setStatus({ state: 'error', error: message });
-    const id = this.identity?.hubId;
-    if (id && this.opts.store.state.sessions[id]) this.opts.store.setStatus(id, 'idle', 'agy needs attention');
-    const text = this.opts.store.tr('sys.agy.failed', { name: this.name, why: message });
-    this.opts.onMessage(AGY_ROOM, this.opts.store.postSystem(AGY_ROOM, text, undefined, { type: 'error', level: 'error', agent: this.name }));
-  }
-
-  private safeError(error: unknown): string {
-    return (error instanceof Error ? error.message : String(error))
-      .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/gi, '[redacted]')
-      .replace(/(authorization\s*:\s*bearer\s+)\S+/gi, '$1[redacted]');
-  }
-
-  private setStatus(next: Partial<AgyStatus> & Pick<AgyStatus, 'state'>): void {
-    this.status = { ...this.status, ...next, room: AGY_ROOM, cwd: this.cwd, kind: 'agy' };
-    this.opts.onChange(this.snapshot());
+    const profile = opts.profile;
+    super({
+      dir: opts.dir,
+      id: profile.id,
+      name: profile.name,
+      cwd: profile.cwd,
+      kind: 'agy',
+      room: AGY_ROOM,
+      identityFile: `agy-agent-${profile.id}.json`,
+      store: opts.store,
+      format: opts.format,
+      onChange: opts.onChange,
+      onRoom: opts.onRoom,
+      onRooms: opts.onRooms,
+      onMessage: opts.onMessage,
+      workerModel: () => profile.model?.trim() || AGY_DEFAULT_MODEL,
+      failureKey: 'sys.agy.failed',
+      startError: (message) => `${profile.name} (agy) could not start: ${message}`,
+      now: opts.now,
+      turn: async (sid, _room, text) => {
+        const found = findAgy(profile.path ?? '');
+        if (!found.exe) return { ok: false, text: '', error: `agy was not found (looked in: ${found.tried.join(', ') || 'no paths'})` };
+        const session = opts.store.state.sessions[sid];
+        let conversation = session?.agyConversation;
+        const rule = permFor(opts.settings(), profile.name);
+        const args = () => agyArgs({
+          model: profile.model,
+          effort: profile.effort,
+          bypass: rule.mode === 'bypass',
+          ...(conversation ? { conversation } : {}),
+        });
+        let turn = await (opts.run ?? runAgyTurn)(found.exe, args(), profile.cwd, text);
+        if (!turn.ok && conversation && staleConversation(turn.error)) {
+          conversation = undefined;
+          if (session) { delete session.agyConversation; opts.store.save(); }
+          turn = await (opts.run ?? runAgyTurn)(found.exe, args(), profile.cwd, text);
+        }
+        if (!turn.ok || !turn.response.trim()) return { ok: false, text: '', error: turn.error || 'agy returned an empty response' };
+        if (session && turn.conversation) {
+          session.agyConversation = turn.conversation;
+          opts.store.save();
+        }
+        return { ok: true, text: turn.response, error: '', usage: turn.usage };
+      },
+    });
   }
 }

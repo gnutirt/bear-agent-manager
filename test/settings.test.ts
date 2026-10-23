@@ -245,7 +245,7 @@ test('agents.profiles: valid profiles kept, bad/duplicate/relative/UNC ones drop
   assert.deepEqual(d.agents.profiles, []);
   assert.equal(permFor(d, 'Copilot').mode, 'acceptEdits');
   const ok = { id: 'Copilot-Work', provider: 'copilot', name: 'Copilot_Work', cwd: here, enabled: true };
-  const s = patchSettings(d, { agents: { profiles: [ok, { ...ok, id: 'other' }, { ...ok, id: 'x', name: 'rel', cwd: 'rel/dir' }, { ...ok, id: 'y', name: 'unc', cwd: '\\\\srv\\share' }, { ...ok, id: 'z', name: 'bad name!' }, { ...ok, id: 'p', name: 'p', provider: 'other' }, { ...ok, id: 'm', name: 'm', provider: 'muse' }, { ...ok, id: 'w', name: 'w', enabled: 'yes' }] } });
+  const s = patchSettings(d, { agents: { profiles: [ok, { ...ok, id: 'other' }, { ...ok, id: 'x', name: 'rel', cwd: 'rel/dir' }, { ...ok, id: 'y', name: 'unc', cwd: '\\\\srv\\share' }, { ...ok, id: 'z', name: 'bad name!' }, { ...ok, id: 'p', name: 'p', provider: 'other' }, { ...ok, id: 'm', name: 'm', provider: 'invalid-provider' }, { ...ok, id: 'w', name: 'w', enabled: 'yes' }] } });
   assert.deepEqual(s.agents.profiles.map((p) => [p.id, p.name, p.enabled]), [['copilot-work', 'Copilot_Work', true], ['w', 'w', false]]);   // the duplicate name 'Copilot_Work' is dropped
   assert.equal(patchSettings(s, { agents: { maxBackground: 2 } }).agents.profiles.length, 2, 'a patch without profiles keeps them');
   assert.deepEqual(patchSettings(s, { agents: { profiles: [] } }).agents.profiles, []);
@@ -274,6 +274,18 @@ test('agents.profiles: agy keeps its model/path, drops unsupported effort, and v
   assert.equal(validateAgentProfiles([{ ...profile, model: 'm'.repeat(65) }])[0]?.field, 'model');
   assert.equal(validateAgentProfiles([{ ...profile, path: 'x'.repeat(501) }])[0]?.field, 'path');
   assert.equal(patchSettings(defaultSettings(), { agents: { profiles: [{ ...profile, effort: 'high' }] } }).agents.profiles[0].effort, 'high');
+});
+
+test('agents.profiles: duck requires an experimental provider before enable and validates endpoint and timeout', () => {
+  const profile = { id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: process.cwd(), enabled: false, baseUrl: 'http://127.0.0.1:18080', timeoutMs: 60_000, experimental: false };
+  const saved = patchSettings(defaultSettings(), { agents: { profiles: [profile] } }).agents.profiles[0];
+  assert.deepEqual(saved, { ...profile, cwd: path.resolve(profile.cwd), provider: 'duck' });
+  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true }]).length, 0);
+  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true, baseUrl: '' }])[0]?.field, 'baseUrl');
+  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true, baseUrl: '', useHubDuck2api: true }]).length, 0);
+  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: false }])[0]?.field, 'experimental');
+  assert.equal(validateAgentProfiles([{ ...profile, baseUrl: 'file:///tmp/provider' }])[0]?.field, 'baseUrl');
+  assert.equal(validateAgentProfiles([{ ...profile, timeoutMs: 4000 }])[0]?.field, 'timeoutMs');
 });
 
 test('agents.profiles: copilot.autoStart migrates into the profile "copilot" once, an explicit profiles list wins', () => {

@@ -57,9 +57,12 @@ import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
 import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
-import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyStatus, type AgyTurn } from './agy.ts';
-import { Memory, MemoryError, type MemKind, type MemEntry } from './memory.ts';
+import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyTurn } from './agy.ts';
+import { clearHistory, Memory, MemoryError, type MemKind, type MemEntry } from './memory.ts';
 import { DuckHost } from './duckhost.ts';
+import { duckTurn, getAgentKey, loadAgentKeys, saveAgentKey } from './duck.ts';
+import { listModels } from './chatapi.ts';
+import { HubMember, type MemberStatus } from './member.ts';
 
 export type { ReviveJob };
 
@@ -210,6 +213,8 @@ export type HubOptions = {
   browser?: BrowserHost | null;
   /** Duck2api lifecycle; null disables it for tests that do not exercise the feature. */
   duck?: DuckHost | null;
+  /** OpenAI-compatible Duck API calls (tests supply a fake fetch). */
+  duckFetch?: typeof fetch;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -468,13 +473,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
   // Hub-run room members share lifecycle/status routes; Copilot profiles keep their legacy default.
-  type ManagedAgent = CopilotAgent | AgyAgent;
+  type ManagedAgent = CopilotAgent | HubMember;
   const copilots = new Map<string, { agent: ManagedAgent; key: string }>();
   const copilotQuotaNotices = new Set<string>();
   function copilotProfiles(): AgentProfile[] {
     const s = loadSettings(opts.dir, envCap);
-    const list = s.agents.profiles.filter((p) => p.provider === 'copilot' || p.provider === 'agy');
+    const list = s.agents.profiles.filter((p) => p.provider === 'copilot' || p.provider === 'agy' || p.provider === 'duck');
     return list.some((p) => p.provider === 'copilot') ? list : [...list, { id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
+  }
+  function publicSettings() {
+    const settings = loadSettings(opts.dir, envCap), keys = loadAgentKeys(opts.dir);
+    return {
+      ...settings,
+      agents: {
+        ...settings.agents,
+        profiles: settings.agents.profiles.map((profile) =>
+          profile.provider === 'duck' ? { ...profile, hasKey: !!keys[profile.id] } : profile),
+      },
+    };
   }
   async function handleCopilotQuota(profileId: string, limit: CopilotQuotaLimit): Promise<number | false> {
     const source = copilots.get(profileId)?.agent;
@@ -539,7 +555,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     return false;
   }
-  const profileKey = (p: AgentProfile) => JSON.stringify([p.provider, p.name, p.cwd, p.home, p.model, p.effort, p.path]);
+  const profileKey = (p: AgentProfile) => JSON.stringify([p.provider, p.name, p.cwd, p.home, p.model, p.effort, p.path, p.baseUrl, p.useHubDuck2api, p.timeoutMs, p.experimental]);
   function copilotFor(p: AgentProfile): ManagedAgent {
     const key = profileKey(p);
     const cur = copilots.get(p.id);
@@ -555,7 +571,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         },
       };
     };
-    const onChange = (status: CopilotStatus | AgyStatus) => {
+    const onChange = (status: CopilotStatus | MemberStatus) => {
       broadcast('copilot', copilotStatus(p.id, status));
       const s = Object.values(store.state.sessions).find((x) => x.name === p.name);
       if (s) broadcast('session', publicSession(s));
@@ -575,7 +591,46 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         onMessage,
         run: opts.agyTurn,
       })
-      : new CopilotAgent({
+      : p.provider === 'duck'
+        ? new HubMember({
+          dir: opts.dir,
+          id: p.id,
+          name: p.name,
+          cwd: p.cwd,
+          kind: 'duck',
+          identityFile: `duck-agent-${p.id}.json`,
+          store,
+          format: (_sid, messages) => messages.map((message) => message.text).join('\n\n'),
+          onChange,
+          onRoom: emitRoom,
+          onRooms,
+          onMessage,
+          workerModel: () => p.model || 'gpt-5.4-mini',
+          failureKey: 'sys.duck.failed',
+          dedupeFailures: true,
+          turn: duckTurn({
+            home: opts.dir,
+            agentId: p.id,
+            project: p.cwd,
+            memory,
+            profile: () => {
+              const current = copilotProfiles().find((x) => x.id === p.id) ?? p;
+              return {
+                baseUrl: current.useHubDuck2api ? duck?.endpoint() ?? '' : current.baseUrl ?? '',
+                model: current.model || 'gpt-5.4-mini',
+                timeoutMs: current.timeoutMs ?? 60_000,
+              };
+            },
+            key: () => {
+              const current = copilotProfiles().find((x) => x.id === p.id) ?? p;
+              return current.useHubDuck2api ? duck?.key() ?? '' : getAgentKey(opts.dir, p.id);
+            },
+            fetch: opts.duckFetch,
+            now: opts.now,
+          }),
+          now: opts.now,
+        })
+        : new CopilotAgent({
         dir: opts.dir, profile: p, port: () => port, store,
         settings: () => loadSettings(opts.dir, envCap),
         onChange,
@@ -590,10 +645,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return agent;
   }
   /** The status the API and SSE carry: the agent's own state plus the profile's enabled flag (autoStart = the legacy name of it). */
-  function copilotStatus(id: string, status?: CopilotStatus | AgyStatus) {
+  function copilotStatus(id: string, status?: CopilotStatus | MemberStatus) {
     const p = copilotProfiles().find((x) => x.id === id);
     const enabled = p?.enabled ?? false;
-    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), provider: p?.provider ?? 'copilot', enabled, autoStart: enabled };
+    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), provider: p?.provider ?? 'copilot', ...(p?.provider === 'duck' ? { hasKey: p.useHubDuck2api === true ? !!duck?.key() : !!getAgentKey(opts.dir, id) } : {}), enabled, autoStart: enabled };
   }
   const copilotAgents = () => [...copilots.values()].map((c) => c.agent);
   const copilotHolding = (sid: string) => copilotAgents().find((c) => c.hasSession(sid));
@@ -603,7 +658,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = copilotProfiles().map((p) => (p.id === id ? { ...p, enabled: on } : p));
     const next = patchSettings(current, { agents: { profiles }, ...(id === 'copilot' ? { copilot: { autoStart: on } } : {}) });
     saveSettings(opts.dir, next);
-    broadcast('settings', next);
+    broadcast('settings', publicSettings());
     broadcast('copilot', copilotStatus(id));
   }
   /** Starts the enabled profiles (at most agents.maxBackground run at once), stops disabled, removed or changed ones. */
@@ -630,6 +685,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** on = true/false: save enabled and start/stop; undefined = retry (start again, which re-checks the login). */
   async function copilotToggle(res: http.ServerResponse, id: string, on: boolean | undefined) {
     const prof = copilotProfiles().find((x) => x.id === id)!;
+    if (prof.provider === 'duck' && on === true) {
+      if (!prof.useHubDuck2api && !prof.baseUrl) throw new StoreError(400, 'choose Duck2api from the hub or configure a base URL before enabling');
+      if (prof.experimental !== true) throw new StoreError(400, 'confirm the experimental Duck provider before enabling');
+    }
     const agent = copilotFor(prof);
     const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
@@ -770,7 +829,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cur = loadSettings(opts.dir, envCap);
     const next = patchSettings(cur, { agents: { profiles: cur.agents.profiles.map((p) => (p.id === id ? { ...p, enabled: on } : p)) } });
     saveSettings(opts.dir, next);
-    broadcast('settings', next);
+    broadcast('settings', publicSettings());
   }
 
   /** The relayed answer as one short block: blank lines folded, at most 600 characters cut at a word, a pointer to the full text. */
@@ -2139,6 +2198,39 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         lastError: duckApplyError || duck?.lastError() || '',
       });
     }
+    if (m === 'GET' && p === '/api/duck/check') {
+      const id = url.searchParams.get('id') ?? '';
+      const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
+      if (!profile) throw new StoreError(404, `unknown Duck profile ${id}`);
+      const baseUrl = profile.useHubDuck2api ? duck?.endpoint() ?? '' : profile.baseUrl ?? '';
+      if (!baseUrl) return json(res, 200, { ok: false, models: [], error: 'Choose Duck2api from the hub or configure a base URL first.' });
+      const key = profile.useHubDuck2api ? duck?.key() ?? '' : getAgentKey(opts.dir, profile.id);
+      const result = await listModels({ baseUrl, key, timeoutMs: profile.timeoutMs ?? 60_000, fetch: opts.duckFetch });
+      return json(res, 200, result);
+    }
+    const agentKeyRoute = p.match(/^\/api\/agents\/([a-z0-9-]+)\/key$/);
+    if (agentKeyRoute && m === 'PUT') {
+      const id = agentKeyRoute[1];
+      const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
+      if (!profile) throw new StoreError(404, `unknown Duck profile ${id}`);
+      const b = await readBody(req);
+      if (!b || typeof b !== 'object' || Array.isArray(b) || !Object.prototype.hasOwnProperty.call(b, 'key') || (b.key !== null && typeof b.key !== 'string')) {
+        throw new StoreError(400, 'key must be a string or null');
+      }
+      try { saveAgentKey(opts.dir, id, b.key); } catch (error) { throw new StoreError(400, (error as Error).message); }
+      return json(res, 200, { hasKey: !!getAgentKey(opts.dir, id) });
+    }
+    if (m === 'DELETE' && p === '/api/duck/history') {
+      const id = url.searchParams.get('id') ?? '', room = url.searchParams.get('room') ?? '';
+      const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
+      if (!profile) throw new StoreError(404, `unknown Duck profile ${id}`);
+      if (!room) throw new StoreError(400, 'room is required');
+      try { clearHistory(opts.dir, id, room); } catch (error) {
+        if (error instanceof MemoryError) throw new StoreError(error.status, error.message);
+        throw error;
+      }
+      return json(res, 200, { ok: true });
+    }
     if (m === 'POST' && p === '/api/ide/hello') {
       return json(res, 200, ideBridge.hello(await readBody(req)));
     }
@@ -2378,7 +2470,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         throw e;
       }
     }
-    if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...loadSettings(opts.dir, envCap), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
+    if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...publicSettings(), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
     // #155 (MCP-B): the MCP servers of Claude Code (claude mcp list|add-json|remove, no shell) or, with `agent`, of one claude-api agent (its own file).
     const mcpSrv = p.match(/^\/api\/mcp\/servers$/);
     const mcpSrvOne = p.match(/^\/api\/mcp\/servers\/([^/]+)$/);
@@ -2470,7 +2562,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const pp = packPatch(pack, agent, (n) => installedIn(n, dirs).length > 0);
       const next = patchSettings(loadSettings(opts.dir, envCap), pp.patch);
       saveSettings(opts.dir, next);
-      broadcast('settings', next);
+      broadcast('settings', publicSettings());
       return json(res, 200, { applied: pp.applied, notInstalled: pp.notInstalled });
     }
     if (m === 'GET' && (p === '/api/skill-library' || p === '/api/skill-packs')) {
@@ -2711,12 +2803,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const next = patchSettings(loadSettings(opts.dir, envCap), patch);
       saveSettings(opts.dir, next);
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
-      if (patch && Object.prototype.hasOwnProperty.call(patch, 'duck')) await applyDuck();
+      if (patch && (Object.prototype.hasOwnProperty.call(patch, 'duck') ||
+        (patch.agents && Object.prototype.hasOwnProperty.call(patch.agents, 'profiles')))) await applyDuck();
       void syncCopilots();
       syncApiAgents();
       autoCfg.at = 0;
-      broadcast('settings', next);
-      return json(res, 200, next);
+      broadcast('settings', publicSettings());
+      return json(res, 200, publicSettings());
     }
     if (m === 'GET' && p === '/api/tokens') {
       const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 7));
