@@ -656,7 +656,9 @@ header .meta{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 .view[hidden]{display:none!important}
 section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 #view-office{display:flex;overflow:hidden;padding:0;position:relative}
-#officeVer{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;padding:4px 12px;font-size:12px;border-radius:999px;background:rgba(14,17,26,.7);color:#eef0f6;border:1px solid rgba(255,255,255,.18);cursor:pointer}
+#officeVer{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;display:flex;padding:3px;gap:2px;border-radius:999px;background:rgba(14,17,26,.7);border:1px solid rgba(255,255,255,.18)}
+#officeVer button{padding:4px 12px;font-size:12px;border-radius:999px;background:transparent;color:#eef0f6;border:0;cursor:pointer}
+#officeVer button[aria-pressed=true]{background:#e8c880;color:#1a1c24;font-weight:600}
 #officeRoot{flex:1;min-height:0;min-width:0}
 .flow{--fg:var(--text);--muted:var(--mute);--card:var(--panel);--cardline:var(--line);--edge:var(--mute);--chipbg:var(--panel);--laneA:var(--panel);--laneB:var(--bg);--grid:var(--line);--tier:color-mix(in srgb,var(--text) 4%,transparent);--panel2:var(--accent-soft);--hi:var(--accent);--onhi:#fff;--ok:#059669;--bad:#dc2626;box-sizing:border-box;min-width:0;color:var(--text);font:inherit}
 .flow *{box-sizing:border-box}
@@ -970,7 +972,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
 <section id="view-flow" class="view" hidden aria-label="Luồng agent" data-i18n-aria="flow.title"></section>
-<section id="view-office" class="view" hidden aria-label="Office 3D"><div id="officeRoot"></div><button id="officeVer" type="button"></button></section>
+<section id="view-office" class="view" hidden aria-label="Office 3D"><div id="officeRoot"></div><div id="officeVer" role="group"><button type="button" data-v="1"></button><button type="button" data-v="0"></button></div></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
 <section id="view-settings" class="view" hidden aria-label="Cài đặt" data-i18n-aria="tab.settings"></section>
 </div>
@@ -2535,8 +2537,8 @@ function closeOffice() {
   officeInstance = null;
 }
 const officeV4 = () => { try { return localStorage.getItem('bear-agent-manager:officeV4') === '1'; } catch { return false; } };
-function paintOfficeVer() { $('officeVer').textContent = t(officeV4() ? 'office.v4.back' : 'office.v4.try'); }
-$('officeVer').onclick = () => { try { localStorage.setItem('bear-agent-manager:officeV4', officeV4() ? '0' : '1'); } catch { /* storage blocked: stays on this version */ } closeOffice(); openOffice(); };
+function paintOfficeVer() { document.querySelectorAll('#officeVer button').forEach((b) => { b.textContent = t(b.dataset.v === '1' ? 'office.v4.try' : 'office.v4.back'); b.setAttribute('aria-pressed', String((b.dataset.v === '1') === officeV4())); }); }
+document.querySelectorAll('#officeVer button').forEach((b) => { b.onclick = () => { if ((b.dataset.v === '1') === officeV4()) return; try { localStorage.setItem('bear-agent-manager:officeV4', b.dataset.v); } catch { /* storage blocked: stays on this version */ } closeOffice(); openOffice(); }; });
 /** Phòng and Chat riêng share the chat view but never each other's conversations: each tab keeps its own last conversation. */
 function syncChatTabs() {
   const dm = !!room(S.current)?.dm, chat = S.tab === 'rooms';
