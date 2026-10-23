@@ -273,19 +273,31 @@ export class Office3D {
     geo.rotateX(-Math.PI / 2);
     build.add(mesh(geo, rugMaterial(d.color), d.x, 0.0, d.z, { cast: false }));
   }
-  addLabel(text, x, z, maxW, build, h = 0.42) {
+  /** `portrait` (tuỳ chọn) dặn riêng cho khung dọc: `grow` nhân thêm cỡ, `dx`/`dz` dời nhãn tới chỗ trống trên thảm.
+   *  Khung ngang luôn giữ đúng chỗ và cỡ cũ. */
+  addLabel(text, x, z, maxW, build, h = 0.42, portrait = {}) {
     const { texture, aspect } = floorLabel(text);
     const w = Math.min(maxW, h * aspect), hh = w / aspect;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false, color: '#ffffff', polygonOffset: true, polygonOffsetFactor: -3 }));
     m.rotation.x = -Math.PI / 2; m.position.set(x, 0.045, z); m.renderOrder = 2;
+    m.userData.home = { x, z, w }; m.userData.portrait = portrait;
     markDynamic(m);
     build.add(m);
     this.floorLabels.push(m);
   }
   /** Màn hình dọc nhìn sàn từ rất xa nên nhãn sàn nhỏ như hạt gạo; nhân cỡ nhãn theo tỉ lệ khung (audit 390 của
-   *  frontend). Nhãn nằm trên thảm nên to hơn vẫn không đè HUD, và bề ngang vẫn bị chặn bởi maxW lúc dựng. */
+   *  frontend). Nhãn nằm trên thảm nên to hơn vẫn không đè HUD. Nhãn nào phóng to lên sẽ chạm đồ đạc quanh nó (audit
+   *  #249: GIẢI TRÍ bị đồ chơi che, TẦNG 2 quá nhỏ) thì khai báo `portrait` ở addLabel; khung ngang giữ y như cũ. */
   labelScale() { const a = this.camera.aspect || 1; return a >= 1 ? 1 : Math.min(2.4, 1 / a); }
-  fitLabelScale() { const b = this.labelScale(); for (const m of this.floorLabels) m.scale.set(b, b, 1); }
+  fitLabelScale() {
+    const b = this.labelScale(), portrait = b > 1;
+    for (const m of this.floorLabels) {
+      const home = m.userData.home, p = m.userData.portrait || {};
+      const k = portrait ? b * (p.grow || 1) : 1;
+      m.scale.set(k, k, 1);
+      m.position.set(home.x + (portrait ? p.dx || 0 : 0), 0.045, home.z + (portrait ? p.dz || 0 : 0));
+    }
+  }
 
   // ---------------------------------------------------------------- khu cụm bàn
   buildZone(d, style, members, build) {
@@ -370,7 +382,7 @@ export class Office3D {
     const R = Math.min(d.w, d.d) / 2;
     build.add(mesh(new THREE.CircleGeometry(R, 72).rotateX(-Math.PI / 2), MAT.rugLounge, d.x, 0.008, d.z, { cast: false }));
     build.add(mesh(new THREE.RingGeometry(R - 0.32, R - 0.26, 72).rotateX(-Math.PI / 2), rugMaterial('#3a3b3f'), d.x, 0.01, d.z, { cast: false }));
-    this.addLabel(style.label || d.name, d.x, d.z + R - 0.55, R * 1.1, build, 0.36);
+    this.addLabel(style.label || d.name, d.x, d.z + R - 0.55, R * 1.1, build, 0.36, { grow: 1.5, dz: 0.4 });
 
     const center = new THREE.Vector3(d.x, 0, d.z);
     const sofa = F.curvedSofa(2.15, 2.4); sofa.group.position.copy(center); build.add(sofa.group);
@@ -553,7 +565,7 @@ export class Office3D {
     const r = rng(style.seed ?? 8);
     const W = (lx, lz) => [d.x + lx, d.z + lz];
     this.addRug(d, build, 0.16, r);
-    this.addLabel(style.label || d.name, d.x - 1.4, d.z + d.d / 2 - 0.45, d.w * 0.4, build, 0.5);
+    this.addLabel(style.label || d.name, d.x - 1.4, d.z + d.d / 2 - 0.45, d.w * 0.4, build, 0.5, { dx: -1.2 });
     const cluster = { id: d.id, deptId: d.id, agents: [], lamps: [], center: new THREE.Vector3(d.x - 2, 2.2, d.z), amenity: true, occupants: new Set() };
     const spot = (o) => this.spots.push({ kind: 'game', variant: 'game', prop: 'pad', cluster, occupant: null, ...o });
 

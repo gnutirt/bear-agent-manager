@@ -92,7 +92,7 @@ export function mountOffice4(el, api) {
       const status = state.perms.has(s.id) ? 'waiting' : s.status === 'busy' ? 'working' : until > now ? 'offline' : 'idle';
       return { id: s.id, name: s.name, role: s.activity || '', departmentId: zoneFor(tier, nth, lead), provider: 'claude-code', status, tier, lead: s.id === state.lead, sleepUntil: until > now ? until : 0 };
     });
-    const label = (d) => FIXED[d.id] || (nm[ZONE_TIER[d.id]] || `Tầng ${ZONE_TIER[d.id]}`) + (d.id === 'san-xuat-noi-dung' ? ' (2)' : '');
+    const label = (d) => FIXED[d.id] || nm[ZONE_TIER[d.id]] || `Tầng ${ZONE_TIER[d.id]}`;   // #249: hai khu tầng 5 cùng đọc "Tầng 5"; hậu tố "(2)" cũ làm nhãn chạm mép thảm ở 390
     const departments = LAYOUT.map((d) => ({ ...d, name: label(d), style: { ...d.style, label: label(d) } }));
     return { departments, agents };
   };
