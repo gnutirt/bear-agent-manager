@@ -2064,7 +2064,7 @@ function connect() {
   es.addEventListener('workers', (e) => { S.workers = JSON.parse(e.data); renderWorkers(); renderWorkersView(); });
   es.addEventListener('claude-usage', (e) => { S.cu = JSON.parse(e.data); renderTokensView(); renderSessions(); renderUsageChips(); });
   es.addEventListener('providers', (e) => { S.providers = JSON.parse(e.data); renderWorkersView(); });
-  es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) { S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; S.agentProfiles = { ...(S.agentProfiles || {}), [status.id]: status }; } if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+  es.addEventListener('copilot', (e) => { const status = JSON.parse(e.data); if (!status.id || status.id === 'copilot') S.copilot = { ...S.copilot, ...status }; if (status.id) { S.copilotProfiles = { ...(S.copilotProfiles || {}), [status.id]: status }; S.agentProfiles = { ...(S.agentProfiles || {}), [status.id]: status }; } if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView(); });
   es.addEventListener('agentprofile', (e) => { const status = JSON.parse(e.data); if (status.id) S.agentProfiles = { ...(S.agentProfiles || {}), [status.id]: status }; });
   es.addEventListener('settings', (e) => { S.settings = JSON.parse(e.data); if (!document.activeElement?.closest('#view-settings, #view-skills')) renderSettingsView(); });
   es.addEventListener('roomchat', () => { if (S.tab === 'workers') api('/api/room-chat').then((rc) => { S.roomChat = rc; renderWorkersView(); }, () => {}); });
@@ -3309,14 +3309,15 @@ $('view-tokens').addEventListener('click', (e) => {
 /* ---------- Cài đặt tab ---------- */
 S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = ''; S.skUse = {};
 S.browserStatus = null;
+S.duckHost = undefined; S.duckChecks = {};
 const MODES = lazy({ force: 'mode.force', auto: 'mode.auto', ban: 'mode.ban' });
 const normAgent = (n) => String(n || '').trim().toLowerCase();
 const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 /** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
 const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
 function loadSettingsView() {
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus()]).then(([s, p, sk, ar, mc, browser]) => {
-    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; pollMachine();
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus(), loadDuckHostStatus()]).then(([s, p, sk, ar, mc, browser, duckHost]) => {
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; S.duckHost = duckHost; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
     S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
@@ -3328,59 +3329,64 @@ function loadBrowserStatus() {
     lastError: `/api/browser: ${e.message}`,
   }));
 }
+function loadDuckHostStatus() {
+  return api('/api/duck/host').catch((e) => ({
+    configured: false, running: false, endpoint: '', lastError: `/api/duck/host: ${e.message}`,
+  }));
+}
 // #234 (settings IA S1): one row per setting the UI edits. sw/num/txt/sel/swVal render from this table,
 // the search box filters by label/hint/key, and #settings/<group>/<key> deep-links to a row.
-// `group` is the S2 section and `sub` is the sub-tab that holds the row today; no schema or key changes.
+// `group` is the S2 section and `sub` is the sub-tab that holds the row (same id since #235); no schema or key changes.
 const SETTING_ROUTES = ['read', 'edit', 'osin'];
 const SETTING_DEFS = [
-  { key: 'language', group: 'system', sub: 'general', label: 'settings.language', hint: 'settings.language.hint', detail: '', type: 'select', default: 'auto' },
-  { key: 'agentComms', group: 'rooms', sub: 'general', label: 'settings.agentComms', hint: 'settings.agentComms.hint', detail: '', type: 'select', default: 'off' },
-  { key: 'apiAgents.allTools', group: 'agent', sub: 'worker', label: 'set.apiAgents.allTools', hint: 'set.apiAgents.allTools.hint', detail: '', type: 'bool', default: true },
-  { key: 'agents.maxBackground', group: 'agent', sub: 'account', label: 'ac.agent.max', hint: 'ac.agent.max.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
-  { key: 'openTabOnWake', group: 'agent', sub: 'lead', label: 'set.openTabOnWake', hint: 'set.openTabOnWake.hint', detail: '', type: 'bool', default: false },
-  { key: 'relayChat', group: 'agent', sub: 'lead', label: 'set.relayChat', hint: 'set.relayChat.hint', detail: '', type: 'bool', default: true },
-  { key: 'skills.worker.enabled', group: 'tools', sub: 'worker', label: 'set.worker.on', hint: 'set.worker.on.hint', detail: '', type: 'bool', default: true },
-  { key: 'skills.osin.enabled', group: 'tools', sub: 'worker', label: 'set.osin.on', hint: 'set.osin.on.hint', detail: '', type: 'bool', default: true },
-  { key: 'allowPaidFallback', group: 'tools', sub: 'worker', label: 'set.paid', hint: '', detail: '', type: 'bool', default: false },
-  { key: 'workerCap', group: 'tools', sub: 'worker', label: 'set.cap', hint: 'set.cap.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
-  { key: 'roomChat.autoSweep', group: 'tools', sub: 'worker', label: 'set.sweep', hint: 'set.sweep.hint', detail: '', type: 'bool', default: false },
-  { key: 'browser.enabled', group: 'tools', sub: 'worker', label: 'set.browser.enabled', hint: 'set.browser.hint', detail: '', type: 'bool', default: true },
-  { key: 'browser.port', group: 'tools', sub: 'worker', label: 'set.browser.port', hint: '', detail: '', type: 'number', default: 9333, min: 1024, max: 65535 },
-  { key: 'browser.chromePath', group: 'tools', sub: 'worker', label: 'set.browser.chromePath', hint: '', detail: '', type: 'text', default: '' },
-  { key: 'localSummarize.enabled', group: 'tools', sub: 'worker', label: 'local.on', hint: 'local.on.hint', detail: '', type: 'bool', default: false },
-  { key: 'localSummarize.host', group: 'tools', sub: 'worker', label: 'local.host', hint: '', detail: '', type: 'text', default: 'http://127.0.0.1:11434' },
-  { key: 'localSummarize.model', group: 'tools', sub: 'worker', label: 'local.model', hint: '', detail: '', type: 'text', default: 'qwen2.5:7b' },
-  { key: 'localSummarize.numCtx', group: 'tools', sub: 'worker', label: 'local.numCtx', hint: '', detail: '', type: 'number', default: 8192, min: 1024, max: 131072 },
-  { key: 'localSummarize.timeoutSec', group: 'tools', sub: 'worker', label: 'local.timeout', hint: '', detail: '', type: 'number', default: 120, min: 5, max: 900 },
-  { key: 'localSummarize.maxChars', group: 'tools', sub: 'worker', label: 'local.maxChars', hint: '', detail: '', type: 'number', default: 24000, min: 1000, max: 200000 },
+  { key: 'language', group: 'system', sub: 'system', label: 'settings.language', hint: 'settings.language.hint', detail: '', type: 'select', default: 'auto' },
+  { key: 'agentComms', group: 'rooms', sub: 'rooms', label: 'settings.agentComms', hint: 'settings.agentComms.hint', detail: '', type: 'select', default: 'off' },
+  { key: 'apiAgents.allTools', group: 'agent', sub: 'agent', label: 'set.apiAgents.allTools', hint: 'set.apiAgents.allTools.hint', detail: '', type: 'bool', default: true },
+  { key: 'agents.maxBackground', group: 'agent', sub: 'agent', label: 'ac.agent.max', hint: 'ac.agent.max.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
+  { key: 'openTabOnWake', group: 'agent', sub: 'agent', label: 'set.openTabOnWake', hint: 'set.openTabOnWake.hint', detail: '', type: 'bool', default: false },
+  { key: 'relayChat', group: 'agent', sub: 'agent', label: 'set.relayChat', hint: 'set.relayChat.hint', detail: '', type: 'bool', default: true },
+  { key: 'skills.worker.enabled', group: 'tools', sub: 'tools', label: 'set.worker.on', hint: 'set.worker.on.hint', detail: '', type: 'bool', default: true },
+  { key: 'skills.osin.enabled', group: 'tools', sub: 'tools', label: 'set.osin.on', hint: 'set.osin.on.hint', detail: '', type: 'bool', default: true },
+  { key: 'allowPaidFallback', group: 'tools', sub: 'tools', label: 'set.paid', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'workerCap', group: 'tools', sub: 'tools', label: 'set.cap', hint: 'set.cap.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
+  { key: 'roomChat.autoSweep', group: 'tools', sub: 'tools', label: 'set.sweep', hint: 'set.sweep.hint', detail: '', type: 'bool', default: false },
+  { key: 'browser.enabled', group: 'tools', sub: 'tools', label: 'set.browser.enabled', hint: 'set.browser.hint', detail: '', type: 'bool', default: true },
+  { key: 'browser.port', group: 'tools', sub: 'tools', label: 'set.browser.port', hint: '', detail: '', type: 'number', default: 9333, min: 1024, max: 65535 },
+  { key: 'browser.chromePath', group: 'tools', sub: 'tools', label: 'set.browser.chromePath', hint: '', detail: '', type: 'text', default: '' },
+  { key: 'localSummarize.enabled', group: 'tools', sub: 'tools', label: 'local.on', hint: 'local.on.hint', detail: '', type: 'bool', default: false },
+  { key: 'localSummarize.host', group: 'tools', sub: 'tools', label: 'local.host', hint: '', detail: '', type: 'text', default: 'http://127.0.0.1:11434' },
+  { key: 'localSummarize.model', group: 'tools', sub: 'tools', label: 'local.model', hint: '', detail: '', type: 'text', default: 'qwen2.5:7b' },
+  { key: 'localSummarize.numCtx', group: 'tools', sub: 'tools', label: 'local.numCtx', hint: '', detail: '', type: 'number', default: 8192, min: 1024, max: 131072 },
+  { key: 'localSummarize.timeoutSec', group: 'tools', sub: 'tools', label: 'local.timeout', hint: '', detail: '', type: 'number', default: 120, min: 5, max: 900 },
+  { key: 'localSummarize.maxChars', group: 'tools', sub: 'tools', label: 'local.maxChars', hint: '', detail: '', type: 'number', default: 24000, min: 1000, max: 200000 },
   ...SETTING_ROUTES.flatMap((k) => [
-    { key: `workerRoutes.${k}.enabled`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'bool', default: true },
-    { key: `workerRoutes.${k}.provider`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
-    { key: `workerRoutes.${k}.model`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
+    { key: `workerRoutes.${k}.enabled`, group: 'tools', sub: 'tools', label: `route.${k}`, hint: '', detail: '', type: 'bool', default: true },
+    { key: `workerRoutes.${k}.provider`, group: 'tools', sub: 'tools', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
+    { key: `workerRoutes.${k}.model`, group: 'tools', sub: 'tools', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
   ]),
-  { key: 'autoLead', group: 'rooms', sub: 'lead', label: 'set.autoLead', hint: 'set.autoLead.hint', detail: '', type: 'select', default: 'off' },
-  { key: 'lead.wake.enabled', group: 'rooms', sub: 'lead', label: 'lead.wake.on', hint: '', detail: '', type: 'bool', default: true },
-  { key: 'lead.wake.atPct', group: 'rooms', sub: 'lead', label: 'lead.wake.at', hint: 'lead.wake.at.hint', detail: '', type: 'number', default: 90, min: 50, max: 100 },
-  { key: 'lead.wake.afterResetMin', group: 'rooms', sub: 'lead', label: 'lead.wake.after', hint: 'lead.wake.after.hint', detail: '', type: 'number', default: 2, min: 0, max: 120 },
-  { key: 'lead.delegate', group: 'rooms', sub: 'lead', label: 'lead.delegate', hint: 'lead.delegate.hint', detail: '', type: 'bool', default: true },
-  { key: 'lead.distribute', group: 'rooms', sub: 'lead', label: 'lead.distribute', hint: 'lead.distribute.hint', detail: '', type: 'bool', default: true },
-  { key: 'lead.handoffOnDone', group: 'rooms', sub: 'lead', label: 'lead.handoff', hint: 'lead.handoff.hint', detail: '', type: 'bool', default: true },
-  { key: 'lead.idleMin', group: 'rooms', sub: 'lead', label: 'lead.idle', hint: 'lead.idle.hint', detail: '', type: 'number', default: 30, min: 1, max: 240 },
-  { key: 'lead.monitor.on', group: 'rooms', sub: 'lead', label: 'lead.monitor', hint: 'lead.monitor.hint', detail: '', type: 'bool', default: true },
-  { key: 'lead.monitor.staleMin', group: 'rooms', sub: 'lead', label: 'lead.monitor.staleMin', hint: '', detail: '', type: 'number', default: 60, min: 5, max: 1440 },
-  { key: 'lead.monitor.nudgeMin', group: 'rooms', sub: 'lead', label: 'lead.monitor.nudgeMin', hint: '', detail: '', type: 'number', default: 15, min: 0, max: 240 },
-  { key: 'lead.fallback', group: 'rooms', sub: 'lead', label: 'lead.fallback', hint: 'lead.fallback.hint', detail: '', type: 'text', default: '' },
-  { key: 'autoJobs.handoff.enabled', group: 'rooms', sub: 'lead', label: 'set.handoff', hint: '', detail: '', type: 'bool', default: false },
-  { key: 'autoJobs.handoff.thresholdK', group: 'rooms', sub: 'lead', label: 'set.handoff.k', hint: '', detail: '', type: 'number', default: 300, min: 50, max: 2000 },
-  { key: 'autoJobs.digest.enabled', group: 'rooms', sub: 'lead', label: 'set.digest', hint: '', detail: '', type: 'bool', default: false },
-  { key: 'autoJobs.digest.minChars', group: 'rooms', sub: 'lead', label: 'set.digest.min', hint: '', detail: '', type: 'number', default: 4000, min: 1000, max: 100000 },
-  { key: 'autoJobs.notes.enabled', group: 'rooms', sub: 'lead', label: 'set.notes', hint: 'set.notes.hint', detail: '', type: 'bool', default: false },
-  { key: 'autoJobs.notes.minNotes', group: 'rooms', sub: 'lead', label: 'set.notes.min', hint: '', detail: '', type: 'number', default: 15, min: 5, max: 500 },
-  { key: 'autoJobs.maxRunsPerDay', group: 'rooms', sub: 'lead', label: 'set.maxRuns', hint: '', detail: '', type: 'number', default: 10, min: 0, max: 200 },
-  { key: 'accountSwitch.atPct', group: 'accounts', sub: 'account', label: 'sw.atPct', hint: '', detail: '', type: 'number', default: 90, min: 50, max: 100 },
-  { key: 'accountSwitch.minOtherLeftPct', group: 'accounts', sub: 'account', label: 'sw.minLeft', hint: '', detail: '', type: 'number', default: 20, min: 1, max: 100 },
-  { key: 'archive.enabled', group: 'system', sub: 'data', label: 'set.archive', hint: 'set.archive.hint', detail: '', type: 'bool', default: false },
-  { key: 'archive.dir', group: 'system', sub: 'data', label: 'set.archive.dir', hint: '', detail: '', type: 'text', default: '' },
+  { key: 'autoLead', group: 'rooms', sub: 'rooms', label: 'set.autoLead', hint: 'set.autoLead.hint', detail: '', type: 'select', default: 'off' },
+  { key: 'lead.wake.enabled', group: 'rooms', sub: 'rooms', label: 'lead.wake.on', hint: '', detail: '', type: 'bool', default: true },
+  { key: 'lead.wake.atPct', group: 'rooms', sub: 'rooms', label: 'lead.wake.at', hint: 'lead.wake.at.hint', detail: '', type: 'number', default: 90, min: 50, max: 100 },
+  { key: 'lead.wake.afterResetMin', group: 'rooms', sub: 'rooms', label: 'lead.wake.after', hint: 'lead.wake.after.hint', detail: '', type: 'number', default: 2, min: 0, max: 120 },
+  { key: 'lead.delegate', group: 'rooms', sub: 'rooms', label: 'lead.delegate', hint: 'lead.delegate.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.distribute', group: 'rooms', sub: 'rooms', label: 'lead.distribute', hint: 'lead.distribute.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.handoffOnDone', group: 'rooms', sub: 'rooms', label: 'lead.handoff', hint: 'lead.handoff.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.idleMin', group: 'rooms', sub: 'rooms', label: 'lead.idle', hint: 'lead.idle.hint', detail: '', type: 'number', default: 30, min: 1, max: 240 },
+  { key: 'lead.monitor.on', group: 'rooms', sub: 'rooms', label: 'lead.monitor', hint: 'lead.monitor.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.monitor.staleMin', group: 'rooms', sub: 'rooms', label: 'lead.monitor.staleMin', hint: '', detail: '', type: 'number', default: 60, min: 5, max: 1440 },
+  { key: 'lead.monitor.nudgeMin', group: 'rooms', sub: 'rooms', label: 'lead.monitor.nudgeMin', hint: '', detail: '', type: 'number', default: 15, min: 0, max: 240 },
+  { key: 'lead.fallback', group: 'rooms', sub: 'rooms', label: 'lead.fallback', hint: 'lead.fallback.hint', detail: '', type: 'text', default: '' },
+  { key: 'autoJobs.handoff.enabled', group: 'rooms', sub: 'rooms', label: 'set.handoff', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.handoff.thresholdK', group: 'rooms', sub: 'rooms', label: 'set.handoff.k', hint: '', detail: '', type: 'number', default: 300, min: 50, max: 2000 },
+  { key: 'autoJobs.digest.enabled', group: 'rooms', sub: 'rooms', label: 'set.digest', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.digest.minChars', group: 'rooms', sub: 'rooms', label: 'set.digest.min', hint: '', detail: '', type: 'number', default: 4000, min: 1000, max: 100000 },
+  { key: 'autoJobs.notes.enabled', group: 'rooms', sub: 'rooms', label: 'set.notes', hint: 'set.notes.hint', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.notes.minNotes', group: 'rooms', sub: 'rooms', label: 'set.notes.min', hint: '', detail: '', type: 'number', default: 15, min: 5, max: 500 },
+  { key: 'autoJobs.maxRunsPerDay', group: 'rooms', sub: 'rooms', label: 'set.maxRuns', hint: '', detail: '', type: 'number', default: 10, min: 0, max: 200 },
+  { key: 'accountSwitch.atPct', group: 'accounts', sub: 'accounts', label: 'sw.atPct', hint: '', detail: '', type: 'number', default: 90, min: 50, max: 100 },
+  { key: 'accountSwitch.minOtherLeftPct', group: 'accounts', sub: 'accounts', label: 'sw.minLeft', hint: '', detail: '', type: 'number', default: 20, min: 1, max: 100 },
+  { key: 'archive.enabled', group: 'system', sub: 'system', label: 'set.archive', hint: 'set.archive.hint', detail: '', type: 'bool', default: false },
+  { key: 'archive.dir', group: 'system', sub: 'system', label: 'set.archive.dir', hint: '', detail: '', type: 'text', default: '' },
 ];
 const DEF = (key) => SETTING_DEFS.find((d) => d.key === key);
 /** The live value at a dotted path ("lead.wake.atPct"), read from the settings the server sent. */
@@ -3605,13 +3611,17 @@ function routesBlock() {
       <td><select data-set="workerRoutes.${k}.provider" aria-label="${t('route.aria.prov', { l: esc(l) })}">${opt('auto', t('common.auto'), r.provider)}${S.providers.map((x) => opt(x.id, x.label, r.provider)).join('')}</select></td>
       <td><select data-set="workerRoutes.${k}.model" aria-label="${t('route.aria.model', { l: esc(l) })}"${p ? '' : ' disabled'}>${opt('auto', t('common.auto'), r.model)}${models.map((m) => opt(m, m, r.model)).join('')}</select></td></tr>`;
   }).join('');
-  return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
-    ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
+  // #235: the routing table lives inside the Worker & osin box (one card per idea, at most five per group).
+  return `<h3>${t('route.title')}</h3><p class="small muted note">${t('route.note')}</p>
+    ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', memory: 'set.memory.title', providers: 'sub.providers', account: 'sub.account', health: 'sub.health', setup: 'sub.setup' });
+/* #235 (settings IA S2): six groups by object (spec §3), not by mechanism. The old sub-tab ids still resolve. */
+const SUBS = lazy({ overview: 'sub.overview', agent: 'sub.agent', accounts: 'sub.accounts', rooms: 'sub.rooms', tools: 'sub.tools', system: 'sub.system' });
+const SUB_ALIAS = { general: 'system', worker: 'tools', lead: 'rooms', perms: 'agent', compact: 'tools', data: 'system', memory: 'tools', providers: 'accounts', account: 'accounts', health: 'overview', setup: 'overview' };
+const subOf = (name) => (SUBS[name] ? name : SUB_ALIAS[name] || 'overview');
 /** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
 function loadData() {
-  api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
+  api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'system') renderSettingsView(); });
 }
 const DATA_NAMES = lazy({ rooms: 'data.name.rooms', room_chat: 'data.name.room_chat', handoffs: 'data.name.handoffs', trash: 'data.name.trash' });
 function dataBlock() {
@@ -3628,7 +3638,7 @@ function loadMemory() {
   S.memoryEntries = null; S.memoryError = '';
   const encoded = query.toString();
   api(`/api/memory${encoded ? `?${encoded}` : ''}`).then((data) => { S.memoryEntries = data.entries; }, (error) => { S.memoryError = error.message; S.memoryEntries = []; })
-    .then(() => { if (S.tab === 'settings' && S.setSub === 'memory') renderSettingsView(); });
+    .then(() => { if (S.tab === 'settings' && S.setSub === 'tools') renderSettingsView(); });
 }
 function memoryBlock() {
   if (S.memoryEntries === undefined) loadMemory();
@@ -3657,7 +3667,7 @@ function memoryBlock() {
       <div class="row" style="display:flex;gap:8px"><button type="button" class="btn" data-memory-search>${t('set.memory.search')}</button><button type="button" class="btn" data-memory-refresh>${t('data.refresh')}</button>
         <button type="button" class="btn" data-memory-clear="room"${filters.room ? '' : ' disabled'}>${t('set.memory.clearRoom')}</button><button type="button" class="btn" data-memory-clear="project"${filters.project ? '' : ' disabled'}>${t('set.memory.clearProject')}</button></div>
     </div>
-    <h2>${t('set.memory.add')}</h2><div class="setbox mempane" id="memoryNew">
+    <h3>${t('set.memory.add')}</h3><div class="setbox mempane" id="memoryNew">
       <label class="setrow"><span><b>${t('set.memory.text')}</b></span><textarea data-memory-new-text rows="3"></textarea></label>
       <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-new-kind>${kindOptions('context')}</select></label>
       <label class="setrow"><span><b>${t('set.memory.scope')}</b></span><select data-memory-new-scope>${scopeOptions('user')}</select></label>
@@ -3736,21 +3746,21 @@ function localBlock(st) {
   const remote = !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(L.host || '') || !!S.local?.remote;
   const stt = !S.local ? t('local.status.checking') : !S.local.reachable ? t('local.status.down', { host: esc(L.host || '') }) : !S.local.hasModel ? t('local.status.nomodel', { model: esc(L.model || '') }) : t('local.status.ok', { model: esc(L.model || '') });
   const txt = (path, v, label) => `<label class="setrow"><span><b>${label}</b></span><input class="txtin" data-set="${path}" value="${esc(v ?? '')}" spellcheck="false"></label>`;
-  return `<h2>${t('local.title')}</h2><div class="setbox"><p class="small muted note">${t('local.note')}</p>
+  return `<h3>${t('local.title')}</h3><p class="small muted note">${t('local.note')}</p>
     ${sw('localSummarize.enabled', !!L.enabled)}
     ${txt('localSummarize.host', L.host)}${txt('localSummarize.model', L.model)}
     ${num('localSummarize.numCtx', L.numCtx ?? 8192)}${num('localSummarize.timeoutSec', L.timeoutSec ?? 120)}${num('localSummarize.maxChars', L.maxChars ?? 24000)}
     ${remote ? `<div class="verr" role="alert">${t('local.remote')}</div>` : ''}
-    <div class="pf"><button type="button" class="btn" id="localCheck">${t('local.check')}</button><span class="small ${S.local?.reachable && S.local?.hasModel ? 'muted' : 'bad'}">${stt}</span></div></div>`;
+    <div class="pf"><button type="button" class="btn" id="localCheck">${t('local.check')}</button><span class="small ${S.local?.reachable && S.local?.hasModel ? 'muted' : 'bad'}">${stt}</span></div>`;
 }
 /** Health: one read-only checklist from the APIs the other tabs already use. Each row has a level (ok / warn / bad / info), what it means, how to fix it and where to go. */
 function loadHealth() {
-  S.health = { loading: true }; if (S.tab === 'settings' && (S.setSub === 'health' || S.setSub === 'setup')) renderSettingsView();
+  S.health = { loading: true }; if (S.tab === 'settings' && (S.setSub === 'overview')) renderSettingsView();
   const get = (p) => api(p).catch(() => null);
   Promise.all([get('/api/version'), get('/api/claude-usage'), get('/api/archive'), get('/api/machine'), get('/api/providers'), get('/api/data'), get('/api/settings'), get('/api/local/status'), get('/api/accounts'), get('/api/autostart')]).then(([version, usage, archive, machine, providers, data, settings, local, accounts, autostart]) => {
     S.health = { version, usage, archive, machine, providers, data, settings, local, accounts, autostart, at: Date.now() };
     if (settings) S.settings = settings;
-    if (S.tab === 'settings' && (S.setSub === 'health' || S.setSub === 'setup')) renderSettingsView();
+    if (S.tab === 'settings' && (S.setSub === 'overview')) renderSettingsView();
   });
 }
 function healthRows() {
@@ -3834,9 +3844,9 @@ function healthBlock() {
 S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.agyChecks = {}; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null; S.mcpServers = undefined; S.mcpSrvTarget = ''; S.mcpDelScope = 'local';
 /** #155: claude mcp list can take seconds (it health-checks each server), so it loads on its own and the card says so meanwhile */
 function loadMcpServers() {
-  S.mcpServers = undefined; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView();
+  S.mcpServers = undefined; if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView();
   const agent = S.mcpSrvTarget;
-  return api(`/api/mcp/servers${agent ? `?agent=${enc(agent)}` : ''}`).then((r) => { S.mcpServers = r.servers; }, (err) => { S.mcpServers = []; toast(err.message); }).then(() => { if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); });
+  return api(`/api/mcp/servers${agent ? `?agent=${enc(agent)}` : ''}`).then((r) => { S.mcpServers = r.servers; }, (err) => { S.mcpServers = []; toast(err.message); }).then(() => { if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView(); });
 }
 function loadCopilotProfiles() {
   return Promise.all([api('/api/providers'), api('/api/agent-profiles')]).then(([providers, statuses]) => {
@@ -3849,7 +3859,7 @@ function loadCopilotProfiles() {
   });
 }
 function loadAccounts() {
-  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView(); loadMcpServers(); });
+  Promise.all([api('/api/accounts').catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView(); loadMcpServers(); });
 }
 const SWM = lazy({ off: 'sw.mode.off', ask: 'sw.mode.ask', auto: 'sw.mode.auto' });
 const SWH = lazy({ off: 'sw.mode.hint.off', ask: 'sw.mode.hint.ask', auto: 'sw.mode.hint.auto' });
@@ -3894,6 +3904,89 @@ async function checkAgyProfile(button) {
     button.disabled = false;
   }
 }
+async function checkDuckProfile(id, button) {
+  const row = button?.closest('.cprofile');
+  const modelInput = row?.querySelector(`[data-duck-model="${id}"]`);
+  if (!row || !modelInput) return;
+  const status = row.querySelector(`[data-duck-check-status="${id}"]`);
+  S.duckChecks[id] = { loading: true };
+  button.disabled = true;
+  button.textContent = t('agents.duck.checking');
+  if (status) { status.className = 'small muted'; status.textContent = ''; }
+  try {
+    const result = await api(`/api/duck/check?id=${enc(id)}`);
+    const models = Array.isArray(result.models) ? result.models : [];
+    S.duckChecks[id] = { ...result, models, loading: false };
+  } catch (error) {
+    S.duckChecks[id] = { ok: false, models: [], error: error.message, loading: false };
+  }
+  const check = S.duckChecks[id];
+  if (!row.isConnected) return;
+  const datalist = row.querySelector(`#duck-models-${id}`);
+  if (datalist) datalist.replaceChildren(...check.models.map((model) => {
+    const option = document.createElement('option');
+    option.value = model;
+    return option;
+  }));
+  if (!modelInput.value && check.models.length) modelInput.value = check.models[0];
+  if (status) {
+    status.className = `small ${check.ok ? 'okt' : check.error ? 'bad' : 'muted'}`;
+    status.textContent = check.error || (check.ok ? `${check.models.length} models` : '');
+  }
+  button.disabled = false;
+  button.textContent = t('agents.duck.check');
+}
+async function saveDuckProfile(id) {
+  const row = $('view-settings').querySelector(`[data-duck-save="${id}"]`)?.closest('.cprofile');
+  const profile = (S.settings?.agents?.profiles || []).find((item) => item.id === id);
+  if (!row || !profile) return;
+  const useHubDuck2api = row.querySelector(`[data-duck-hub="${id}"]`).checked;
+  const baseUrl = row.querySelector(`[data-duck-url="${id}"]`).value.trim();
+  const model = row.querySelector(`[data-duck-model="${id}"]`).value.trim();
+  const timeoutMs = Number(row.querySelector(`[data-duck-timeout="${id}"]`).value);
+  const experimental = row.querySelector(`[data-duck-experimental="${id}"]`).checked;
+  if (!useHubDuck2api && baseUrl) {
+    try {
+      const parsed = new URL(baseUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error();
+    } catch { return toast(t('ac.profile.invalid')); }
+  }
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 300000 || (model && !/^[\w.:/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
+  const next = { ...profile, ...(useHubDuck2api ? { useHubDuck2api: true } : {}), ...(useHubDuck2api ? {} : { baseUrl }) };
+  if (!useHubDuck2api) delete next.useHubDuck2api;
+  if (useHubDuck2api) delete next.baseUrl;
+  if (model) next.model = model; else delete next.model;
+  next.timeoutMs = timeoutMs;
+  next.experimental = experimental;
+  delete S.duckChecks[id];
+  return saveCopilotProfiles((S.settings.agents?.profiles || []).map((item) => item.id === id ? next : item));
+}
+async function saveDuckKey(id, clear = false) {
+  const input = $('view-settings').querySelector(`[data-duck-key="${id}"]`);
+  const key = clear ? null : input?.value.trim() || '';
+  if (!clear && !key) return toast(t('agents.duck.keyMissing'));
+  try {
+    const result = await api(`/api/agents/${enc(id)}/key`, { key }, 'PUT');
+    S.settings = {
+      ...S.settings,
+      agents: { ...S.settings.agents, profiles: S.settings.agents.profiles.map((profile) => profile.id === id ? { ...profile, hasKey: result.hasKey } : profile) },
+    };
+    if (input) input.value = '';
+    toast(t('settings.saved'));
+    renderSettingsView();
+  } catch (error) { toast(error.message); }
+}
+async function saveDuckHost(form) {
+  const exePath = form.elements.namedItem('exePath').value.trim();
+  const port = Number(form.elements.namedItem('port').value);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return toast(t('ac.profile.invalid'));
+  try {
+    S.settings = await api('/api/settings', { duck: { exePath, port } }, 'PUT');
+    S.duckHost = await loadDuckHostStatus();
+    toast(t('settings.saved'));
+    renderSettingsView();
+  } catch (error) { toast(error.message); }
+}
 /** Copilot and Agy profiles share these routes; claude-api profiles use /api/agent-profiles. */
 const profileRoute = (id) => `${(S.settings.agents?.profiles || []).find((p) => p.id === id)?.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/'}${enc(id)}`;
 async function setCopilotProfile(id, on) {
@@ -3901,8 +3994,8 @@ async function setCopilotProfile(id, on) {
     await api(profileRoute(id), { on, confirm: true });
     [S.settings] = await Promise.all([api('/api/settings'), loadCopilotProfiles()]);
     S.copilotProfileAsk = null;
-    const agy = S.settings.agents?.profiles?.find((profile) => profile.id === id)?.provider === 'agy';
-    toast(t(agy ? (on ? 'agents.agy.enabled' : 'agents.agy.disabled') : on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
+    const provider = S.settings.agents?.profiles?.find((profile) => profile.id === id)?.provider;
+    toast(t(provider === 'agy' ? (on ? 'agents.agy.enabled' : 'agents.agy.disabled') : provider === 'duck' ? (on ? 'agents.duck.enabled' : 'agents.duck.disabled') : on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
     renderSettingsView();
   } catch (e) {
     if (e.status === 429) toast(e.message);
@@ -3912,7 +4005,22 @@ async function setCopilotProfile(id, on) {
     renderSettingsView();
   }
 }
-function accountBlock(st) {
+function duckUrlIsLoopback(value) {
+  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(value).hostname.toLowerCase()); } catch { return false; }
+}
+function duckHostBlock(st) {
+  const cfg = st.duck || { exePath: '', port: 18080 }, host = S.duckHost;
+  const status = host?.lastError ? `<p class="small bad" role="alert">${esc(host.lastError)}</p>` : host?.running
+    ? `<p class="small okt" role="status">${esc(t('agents.duck.host.running', { endpoint: host.endpoint }))}</p>`
+    : `<p class="small muted" role="status">${t('agents.duck.host.stopped')}</p>`;
+  return `<p class="small muted note">${t('agents.duck.host.note')} <a href="https://github.com/aurora-develop/Duck2api/releases" target="_blank" rel="noopener">${t('agents.duck.host.release')}</a></p>
+    <form class="cprofile-new" id="duckHostForm">
+      <input name="exePath" maxlength="500" value="${esc(cfg.exePath || '')}" placeholder="${t('agents.duck.host.exePath')}" aria-label="${t('agents.duck.host.exePath')}" spellcheck="false">
+      <input name="port" type="number" min="1024" max="65535" value="${esc(cfg.port ?? 18080)}" placeholder="${t('agents.duck.host.port')}" aria-label="${t('agents.duck.host.port')}">
+      <button class="btn primary">${t('agents.duck.host.save')}</button>
+    </form>${status}`;
+}
+function accountParts(st) {
   if (S.acct === undefined) { S.acct = null; loadAccounts(); }
   const A = S.acct;
   if (!A) return `<h2>${t('ac.accounts')}</h2><p class="small muted">${t('hc.loading')}</p>`;
@@ -3951,18 +4059,35 @@ function accountBlock(st) {
     const status = S.copilotProfiles?.[p.id];
     const ask = S.copilotProfileAsk?.id === p.id ? S.copilotProfileAsk : null;
     const runtime = status ? t(`ac.copilot.${status.state === 'error' ? 'error' : status.state === 'busy' ? 'busy' : status.state === 'idle' ? 'ready' : status.state === 'starting' ? 'starting' : 'off'}`) : t('ac.profile.statusUnavailable');
-    const isApi = p.provider === 'claude-api', isAgy = p.provider === 'agy';
+    const isApi = p.provider === 'claude-api', isAgy = p.provider === 'agy', isDuck = p.provider === 'duck';
     const check = S.agyChecks?.[p.id], agyVerified = check?.loggedIn && check.path === (p.path || '');
     const login = isApi ? (status?.auth === 'ok' ? t('ac.api.auth.ok') : status?.auth === 'no' ? t('ac.api.auth.no') : t('ac.profile.authUnknown'))
       : isAgy ? agyVerified ? t('agents.agy.ok', { n: check.models?.length || 0 }) : t('ac.profile.authUnknown')
-        : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
+        : isDuck ? t(p.hasKey ? 'agents.duck.keySaved' : 'agents.duck.keyMissing')
+          : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
     const apiInfo = isApi ? `<div class="small">${esc(t('ac.api.info', { provider: p.providerId || '?', model: status?.model || p.model || '?' }))}${p.edit ? ` · <b>${t('ac.api.mayEdit')}</b>` : ` · ${t('ac.api.readOnly')}`}</div>${status?.limited ? `<p class="small pwarn">${esc(t('ac.api.limited', { at: fmtWhen(status.limited) }))}</p>` : ''}` : '';
     const agyInfo = isAgy ? `<div class="pf small"><span>${t('agents.agy.model')}: <b>${esc(p.model || 'gemini-4-argon-medium')}</b></span>${p.effort ? `<span>${t('agents.agy.effort')}: ${esc(p.effort)}</span>` : ''}${p.path ? `<span class="mono">${esc(p.path)}</span>` : ''}<button type="button" class="btn sm" data-agy-check data-agy-check-id="${esc(p.id)}" data-agy-path="${esc(p.path || '')}">${t('agents.agy.check')}</button><span class="small" data-agy-check-status>${agyVerified ? esc(t('agents.agy.ok', { n: check.models?.length || 0 })) : check ? esc(agyCheckMessage(check)) : ''}</span></div>` : '';
-    const toggleDisabled = isAgy && !p.enabled && !agyVerified ? ' disabled' : '';
-    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : isAgy ? `<span class="lic">${t('agents.agy.title')}</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}${toggleDisabled}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
-      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${agyInfo}${!isApi && !isAgy ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
-      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : isAgy ? 'agents.agy.google' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isAgy ? 'agents.agy.retry' : isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
-      ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(isAgy ? (ask.on ? 'agents.agy.confirmOn' : 'agents.agy.confirmOff') : ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
+    const duckCheck = S.duckChecks?.[p.id], duckModels = duckCheck?.models || [];
+    const duckWarning = `<p class="small pwarn" role="alert" data-duck-url-warning="${esc(p.id)}"${!p.useHubDuck2api && p.baseUrl && !duckUrlIsLoopback(p.baseUrl) ? '' : ' hidden'}>${t('agents.duck.notLocal')}</p>`;
+    const duckHostReady = !p.useHubDuck2api || S.duckHost?.running;
+    const duckReady = (!!p.useHubDuck2api || !!p.baseUrl) && p.experimental === true && duckHostReady;
+    const duckInfo = isDuck ? `<div class="setbox duck-profile">
+      <p class="small muted note">${t('agents.duck.upstream')}</p>
+      <label class="inline"><input type="checkbox" data-duck-hub="${esc(p.id)}"${p.useHubDuck2api ? ' checked' : ''}>${t('agents.duck.useHub')}</label>
+      <label class="setrow"><span><b>${t('agents.duck.baseUrl')}</b></span><input class="txtin" data-duck-url="${esc(p.id)}" value="${esc(p.baseUrl || '')}" placeholder="https://api.example.com/v1" spellcheck="false"></label>
+      ${duckWarning}
+      <label class="setrow"><span><b>${t('agents.duck.model')}</b></span><input class="txtin" data-duck-model="${esc(p.id)}" list="duck-models-${esc(p.id)}" value="${esc(p.model || duckModels[0] || '')}" maxlength="80" spellcheck="false"><datalist id="duck-models-${esc(p.id)}">${duckModels.map((model) => `<option value="${esc(model)}"></option>`).join('')}</datalist></label>
+      <label class="setrow"><span><b>${t('agents.duck.timeout')}</b></span><input class="txtin" data-duck-timeout="${esc(p.id)}" type="number" min="5000" max="300000" step="1000" value="${esc(p.timeoutMs ?? 60000)}"></label>
+      <label class="inline"><input type="checkbox" data-duck-experimental="${esc(p.id)}"${p.experimental ? ' checked' : ''}>${t('agents.duck.experimental')}</label>
+      <div class="row"><button type="button" class="btn sm" data-duck-save="${esc(p.id)}">${t('common.save')}</button><button type="button" class="btn sm" data-duck-check="${esc(p.id)}"${duckCheck?.loading ? ' disabled' : ''}>${duckCheck?.loading ? t('agents.duck.checking') : t('agents.duck.check')}</button><span class="small ${duckCheck?.ok ? 'okt' : duckCheck?.error ? 'bad' : 'muted'}" data-duck-check-status="${esc(p.id)}">${esc(duckCheck?.error || (duckCheck?.ok ? `${duckModels.length} models` : ''))}</span></div>
+      <div class="pf small"><b>${t('agents.duck.key')}: ${esc(login)}</b><input type="password" data-duck-key="${esc(p.id)}" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"><button type="button" class="btn sm" data-duck-key-save="${esc(p.id)}">${t('agents.duck.keySave')}</button><button type="button" class="btn sm" data-duck-key-clear="${esc(p.id)}"${p.hasKey ? '' : ' disabled'}>${t('agents.duck.keyClear')}</button></div>
+      <div class="pf small"><label>${t('agents.duck.historyRoom')} <select data-duck-history-room="${esc(p.id)}">${(S.rooms || []).filter((room) => !room.dm).map((room) => `<option value="${esc(room.name)}"${room.name === S.current ? ' selected' : ''}>${esc(room.name)}</option>`).join('')}</select></label><button type="button" class="btn sm" data-duck-history-clear="${esc(p.id)}">${t('agents.duck.historyClear')}</button></div>
+    </div>` : '';
+    const toggleDisabled = isAgy && !p.enabled && !agyVerified || isDuck && !p.enabled && !duckReady ? ' disabled' : '';
+    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : isAgy ? `<span class="lic">${t('agents.agy.title')}</span>` : isDuck ? `<span class="lic">${t('agents.duck.title')}</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}${toggleDisabled}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
+      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${agyInfo}${duckInfo}${!isApi && !isAgy && !isDuck ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
+      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span>${!isDuck ? `<span>${t(isApi ? 'ac.api.authLabel' : isAgy ? 'agents.agy.google' : 'ac.profile.login')}: <b>${esc(login)}</b></span>` : ''}${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isAgy ? 'agents.agy.retry' : isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
+      ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(isAgy ? (ask.on ? 'agents.agy.confirmOn' : 'agents.agy.confirmOff') : isDuck ? (ask.on ? 'agents.duck.confirmOn' : 'agents.duck.confirmOff') : ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
   // one way to add a background agent: the same + Agent dialog as the main screen (it picks the kind, checks agy, makes the id)
   const addAgent = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<div class="row"><button type="button" class="btn primary" data-open-agent-dialog>${t('agent.spawn.add')}</button></div>`;
@@ -3974,7 +4099,18 @@ function accountBlock(st) {
   const srvTarget = S.mcpSrvTarget || '', srvList = S.mcpServers;
   const srvAgents = profiles.filter((p) => p.provider === 'claude-api');
   const srvRows = srvList === undefined ? `<p class="small muted">${t('mcps.loading')}</p>` : srvList.length ? `<div class="cprofiles">${srvList.map((s) => `<article class="cprofile"><div class="pf"><b>${esc(s.name)}</b><span class="small muted mono">${esc(s.target ?? (s.view ? [s.view.command, ...(s.view.args || []), s.view.url, ...Object.keys(s.view.env || {}).map((k) => k + '=***'), ...Object.keys(s.view.headers || {}).map((k) => k + ': ***')].filter(Boolean).join(' ') : ''))}</span>${s.status ? `<span class="small ${/Connected/.test(s.status) ? 'okt' : 'muted'}">${esc(s.status)}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-mcps-del="${esc(s.name)}">${t('common.delete')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${t('mcps.empty')}</p>`;
-  const mcpsHtml = `<h2>${t('mcps.title')}</h2><div class="setbox"><p class="small muted note">${t('mcps.note')}</p>
+  // #235 (S2): one function, four homes — accounts (group 3), agents (group 2), MCP (group 5), autostart (group 6).
+  return {
+    accounts: `<h2>${t('agents.duck.host.title')}</h2><div class="setbox">${duckHostBlock(st)}</div>
+    <h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
+    <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
+    <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>`,
+    copilot: `<h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}</div>`,
+    agents: `<h2>${t('agent.defaults.title')}</h2><div class="setbox">
+      ${num('agents.maxBackground', st.agents?.maxBackground ?? 4)}
+      <h3>${t('ac.agent')}</h3><p class="small muted note">${t('ac.agent.note')}</p>${agent}
+      <h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>`,
+    mcp: `<h2>${t('set.mcp.title')}</h2><div class="setbox"><h3>${t('mcp.title')}</h3><p class="small muted note">${t('mcp.note')}</p><form class="cprofile-new" id="mcpConnectionNew"><input name="name" required maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" placeholder="${t('mcp.name')}" aria-label="${t('mcp.name')}"><button class="btn primary">${t('mcp.create')}</button></form>${mcpIssued}${mcpRows}<h3>${t('mcps.title')}</h3><p class="small muted note">${t('mcps.note')}</p>
     <div class="pf"><select id="mcpsTarget" aria-label="${t('mcps.target')}"><option value="">${t('mcps.claude')}</option>${srvAgents.map((p) => `<option value="${esc(p.id)}"${p.id === srvTarget ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${srvTarget ? '' : `<select id="mcpsDelScope" aria-label="${t('mcps.delScope')}">${['local', 'project', 'user'].map((x) => `<option${x === (S.mcpDelScope || 'local') ? ' selected' : ''}>${x}</option>`).join('')}</select>`}<button type="button" class="btn sm" id="mcpsRefresh">${t('hc.refresh')}</button></div>
     ${srvRows}
     <form class="cprofile-new" id="mcpServerNew">
@@ -3984,15 +4120,9 @@ function accountBlock(st) {
       <input name="url" placeholder="${t('mcps.url')}" aria-label="${t('mcps.url')}" spellcheck="false">
       <input name="env" placeholder="${t('mcps.env')}" aria-label="${t('mcps.env')}" spellcheck="false" autocomplete="off">
       <button class="btn primary">${t('mcps.add')}</button>
-    </form></div>`;
-  const mcpHtml = `<h2>${t('mcp.title')}</h2><div class="setbox"><p class="small muted note">${t('mcp.note')}</p><form class="cprofile-new" id="mcpConnectionNew"><input name="name" required maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" placeholder="${t('mcp.name')}" aria-label="${t('mcp.name')}"><button class="btn primary">${t('mcp.create')}</button></form>${mcpIssued}${mcpRows}</div>${mcpsHtml}`;
-  return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
-    <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
-    <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
-    <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4)}</div>
-    <h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}<h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>
-    ${mcpHtml}
-    <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
+    </form></div>`,
+    auto: `<h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`,
+  };
 }
 function refreshAgentMetadata() {
   return Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles')]).then(([settings, providers, statuses]) => {
@@ -4006,9 +4136,9 @@ function openAgentDialog() {
   S.agentDialog = { loading: true, kind: '', error: '', room: currentRoom?.dm ? S.taskRoom : (currentRoom?.name || S.taskRoom) };
   zoomBack = null; closeMenu(); zoom.hidden = false;
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true"><p class="small muted">${t('agent.spawn.loading')}</p></div>`;
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts')]).then(([settings, providers, statuses, accounts]) => {
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts'), loadDuckHostStatus()]).then(([settings, providers, statuses, accounts, duckHost]) => {
     if (!S.agentDialog) return;
-    S.settings = settings; S.providers = providers; S.acct = accounts;
+    S.settings = settings; S.providers = providers; S.acct = accounts; S.duckHost = duckHost;
     S.agentProfiles = Object.fromEntries(statuses.map((status) => [status.id, status])); S.copilotProfiles = S.agentProfiles;
     S.agentDialog.loading = false; renderAgentDialog();
   }, (e) => {
@@ -4042,6 +4172,7 @@ function renderAgentDialog() {
     <button class="btn aspawn-type" type="button" data-agent-kind="api"><b>${t('agent.spawn.api')}</b><small>${t('agent.spawn.apiNote')}</small></button>
     <button class="btn aspawn-type" type="button" data-agent-kind="copilot"><b>${t('agent.spawn.copilot')}</b><small>${t('agent.spawn.copilotNote')}</small></button>
     <button class="btn aspawn-type" type="button" data-agent-kind="agy"><b>${t('agent.spawn.agy')}</b><small>${t('agent.spawn.agyNote')}</small></button>
+    <button class="btn aspawn-type" type="button" data-agent-kind="duck"><b>${t('agent.spawn.duck')}</b><small>${t('agent.spawn.duckNote')}</small></button>
   </div>`;
   let content = state.loading ? `<p class="small muted">${t('agent.spawn.loading')}</p>` : choices;
   if (!state.loading && state.kind === 'folder' && state.needConfirm) {
@@ -4086,6 +4217,21 @@ function renderAgentDialog() {
       <p class="small muted" data-agy-check-status role="status">${t('common.loading')}</p>
       <div class="pf" data-agy-install hidden><span class="small">${t('agents.agy.install')}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div>
       <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary" disabled>${t('agent.spawn.start')}</button></div>
+    </form>`;
+  } else if (!state.loading && state.kind === 'duck') {
+    content = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button>` : `<form class="cprofile-new" data-agent-duck>
+      <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
+      <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
+      <label class="inline"><input name="useHubDuck2api" type="checkbox">${t('agents.duck.useHub')}</label>
+      <input name="baseUrl" type="url" placeholder="https://api.example.com/v1" aria-label="${t('agents.duck.baseUrl')}" spellcheck="false">
+      <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('agents.duck.model')}" aria-label="${t('agents.duck.model')}" spellcheck="false">
+      <input name="timeoutMs" type="number" min="5000" max="300000" step="1000" value="60000" aria-label="${t('agents.duck.timeout')}">
+      <label class="inline"><input name="experimental" type="checkbox" required>${t('agents.duck.experimental')}</label>
+      <input name="key" type="password" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}">
+      <p class="small muted note">${t('agents.duck.upstream')}</p>
+      <p class="small pwarn" role="alert" data-duck-new-warning hidden>${t('agents.duck.notLocal')}</p>
+      <p class="small muted" role="status" data-duck-host-status>${esc(S.duckHost?.running ? t('agents.duck.host.running', { endpoint: S.duckHost.endpoint }) : t('agents.duck.host.stopped'))}</p>
+      <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
     </form>`;
   }
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true" aria-labelledby="agentSpawnTitle"><button class="zx" aria-label="${t('common.close')}">✕</button><h2 id="agentSpawnTitle">${t('agent.spawn.title')}</h2>${error}${content}</div>`;
@@ -4166,6 +4312,34 @@ function renderAgentDialog() {
       submitAgentProfile({ id: newProfileId(name, profiles), provider: 'agy', name, cwd, ...(model ? { model } : {}) });
     });
   }
+  const duckForm = zoom.querySelector('[data-agent-duck]');
+  if (duckForm) {
+    const url = duckForm.elements.namedItem('baseUrl'), warning = duckForm.querySelector('[data-duck-new-warning]');
+    url.addEventListener('input', () => { warning.hidden = !url.value.trim() || duckUrlIsLoopback(url.value.trim()); });
+    duckForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
+      const name = get('name'), cwd = get('cwd'), baseUrl = get('baseUrl'), model = get('model'), key = get('key');
+      const useHubDuck2api = f.elements.namedItem('useHubDuck2api').checked, experimental = f.elements.namedItem('experimental').checked;
+      const timeoutMs = Number(get('timeoutMs'));
+      if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) ||
+          (!useHubDuck2api && !baseUrl) || (useHubDuck2api && !S.duckHost?.running) ||
+          !experimental || !Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 300000) {
+        return showAgentDialogError(!experimental ? t('agents.duck.experimentalRequired') : useHubDuck2api && !S.duckHost?.running ? t('agents.duck.sourceRequired') : t('ac.profile.invalid'));
+      }
+      try {
+        if (!useHubDuck2api) {
+          const parsed = new URL(baseUrl);
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error();
+        }
+      } catch { return showAgentDialogError(t('ac.profile.invalid')); }
+      submitAgentProfile({
+        id: newProfileId(name, profiles), provider: 'duck', name, cwd,
+        ...(useHubDuck2api ? { useHubDuck2api: true } : { baseUrl }),
+        ...(model ? { model } : {}), timeoutMs, experimental, ...(key ? { key } : {}),
+      });
+    });
+  }
   zoom.querySelector('.zx')?.focus();
 }
 /** a free profile id from the agent name (agy → agy, agy-2, …), so nobody has to invent one */
@@ -4180,7 +4354,9 @@ async function submitAgentProfile(profile) {
   if (current.length >= 16) return showAgentDialogError(t('ac.profile.limit'));
   if (current.some((p) => p.id.toLowerCase() === profile.id.toLowerCase() || p.name.toLowerCase() === profile.name.toLowerCase())) return showAgentDialogError(t('ac.profile.duplicate'));
   try {
-    S.settings = await api('/api/settings', { agents: { profiles: [...current, { ...profile, enabled: false }] } }, 'PUT');
+    const { key, ...settingsProfile } = profile;
+    S.settings = await api('/api/settings', { agents: { profiles: [...current, { ...settingsProfile, enabled: false }] } }, 'PUT');
+    if (settingsProfile.provider === 'duck' && key) await api(`/api/agents/${enc(settingsProfile.id)}/key`, { key }, 'PUT');
     const endpoint = profile.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/';
     await api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true });
     await refreshAgentMetadata();
@@ -4225,6 +4401,7 @@ function setupBlock(st) {
 function renderSettingsView() {
   if (S.tab === 'skills') return renderSkillsView();
   if (S.tab !== 'settings') return;
+  S.setSub = subOf(S.setSub);   // #235: an old sub-tab id (#settings/data, a link from the wizard) lands in its new group
   const st = S.settings;
   if (!st || !S.skills) { $('view-settings').innerHTML = `<div class="vw">${errBox('settings') || `<div class="vempty">${t('common.loading')}</div>`}</div>`; return; }
   const aj = st.autoJobs, ar = S.archive?.last;
@@ -4235,45 +4412,30 @@ function renderSettingsView() {
   const browserState = browserStatus.running
     ? t('set.browser.running', { endpoint: esc(browserStatus.endpoint || '') })
     : t('set.browser.stopped');
+  // #235 (S2): the six groups of spec §3. Each group is one screen; a setting has exactly one home.
+  const account = accountParts(st);
   const P = {
-    general: `    <p class="lede">${t('settings.lede')}</p>
-    <h2>${t('settings.language')}</h2>
-    <div class="setbox">${sel('language', st.language ?? 'auto', [['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']])}</div>
-    <h2>${t('settings.agentComms')}</h2>
-    <div class="setbox">${sel('agentComms', st.agentComms ?? 'off', [['off', t('settings.agentComms.off')], ['terse', t('settings.agentComms.terse')]])}</div>
-    <h2>${t('machine.title')}</h2>
-    <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
-      <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
-      <div class="pf"><button class="btn primary" id="machineExport"${S.machine?.running ? ' disabled' : ''}>${S.machine?.running ? t('machine.exporting') : t('machine.export')}</button><span id="machineStatus" class="small" aria-live="polite">${machineStatusHtml()}</span></div>
-      ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
-    <h2>Hub</h2>
-    <div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
-      <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>
-`,
-    worker: `    <h2>Worker</h2><div class="setbox">
-      ${sw('skills.worker.enabled', st.skills.worker.enabled)}
-      ${sw('skills.osin.enabled', st.skills.osin.enabled)}
-      ${sw('allowPaidFallback', st.allowPaidFallback)}
-      ${num('workerCap', st.workerCap)}
-      ${sw('roomChat.autoSweep', st.roomChat.autoSweep)}
+    overview: `${healthBlock()}
+    ${setupBlock(st)}
+    <h2>Hub</h2><div class="setbox"><p class="small muted note">${t('hub.restart.note')}</p>
+      <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>`,
+    agent: `${permsBlock(st)}
+    <h2>${t('agent.defaults.title')}</h2><div class="setbox">
+      ${sw('openTabOnWake', !!st.openTabOnWake)}
+      ${sw('relayChat', st.relayChat ?? true)}
     </div>
     <h2>${t('set.apiAgents')}</h2><div class="setbox">
       ${sw('apiAgents.allTools', st.apiAgents?.allTools ?? true)}
       <p class="small muted note">${t('set.apiAgents.allTools.warning')}</p>
     </div>
-    <h2>${t('set.browser')}</h2><div class="setbox"><p class="small muted note">${t('set.browser.hint')}</p>
-      ${sw('browser.enabled', browserCfg.enabled ?? true)}
-      ${num('browser.port', browserCfg.port ?? 9333)}
-      ${txt('browser.chromePath', browserCfg.chromePath || '', ' maxlength="500"')}
-      <p class="small" role="status">${esc(browserState)}</p>
-      ${browserStatus.lastError ? `<p class="small bad" role="alert">${esc(browserStatus.lastError)}</p>` : ''}
-      <p class="small muted">${t('set.browser.agentsNote', { v: esc(browserStatus.mcpVersion || '?') })}</p>
-      <p class="small muted">${t('set.browser.noPasswords')}</p>
-    </div>` + routesBlock() + localBlock(st),
-    lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
+    ${account.agents}`,
+    accounts: `${account.accounts}
+    ${account.copilot}
+    <h2>${t('prov.workerTitle')}</h2>
+    <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
+    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
+    rooms: `<h2>${t('sub.lead')}</h2><div class="setbox">
       ${swVal('autoLead', st.autoLead === 'terminal', 'terminal', 'off')}
-      ${sw('openTabOnWake', !!st.openTabOnWake)}
-      ${sw('relayChat', st.relayChat ?? true)}
     </div>
     <h2>${t('lead.wake.title')}</h2><div class="setbox">
       <p class="small muted note">${t('lead.wake.note')}</p>
@@ -4300,26 +4462,46 @@ function renderSettingsView() {
       ${sw('autoJobs.notes.enabled', aj.notes.enabled)}
       ${num('autoJobs.notes.minNotes', aj.notes.minNotes)}
       ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay)}
-    </div>`,
-    data: `    <h2>${t('set.archive')}</h2><div class="setbox">
+    </div>
+    <h2>${t('settings.agentComms')}</h2><div class="setbox">${sel('agentComms', st.agentComms ?? 'off', [['off', t('settings.agentComms.off')], ['terse', t('settings.agentComms.terse')]])}</div>`,
+    tools: `<h2>Worker &amp; osin</h2><div class="setbox">
+      ${sw('skills.worker.enabled', st.skills.worker.enabled)}
+      ${sw('skills.osin.enabled', st.skills.osin.enabled)}
+      ${sw('allowPaidFallback', st.allowPaidFallback)}
+      ${num('workerCap', st.workerCap)}
+      ${sw('roomChat.autoSweep', st.roomChat.autoSweep)}
+      ${routesBlock()}
+      ${localBlock(st)}
+    </div>
+    <h2>${t('set.browser')}</h2><div class="setbox"><p class="small muted note">${t('set.browser.hint')}</p>
+      ${sw('browser.enabled', browserCfg.enabled ?? true)}
+      ${num('browser.port', browserCfg.port ?? 9333)}
+      ${txt('browser.chromePath', browserCfg.chromePath || '', ' maxlength="500"')}
+      <p class="small" role="status">${esc(browserState)}</p>
+      ${browserStatus.lastError ? `<p class="small bad" role="alert">${esc(browserStatus.lastError)}</p>` : ''}
+      <p class="small muted">${t('set.browser.agentsNote', { v: esc(browserStatus.mcpVersion || '?') })}</p>
+      <p class="small muted">${t('set.browser.noPasswords')}</p>
+    </div>
+    <h2>${t('compact.title')}</h2>
+    ${compactBlock()}
+    ${memoryBlock()}
+    ${account.mcp}`,
+    system: `<h2>${t('settings.language')}</h2>
+    <div class="setbox">${sel('language', st.language ?? 'auto', [['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']])}</div>
+    <h2>${t('set.archive')}</h2><div class="setbox">
       ${sw('archive.enabled', arOn)}
-      ${txt('archive.dir', st.archive.dir, ` placeholder="X:\\Coding\\claude-mem"`)}
+      ${txt('archive.dir', st.archive.dir, ` placeholder="X:\Coding\claude-mem"`)}
       ${arState ? `<p class="small muted">${arState}</p>` : ''}
     </div>
     <h2>${t('data.title')}</h2>
     ${dataBlock()}
-    <h2>${t('info.title')}</h2>
-    <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
-    memory: S.setSub === 'memory' ? memoryBlock() : '',
-    perms: permsBlock(st),
-    health: healthBlock(),
-    setup: setupBlock(st),
-    compact: `    <h2>${t('compact.title')}</h2>
-    ${compactBlock()}`,
-    providers: `    <h2>${t('prov.workerTitle')}</h2>
-    <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
-    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
-    account: accountBlock(st),
+    <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>
+    <h2>${t('machine.title')}</h2>
+    <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
+      <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
+      <div class="pf"><button class="btn primary" id="machineExport"${S.machine?.running ? ' disabled' : ''}>${S.machine?.running ? t('machine.exporting') : t('machine.export')}</button><span id="machineStatus" class="small" aria-live="polite">${machineStatusHtml()}</span></div>
+      ${S.machine?.last?.warnings?.length ? `<div class="verr" role="alert">${esc(S.machine.last.warnings.join(' '))}</div>` : ''}</div>
+    ${account.auto}`,
   };
   const bar = `<div class="setbar"><input id="setSearch" class="txtin" type="search" value="${esc(S.setQuery || '')}" placeholder="${t('settings.search.ph')}" aria-label="${t('settings.search')}" autocomplete="off"><span class="small muted" id="setNoMatch" hidden>${t('settings.noMatch')}</span></div><span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
@@ -4374,6 +4556,12 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       form.elements.namedItem('setRoomCwd').disabled = !room?.cwd;
       return;
     }
+    const duckHub = e.target.closest('[data-duck-hub]');
+    if (duckHub) {
+      const warning = sv.querySelector(`[data-duck-url-warning="${duckHub.dataset.duckHub}"]`), url = sv.querySelector(`[data-duck-url="${duckHub.dataset.duckHub}"]`)?.value.trim();
+      if (warning) warning.hidden = duckHub.checked || !url || duckUrlIsLoopback(url);
+      return;
+    }
     const profileToggle = e.target.closest('[data-profile-enabled]');
     if (profileToggle) {
       const id = profileToggle.dataset.profileEnabled;
@@ -4390,6 +4578,12 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
   });
   sv.addEventListener('input', (e) => {
+    const duckUrl = e.target.closest('[data-duck-url]');
+    if (duckUrl) {
+      const warning = sv.querySelector(`[data-duck-url-warning="${duckUrl.dataset.duckUrl}"]`);
+      if (warning) warning.hidden = !duckUrl.value.trim() || duckUrlIsLoopback(duckUrl.value.trim());
+      return;
+    }
     if (e.target.id === 'setSearch') { S.setQuery = e.target.value; return applySettingsFilter(); }
     const id = e.target.id; if (id !== 'skQuery' && id !== 'cmpQuery') return;
     if (id === 'cmpQuery') S.cmpQuery = e.target.value; else S.skQuery = e.target.value;
@@ -4399,6 +4593,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
+    if (f.id === 'duckHostForm') return saveDuckHost(f);
     if (f.dataset.prov) return saveProvider(f);
     if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast(t('prov.added')); loadSettingsView(); }, (err) => toast(err.message));
   });
@@ -4436,7 +4631,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'memory') S.memoryEntries = undefined; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
+    if (sb) { S.setSub = subOf(sb.dataset.sub); if (S.setSub === 'system') S.dataInfo = null; if (S.setSub === 'tools') S.memoryEntries = undefined; if (S.setSub === 'overview') loadHealth(); if (S.setSub === 'accounts') S.acct = undefined; return renderSettingsView(); }
     const rs = e.target.closest('[data-reset]');
     if (rs) { e.preventDefault(); const d = DEF(rs.dataset.reset); if (d) saveValue(d.key, d.default); return; }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
@@ -4456,7 +4651,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       S.mcpConnections = (S.mcpConnections || []).filter((connection) => connection.id !== mcpRevoke.dataset.mcpRevoke);
       renderSettingsView();
     }, (err) => toast(err.message)));
-    const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
+    const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = subOf(sub); showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
     if (e.target.closest('[data-memory-search]')) {
       S.memoryFilters = Object.fromEntries([...sv.querySelectorAll('[data-memory-filter]')].map((el) => [el.dataset.memoryFilter, el.value.trim()]).filter(([, value]) => value));
@@ -4519,6 +4714,20 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (profileRetry) {
       const id = profileRetry.dataset.profileRetry, agy = (S.settings.agents?.profiles || []).find((profile) => profile.id === id)?.provider === 'agy';
       return api(`${profileRoute(id)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t(agy ? 'agents.agy.retryDone' : 'ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
+    }
+    const duckSave = e.target.closest('[data-duck-save]');
+    if (duckSave) return saveDuckProfile(duckSave.dataset.duckSave);
+    const duckCheck = e.target.closest('[data-duck-check]');
+    if (duckCheck) return checkDuckProfile(duckCheck.dataset.duckCheck, duckCheck);
+    const duckKeySave = e.target.closest('[data-duck-key-save]');
+    if (duckKeySave) return saveDuckKey(duckKeySave.dataset.duckKeySave);
+    const duckKeyClear = e.target.closest('[data-duck-key-clear]');
+    if (duckKeyClear) return armed(duckKeyClear, t('common.pressAgainDelete'), () => saveDuckKey(duckKeyClear.dataset.duckKeyClear, true));
+    const duckHistoryClear = e.target.closest('[data-duck-history-clear]');
+    if (duckHistoryClear) {
+      const id = duckHistoryClear.dataset.duckHistoryClear, roomInput = sv.querySelector(`[data-duck-history-room="${id}"]`), roomName = roomInput?.value;
+      if (!roomName) return toast(t('agents.duck.historyRoom'));
+      return armed(duckHistoryClear, t('common.pressAgainDelete'), () => api(`/api/duck/history?id=${enc(id)}&room=${enc(roomName)}`, undefined, 'DELETE').then(() => toast(t('agents.duck.historyCleared')), (error) => toast(error.message)));
     }
     if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
     const profileConfirm = e.target.closest('[data-profile-confirm]');

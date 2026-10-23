@@ -382,6 +382,43 @@ test('Settings memory view loads, edits, deletes and clears BAM-owned entries wi
   } finally { await hub.close(); }
 });
 
+test('Duck settings add chat profiles, keep keys write-only, check models and clear room history without Muse UI', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of [
+      'data-agent-kind="duck"', 'data-agent-duck', "api('/api/duck/host')", '/api/duck/check?id=',
+      '/api/agents/${enc(id)}/key', '/api/duck/history?id=', 'type="password"',
+      'data-duck-save', 'data-duck-check', 'data-duck-history-clear',
+      'data-memory-add', 'data-memory-save',
+    ]) assert.ok(html.includes(source), `Duck/memory UI is missing ${source}`);
+    assert.ok(!html.includes('data-agent-kind="muse"'), 'Muse is not exposed before its member is implemented');
+    assert.ok(!html.includes('value="${esc(p.key)}"'), 'saved Duck keys must never be rendered back');
+    const start = html.indexOf('const duckInfo = isDuck');
+    const end = html.indexOf('const toggleDisabled', start);
+    assert.ok(start >= 0 && end > start);
+    assert.ok(!html.slice(start, end).includes('/api/browser'), 'Duck settings do not add a browser setting');
+    const check = html.slice(html.indexOf('async function checkDuckProfile'), html.indexOf('async function saveDuckProfile'));
+    assert.ok(check.includes('if (!modelInput.value && check.models.length)'), 'checking models preserves a typed model and only fills an empty field');
+    assert.ok(!check.includes('renderSettingsView()'), 'checking models must not re-render away unsaved profile edits');
+    for (const key of [
+      'agent.spawn.duck', 'agent.spawn.duckNote', 'agents.duck.title', 'agents.duck.upstream',
+      'agents.duck.notLocal', 'agents.duck.useHub', 'agents.duck.baseUrl', 'agents.duck.model',
+      'agents.duck.timeout', 'agents.duck.experimental', 'agents.duck.key', 'agents.duck.keySaved',
+      'agents.duck.keyMissing', 'agents.duck.keyPlaceholder', 'agents.duck.keySave', 'agents.duck.keyClear',
+      'agents.duck.check', 'agents.duck.checking', 'agents.duck.host.title', 'agents.duck.host.note',
+      'agents.duck.host.exePath', 'agents.duck.host.port', 'agents.duck.host.save', 'agents.duck.host.release',
+      'agents.duck.host.running', 'agents.duck.host.stopped', 'agents.duck.historyRoom',
+      'agents.duck.historyClear', 'agents.duck.historyCleared', 'agents.duck.sourceRequired',
+      'agents.duck.experimentalRequired', 'agents.duck.enabled', 'agents.duck.disabled',
+      'agents.duck.confirmOn', 'agents.duck.confirmOff',
+    ]) {
+      assert.ok(en[key], `missing English translation ${key}`);
+      assert.ok(vi[key], `missing Vietnamese translation ${key}`);
+    }
+  } finally { await hub.close(); }
+});
+
 test('browser settings are in Worker, save browser fields, show live status, and add no browser pane', async () => {
   const { hub } = await makeHub();
   try {
@@ -549,7 +586,7 @@ test('settings sub-tabs, Claude usage first in the Token tab, text button to mak
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['data-sub="${k}"', "general: 'sub.general'", "lead: 'sub.lead'", "account: 'sub.account'", "t('members.lead')", "t('members.unlead')"]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['data-sub="${k}"', "overview: 'sub.overview'", "agent: 'sub.agent'", "accounts: 'sub.accounts'", "rooms: 'sub.rooms'", "tools: 'sub.tools'", "system: 'sub.system'", "t('members.lead')", "t('members.unlead')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("<div class=\"vw\">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}"), 'Usage tab: Claude, Copilot and paid providers come before the worker token KPIs');
     for (const x of ["'/api/paid-usage'", 'data-tab="tokens" data-i18n="tab.usage"', 'function copilotUsageBlock', 'function paidUsageBlock']) assert.ok(html.includes(x), `Usage tab: missing ${x}`);
   } finally { await hub.close(); }
@@ -616,6 +653,40 @@ test('#234 settings search, deep link and changed dot are wired, and the old dup
     ]) assert.ok(html.includes(s), `settings S1 is missing ${s}`);
     assert.ok(!html.includes("data-set=\"archive.dir\"") && !html.includes("sw('archive.enabled', arOn, t('set.archive')"), 'the machine wizard must link to the Data tab instead of drawing the archive inputs a second time');
     for (const key of ['settings.search', 'settings.search.ph', 'settings.changed', 'settings.reset', 'settings.noMatch', 'sm.s2.open']) {
+      assert.ok(key in vi && key in en, `missing translated string ${key}`);
+    }
+  } finally { await hub.close(); }
+});
+
+/* ---------- Settings IA S2 (#235): six groups, old sub-tabs redirect ---------- */
+
+test('#235 settings has six groups and every old sub-tab id still lands in one of them', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = html.slice(html.indexOf('<script>'), html.lastIndexOf('</script>'));
+    const groups = ["overview: 'sub.overview'", "agent: 'sub.agent'", "accounts: 'sub.accounts'", "rooms: 'sub.rooms'", "tools: 'sub.tools'", "system: 'sub.system'"];
+    const subsSrc = /const SUBS = lazy\(\{([^}]+)\}\)/.exec(script)?.[1];
+    assert.ok(subsSrc, 'the six settings groups are missing');
+    const subs = [...subsSrc.matchAll(/(\w+):/g)].map((m) => m[1]);
+    assert.deepEqual(subs, ['overview', 'agent', 'accounts', 'rooms', 'tools', 'system'], 'settings groups follow spec §3');
+    for (const g of groups) assert.ok(script.includes(g), `missing settings group ${g}`);
+
+    const aliasSrc = /const SUB_ALIAS = \{([^}]+)\}/.exec(script)?.[1];
+    assert.ok(aliasSrc, 'old sub-tab ids must map to a new group');
+    const alias = new Function(`return {${aliasSrc}}`)() as Record<string, string>;
+    for (const old of ['general', 'worker', 'lead', 'perms', 'compact', 'data', 'memory', 'providers', 'account', 'health', 'setup']) {
+      assert.ok(subs.includes(alias[old]), `${old} has no group (${alias[old]})`);
+    }
+    for (const s of ['const subOf = (name)', 'S.setSub = subOf(S.setSub)', 'S.setSub = subOf(sb.dataset.sub)', 'S.setSub = subOf(sub); showTab(tab)']) {
+      assert.ok(script.includes(s), `old settings links are not redirected: missing ${s}`);
+    }
+
+    // A setting has exactly one home: the registry's group and sub agree (#235).
+    const defs = script.slice(script.indexOf('const SETTING_DEFS = '), script.indexOf('\nconst DEF = (key)'));
+    for (const m of defs.matchAll(/group: '([a-z]+)', sub: '([a-z]+)'/g)) assert.equal(m[2], m[1], `a setting is filed under ${m[1]} but its sub-tab is ${m[2]}`);
+
+    for (const key of ['sub.overview', 'sub.agent', 'sub.accounts', 'sub.rooms', 'sub.tools', 'sub.system', 'agent.defaults.title', 'set.mcp.title']) {
       assert.ok(key in vi && key in en, `missing translated string ${key}`);
     }
   } finally { await hub.close(); }
