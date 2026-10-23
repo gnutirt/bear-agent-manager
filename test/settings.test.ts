@@ -259,6 +259,15 @@ test('agents.profiles: validation reports field-level errors and permits empty p
   assert.ok(errors.some((e) => e.id === 'api-worker' && e.field === 'cwd'));
 });
 
+test('agents.profiles: agy keeps its model/path, drops unsupported effort, and validates limits', () => {
+  const profile = { id: 'agy-main', provider: 'agy', name: 'Agy', cwd: process.cwd(), enabled: true, model: 'gemini-4-argon-medium', effort: 'unsupported', path: 'C:\\tools\\agy.exe' };
+  const saved = patchSettings(defaultSettings(), { agents: { profiles: [profile] } }).agents.profiles[0];
+  assert.deepEqual(saved, { id: 'agy-main', provider: 'agy', name: 'Agy', cwd: path.resolve(profile.cwd), enabled: true, model: profile.model, path: profile.path });
+  assert.equal(validateAgentProfiles([{ ...profile, model: 'm'.repeat(65) }])[0]?.field, 'model');
+  assert.equal(validateAgentProfiles([{ ...profile, path: 'x'.repeat(501) }])[0]?.field, 'path');
+  assert.equal(patchSettings(defaultSettings(), { agents: { profiles: [{ ...profile, effort: 'high' }] } }).agents.profiles[0].effort, 'high');
+});
+
 test('agents.profiles: copilot.autoStart migrates into the profile "copilot" once, an explicit profiles list wins', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'profiles-mig-'));
   try {

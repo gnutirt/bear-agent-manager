@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -57,6 +57,7 @@ import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
 import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
+import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyStatus, type AgyTurn } from './agy.ts';
 
 export type { ReviveJob };
 
@@ -72,6 +73,44 @@ const OFFICE_ASSETS: Record<string, { file: string; type: string }> = {
 };
 
 export type SpawnWorker = (a: { promptFile: string; dir: string; task: string }) => Promise<{ code: number; stdout: string }>;
+type AgyCommandResult = { code: number; stdout: string; stderr: string };
+const AGY_CHECK_TIMEOUT_MS = 20_000;
+function runAgyCommand(exe: string, args: string[], timeoutMs: number): Promise<AgyCommandResult> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(exe, args, { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      resolve({ code: 1, stdout: '', stderr: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    let stdout = '', stderr = '', timedOut = false, settled = false;
+    const finish = (code: number) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ code: timedOut ? 1 : code, stdout, stderr: timedOut ? `${stderr}\nagy models timed out after ${timeoutMs}ms`.trim() : stderr });
+    };
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout = (stdout + chunk).slice(-20_000); });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr = (stderr + chunk).slice(-20_000); });
+    child.once('error', (error) => { stderr = (stderr + error.message).slice(-20_000); finish(1); });
+    child.once('close', (code) => finish(code ?? 1));
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid) void killTree(child.pid).then(() => finish(1));
+      else finish(1);
+    }, timeoutMs);
+  });
+}
+function parseAgyModels(stdout: string): { id: string; label: string }[] {
+  return stdout.split(/\r?\n/).flatMap((line) => {
+    if (!line || /^Fetching available models/i.test(line)) return [];
+    const tab = line.indexOf('\t');
+    if (tab <= 0) return [];
+    const id = line.slice(0, tab).trim(), label = line.slice(tab + 1).trim();
+    return id && label ? [{ id, label }] : [];
+  });
+}
 /**
  * argv of one automatic osin run. -Tools none: nobody watches these runs and their input is chat and room
  * text (anything pasted from the web), so the worker gets no tools at all; the whole input is in the prompt.
@@ -148,6 +187,11 @@ export type HubOptions = {
   spawnAgent?: (job: AgentJob) => Promise<number> | number;
   /** Standalone Copilot SDK client factory (stubbed in tests). */
   copilotClientFactory?: CopilotClientFactory;
+  /** Agy turn and `agy models` runners (stubbed in tests). */
+  agyTurn?: typeof runAgyTurn;
+  agyRun?: (exe: string, args: string[]) => Promise<AgyCommandResult>;
+  agyFind?: (path: string) => ReturnType<typeof findAgy>;
+  agyTimeoutMs?: number;
   /** How a live (stream-json) chat starts its claude (stubbed in tests). */
   liveSpawn?: LiveSpawn;
   /** Startup folder for the sign-in script (tests use a temp one). */
@@ -381,18 +425,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const workerPoller = setInterval(() => { if (sse.size) refreshWorkers().catch(() => {}); }, WORKER_POLL_MS);
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
-  // M3a: one CopilotAgent per settings.agents.profiles entry (provider copilot); an install with no profile gets the legacy 'copilot' one (shortcut: deleting every profile brings it back, until copilot.autoStart goes).
-  const copilots = new Map<string, { agent: CopilotAgent; key: string }>();
+  // Hub-run room members share lifecycle/status routes; Copilot profiles keep their legacy default.
+  type ManagedAgent = CopilotAgent | AgyAgent;
+  const copilots = new Map<string, { agent: ManagedAgent; key: string }>();
   const copilotQuotaNotices = new Set<string>();
   function copilotProfiles(): AgentProfile[] {
     const s = loadSettings(opts.dir, envCap);
-    const list = s.agents.profiles.filter((p) => p.provider === 'copilot');
-    return list.length ? list : [{ id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
+    const list = s.agents.profiles.filter((p) => p.provider === 'copilot' || p.provider === 'agy');
+    return list.some((p) => p.provider === 'copilot') ? list : [...list, { id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
   }
   async function handleCopilotQuota(profileId: string, limit: CopilotQuotaLimit): Promise<number | false> {
     const source = copilots.get(profileId)?.agent;
     const sourceId = source?.hubSessionId();
-    if (!source || !sourceId) return false;
+    if (!(source instanceof CopilotAgent) || !sourceId) return false;
     const pending = store.pending(sourceId).messages;
     const queued = pending.some((message) => message.kind !== 'system' && message.wake.some((id) => store.resolve(id) === sourceId));
     const groups = new Map<string, typeof pending>();
@@ -404,7 +449,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         groups.set(message.room, roomMessages);
       }
     }
-    const enabled = copilotProfiles().filter((p) => p.enabled && p.id !== profileId);
+    const enabled = copilotProfiles().filter((p) => p.provider === 'copilot' && p.enabled && p.id !== profileId);
     const replacement = enabled
       .map((p) => ({ profile: p, agent: copilots.get(p.id)?.agent }))
       .find(({ agent }) => agent && !agent.isQuotaLimited() && ['idle', 'busy'].includes(agent.snapshot().state) &&
@@ -452,33 +497,61 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     return false;
   }
-  function copilotFor(p: AgentProfile): CopilotAgent {
-    const key = JSON.stringify([p.name, p.cwd, p.home, p.model]);
+  const profileKey = (p: AgentProfile) => JSON.stringify([p.provider, p.name, p.cwd, p.home, p.model, p.effort, p.path]);
+  function copilotFor(p: AgentProfile): ManagedAgent {
+    const key = profileKey(p);
     const cur = copilots.get(p.id);
     if (cur?.key === key) return cur.agent;
-    const agent = new CopilotAgent({
-      dir: opts.dir, profile: p, port: () => port, store,
-      settings: () => loadSettings(opts.dir, envCap),
-      onChange: (status) => {
-        broadcast('copilot', copilotStatus(p.id, status));
-        const s = Object.values(store.state.sessions).find((x) => x.name === p.name);
-        if (s) broadcast('session', publicSession(s));
-      },
-      onRoom: emitRoom,
-      onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
-      onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
-      onQuota: (limit) => handleCopilotQuota(p.id, limit),
-      browserMcp: () => (browser && loadSettings(opts.dir, envCap).browser.enabled ? mcpServerFor(browser.endpoint()) : undefined),
-      createClient: opts.copilotClientFactory,
-    });
+    const settings = () => {
+      const current = loadSettings(opts.dir, envCap);
+      if (p.provider !== 'agy' || current.permissions.perAgent[normAgent(p.name)]?.mode !== undefined) return current;
+      return {
+        ...current,
+        permissions: {
+          ...current.permissions,
+          default: { ...current.permissions.default, mode: current.apiAgents.allTools ? 'bypass' : 'plan' },
+        },
+      };
+    };
+    const onChange = (status: CopilotStatus | AgyStatus) => {
+      broadcast('copilot', copilotStatus(p.id, status));
+      const s = Object.values(store.state.sessions).find((x) => x.name === p.name);
+      if (s) broadcast('session', publicSession(s));
+    };
+    const onRooms = () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r)));
+    const onMessage = (room: string, message: Message) => { broadcast('msg', message); emitRoom(room); };
+    const agent: ManagedAgent = p.provider === 'agy'
+      ? new AgyAgent({
+        dir: opts.dir,
+        profile: { id: p.id, name: p.name, cwd: p.cwd, ...(p.model ? { model: p.model } : {}), ...(p.effort ? { effort: p.effort } : {}), ...(p.path ? { path: p.path } : {}) } satisfies AgyProfile,
+        store,
+        settings,
+        format: (sid, messages) => formatDelivery(messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms),
+        onChange,
+        onRoom: emitRoom,
+        onRooms,
+        onMessage,
+        run: opts.agyTurn,
+      })
+      : new CopilotAgent({
+        dir: opts.dir, profile: p, port: () => port, store,
+        settings: () => loadSettings(opts.dir, envCap),
+        onChange,
+        onRoom: emitRoom,
+        onRooms,
+        onMessage,
+        onQuota: (limit) => handleCopilotQuota(p.id, limit),
+        browserMcp: () => (browser && loadSettings(opts.dir, envCap).browser.enabled ? mcpServerFor(browser.endpoint()) : undefined),
+        createClient: opts.copilotClientFactory,
+      });
     copilots.set(p.id, { agent, key });
     return agent;
   }
   /** The status the API and SSE carry: the agent's own state plus the profile's enabled flag (autoStart = the legacy name of it). */
-  function copilotStatus(id: string, status?: CopilotStatus) {
+  function copilotStatus(id: string, status?: CopilotStatus | AgyStatus) {
     const p = copilotProfiles().find((x) => x.id === id);
     const enabled = p?.enabled ?? false;
-    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), enabled, autoStart: enabled };
+    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), provider: p?.provider ?? 'copilot', enabled, autoStart: enabled };
   }
   const copilotAgents = () => [...copilots.values()].map((c) => c.agent);
   const copilotHolding = (sid: string) => copilotAgents().find((c) => c.hasSession(sid));
@@ -496,9 +569,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const profiles = copilotProfiles(), cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     for (const [id, c] of [...copilots]) {
       const p = profiles.find((x) => x.id === id);
-      if (p && p.enabled && c.key === JSON.stringify([p.name, p.cwd, p.home, p.model])) continue;
+      if (p && p.enabled && c.key === profileKey(p)) continue;
       if (c.agent.snapshot().state !== 'off') await c.agent.stop().catch((error) => console.error('[copilot] stop failed:', error));
-      if (!p || c.key !== JSON.stringify([p.name, p.cwd, p.home])) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
+      if (!p || c.key !== profileKey(p)) { copilots.delete(id); broadcast('copilot', { id, removed: true }); }
     }
     for (const p of profiles) {
       if (!p.enabled) continue;
@@ -1978,6 +2051,31 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (ideEndpoint && req.headers['x-room-token'] !== token) return json(res, 401, { error: 'bad or missing token' });
     if (given !== token) return json(res, 401, { error: 'bad or missing token' });
 
+    if (m === 'GET' && p === '/api/agy/check') {
+      const agyPath = url.searchParams.get('path') ?? '';
+      if (agyPath.length > 500) throw new StoreError(400, 'path must be at most 500 characters');
+      const found = (opts.agyFind ?? findAgy)(agyPath);
+      if (!found.exe) return json(res, 200, { found: false, exe: null, tried: found.tried, loggedIn: false, models: [] });
+      const timeoutMs = Math.max(1, opts.agyTimeoutMs ?? AGY_CHECK_TIMEOUT_MS);
+      let result: AgyCommandResult;
+      try {
+        if (opts.agyRun) {
+          let timer: NodeJS.Timeout | undefined;
+          const timeout = new Promise<AgyCommandResult>((resolve) => {
+            timer = setTimeout(() => resolve({ code: 1, stdout: '', stderr: `agy models timed out after ${timeoutMs}ms` }), timeoutMs);
+          });
+          result = await Promise.race([opts.agyRun(found.exe, ['models']), timeout]).finally(() => { if (timer) clearTimeout(timer); });
+        } else {
+          result = await runAgyCommand(found.exe, ['models'], timeoutMs);
+        }
+      } catch (error) {
+        result = { code: 1, stdout: '', stderr: error instanceof Error ? error.message : String(error) };
+      }
+      const models = parseAgyModels(result.stdout);
+      const loggedIn = result.code === 0 && models.length > 0;
+      const error = !loggedIn ? (result.stderr.trim() || (models.length ? `agy models exited with code ${result.code}` : 'agy returned no models')).slice(-500) : '';
+      return json(res, 200, { found: true, exe: found.exe, tried: found.tried, loggedIn, models, ...(error ? { error } : {}) });
+    }
     if (m === 'GET' && p === '/api/browser') {
       return json(res, 200, {
         enabled: loadSettings(opts.dir, envCap).browser.enabled,

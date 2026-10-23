@@ -119,9 +119,9 @@ export function permFor(s: Settings, agent: string): PermRule {
   return { mode: o?.mode ?? d.mode, allow: o?.allow ?? d.allow, deny: o?.deny ?? d.deny };
 }
 
-/** M3b: one headless provider agent (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
-// 'claude-api': a headless claude on a providers.json provider (providerId) and model; permissions follow apiAgents.allTools.
-export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean };
+/** Headless agents (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
+// 'claude-api' permissions follow apiAgents.allTools; agy uses the user's Antigravity CLI login.
+export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'agy'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean; effort?: string; path?: string };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
@@ -151,26 +151,29 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
   const errors: AgentProfileError[] = [];
   for (const [index, r] of raw.slice(0, 16).entries()) {
     const id = typeof r?.id === 'string' ? r.id.trim().toLowerCase() : '', name = typeof r?.name === 'string' ? r.name.trim() : '';
-    const api = r?.provider === 'claude-api', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
+    const api = r?.provider === 'claude-api', agy = r?.provider === 'agy', providerId = typeof r?.providerId === 'string' ? r.providerId.trim() : '', model = typeof r?.model === 'string' ? r.model.trim() : '';
     const safeId = /^[a-z0-9][a-z0-9-]{0,31}$/.test(id) ? id : '';
     const fail = (field: string, reason: string) => errors.push({ index, id: safeId, field, reason });
     if (!r || typeof r !== 'object' || Array.isArray(r)) { fail('profile', 'must be an object'); continue; }
     let unusable = false;
     if (!safeId) { fail('id', 'must be 1-32 lowercase letters, digits, or hyphens and start with a letter or digit'); unusable = true; }
     if (!/^[\w.-]{1,40}$/.test(name)) { fail('name', 'must be 1-40 letters, digits, dots, underscores, or hyphens'); unusable = true; }
-    if (r.provider !== 'copilot' && !api) { fail('provider', 'must be copilot or claude-api'); unusable = true; }
+    if (r.provider !== 'copilot' && !api && !agy) { fail('provider', 'must be copilot, claude-api, or agy'); unusable = true; }
     if (!localAbs(r.cwd)) { fail('cwd', 'must be an absolute local folder, not a network share'); unusable = true; }
     if (api && !/^[\w-]{1,32}$/.test(providerId)) { fail('providerId', 'must be 1-32 letters, digits, underscores, or hyphens'); unusable = true; }
-    if (model && !/^[\w.:\/-]{1,80}$/.test(model)) { fail('model', 'must be 1-80 letters, digits, _, ., :, /, or -'); unusable = true; }
+    if (model && !new RegExp(`^[\\w.:/-]{1,${agy ? 64 : 80}}$`).test(model)) { fail('model', `must be 1-${agy ? 64 : 80} letters, digits, _, ., :, /, or -`); unusable = true; }
     if (r.home != null && r.home !== '' && !localAbs(r.home)) fail('home', 'must be an absolute local folder, not a network share');
+    if (agy && r.path != null && r.path !== '' && (typeof r.path !== 'string' || r.path.length > 500)) { fail('path', 'must be at most 500 characters'); unusable = true; }
     if (r.enabled != null && typeof r.enabled !== 'boolean') fail('enabled', 'must be true or false');
     if (r.edit != null && typeof r.edit !== 'boolean') fail('edit', 'must be true or false');
     if (safeId && ids.has(safeId)) { fail('id', 'must be unique'); unusable = true; }
     if (name && names.has(normAgent(name))) { fail('name', 'must be unique'); unusable = true; }
     if (unusable) continue;
     ids.add(id); names.add(normAgent(name));
-    out.push({ id, provider: api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
-      ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}) });
+    const effort = agy && ['low', 'medium', 'high', 'xhigh', 'max'].includes(r.effort) ? r.effort : undefined;
+    out.push({ id, provider: agy ? 'agy' : api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
+      ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}),
+      ...(effort ? { effort } : {}), ...(agy && typeof r.path === 'string' && r.path ? { path: r.path.trim() } : {}) });
   }
   if (raw.length > 16) errors.push({ index: 16, id: '', field: 'profiles', reason: 'at most 16 profiles are allowed' });
   return { profiles: out, errors };
