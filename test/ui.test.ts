@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { makeHub } from './helpers.ts';
+import { en } from '../shared/i18n/en.ts';
+import { vi } from '../shared/i18n/vi.ts';
 
 const readOffice = () => readFile(new URL('../ui/office.js', import.meta.url), 'utf8');
 
@@ -350,6 +352,31 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "data-set=\"agentComms\"", "t('settings.agentComms.hint')", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
+  } finally { await hub.close(); }
+});
+
+test('browser settings are in Worker, save browser fields, show live status, and add no browser pane', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of [
+      "api('/api/browser')",
+      "t('set.browser.running'",
+      "t('set.browser.stopped')",
+      "sw('browser.enabled'",
+      'data-set="browser.port"',
+      'data-set="browser.chromePath"',
+      'set.browser.agentsNote',
+      'set.browser.noPasswords',
+    ]) assert.ok(html.includes(source), `browser settings are missing ${source}`);
+    assert.ok(!html.includes('data-tab="browser"'), 'the headless browser has no UI pane');
+    for (const key of [
+      'set.browser', 'set.browser.hint', 'set.browser.enabled', 'set.browser.port', 'set.browser.chromePath',
+      'set.browser.running', 'set.browser.stopped', 'set.browser.agentsNote', 'set.browser.noPasswords',
+    ]) {
+      assert.ok(key in vi, `missing Vietnamese string ${key}`);
+      assert.ok(key in en, `missing English string ${key}`);
+    }
   } finally { await hub.close(); }
 });
 

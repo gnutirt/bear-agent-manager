@@ -56,7 +56,7 @@ import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from '
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
 import { IdeBridge, type IdeOp } from './ide.ts';
-import { BrowserError, BrowserHost, mcpServerFor } from './browser.ts';
+import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
 
 export type { ReviveJob };
 
@@ -1980,6 +1980,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         endpoint: browser?.endpoint() ?? '',
         lastError: browserApplyError || browser?.lastError() || '',
         agents: browserAgents,
+        mcpVersion: PLAYWRIGHT_MCP_VERSION,
       });
     }
     if (m === 'POST' && p === '/api/ide/hello') {

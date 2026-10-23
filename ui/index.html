@@ -3276,18 +3276,25 @@ $('view-tokens').addEventListener('click', (e) => {
 
 /* ---------- Cài đặt tab ---------- */
 S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = ''; S.skUse = {};
+S.browserStatus = null;
 const MODES = lazy({ force: 'mode.force', auto: 'mode.auto', ban: 'mode.ban' });
 const normAgent = (n) => String(n || '').trim().toLowerCase();
 const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 /** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
 const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
 function loadSettingsView() {
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine')]).then(([s, p, sk, ar, mc]) => {
-    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; pollMachine();
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus()]).then(([s, p, sk, ar, mc, browser]) => {
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
     S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
   renderSettingsView();
+}
+function loadBrowserStatus() {
+  return api('/api/browser').catch((e) => ({
+    enabled: S.settings?.browser?.enabled ?? true, running: false, endpoint: '', agents: false, mcpVersion: '',
+    lastError: `/api/browser: ${e.message}`,
+  }));
 }
 const sw = (path, on, label, hint = '') => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="checkbox" class="switch" data-set="${path}"${on ? ' checked' : ''}></label>`;
 const num = (path, v, label, hint, min, max) => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="number" class="numin" data-set="${path}" value="${v}" min="${min}" max="${max}"></label>`;
@@ -4008,6 +4015,10 @@ function renderSettingsView() {
   const arOn = st.archive.enabled ?? !!st.archive.dir;
   const arState = !arOn ? (st.archive.dir ? t('archive.offKept') : t('archive.offEmpty')) : !st.archive.dir ? t('archive.noDir') : !ar ? t('archive.notYet')
     : ar.ok ? t('archive.last', { at: time(ar.at), n: ar.copiedFiles }) : t('archive.fail', { reason: esc(ar.reason) });
+  const browserCfg = st.browser || { enabled: true, port: 9333, chromePath: '' }, browserStatus = S.browserStatus || {};
+  const browserState = browserStatus.running
+    ? t('set.browser.running', { endpoint: esc(browserStatus.endpoint || '') })
+    : t('set.browser.stopped');
   const P = {
     general: `    <p class="lede">${t('settings.lede')}</p>
     <h2>${t('settings.language')}</h2>
@@ -4029,6 +4040,15 @@ function renderSettingsView() {
       ${sw('allowPaidFallback', st.allowPaidFallback, t('set.paid'))}
       ${num('workerCap', st.workerCap, t('set.cap'), t('set.cap.hint'), 1, 16)}
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, t('set.sweep'), t('set.sweep.hint'))}
+    </div>
+    <h2>${t('set.browser')}</h2><div class="setbox"><p class="small muted note">${t('set.browser.hint')}</p>
+      ${sw('browser.enabled', browserCfg.enabled ?? true, t('set.browser.enabled'))}
+      <label class="setrow"><span><b>${t('set.browser.port')}</b></span><input type="number" class="numin" data-set="browser.port" value="${browserCfg.port ?? 9333}" min="1024" max="65535"></label>
+      <label class="setrow"><span><b>${t('set.browser.chromePath')}</b></span><input class="txtin" data-set="browser.chromePath" value="${esc(browserCfg.chromePath || '')}" maxlength="500" spellcheck="false"></label>
+      <p class="small" role="status">${esc(browserState)}</p>
+      ${browserStatus.lastError ? `<p class="small bad" role="alert">${esc(browserStatus.lastError)}</p>` : ''}
+      <p class="small muted">${t('set.browser.agentsNote', { v: esc(browserStatus.mcpVersion || '?') })}</p>
+      <p class="small muted">${t('set.browser.noPasswords')}</p>
     </div>` + routesBlock() + localBlock(st),
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
       <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
@@ -4087,6 +4107,7 @@ async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
   try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
+  if (el.dataset.set.startsWith('browser.')) S.browserStatus = await loadBrowserStatus();
   if (el.dataset.set === 'language') renderEverything(); else renderSettingsView();
 }
 async function saveRule(skill, rule) {

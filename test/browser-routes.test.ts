@@ -102,7 +102,7 @@ test('browser is enabled by default and registers one user-scope bam-browser MCP
     const status = await call<any>('/api/browser');
     assert.equal(status.response.status, 200);
     assert.deepEqual(status.body, {
-      enabled: true, running: true, endpoint: 'http://127.0.0.1:9333', lastError: '', agents: true,
+      enabled: true, running: true, endpoint: 'http://127.0.0.1:9333', lastError: '', agents: true, mcpVersion: '0.0.83',
     });
     const add = mcp.calls.find((args) => args[1] === 'add-json');
     assert.deepEqual(add?.slice(0, 3), ['mcp', 'add-json', 'bam-browser']);
