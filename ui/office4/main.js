@@ -13,14 +13,15 @@ const LAYOUT = [   // positions and styles of the ai-office floor; names and the
   { id: 'ca-phe', color: '#6b4a34', x: -9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'cafe', seed: 71 } },
   { id: 'giai-tri', color: '#2a2f6b', x: 9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'game', seed: 73 } },
 ];
-const ZONE_TIER = { 'dieu-phoi': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng riêng', 'san-xuat-phim': 'Phòng riêng', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí' };
+const ZONE_TIER = { 'san-xuat-phim': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'dieu-phoi': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí' };
 const SEATS = 8;   // one bench cluster of the zone
 const enc = encodeURIComponent;
 const lower = (s) => String(s).toLowerCase();
 
-/** Tier -> zone id. Tiers 1 and 2 share the lounge, 3 and 4 get their own zone, 5 and up fill two zones of 8. */
-function zoneFor(tier, nth) {
-  if (tier <= 2) return 'dieu-phoi';
+/** The room lead sits in the left private room, tiers 1 and 2 in the right one (the lounge is the meeting room), 3 and 4 get their own zone, 5 and up fill two zones of 8. */
+function zoneFor(tier, nth, lead) {
+  if (lead) return 'khach-hang';
+  if (tier <= 2) return 'san-xuat-phim';
   if (tier === 3) return 'thiet-ke';
   if (tier === 4) return 'chien-luoc';
   return nth < SEATS ? 'ky-thuat' : 'san-xuat-noi-dung';
@@ -45,18 +46,18 @@ export function mountOffice4(el, api) {
   el.replaceChildren(host);
 
   let dead = false, office = null, timer = 0, es = null, soon = 0, refreshing = false;
-  const state = { sessions: [], tiers: {}, perms: new Set() };
+  const state = { sessions: [], tiers: {}, perms: new Set(), lead: '' };
 
   const toData = () => {
     const nm = names(), perTier = {};
     const rows = state.sessions.filter((s) => Array.isArray(s.rooms) && s.rooms.includes(api.room)).sort((a, b) => a.name.localeCompare(b.name));
     const agents = rows.map((s) => {
-      const tier = Number(state.tiers[lower(s.name)]) || 3, nth = perTier[tier] = (perTier[tier] ?? -1) + 1;
+      const lead = s.id === state.lead, tier = Number(state.tiers[lower(s.name)]) || 3, nth = lead ? 0 : perTier[tier] = (perTier[tier] ?? -1) + 1;
       const until = Number(s.limited && s.limited.until) || 0;
       const status = state.perms.has(s.id) ? 'waiting' : s.status === 'busy' ? 'working' : until > Date.now() ? 'offline' : 'idle';
-      return { id: s.id, name: s.name, role: s.activity || '', departmentId: zoneFor(tier, nth), provider: 'claude-code', status, tier };
+      return { id: s.id, name: s.name, role: s.activity || '', departmentId: zoneFor(tier, nth, lead), provider: 'claude-code', status, tier, lead: s.id === state.lead };
     });
-    const label = (d) => d.style.shape === 'zone' || d.style.shape === 'lounge' ? (nm[ZONE_TIER[d.id]] || `Tầng ${ZONE_TIER[d.id]}`) + (d.id === 'san-xuat-noi-dung' ? ' (2)' : '') : FIXED[d.id];
+    const label = (d) => FIXED[d.id] || (nm[ZONE_TIER[d.id]] || `Tầng ${ZONE_TIER[d.id]}`) + (d.id === 'san-xuat-noi-dung' ? ' (2)' : '');
     const departments = LAYOUT.map((d) => ({ ...d, name: label(d), style: { ...d.style, label: label(d) } }));
     return { departments, agents };
   };
@@ -72,10 +73,11 @@ export function mountOffice4(el, api) {
   const refresh = () => {
     if (dead || refreshing || document.hidden || !office) return;
     refreshing = true;
-    Promise.all([hub('/api/sessions'), hub('/api/settings'), hub('/api/permissions')]).then(([sessions, settings, perms]) => {
+    Promise.all([hub('/api/sessions'), hub('/api/settings'), hub('/api/permissions'), hub('/api/rooms')]).then(([sessions, settings, perms, rooms]) => {
       if (dead) return;
       state.sessions = sessions || []; state.tiers = (settings && settings.flowTiers && settings.flowTiers[api.room]) || {};
       state.perms = new Set((perms || []).map((p) => p.session));
+      state.lead = ((rooms || []).find((r) => r.name === api.room) || {}).lead || '';
       const d = toData(); office.setData(d.departments, d.agents); paintHud(d.agents);
     }).catch((e) => console.error('[office4] refresh failed', e)).finally(() => { refreshing = false; });
   };

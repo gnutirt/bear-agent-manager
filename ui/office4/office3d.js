@@ -648,6 +648,13 @@ export class Office3D {
     const alert = new THREE.Sprite(new THREE.SpriteMaterial({ map: al.texture, transparent: true, depthTest: false }));
     alert.scale.set(0.34 * al.aspect, 0.34, 1); alert.userData.aspect = al.aspect; alert.userData.h = 0.34; alert.position.set(x, 2.3 + y - 0.5, z); alert.renderOrder = 11; alert.visible = false;
     this.dynamic.add(alert);
+    let icon = null;   // trưởng phòng đang làm việc: biểu tượng nổi trên đầu
+    if (agent.lead) {
+      const ic = pillLabel('💻', { size: 52, color: '#1a1205', bg: '#ffd166', pad: 12 });
+      icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: ic.texture, transparent: true, depthTest: false }));
+      icon.scale.set(0.34 * ic.aspect, 0.34, 1); icon.userData.aspect = ic.aspect; icon.userData.h = 0.34; icon.position.set(x, 2.3 + y - 0.5, z); icon.renderOrder = 11; icon.visible = false;
+      this.dynamic.add(icon);
+    }
 
     const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.7, 1.3), new THREE.MeshBasicMaterial());
     hit.position.set(x, 0.85, z); hit.rotation.y = facing; hit.updateMatrixWorld(true);
@@ -657,7 +664,7 @@ export class Office3D {
     cluster.agents.push(agent.id);
     const home = { x, z, facing, seatH: y, variant, prop: null, exit: exit ?? behind(x, z, facing, 0.95) };
     this.agents.set(agent.id, {
-      id: agent.id, person, screen, theme, ring, label, alert, hit, cluster, focus, status: null, pos: new THREE.Vector3(x, 1.25, z),
+      id: agent.id, person, screen, theme, ring, label, alert, icon, hit, cluster, focus, status: null, pos: new THREE.Vector3(x, 1.25, z),
       home, tier: agent.tier, where: 'home', spot: null, breakIn: null, stay: 0, firstBreak: true, observer: agent.provider === 'observer',
     });
   }
@@ -765,6 +772,7 @@ export class Office3D {
     const ly = (1.4 + seatH) * (1 - p.standing) + 2.08 * p.standing;
     v.label.position.set(a.x, ly, a.z);
     v.alert.position.x = a.x; v.alert.position.z = a.z; v.alertY = ly + 0.4;
+    if (v.icon) v.icon.position.x = a.x, v.icon.position.z = a.z;
     v.ring.position.set(a.x, 0.03, a.z);
     v.hit.position.set(a.x, 0.85 + 0.1 * p.standing, a.z); v.hit.rotation.y = p.root.rotation.y; v.hit.updateMatrixWorld(true);
     v.focus.set(a.x, 1.15 + 0.2 * p.standing, a.z);
@@ -779,12 +787,13 @@ export class Office3D {
     v.screen.material = this.screens.material(v.theme, status);
     v.ring.material.color.set(STATUS_RING[status] ?? '#c7d6ff');
     v.alert.visible = status === 'waiting';
+    if (v.icon) v.icon.visible = status === 'working';
     this.updateLabel(v);
     if (!silent) this.refreshLights();
   }
 
   updateLabel(v) {
-    v.label.visible = v.status !== 'idle' && v.status !== 'offline' || v.id === this.selectedId || v.id === this.hoveredId;
+    v.label.visible = true;   // ai cũng có tên trên đầu để phân biệt
     v.ring.userData.target = ['working', 'waiting', 'queued', 'error'].includes(v.status) ? 0.85 : v.id === this.selectedId ? 0.55 : v.id === this.hoveredId ? 0.35 : 0;
   }
 
@@ -904,7 +913,7 @@ export class Office3D {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     // màn hình dọc: lùi camera để thấy đủ chiều ngang văn phòng
-    const scale = this.camera.aspect < 1.25 ? Math.min(2.1, 1.25 / this.camera.aspect) : 1;
+    const scale = this.camera.aspect < 1.6 ? Math.min(2.1, 1.6 / this.camera.aspect) : 1;
     if (force || this.homeScale !== scale) {
       this.homeScale = scale;
       this.camera.position.copy(this.home.pos).multiplyScalar(scale).setY(this.home.pos.y * scale);
@@ -938,9 +947,11 @@ export class Office3D {
       m.opacity += (tgt - m.opacity) * Math.min(1, dt * 6);
       v.ring.visible = m.opacity > 0.01;
       if (v.ring.visible) { const s = 1 + (Math.sin(t * 3 + v.pos.x) + 1) * 0.07; v.ring.scale.set(s, 1, s); }
+      if (v.icon?.visible) v.icon.position.y = (v.alertY ?? v.person.baseY + 1.8) + Math.sin(t * 4) * 0.05;
       if (v.alert.visible) v.alert.position.y = (v.alertY ?? v.person.baseY + 1.8) + Math.sin(t * 5) * 0.05;
       // nhãn giữ kích thước dễ đọc: thu nhỏ khi camera lại gần
-      for (const sp of [v.label, v.alert]) {
+      for (const sp of [v.label, v.alert, v.icon]) {
+        if (!sp) continue;
         if (!sp.visible) continue;
         const d = this.camera.position.distanceTo(sp.position);
         const h = Math.min(sp.userData.h, Math.max(0.12, d * 0.018 * (sp.userData.h / 0.34)));
