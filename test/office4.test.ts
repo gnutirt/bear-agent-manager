@@ -8,8 +8,8 @@ import { readFile } from 'node:fs/promises';
 test('Office 4 #225: a limited agent walks to a bed in the rest zone, shows its wake time, and returns to its desk on expiry', async () => {
   const main = await readFile(new URL('../ui/office4/main.js', import.meta.url), 'utf8');
   for (const s of [
-    // a rest zone between the cafe and the game room, visible in the default camera
-    "{ id: 'khu-nghi', color: '#3d4657', x: 0, z: 11.35, w: 6.8, d: 4.0, style: { shape: 'rest', label: 'Khu nghỉ', seed: 79 } }",
+    // the rest zone sits behind the front door axis (not behind the glass door), between the two tier-5 zones
+    "{ id: 'khu-nghi', color: '#3d4657', x: 0, z: 8.3, w: 5.8, d: 4.0, style: { shape: 'rest', label: 'Khu nghỉ', seed: 79 } }",
     "'khu-nghi': 'Khu nghỉ'",
     // the limit deadline reaches the scene; the HUD counts sleepers and lists a wake chip each
     'sleepUntil: until > now ? until : 0',
@@ -30,7 +30,10 @@ test('Office 4 #225: a limited agent walks to a bed in the rest zone, shows its 
     // walk there, lie down, wake up and go home
     'goSleep(v) {',
     'layDown(v) {',
-    'p.root.rotation.x = Math.PI / 2;',
+    'p.root.rotation.x = -Math.PI / 2;',
+    // the bed is made head-to-wall at -z so the lying body lines up with the pillow
+    'MAT.sofa, 0, 0.56, -0.7',
+    'MAT.woodDark, 0, 0.62, -1.02',
     'wakeUp(v) {',
     "if (v.status !== 'offline') this.wakeUp(v);",
     'if (!this.goSleep(v)) v.sleepTryAt = Date.now() + 4000;',

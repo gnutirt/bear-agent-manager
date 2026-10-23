@@ -12,7 +12,7 @@ const LAYOUT = [   // positions and styles of the ai-office floor; names and the
   { id: 'san-xuat-phim', color: '#8c6d7a', x: 15.1, z: -0.4, w: 5.6, d: 6.4, style: { shape: 'room', meeting: true, screenTheme: 'media', seed: 67 } },
   { id: 'ca-phe', color: '#6b4a34', x: -9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'cafe', seed: 71 } },
   { id: 'giai-tri', color: '#2a2f6b', x: 9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'game', seed: 73 } },
-  { id: 'khu-nghi', color: '#3d4657', x: 0, z: 11.35, w: 6.8, d: 4.0, style: { shape: 'rest', label: 'Khu nghỉ', seed: 79 } },   // #225: giường cho agent hết hạn mức, giữa cà phê và khu giải trí
+  { id: 'khu-nghi', color: '#3d4657', x: 0, z: 8.3, w: 5.8, d: 4.0, style: { shape: 'rest', label: 'Khu nghỉ', seed: 79 } },   // #225: giường cho agent hết hạn mức; lùi khỏi trục cửa kính, nằm giữa hai khu tầng 5
 ];
 const ZONE_TIER = { 'dieu-phoi': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'san-xuat-phim': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí', 'khu-nghi': 'Khu nghỉ' };
 const SEATS = 8;   // one bench cluster of the zone

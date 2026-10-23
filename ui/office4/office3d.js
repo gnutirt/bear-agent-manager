@@ -606,9 +606,9 @@ export class Office3D {
     const g = new THREE.Group();
     g.add(mesh(new THREE.BoxGeometry(1.06, 0.26, 2.08), MAT.woodDark, 0, 0.17, 0));
     g.add(mesh(new THREE.BoxGeometry(0.96, 0.2, 1.96), MAT.desk, 0, 0.4, 0));
-    g.add(mesh(new THREE.BoxGeometry(0.64, 0.13, 0.36), MAT.sofa, 0, 0.56, 0.7));           // gối ở đầu +z
-    g.add(mesh(new THREE.BoxGeometry(0.98, 0.1, 1.05), MAT.cushionGreen, 0, 0.55, -0.32));  // chăn
-    g.add(mesh(new THREE.BoxGeometry(1.06, 0.66, 0.08), MAT.woodDark, 0, 0.62, 1.02));      // ván đầu giường
+    g.add(mesh(new THREE.BoxGeometry(0.64, 0.13, 0.36), MAT.sofa, 0, 0.56, -0.7));          // gối ở đầu -z, phía người nằm
+    g.add(mesh(new THREE.BoxGeometry(0.98, 0.1, 1.05), MAT.cushionGreen, 0, 0.55, 0.32));   // chăn phía chân
+    g.add(mesh(new THREE.BoxGeometry(1.06, 0.66, 0.08), MAT.woodDark, 0, 0.62, -1.02));     // ván đầu giường
     return g;
   }
 
@@ -657,17 +657,17 @@ export class Office3D {
       v.zzz = s; v.zzzText = text;
     }
     v.zzz.visible = true;
-    v.zzz.position.set(bed.x, 1.28, bed.z + 0.35);
+    v.zzz.position.set(bed.x, 1.62, bed.z + 0.1);   // nổi trên nhãn tên để không đè nhau
   }
 
-  /** Tới giường: nằm ngửa, đầu phía gối (+z), chân chui xuống đệm (che bằng khung giường) */
+  /** Tới giường: nằm sấp dọc giường, đầu phía gối (-z), thân phẳng trên đệm, chân chui vào đệm (khuất dưới chăn) */
   layDown(v) {
     const p = v.person, bed = v.bed;
     this.faded(p, 1);
     p.baseY = bed.seatH;
-    p.root.rotation.x = Math.PI / 2;
+    p.root.rotation.x = -Math.PI / 2;
     p.root.rotation.y = bed.facing;
-    p.root.position.set(bed.x, bed.seatH + 0.16, bed.z + (p.model ? -0.85 : 0.05));
+    p.root.position.set(bed.x, bed.seatH + (p.model ? 0.07 : 0.02), bed.z + (p.model ? 0.85 : 0.12));
     p.anchor.set(bed.x, 0, bed.z);
     v.where = 'sleep';
     bed.occupant = v.id;
