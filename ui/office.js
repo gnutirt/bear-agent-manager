@@ -539,8 +539,8 @@
       // floor, walls and rooms
       box(46, .5, 30, 0xa89c78, 0, -.25, 0, scene, false); box(46, .12, 30.6, 0x22222e, 0, -.56, 0, scene, false);
       box(.5, 8, 30, 0xc9d0b4, -23, 3.75, 0); box(46, 8, .5, 0xc9d0b4, 0, 3.75, -15);          // left + back wall
-      box(.45, 8, 16, 0xfbe9a8, 23, 3.75, -7, scene, false); box(14, 8, .5, 0xfbe0a0, 16, 3.75, -14.8, scene, false); // lounge yellow
-      box(14, .06, 14, 0xf0b27a, 15, .03, -8, scene, false); box(14, .06, 12, 0xe9a36b, 14, .03, 8.5, scene, false);
+      box(.45, 8, 16, 0xe9dcb4, 23, 3.75, -7, scene, false); box(14, 8, .5, 0xe6d8ae, 16, 3.75, -14.8, scene, false); // VIP room walls: warm cream
+      box(14, .06, 14, 0xe6e0d2, 15, .03, -8, scene, false);[[13.4, .1, 15, -1.5], [13.4, .1, 15, -14.4], [.1, 12.9, 8.5, -8], [.1, 12.9, 22.3, -8]].forEach(([w, d, x, z]) => box(w, .02, d, 0xc8a24a, x, .07, z, scene, false)); box(14, .06, 12, 0xe9a36b, 14, .03, 8.5, scene, false);
       box(9, .06, 7, 0x8b5fd0, -8.4, .03, 7.5, scene, false);
       // meeting room partitions live in the boardroom block below
       // windows + wall screen + neon
@@ -576,6 +576,27 @@
       // lounge: beanbags, couch, arcade, ping pong
       [[-12, 6.5, 0xff6fae], [-9.5, 9.5, 0x4fd16a], [-6.5, 6, 0xffd23f]].forEach(([x, z, c]) => { sph(1.35, c, x, .85, z, scene, .7); });
       box(4.4, .9, 1.6, 0x2aa79a, -4.5, .5, 11.6); box(4.4, 1.3, .35, 0x2aa79a, -4.5, 1.3, 12.3);
+      // VIP room (every tier above the last): marble floor, burgundy rug with gold border, velvet poufs on brass, chesterfield against the back wall, a bar, floor lamps, paintings, plants
+      const GOLD = 0xc8a24a, velvet = (m, c) => { m.material = new THREE.MeshPhongMaterial({ color: c, shininess: 45, specular: 0x443322 }); return m; };
+      box(10, .06, 7.6, 0x4a1530, 16, .09, -8.2, scene, false); box(9.2, .07, 6.8, 0x6b2347, 16, .095, -8.2, scene, false);
+      [[9.2, .1, 16, -11.5], [9.2, .1, 16, -4.9], [.1, 6.8, 11.5, -8.2], [.1, 6.8, 20.5, -8.2]].forEach(([w, d, x, z]) => box(w, .02, d, GOLD, x, .14, z, scene, false));
+      [[12.4, -9.2, 0x7b1e3a], [14.9, -6.2, 0x0f5a52], [17.9, -9.7, 0x1e3a6e]].forEach(([x, z, c]) => { cyl(1.25, 1.35, .14, GOLD, x, .18, z, scene, 24, false); velvet(sph(1.3, c, x, .93, z, scene, .66), c); });
+      velvet(box(5.2, .7, 1.7, 0x5a1730, 16, .7, -12.4), 0x5a1730); velvet(box(5.2, 1.6, .4, 0x5a1730, 16, 1.4, -13.4), 0x5a1730);
+      [13.35, 18.65].forEach((x) => velvet(box(.35, 1.1, 1.7, 0x4a1226, x, .85, -12.4), 0x4a1226));
+      [14.6, 16, 17.4].forEach((x) => velvet(box(1.2, .3, 1.3, 0x7a2442, x, 1.18, -12.3, scene, false), 0x7a2442));
+      [13.3, 18.7].forEach((x) => [-11.6, -13.2].forEach((z) => cyl(.07, .05, .28, GOLD, x, .24, z, scene, 8, false)));
+      [[11.2, -13.3], [20.8, -13.3], [11.2, -2.6]].forEach(([x, z]) => { cyl(.05, .05, 2.6, GOLD, x, 1.4, z, scene, 8, false); cyl(.3, .3, .06, GOLD, x, .15, z, scene, 14, false); cyl(.28, .45, .6, 0xffe9b8, x, 2.9, z, scene, 14, false).material = new THREE.MeshBasicMaterial({ color: 0xffe3a0 }); });
+      // bar along the east wall: walnut counter with a brass top, bottles behind it, two velvet stools
+      velvet(box(1.3, 1.5, 4.6, 0x3a2012, 22.2, .75, -8), 0x3a2012); box(1.5, .1, 4.8, GOLD, 22.2, 1.55, -8, scene, false);
+      [[-9.2, 0x2f8f4e], [-8.5, 0xc84a3a], [-7.8, 0xe8c868], [-7.1, 0x3a6ec8], [-6.4, 0x2f8f4e]].forEach(([z, c]) => cyl(.12, .14, .6, c, 22.3, 1.9, z, scene, 10, false));
+      [-9.6, -6.4].forEach((z) => { cyl(.4, .4, .14, 0x7a2442, 20.6, 1.0, z, scene, 16, false); cyl(.07, .07, .95, GOLD, 20.6, .5, z, scene, 8, false); cyl(.3, .3, .06, GOLD, 20.6, .06, z, scene, 14, false); });
+      // framed paintings on the back wall
+      [[12.6, 'a'], [19.4, 'b']].forEach(([x, k]) => {
+        const art = canvasTex(128, 80, (c, w, h) => { const g = c.createLinearGradient(0, 0, w, h); g.addColorStop(0, k === 'a' ? '#1d3a6a' : '#6a1d3a'); g.addColorStop(1, k === 'a' ? '#e0b45a' : '#e8a07a'); c.fillStyle = g; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.arc(k === 'a' ? 40 : 88, 32, 18, 0, 7); c.fill(); });
+        box(2.9, 2, .1, GOLD, x, 4.2, -14.5, scene, false); box(2.6, 1.7, .08, 0xffffff, x, 4.2, -14.45, scene, false).material = new THREE.MeshBasicMaterial({ map: art.t });
+      });
+      cyl(.5, .4, .7, GOLD, 21.2, .35, -3.6, scene, 14, false); [[0, 1.3, 0], [-.35, 1.1, .1], [.35, 1.15, -.05], [0, 1.0, .35]].forEach(([dx, y, dz]) => sph(.55, 0x2f8f4e, 21.2 + dx, y + .3, -3.6 + dz, scene, 1.2));
+      const vipLight = new THREE.PointLight(0xffc880, .8, 18); vipLight.position.set(16, 6, -8); scene.add(vipLight);
       box(1.6, 3.2, 1.4, 0x6c3ec1, -21.5, 1.6, 2); box(1.3, .9, .1, 0x77f0ff, -21.5, 2.5, 1.28, scene, false, { emissive: 0x33aacc });
       box(4.6, .14, 2.6, 0x1e7a52, 2.6, 1.15, 9); box(4.6, .3, .04, 0xffffff, 2.6, 1.35, 9, scene, false);[[-2, -1], [2, -1], [-2, 1], [2, 1]].forEach(([dx, dz]) => box(.12, 1.1, .12, 0x2c2c38, 2.6 + dx, .55, 9 + dz, scene, false));
       // meeting room (boardroom): walnut table, leather chairs, brass trim, credenza + wide screen, pendant lights
@@ -722,15 +743,17 @@
         if (focus && !by[focus]) closeFocus();
         hud();
       };
-      const OBS = [[-12, 6.5, 1.35], [-9.5, 9.5, 1.35], [-6.5, 6, 1.35], [-1, 5.5, 1.65], [-21, -13, .85], [21, -13, .85], [-21, 13, .85], [7, 13.5, .85], [22, 4.3, .9], [22, 13.9, .9]];   // x, z, radius
+      const OBS = [[-12, 6.5, 1.35], [-9.5, 9.5, 1.35], [-6.5, 6, 1.35], [-1, 5.5, 1.65], [-21, -13, .85], [21, -13, .85], [-21, 13, .85], [7, 13.5, .85], [22, 4.3, .9], [22, 13.9, .9], [12.4, -9.2, 1.35], [14.9, -6.2, 1.35], [17.9, -9.7, 1.35], [11.2, -13.3, .45], [20.8, -13.3, .45], [11.2, -2.6, .45], [21.2, -3.6, .8], [20.6, -9.6, .45], [20.6, -6.4, .45]];   // x, z, radius
       // targets + paths
       const V = (x, z) => new THREE.Vector3(x, 0, z);
+      const lastTier = () => Math.max(5, ...AG.map((x) => x.tier || 0)), VIP_RING = [[15.4, -8.2], [12.4, -6.3], [17.4, -6.1], [11.8, -11.4], [20, -10.9], [14.9, -10.4], [19.4, -7.4], [12.2, -7.2], [16.4, -4.7]];
       function targetFor(a, slot) {
         if (a.state === 'sleep') { const b = BEDS[slot.sleep % BEDS.length]; return { kind: 'bed', pos: V(b.x + 1.1, b.z), face: Math.PI / 2, pose: 'lie', key: 'z' + (slot.sleep % BEDS.length) }; }
         if (meeting) return { kind: 'meet', pos: V(MEETSEATS[slot.meet % MEETSEATS.length].x, MEETSEATS[slot.meet % MEETSEATS.length].z), face: MEETSEATS[slot.meet % MEETSEATS.length].face, pose: 'sit', key: 'm' + slot.meet };
         const i = AG.indexOf(a);
         if (a.state === 'working' || a.state === 'error') { const s = SEATS[i % SEATS.length]; return { kind: 'desk', pos: V(s.x, s.z), col: s.col, face: Math.PI, pose: 'sit', key: 'd' + i }; }
         if (a.state === 'ask') { const ang = (Math.PI * .18) + slot.ask * (Math.PI * .64 / Math.max(1, slot.asks - 1 || 1)); const r = 2.9; return { kind: 'box', pos: V(BOX.x + Math.cos(ang) * r * 1.0, BOX.z + Math.sin(ang) * r), face: Math.atan2(-Math.cos(ang), -Math.sin(ang)), pose: 'wave', key: 'b' + slot.ask }; }
+        if (a.tier < lastTier()) { const c = VIP_RING[slot.vip % VIP_RING.length]; return { kind: 'vip', pos: V(c[0], c[1]), face: Math.atan2(16 - c[0], -8.2 - c[1]) + Math.PI, pose: a.state === 'idle' ? 'nap' : 'stand', key: 'v' + slot.vip }; }   // tiers above the last rest in the VIP room
         const ring = [[-9, 7.5], [-12, 9.4], [-7, 9.6], [-10.8, 3.2], [-4.2, 5], [-9.5, 5.3], [-4.6, 8.3], [-12.2, 8.5], [-8, 11]][slot.lounge % 9];
         return { kind: 'lounge', pos: V(ring[0], ring[1]), face: Math.atan2(-8.4 - ring[0], 7.5 - ring[1]) + Math.PI, pose: a.state === 'idle' ? 'nap' : 'stand', key: 'l' + slot.lounge };
       }
@@ -742,6 +765,7 @@
         if (t.kind === 'desk') { pts.push(V(t.col, .8)); pts.push(t.pos); }
         else if (t.kind === 'meet') { pts.push(V(9.5, .8)); pts.push(V(9.5, 5.6)); if (t.pos.z > 7.5) pts.push(V(9.5, 9.8)); pts.push(t.pos); }
         else if (t.kind === 'bed') { pts.push(V(-19.2, .8)); pts.push(V(-19.2, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.sz - .3)); pts.push(V(LOFT.sx, LOFT.z0 + 1)); pts.push(V(LOFT.ais, LOFT.z0 + 1)); pts.push(V(LOFT.ais, t.pos.z)); pts.push(t.pos); }   // up the stairs, along the aisle
+        else if (t.kind === 'vip') { pts.push(V(9.5, .8)); pts.push(V(9.5, -3.2)); pts.push(t.pos); }   // along the aisle, then into the back room
         else pts.push(t.pos);
         return pts;
       }
@@ -799,14 +823,14 @@
         const { W, H } = size();
         if (t - simAt > 1.4) { simAt = t; step(); hud(); }
         // slots
-        const slot = { ask: 0, asks: AG.filter((a) => a.state === 'ask').length, lounge: 0, meet: 0, sleep: 0 };
+        const slot = { ask: 0, asks: AG.filter((a) => a.state === 'ask').length, lounge: 0, vip: 0, meet: 0, sleep: 0 };
         let woke = false;
         AG.forEach((a) => {
           if (!a.g) return;
           // the plan limit ran out: the agent gets up and walks back to its desk (liveRefresh then picks busy/idle)
           if (a.state === 'sleep' && a.sleepUntil && Date.now() > a.sleepUntil) { a.state = 'idle'; a.sleepUntil = 0; woke = true; }
-          const s = { ask: slot.ask, asks: slot.asks, lounge: slot.lounge, meet: slot.meet, sleep: slot.sleep };
-          const tg = targetFor(a, s); if (tg.kind === 'box') slot.ask++; else if (tg.kind === 'lounge') slot.lounge++; else if (tg.kind === 'meet') slot.meet++; else if (tg.kind === 'bed') slot.sleep++;
+          const s = { ask: slot.ask, asks: slot.asks, lounge: slot.lounge, vip: slot.vip, meet: slot.meet, sleep: slot.sleep };
+          const tg = targetFor(a, s); if (tg.kind === 'box') slot.ask++; else if (tg.kind === 'lounge') slot.lounge++; else if (tg.kind === 'vip') slot.vip++; else if (tg.kind === 'meet') slot.meet++; else if (tg.kind === 'bed') slot.sleep++;
           if (a.tkey !== tg.key) { a.tkey = tg.key; a.tgt = tg; a.path = planPath(a, tg); a.pose = 'stand'; }
           // move
           const p = a.g.position; let moving = false;

@@ -667,6 +667,16 @@ test('Office #188: the idle chip reads "Đang rảnh" / "Free", matching the fre
   assert.equal(vi['office.pill.idle'], 'Rảnh', 'chip and pill agree in Vietnamese');
 });
 
+test('Office: the last tier rests in the plain lounge, every tier above it in the VIP room', async () => {
+  const src = await readOffice();
+  for (const s of [
+    'const lastTier = () => Math.max(5, ...AG.map((x) => x.tier || 0))',
+    "if (a.tier < lastTier()) { const c = VIP_RING[slot.vip % VIP_RING.length]; return { kind: 'vip'",
+    "else if (t.kind === 'vip') { pts.push(V(9.5, .8)); pts.push(V(9.5, -3.2)); pts.push(t.pos); }",
+    '[12.4, -9.2, 1.35], [14.9, -6.2, 1.35], [17.9, -9.7, 1.35]',
+  ]) assert.ok(src.includes(s), s);
+});
+
 /* ---------- Office #197: the approved v3 diorama (rest loft, boardroom, obstacles, six species, home camera) ---------- */
 
 test('Office #197: the loft rest room, the walnut boardroom, obstacle push-out, six species and the new home camera', async () => {
