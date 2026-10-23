@@ -12,6 +12,7 @@ import { claudeArgs, killTree } from '../hub/revive.ts';
 import { agentArgs } from '../hub/agents.ts';
 import type { AgentProfile } from '../hub/settings.ts';
 import type { Provider } from '../hub/providers.ts';
+import { mcpServerFor } from '../hub/browser.ts';
 
 const prov = (o: Partial<Provider> = {}): Provider => ({ id: 'fake', label: 'Fake', tier: 'local', enabled: true, baseUrl: 'http://127.0.0.1:11434', auth: 'api-key', key: '', models: { read: ['m1'], edit: [] }, ...o });
 const prof = (o: Partial<AgentProfile> = {}): AgentProfile => ({ id: 'loc', provider: 'claude-api', name: 'Local', cwd: os.tmpdir(), enabled: true, providerId: 'fake', ...o });
@@ -328,9 +329,27 @@ test('claude-api profile: allTools defaults on, omits the guard, keeps configure
     const mcp = JSON.parse(fs.readFileSync(job.args[job.args.indexOf('--mcp-config') + 1], 'utf8'));
     assert.ok(mcp.mcpServers.room);
     assert.ok(!mcp.mcpServers.bearperm);
+    assert.equal(mcp.mcpServers['bam-browser'], undefined, 'no browser host in this hub: nothing is added');
 
     const result = await call<any>('/api/permissions/ask', { session: job.id, tool: 'Bash', input: { command: 'echo test' } });
     assert.equal(result.allow, true, 'allTools bypasses the remote path guard');
+  } finally { await hub.close(); }
+});
+
+test('#216 a claude-api agent gets the hub browser in its lean MCP file while Settings > Browser is on', async () => {
+  const jobs: any[] = [];
+  const browser = { start: async () => ({ endpoint: 'http://127.0.0.1:9333' }), stop: async () => {}, running: () => true, endpoint: () => 'http://127.0.0.1:9333', lastError: () => '' };
+  const mcpRun = async (args: string[]) => ({ code: 0, stdout: args[1] === 'list' ? 'bam-browser: node - Connected\n' : '', stderr: '' });
+  const { hub, dir, call } = await makeHub(undefined, undefined, { browser, mcpRun, spawnAgent: async (job: any) => { jobs.push(job); return 0; } });
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', { agents: { profiles: [prof({ id: 'browser-on', name: 'BrowserOn' })] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'the API agent starts');
+    const mcp = JSON.parse(fs.readFileSync(jobs[0].args[jobs[0].args.indexOf('--mcp-config') + 1], 'utf8'));
+    assert.deepEqual(mcp.mcpServers['bam-browser'], mcpServerFor('http://127.0.0.1:9333'));
+    assert.ok(mcp.mcpServers.room, 'the hub room server is still in the same file');
+    assert.equal(mcp.mcpServers.room.env.CLAUDE_CODE_SESSION_ID, jobs[0].id);
   } finally { await hub.close(); }
 });
 

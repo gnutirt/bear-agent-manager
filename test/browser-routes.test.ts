@@ -179,9 +179,9 @@ test('a browser config change replaces bam-browser while Chrome is stopped after
   } finally { await hub.close(); }
 });
 
-test('an enabled local Playwright plugin suppresses only bam-browser registration and reports context-token cost', async () => {
+test('an enabled local Playwright plugin no longer suppresses bam-browser; the duplicate is reported (#216)', async () => {
   const browser = fakeBrowser();
-  const mcp = fakeMcp(['bam-browser', 'user-owned-server']);
+  const mcp = fakeMcp(['user-owned-server']);
   const { hub, call } = await makeBrowserHub(browser, mcp.run, (dir) => {
     const configDir = path.join(dir, '.claude');
     fs.mkdirSync(configDir, { recursive: true });
@@ -190,13 +190,16 @@ test('an enabled local Playwright plugin suppresses only bam-browser registratio
     }));
   });
   try {
-    await until(() => mcp.calls.some((args) => args[1] === 'remove'));
+    await until(() => browser.running() && mcp.entries.includes('bam-browser'));
     const status = await call<any>('/api/browser');
-    assert.equal(status.body.running, false);
-    assert.equal(status.body.agents, false);
+    assert.equal(status.body.running, true);
+    assert.equal(status.body.agents, true);
     assert.match(status.body.lastError, /Playwright plugin is enabled/);
+    assert.match(status.body.lastError, /Turn the plugin off/);
     assert.match(status.body.lastError, /consume context tokens/);
-    assert.equal(browser.starts, 0);
-    assert.deepEqual(mcp.entries, ['user-owned-server']);
+    assert.equal(browser.starts, 1);
+    assert.equal(browser.stops, 0, 'the plugin no longer stops Chrome');
+    assert.equal(mcp.calls.filter((args) => args[1] === 'remove').length, 0);
+    assert.deepEqual(mcp.entries, ['user-owned-server', 'bam-browser']);
   } finally { await hub.close(); }
 });

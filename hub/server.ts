@@ -282,18 +282,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           }
           browserAgents = false;
         }
+        // #216: every agent uses the hub's background Chrome by default. An enabled playwright plugin no longer wins:
+        // bam-browser is still registered, and the duplicate tools are only reported (the user decides to turn the plugin off).
         const playwrightDir = enabledPlaywrightConfig();
-        if (playwrightDir) {
-          if (browser.running()) await browser.stop();
-          const rows = await mcpcfg.listServers(run, cwd);
-          if (rows.some((row) => row.name === 'bam-browser')) {
-            await mcpcfg.removeServer(run, cwd, 'bam-browser', 'user');
-          }
-          browserAgents = false;
-          appliedBrowserCfg = key;
-          browserApplyError = `Playwright plugin is enabled in ${path.basename(playwrightDir)}; bam-browser was not registered to avoid duplicate tools. The plugin MCP tools also consume context tokens.`;
-          return;
-        }
         await browser.start();
         const rows = await mcpcfg.listServers(run, cwd);
         if (!rows.some((row) => row.name === 'bam-browser')) {
@@ -301,6 +292,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         browserAgents = true;
         appliedBrowserCfg = key;
+        if (playwrightDir) {
+          browserApplyError = `Playwright plugin is enabled in ${path.basename(playwrightDir)}; bam-browser is registered as well, so both expose the same tools. Turn the plugin off — its MCP tools also consume context tokens.`;
+        }
       } catch (e) {
         appliedBrowserCfg = key;
         browserApplyError = (e as Error).message;
@@ -474,6 +468,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       onRooms: () => broadcast('rooms', Object.keys(store.state.rooms).sort().map((r) => store.roomInfo(r))),
       onMessage: (room, message) => { broadcast('msg', message); emitRoom(room); },
       onQuota: (limit) => handleCopilotQuota(p.id, limit),
+      browserMcp: () => (browser && loadSettings(opts.dir, envCap).browser.enabled ? mcpServerFor(browser.endpoint()) : undefined),
       createClient: opts.copilotClientFactory,
     });
     copilots.set(p.id, { agent, key });
@@ -587,7 +582,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name), cfg.apiAgents.allTools);
     const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
     const lean = leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined);
-    fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { ...mcpcfg.extraForAgent(opts.dir, p.id), ...lean.mcpServers } }));   // #155: the servers added for this agent in Settings; the hub's own win
+    // #216: `--bare` hides the user scope, so a claude-api agent only sees bam-browser if it is copied into this lean file.
+    const browserMcp = browser && cfg.browser.enabled ? { 'bam-browser': mcpServerFor(browser.endpoint()) } : {};
+    fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { ...mcpcfg.extraForAgent(opts.dir, p.id), ...browserMcp, ...lean.mcpServers } }));   // #155: the servers added for this agent in Settings; the hub's own win
     return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp, perm.guarded) };
   }
   /** The provider's claude runs `--bare`: no hook ever tells the hub where its chat is saved, so it is looked up on disk (and moved back from room_chat). */

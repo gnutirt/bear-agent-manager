@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AutoModeSwitchRequest, CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, SessionEvent } from '@github/copilot-sdk';
+import type { AutoModeSwitchRequest, CopilotClient, CopilotSession, MCPServerConfig, PermissionHandler, PermissionRequest, SessionEvent } from '@github/copilot-sdk';
 import { fileURLToPath } from 'node:url';
 import type { Store } from './store.ts';
 import { permFor, resolveWorkspace, type PermRule, type Settings } from './settings.ts';
 import type { Message } from './routing.ts';
+import type { McpServer } from './mcpconfig.ts';
 import { renameRetry } from './atomic.ts';
 
 const ROOM = 'bear-agent-manager';
@@ -37,6 +38,8 @@ export type CopilotAgentOptions = {
   onRooms: () => void;
   onMessage: (room: string, message: Message) => void;
   onQuota?: (limit: CopilotQuotaLimit) => Promise<number | false> | number | false;
+  /** #216: the hub's own background browser for this session, when Settings > Browser is on. */
+  browserMcp?: () => McpServer | undefined;
   createClient?: CopilotClientFactory;
   now?: () => number;
 };
@@ -275,6 +278,7 @@ export class CopilotAgent {
   }
 
   private sessionConfig(hubId: string) {
+    const browserMcp = this.opts.browserMcp?.();
     return {
       workingDirectory: this.cwd,
       ...(this.opts.profile.model ? { model: this.opts.profile.model } : {}),
@@ -297,6 +301,7 @@ export class CopilotAgent {
             BEAR_AGENT_PORT: String(this.opts.port()),
           },
         },
+        ...(browserMcp ? { 'bam-browser': browserMcp as MCPServerConfig } : {}),   // #216: the SDK takes mcpServers, so Copilot gets the same Chrome
       },
       onPermissionRequest: copilotPermissionHandler(() => permFor(this.opts.settings(), this.name), this.cwd),
       onEvent: (event: SessionEvent) => {

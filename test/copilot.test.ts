@@ -8,6 +8,7 @@ import { makeHub, until } from './helpers.ts';
 import { CopilotAgent, copilotPermissionHandler, copilotRuntimeEnv } from '../hub/copilot.ts';
 import { defaultSettings } from '../hub/settings.ts';
 import { startHub } from '../hub/server.ts';
+import { mcpServerFor } from '../hub/browser.ts';
 import type { AutoModeSwitchRequest, SessionEvent } from '@github/copilot-sdk';
 
 const uuid = 'f9f7e5cb-2a8d-4f3f-8c1c-8a0e0a8c3d4f';
@@ -146,6 +147,41 @@ test('Copilot reconnects quietly unless it was offline for more than ten minutes
     assert.doesNotMatch(notices[1], /^~/);
   } finally {
     await agent.stop();
+    await hub.close();
+  }
+});
+
+test('#216 Copilot receives the hub browser as an MCP server when Settings > Browser is on', async () => {
+  const { hub, dir } = await makeHub();
+  const browserMcp = mcpServerFor('http://127.0.0.1:9333');
+  const on = fakeFactory();
+  const makeAgent = (name: string, opts: Record<string, unknown>) => new CopilotAgent({
+    dir,
+    profile: { id: name.toLowerCase(), name, cwd: process.cwd() },
+    port: () => hub.port,
+    store: hub.store,
+    settings: () => defaultSettings(),
+    onChange: () => {},
+    onRoom: () => {},
+    onRooms: () => {},
+    onMessage: () => {},
+    ...opts,
+  });
+  const onAgent = makeAgent('CopilotBrowserOn', { createClient: on.factory, browserMcp: () => browserMcp });
+  const off = fakeFactory();
+  const offAgent = makeAgent('CopilotBrowserOff', { createClient: off.factory });
+  try {
+    await onAgent.start();
+    assert.deepEqual(on.calls.mcpServers?.['bam-browser'], browserMcp);
+    assert.ok(on.calls.mcpServers?.['bear-agent-manager'], 'the room server is unchanged');
+    await onAgent.stop();
+
+    await offAgent.start();
+    assert.equal(off.calls.mcpServers?.['bam-browser'], undefined, 'browser off: the SDK sees only the room server');
+    assert.ok(off.calls.mcpServers?.['bear-agent-manager']);
+  } finally {
+    await onAgent.stop();
+    await offAgent.stop();
     await hub.close();
   }
 });
