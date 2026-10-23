@@ -14,9 +14,29 @@ User 23/10: "nghiên cứu agy (antigravity CLI) nhét nó làm công nhân luô
   - `--json-schema` ép định dạng câu trả lời cuối.
 - MCP: `agy mcp add|remove|list|enable|disable`. Cấu hình **chung toàn máy** tại `~/.gemini/config/mcp_config.json`, không có scope theo dự án. Có `--env KEY=value` và `--header` cho từng server.
 
+## Cách spawn (đã chạy thử bằng Node, 23/10)
+- agy là binary native trên mọi OS, nên spawn thẳng file thực thi, **không qua shell** (khác `claude.cmd`): `spawn(exe, args, { cwd, windowsHide: true, stdio: ['pipe','pipe','pipe'] })`.
+- Prompt đi qua **stdin**, không nằm trong argv. Như vậy không lộ trên danh sách tiến trình, không vướng quoting, không vướng giới hạn ~32K ký tự dòng lệnh của Windows.
+  - Args: `--input-format stream-json --output-format stream-json --print= --mode <…> --model <…> [--effort …] [--conversation <id>] [--dangerously-skip-permissions]`.
+  - `--print=` phải có dấu `=` rỗng, vì `-p` ăn luôn đối số kế tiếp (lỗi exit 2 "Attach the prompt to the flag").
+  - Mỗi lượt là một dòng: `{"event":"user","message":{"role":"user","content":[{"type":"text","text":"…"}]}}`. Chỉ nhận khối `text`. Sai dạng thì có `result.status:"ERROR"` kèm `error`, exit 1, không tốn token.
+  - Một tiến trình chạy được nhiều lượt: mỗi dòng stdin cho một `result` (`num_turns` tăng dần), và đóng stdin thì exit 0.
+- Viết stdin từ PowerShell bị chèn BOM (`invalid character '﻿'`). Hub dùng Node nên không bị.
+- Tìm binary theo thứ tự: setting `agy.path` → PATH (`agy` / `agy.exe`) → `%LOCALAPPDATA%\agy\bin\agy.exe` (Windows) → `~/.local/bin/agy` (mac/Linux, nơi script cài chính thức đặt file).
+
+## Người dùng ngoài dùng thế nào
+1. Cài agy bằng lệnh chính thức. BAM chỉ hiện lệnh và nút copy, **không tự tải và chạy script cài**.
+   - Windows: `irm https://antigravity.google/cli/install.ps1 | iex`
+   - macOS/Linux: `curl -fsSL https://antigravity.google/cli/install.sh | bash`, cài vào `~/.local/bin/agy`.
+2. Đăng nhập một lần: mở terminal, gõ `agy`. Máy local thì mở trình duyệt đăng nhập Google, token lưu trong keyring của hệ điều hành. Qua SSH thì CLI in URL và chờ dán mã. Cách khác cho máy không có trình duyệt: đặt `"modelProvider": "gemini"` trong `~/.gemini/antigravity-cli/settings.json` và export `GEMINI_API_KEY` (chỉ đặt biến thôi thì không có tác dụng). Nguồn: https://antigravity.google/docs/install?tab=cli
+3. Trong BAM: Cài đặt > Agent > Thêm agent > loại **Antigravity (agy)**.
+   - Nút "Kiểm tra" chạy `agy models` (không tốn quota): thành công thì hiện "đã đăng nhập" và đổ danh sách model vào ô chọn; thất bại thì hiện lại bước 1–2 cho đúng OS.
+   - BAM không bao giờ cầm mật khẩu hay token Google.
+4. Quota là của tài khoản Google của người đó. BAM hiện số token của từng lượt (`result.usage`) trên board Worker.
+
 ## Chưa kiểm được
 - agy có truyền biến môi trường của tiến trình xuống server MCP dạng stdio không. Lệnh thăm dò (đăng ký tạm một MCP server in env) bị bộ phân loại an toàn chặn, cần user cho phép.
-- Dạng thông điệp của `--input-format stream-json`.
+- Chưa đăng nhập thì `agy models` (và `-p`) làm gì: báo lỗi, hay mở trình duyệt từ tiến trình nền của hub. Bản Kiểm tra phải có timeout 20 s và `windowsHide`.
 - Lỗi hết quota trông như thế nào (`status` khác `SUCCESS`, chữ gì).
 - Với `--mode accept-edits` mà không có `--dangerously-skip-permissions`, chế độ print làm gì khi gặp yêu cầu quyền: tự từ chối hay treo.
 - agy có đọc `AGENTS.md`/`GEMINI.md`/`.agents/rules` của repo không.
@@ -24,10 +44,11 @@ User 23/10: "nghiên cứu agy (antigravity CLI) nhét nó làm công nhân luô
 ## Đề xuất: thành viên phòng `agy`, hub điều khiển, không cần MCP (v1)
 Theo mẫu `CopilotAgent` (`hub/copilot.ts`): hub giữ một agent kiểu mới, được @ thì dậy, gom tin chưa đọc thành một lượt.
 1. Profile trong Cài đặt > Agent: `{ provider: 'agy', name, cwd, model, effort }`, mặc định `gemini-3.8-flash-medium`. Hub đăng ký một session BAM cho nó, như Copilot.
-2. Được @ thì hub spawn `agy.exe -p <tin gom> --output-format stream-json --conversation <id đã lưu> --model … --effort … --mode <theo quyền>` với cwd của profile.
-   - Spawn thẳng file exe, không qua shell, args là mảng.
-   - Prompt cắt theo `MAX_PROMPT` của hub, vì Windows giới hạn độ dài dòng lệnh khoảng 32K ký tự.
+2. Được @ thì hub spawn agy theo mục "Cách spawn", với cwd của profile và `--conversation <id đã lưu>`, rồi ghi tin gom vào stdin thành một dòng và đóng stdin.
    - `conversation_id` của `init` được lưu vào session, nên lượt sau nhớ ngữ cảnh.
+   - Mỗi lần được đánh thức thì spawn một tiến trình mới, không giữ tiến trình sống. Cách này chịu được hub restart và không có tiến trình ngồi không. Giữ tiến trình sống (nhiều lượt trên một stdin) để dành cho bản sau nếu độ trễ khởi động (~5 s) thành vấn đề.
+   - Mỗi member chỉ chạy một lượt một lúc. Tin tới trong lúc đang chạy thì gom cho lượt sau, như `drain()` của Copilot.
+   - Lượt dài quá 30 phút thì kill cây tiến trình (`killTree` trong `hub/workers.ts`) và báo lỗi.
 3. `result.response` được hub post vào phòng dưới tên agent đó. @mention trong câu trả lời đánh thức người khác như tin thường. Không cần MCP, không đụng cấu hình chung của agy.
 4. Quyền lấy từ Settings permissions của BAM: `bypass` → `--mode accept-edits --dangerously-skip-permissions`, `plan`/chỉ đọc → `--mode plan`.
 5. Commit: agy không có `room_commit`. Nó báo "code trên đĩa, file X/Y", rồi người giao việc hoặc lead commit qua index tạm. Phòng đã làm vậy với Copilot/deep-seek02.
