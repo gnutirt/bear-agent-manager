@@ -86,9 +86,10 @@ function readJson<T>(file: string, fallback: T): JsonRead<T> {
   try { raw = fs.readFileSync(file, 'utf8'); } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return { value: fallback, readOnly: false };
-    // EACCES/EPERM (a locked or permission-denied file) used to be rethrown, so `new Memory()` inside startHub
-    // brought the whole hub down. Instead: empty fallback, writes refused with a clear 503.
-    if (code === 'EACCES' || code === 'EPERM') {
+    // EACCES/EPERM (permission denied) and EBUSY (a locked file: AV scanner, OneDrive/Dropbox sync on Windows)
+    // used to be rethrown, so `new Memory()` inside startHub brought the whole hub down.
+    // Instead: empty fallback, writes refused with a clear 503.
+    if (code === 'EACCES' || code === 'EPERM' || code === 'EBUSY') {
       warnReadOnly(file, code, `cannot read the memory file (${code})`);
       return { value: fallback, readOnly: true, reason: `cannot read ${file} (${code})` };
     }

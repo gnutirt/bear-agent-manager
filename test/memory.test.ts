@@ -237,6 +237,32 @@ test('a memory file we cannot read (EACCES/EPERM) opens read-only instead of thr
   assert.ok(fs.readFileSync(entriesFile, 'utf8').includes('hidden'), 'the unreadable file is left untouched');
 });
 
+test('a locked memory file (EBUSY: AV or cloud sync on Windows) also opens read-only, not a crash', () => {
+  const h = home();
+  const entriesFile = path.join(h, 'memory', 'entries.json');
+  fs.mkdirSync(path.dirname(entriesFile), { recursive: true });
+  fs.writeFileSync(entriesFile, JSON.stringify({ entries: [{ id: 1, kind: 'context', text: 'locked', tags: [], scope: 'user', source: 'user', createdAt: 1, updatedAt: 1 }] }));
+
+  const originalRead = fs.readFileSync, originalWarn = console.warn;
+  fs.readFileSync = ((file: fs.PathLike, ...rest: unknown[]) => {
+    if (String(file) === entriesFile) throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' });
+    return (originalRead as (...args: unknown[]) => unknown)(file, ...rest);
+  }) as typeof fs.readFileSync;
+  const warnings: string[] = [];
+  console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
+  try {
+    const m = new Memory(h);   // was: EBUSY used to be rethrown and take the hub down
+    assert.deepEqual(m.list(), [], 'a locked store reads as empty');
+    assert.throws(() => m.add(entry() as never), (e: unknown) => e instanceof MemoryError && (e as MemoryError).status === 503);
+    new Memory(h);
+    assert.equal(warnings.length, 1, 'logged once per file+code, not per read');
+    assert.ok(/EBUSY/.test(warnings[0]), 'the log names EBUSY');
+  } finally {
+    fs.readFileSync = originalRead;
+    console.warn = originalWarn;
+  }
+});
+
 test('memory: the 5001st entry drops the oldest non-preference entry', () => {
   const h = home();
   const dir = path.join(h, 'memory');
