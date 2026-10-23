@@ -4,12 +4,12 @@ import { Office3D, QUALITY } from './office3d.js';
 
 const LAYOUT = [   // positions and styles of the ai-office floor; names and the tier-to-zone map are ours
   { id: 'thiet-ke', color: '#4d6189', x: -8.6, z: -6.3, w: 8.6, d: 6.4, style: { shape: 'zone', screenTheme: 'design', seed: 11 } },
-  { id: 'chien-luoc', color: '#8a7db3', x: 8.6, z: -6.3, w: 8.6, d: 6.4, style: { shape: 'zone', screenTheme: 'charts', seed: 23 } },
+  { id: 'chien-luoc', color: '#8a7db3', x: 8.2, z: -6.3, w: 7.4, d: 6.4, style: { shape: 'zone', screenTheme: 'charts', seed: 23 } },
   { id: 'ky-thuat', color: '#8c9b6b', x: -8.6, z: 4.9, w: 8.6, d: 6.4, style: { shape: 'zone', screenTheme: 'code', seed: 37 } },
-  { id: 'san-xuat-noi-dung', color: '#b9745a', x: 8.6, z: 4.9, w: 8.6, d: 6.4, style: { shape: 'zone', screenTheme: 'media', seed: 41 } },
+  { id: 'san-xuat-noi-dung', color: '#b9745a', x: 8.2, z: 4.9, w: 7.4, d: 6.4, style: { shape: 'zone', screenTheme: 'media', seed: 41 } },
   { id: 'dieu-phoi', color: '#2f3033', x: 0, z: -0.7, w: 8.4, d: 8.4, style: { shape: 'lounge', screenTheme: 'docs', seed: 53 } },
   { id: 'khach-hang', color: '#6d7a8c', x: -16.1, z: -0.6, w: 3.6, d: 6.6, style: { shape: 'room', screenTheme: 'docs', seed: 61 } },
-  { id: 'san-xuat-phim', color: '#8c6d7a', x: 14.9, z: -0.4, w: 6, d: 6.4, style: { shape: 'room', meeting: true, screenTheme: 'media', seed: 67 } },
+  { id: 'san-xuat-phim', color: '#8c6d7a', x: 15.1, z: -0.4, w: 5.6, d: 6.4, style: { shape: 'room', meeting: true, screenTheme: 'media', seed: 67 } },
   { id: 'ca-phe', color: '#6b4a34', x: -9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'cafe', seed: 71 } },
   { id: 'giai-tri', color: '#2a2f6b', x: 9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'game', seed: 73 } },
 ];
