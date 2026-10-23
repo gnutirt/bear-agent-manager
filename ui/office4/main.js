@@ -12,8 +12,9 @@ const LAYOUT = [   // positions and styles of the ai-office floor; names and the
   { id: 'san-xuat-phim', color: '#8c6d7a', x: 15.1, z: -0.4, w: 5.6, d: 6.4, style: { shape: 'room', meeting: true, screenTheme: 'media', seed: 67 } },
   { id: 'ca-phe', color: '#6b4a34', x: -9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'cafe', seed: 71 } },
   { id: 'giai-tri', color: '#2a2f6b', x: 9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'game', seed: 73 } },
+  { id: 'khu-nghi', color: '#3d4657', x: 0, z: 11.35, w: 6.8, d: 4.0, style: { shape: 'rest', label: 'Khu nghỉ', seed: 79 } },   // #225: giường cho agent hết hạn mức, giữa cà phê và khu giải trí
 ];
-const ZONE_TIER = { 'dieu-phoi': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'san-xuat-phim': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí' };
+const ZONE_TIER = { 'dieu-phoi': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'san-xuat-phim': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí', 'khu-nghi': 'Khu nghỉ' };
 const SEATS = 8;   // one bench cluster of the zone
 const enc = encodeURIComponent;
 const lower = (s) => String(s).toLowerCase();
@@ -49,25 +50,44 @@ export function mountOffice4(el, api) {
   const state = { sessions: [], tiers: {}, perms: new Set(), lead: '' };
 
   const toData = () => {
-    const nm = names(), perTier = {};
+    const nm = names(), perTier = {}, now = Date.now();
     const rows = state.sessions.filter((s) => Array.isArray(s.rooms) && s.rooms.includes(api.room)).sort((a, b) => a.name.localeCompare(b.name));
     const agents = rows.map((s) => {
       const lead = s.id === state.lead, tier = Number(state.tiers[lower(s.name)]) || 3, nth = lead ? 0 : perTier[tier] = (perTier[tier] ?? -1) + 1;
       const until = Number(s.limited && s.limited.until) || 0;
-      const status = state.perms.has(s.id) ? 'waiting' : s.status === 'busy' ? 'working' : until > Date.now() ? 'offline' : 'idle';
-      return { id: s.id, name: s.name, role: s.activity || '', departmentId: zoneFor(tier, nth, lead), provider: 'claude-code', status, tier, lead: s.id === state.lead };
+      const status = state.perms.has(s.id) ? 'waiting' : s.status === 'busy' ? 'working' : until > now ? 'offline' : 'idle';
+      return { id: s.id, name: s.name, role: s.activity || '', departmentId: zoneFor(tier, nth, lead), provider: 'claude-code', status, tier, lead: s.id === state.lead, sleepUntil: until > now ? until : 0 };
     });
     const label = (d) => FIXED[d.id] || (nm[ZONE_TIER[d.id]] || `Tầng ${ZONE_TIER[d.id]}`) + (d.id === 'san-xuat-noi-dung' ? ' (2)' : '');
     const departments = LAYOUT.map((d) => ({ ...d, name: label(d), style: { ...d.style, label: label(d) } }));
     return { departments, agents };
   };
 
+  /** Giờ dậy: chỉ giờ:phút nếu còn hôm nay, kèm ngày nếu sang ngày khác */
+  const wakeText = (ts) => {
+    const d = new Date(ts), n = new Date();
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return d.toDateString() === n.toDateString() ? hm : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
+  };
+
   const paintHud = (agents) => {
     const n = (k) => agents.filter((a) => a.status === k).length, w = agents.find((a) => a.status === 'working');
+    const sleepers = agents.filter((a) => a.status === 'offline');
     hud.replaceChildren();
     const h = document.createElement('div'); h.style.cssText = 'font-size:16px;font-weight:600'; h.textContent = w ? `${w.name} đang làm` : 'Cả nhà đang rảnh';
-    const c = document.createElement('div'); c.style.cssText = 'margin-top:4px;color:#e8c880;font-weight:600'; c.textContent = `Đang làm ${n('working')} · Chờ bạn ${n('waiting')} · Rảnh ${n('idle')} · Nghỉ ${n('offline')}`;
+    const c = document.createElement('div'); c.style.cssText = 'margin-top:4px;color:#e8c880;font-weight:600'; c.textContent = `Đang làm ${n('working')} · Chờ bạn ${n('waiting')} · Rảnh ${n('idle')} · Ngủ ${sleepers.length}`;
     hud.append(h, c);
+    // chip giờ dậy của từng người đang ngủ (giường ở khu nghỉ, xem office3d.js)
+    if (sleepers.length) {
+      const row = document.createElement('div'); row.style.cssText = 'margin-top:8px;display:flex;flex-wrap:wrap;gap:6px';
+      for (const a of sleepers) {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'font-size:12px;color:#cfd6e6;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:2px 8px';
+        chip.textContent = a.sleepUntil ? `💤 ${a.name} · dậy ${wakeText(a.sleepUntil)}` : `💤 ${a.name}`;
+        row.append(chip);
+      }
+      hud.append(row);
+    }
   };
 
   const refresh = () => {
