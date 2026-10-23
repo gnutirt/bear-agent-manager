@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { leadPrompt } from '../hub/lead.ts';
 import { formatDelivery } from '../shared/format.ts';
+import { vi } from '../shared/i18n/vi.ts';
+import { en } from '../shared/i18n/en.ts';
 
 const root = path.join(import.meta.dirname, '..');
 
@@ -14,6 +16,18 @@ test('no key is defined twice in a dictionary (the later one silently wins: sett
     // the card's copy must move to its own key, then this exception goes.
     const known = new Set<string>();
     assert.deepEqual(keys.filter((k, i) => keys.indexOf(k) !== i && !known.has(k)), [], f);
+  }
+});
+
+test('S5: a settings hint stays one short consequence line (≤160 chars) and never leaks internal names', () => {
+  // Internal words a user cannot act on: CLI flags, task ids, setting key names.
+  const internal = /--bare|--dangerously-skip-permissions|\bT18\b|allTools|reviveTools/;
+  for (const [lang, dict] of [['vi', vi], ['en', en]] as const) {
+    for (const [key, text] of Object.entries(dict)) {
+      if (!/\.hint(\.|$)/.test(key)) continue;
+      assert.ok(text.length <= 160, `${lang} ${key} is ${text.length} chars (max 160): ${text}`);
+      assert.ok(!internal.test(text), `${lang} ${key} leaks internal wording: ${text}`);
+    }
   }
 });
 
