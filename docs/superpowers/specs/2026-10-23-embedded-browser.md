@@ -1,28 +1,41 @@
-# Spec: trình duyệt nhúng trong BAM (CDP screencast + Playwright MCP dùng chung)
+# Spec: trình duyệt ngầm của BAM cho agent
 
-User 23/10: "nhúng được 1 trình duyệt trực tiếp vào BAM". Nghiên cứu: function-research.
+User 23/10, lần 1: "nhúng được 1 trình duyệt trực tiếp vào BAM".
+User 23/10, lần 2 (thay lần 1): "trình duyệt nội bộ… không cần hiện giao diện hay cửa sổ gì cả. Đây là trình duyệt ngầm cho agent xài." (Khoan tính muse/agy.)
+
+Nghiên cứu: function-research.
 
 ## Mục tiêu
-- Tab **Trình duyệt** trong UI BAM (hub web và webview VS Code) hiện trực tiếp một Chrome do BAM giữ. User xem, click, cuộn, gõ được.
-- Agent điều khiển **cùng Chrome đó** qua Playwright MCP (`--cdp-endpoint`), nên user thấy agent làm gì và giành lại chuột/phím bất cứ lúc nào.
-
-## Vì sao không dùng iframe
-Phần lớn trang chặn nhúng (`X-Frame-Options`, CSP `frame-ancestors`), cookie bên thứ ba trong iframe bị chặn. Simple Browser của VS Code cũng là iframe nên có cùng giới hạn.
+- BAM tự giữ một Chrome **headless**: không cửa sổ, không tab UI, không xem trực tiếp. Hub bật khi khởi động (nếu đã bật trong Cài đặt) và giữ cho nó sống.
+- Agent local dùng Chrome đó qua Playwright MCP (`--cdp-endpoint`) để mở trang, đọc, click, điền form, chụp ảnh, đọc console và network.
+- Không còn phụ thuộc Chrome debug bên ngoài mà user phải tự mở.
 
 ## Cách làm
-1. Hub chạy Chrome riêng: `--remote-debugging-port=<browser.port>` (mặc định 9333), `--remote-debugging-address=127.0.0.1`, `--user-data-dir=<home>/browser/profile`. Hồ sơ riêng là bắt buộc: Chrome 136+ bỏ qua cờ debug trên hồ sơ mặc định (https://developer.chrome.com/blog/remote-debugging-port). Mặc định `--headless=new` (không bật thêm cửa sổ); có setting để mở dạng cửa sổ.
-2. Hub nối CDP bằng `WebSocket` có sẵn của Node, giống `mcp/muse.ts`. Chạy `Page.startScreencast` (jpeg, chất lượng 60). Mỗi `Page.screencastFrame` được ack (`Page.screencastFrameAck`) rồi đẩy tới UI qua **SSE** (cơ chế hub đã có), không thêm WS server.
-3. UI vẽ frame lên `<canvas>`. Input gửi lên qua POST: chuột theo toạ độ chuẩn hoá 0..1, hub đổi sang px của trang bằng metadata của frame cuối, rồi gọi `Input.dispatchMouseEvent`. Chữ gõ (kể cả IME tiếng Việt và paste) dùng `Input.insertText`, phím đặc biệt dùng `Input.dispatchKeyEvent`.
-4. Agent: nút trong Cài đặt thêm MCP server `bam-browser` ở scope user (dùng `addServer` của #155) chạy `@playwright/mcp@<bản ghim> --cdp-endpoint http://127.0.0.1:<port>`.
+1. Hub chạy Chrome với các cờ:
+   - `--headless=new`
+   - `--remote-debugging-port=<browser.port>` (mặc định 9333) và `--remote-debugging-address=127.0.0.1`
+   - `--user-data-dir=<home>/browser/profile`
 
-Spike đã chạy (headless, hồ sơ tạm): frame đầu tới sau ~0,8 s, mỗi frame ~4 KB, `insertText` và click tới được trang. Chrome chỉ gửi frame khi màn hình đổi.
+   Phải dùng hồ sơ riêng, vì Chrome 136+ bỏ qua cờ debug trên hồ sơ mặc định (https://developer.chrome.com/blog/remote-debugging-port).
+2. Hub chỉ quản lý vòng đời của Chrome: bật, tắt, tự bật lại tối đa 3 lần trong 10 phút, báo lỗi.
+   - Hub không đọc trang, không nói CDP, chỉ cần `/json/version` để biết Chrome đã sống.
+3. Agent dùng qua MCP server `bam-browser` ở scope user (thêm bằng `addServer` của #155):
+   - Lệnh: `npx -y @playwright/mcp@<bản ghim> --cdp-endpoint http://127.0.0.1:<port> --isolated`.
+   - Playwright MCP tự kết nối tới Chrome đó, không tự mở Chrome thứ hai.
+   - Mỗi phiên Claude Code chạy một tiến trình MCP riêng, nên nhiều agent cùng nối vào một Chrome. README Playwright MCP: "concurrent MCP clients sharing the same workspace will conflict", và cách tránh là `--isolated`. Với `--isolated`, mỗi agent có browser context riêng (cookie, tab riêng) và context bị xoá khi agent đóng trình duyệt.
+
+   Phải kiểm trong bước e2e: hai agent mở hai trang cùng lúc mà không giành tab của nhau.
 
 ## Ràng buộc
 - Không thêm dependency npm cho hub.
-- CDP chỉ nghe loopback; UI không bao giờ nối thẳng vào CDP, mọi thứ đi qua hub có `x-room-token`.
-- Mở URL chỉ nhận `http:`, `https:`, `about:blank`.
+- CDP chỉ nghe loopback.
 - Mặc định TẮT (`browser.enabled: false`); user bật trong Cài đặt.
-- Agent không nhập mật khẩu. Trang cần đăng nhập thì user tự gõ trong pane.
+- Bản `@playwright/mcp` ghim chỉ được tải khi user bấm nút "Cho agent dùng". Hub không tự cài khi khởi động (lead).
+- Chỉ dành cho agent local. Agent ngoài máy hoặc MCP-C không được nhận tool này và không được thấy cổng (lead).
+- Agent không nhập mật khẩu. v1 không có cách đăng nhập trang; trang cần đăng nhập là ngoài phạm vi.
 
 ## Ngoài phạm vi v1
-Tải file, hộp chọn file, popup/dialog, nhiều agent giành nhau một tab (v1 không khoá), giao diện trên điện thoại, chỉ báo "agent đang điều khiển".
+- Pane xem hoặc điều khiển trực tiếp trong UI (bản cũ có screencast; đã bỏ theo user).
+- Đăng nhập trang: sau này có thể bật `headless: false` một lần để user tự đăng nhập.
+- Dùng Chrome này cho muse hoặc duck.
+- Tải file, khoá giữa các agent.
