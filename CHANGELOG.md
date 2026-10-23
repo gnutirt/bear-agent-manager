@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.13.0 - 2026-10-23
+
 - Add: a per-agent KPI panel in the Việc tab (`GET /api/rooms/:room/kpi`, 1/7/30 days) shows done/doing counts, median wait and work time, reopened count, stuck count and commit rate; clicking a row filters the task list to that owner. A doing card older than `lead.monitor.staleMin` shows a red "stuck N phút" badge, and the lead instruction now checks `room_tasks` for stuck work on every wake and reassigns a silent owner (#195, #196). Needs hub restart.
 - Add: `lead.fallback` setting (off by default): when the lead account is paused on usage, the audit ping for a finished task goes to a configured fallback member instead of queuing silently (#193).
 - Add: Office 3D v3 — a loft rest room, a boardroom, obstacles, six agent species/tiers and a new home camera; the last tier rests in the plain lounge, every tier above it gets a VIP room with marble, a bar and paintings (#197). Agents past their plan limit go to bed in the rest room and return to their desk once the limit clears, clicking an agent in the roster tags it (`@name`) into the chat input, and the idle chip reads "Đang rảnh" to match the free-status pill (#179, #185, #186, #188).
