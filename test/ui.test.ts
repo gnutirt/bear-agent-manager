@@ -358,6 +358,29 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   } finally { await hub.close(); }
 });
 
+test('Settings memory view loads, edits, deletes and clears BAM-owned entries with translated labels', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of ["'/api/memory", "data-memory-save", "data-memory-delete", "data-memory-clear", "data-memory-search"]) {
+      assert.ok(html.includes(source), `memory UI is missing ${source}`);
+    }
+    const keys = [
+      'set.memory.title', 'set.memory.note', 'set.memory.room', 'set.memory.project', 'set.memory.kind', 'set.memory.search',
+      'set.memory.all', 'set.memory.kind.preference', 'set.memory.kind.decision', 'set.memory.kind.context',
+      'set.memory.kind.tracking', 'set.memory.kind.research', 'set.memory.kind.question', 'set.memory.scope',
+      'set.memory.scope.user', 'set.memory.scope.project', 'set.memory.scope.room', 'set.memory.text', 'set.memory.tags',
+      'set.memory.source.user', 'set.memory.source.duck', 'set.memory.source.muse', 'set.memory.add', 'set.memory.save',
+      'set.memory.delete', 'set.memory.clearRoom', 'set.memory.clearProject', 'set.memory.list', 'set.memory.loading',
+      'set.memory.none', 'set.memory.created', 'set.memory.saved', 'set.memory.deleted', 'set.memory.cleared',
+    ];
+    for (const key of keys) {
+      assert.ok(en[key], `missing English translation ${key}`);
+      assert.ok(vi[key], `missing Vietnamese translation ${key}`);
+    }
+  } finally { await hub.close(); }
+});
+
 test('browser settings are in Worker, save browser fields, show live status, and add no browser pane', async () => {
   const { hub } = await makeHub();
   try {

@@ -58,6 +58,7 @@ import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.t
 import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
 import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyStatus, type AgyTurn } from './agy.ts';
+import { Memory, MemoryError, type MemKind, type MemEntry } from './memory.ts';
 
 export type { ReviveJob };
 
@@ -272,6 +273,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
   const store = new Store(opts.dir, opts.now);
+  const memory = new Memory(opts.dir, opts.now);
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
@@ -2247,6 +2249,83 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req), f = mentionedFile(store.messages, String(b.room ?? ''), b.id, b.path);
       revealFile(f.real, opts.reveal);
       return json(res, 200, { ok: true, path: f.real });
+    }
+    // ---- memory: BAM-owned knowledge and room history ----
+    const memoryId = p.match(/^\/api\/memory\/(\d+)$/);
+    if ((p === '/api/memory' || p === '/api/memory/from-message' || memoryId) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(m)) {
+      try {
+        if (m === 'GET' && p === '/api/memory') {
+          const room = url.searchParams.get('room')?.trim() || undefined;
+          const project = url.searchParams.get('project')?.trim() || undefined;
+          const kind = url.searchParams.get('kind')?.trim() || undefined;
+          const kinds: MemKind[] = ['preference', 'decision', 'context', 'tracking', 'research', 'question'];
+          if (kind && !kinds.includes(kind as MemKind)) throw new MemoryError(400, 'memory kind is unknown');
+          return json(res, 200, { entries: memory.list({ room, project, kind: kind as MemKind | undefined, q: url.searchParams.get('q') ?? undefined }) });
+        }
+        if (m === 'POST' && p === '/api/memory') {
+          const b = await readBody(req);
+          if (!b || typeof b !== 'object' || Array.isArray(b)) throw new StoreError(400, 'request body must be an object');
+          const entry = memory.add({ kind: b.kind, text: b.text, tags: b.tags, scope: b.scope, project: b.project, room: b.room, source: 'user', urls: b.urls, accessedAt: b.accessedAt });
+          return json(res, 200, entry);
+        }
+        if (memoryId && m === 'PATCH') {
+          const b = await readBody(req);
+          if (!b || typeof b !== 'object' || Array.isArray(b)) throw new StoreError(400, 'request body must be an object');
+          const id = Number(memoryId[1]);
+          if (!Number.isSafeInteger(id)) throw new MemoryError(400, 'memory id is invalid');
+          const patch = {
+            ...(Object.prototype.hasOwnProperty.call(b, 'text') ? { text: b.text } : {}),
+            ...(Object.prototype.hasOwnProperty.call(b, 'kind') ? { kind: b.kind } : {}),
+            ...(Object.prototype.hasOwnProperty.call(b, 'tags') ? { tags: b.tags } : {}),
+            ...(Object.prototype.hasOwnProperty.call(b, 'scope') ? { scope: b.scope } : {}),
+            ...(Object.prototype.hasOwnProperty.call(b, 'project') ? { project: b.project } : {}),
+            ...(Object.prototype.hasOwnProperty.call(b, 'room') ? { room: b.room } : {}),
+          };
+          return json(res, 200, memory.update(id, patch));
+        }
+        if (memoryId && m === 'DELETE') {
+          const id = Number(memoryId[1]);
+          if (!Number.isSafeInteger(id)) throw new MemoryError(400, 'memory id is invalid');
+          memory.remove(id);
+          return json(res, 200, { ok: true });
+        }
+        if (m === 'DELETE' && p === '/api/memory') {
+          const room = url.searchParams.get('room')?.trim() || undefined;
+          const project = url.searchParams.get('project')?.trim() || undefined;
+          return json(res, 200, { removed: memory.clear({ room, project }) });
+        }
+        if (m === 'POST' && p === '/api/memory/from-message') {
+          const b = await readBody(req);
+          if (!b || typeof b !== 'object' || Array.isArray(b)) throw new StoreError(400, 'request body must be an object');
+          const room = typeof b.room === 'string' ? b.room.trim() : '';
+          const id = Number(b.id);
+          if (!room || !Number.isSafeInteger(id) || id < 1) throw new StoreError(400, 'room and a positive message id are required');
+          const message = store.messages.find((x) => x.room === room && x.id === id);
+          if (!message) throw new StoreError(404, 'message not found');
+          const sender = message.fromId ? store.state.sessions[message.fromId] : undefined;
+          // D5 adds this metadata only to Muse turns; a member name alone is not reliable provenance.
+          const research = (message as typeof message & { research?: { urls?: unknown; accessedAt?: unknown } }).research;
+          if (!sender || !research || typeof research !== 'object') {
+            throw new StoreError(400, 'message must come from a Muse member');
+          }
+          const urls = Array.isArray(research?.urls) ? research.urls.map(String) : [];
+          const entry: Omit<MemEntry, 'id' | 'createdAt' | 'updatedAt'> = {
+            kind: 'research',
+            text: message.text,
+            tags: urls.length ? [] : ['chưa-có-nguồn'],
+            scope: 'room',
+            room,
+            source: 'muse',
+            ...(urls.length ? { urls } : {}),
+            ...(typeof research?.accessedAt === 'number' && Number.isFinite(research.accessedAt) ? { accessedAt: research.accessedAt } : {}),
+          };
+          return json(res, 200, memory.add(entry));
+        }
+        return json(res, 405, { error: 'method not allowed' });
+      } catch (e) {
+        if (e instanceof MemoryError) return json(res, e.status, { error: e.message });
+        throw e;
+      }
     }
     if (m === 'GET' && p === '/api/settings') return json(res, 200, { ...loadSettings(opts.dir, envCap), firstRun: startedFresh && !fs.existsSync(path.join(opts.dir, 'settings.json')) && Object.keys(store.state.rooms).length === 0 });
     // #155 (MCP-B): the MCP servers of Claude Code (claude mcp list|add-json|remove, no shell) or, with `agent`, of one claude-api agent (its own file).

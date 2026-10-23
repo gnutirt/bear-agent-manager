@@ -18,7 +18,7 @@
 | POST | `/api/sessions/:param/ide` |  | có |
 | GET | `/api/events` |  | có |
 | GET | `/api/sessions` |  | có |
-| GET | `/api/rules` | `session`, `source` | có |
+| GET | `/api/rules` |  | có |
 | GET | `/api/workers` |  | có |
 | GET | `/api/workers/slot` |  | có |
 | GET | `/api/room-chat` |  | có |
@@ -32,6 +32,17 @@
 | POST | `/api/machine/export` | `withKeys` | có |
 | GET | `/api/path/view` |  | có |
 | POST | `/api/path/reveal` | `room`, `id`, `path` | có |
+
+## memory: BAM-owned knowledge and room history
+
+| Method | Path | Fields | Cần token |
+|--------|------|--------|-----------|
+| GET | `/api/memory` |  | có |
+| POST | `/api/memory` | `kind`, `text`, `tags`, `scope`, `project`, `room`, `urls`, `accessedAt` | có |
+| PATCH | `/api/memory/:param` | `text`, `kind`, `tags`, `scope`, `project`, `room` | có |
+| DELETE | `/api/memory/:param` |  | có |
+| DELETE | `/api/memory` |  | có |
+| POST | `/api/memory/from-message` | `room`, `id` | có |
 | GET | `/api/settings` |  | có |
 | GET | `/api/mcp/servers` |  | có |
 | POST | `/api/mcp/servers` | `name`, `config`, `scope` | có |

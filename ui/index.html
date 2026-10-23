@@ -3504,7 +3504,7 @@ function routesBlock() {
   return `<h2>${t('route.title')}</h2><div class="setbox"><p class="small muted note">${t('route.note')}</p>
     ${table([t('route.col.kind'), t('common.on'), t('prov.title'), 'Model'], rows)}</div>`;
 }
-const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', providers: 'sub.providers', account: 'sub.account', health: 'sub.health', setup: 'sub.setup' });
+const SUBS = lazy({ general: 'sub.general', worker: 'sub.worker', lead: 'sub.lead', perms: 'sub.perms', compact: 'sub.compact', data: 'sub.data', memory: 'set.memory.title', providers: 'sub.providers', account: 'sub.account', health: 'sub.health', setup: 'sub.setup' });
 /** A3: where the data lives (GET /api/data): folder, size, files, and a button that opens it in the file manager. */
 function loadData() {
   api('/api/data').then((d) => { S.dataInfo = d; }, (e) => { S.dataInfo = { error: e.message }; }).then(() => { if (S.tab === 'settings' && S.setSub === 'data') renderSettingsView(); });
@@ -3516,6 +3516,53 @@ function dataBlock() {
   if (d.error) return `<p class="small bad">${esc(t('data.error', { err: d.error }))}</p><button class="btn sm" data-datarefresh>${t('data.refresh')}</button>`;
   const rows = d.entries.map((e) => `<tr><td><b>${esc(DATA_NAMES[e.name] || e.name)}</b><div class="small muted mono" style="word-break:break-all" title="${esc(e.path)}">${esc(e.path)}</div></td><td>${e.exists ? `${fmtSize(e.bytes)}<div class="small muted">${t('data.files', { n: e.files })}</div>` : `<span class="muted">${t('data.missing')}</span>`}</td><td><button class="btn sm" data-opendata="${esc(e.name)}"${e.exists ? '' : ' disabled'}>${t('data.open')}</button></td></tr>`).join('');
   return `<p class="small muted">${t('data.note')}</p><div class="small"><b>${esc(d.home)}</b> · ${t('data.total', { size: fmtSize(d.total.bytes), files: d.total.files })}</div><table class="tbl">${rows}</table><div class="row" style="display:flex;gap:8px;margin-top:8px"><button class="btn sm primary" data-opendata="">${t('data.openAll')}</button><button class="btn sm" data-datarefresh>${t('data.refresh')}</button></div>`;
+}
+const MEMORY_KINDS = ['preference', 'decision', 'context', 'tracking', 'research', 'question'];
+function loadMemory() {
+  const filters = S.memoryFilters || {};
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value).map(([key, value]) => [key, value]));
+  S.memoryEntries = null; S.memoryError = '';
+  const encoded = query.toString();
+  api(`/api/memory${encoded ? `?${encoded}` : ''}`).then((data) => { S.memoryEntries = data.entries; }, (error) => { S.memoryError = error.message; S.memoryEntries = []; })
+    .then(() => { if (S.tab === 'settings' && S.setSub === 'memory') renderSettingsView(); });
+}
+function memoryBlock() {
+  if (S.memoryEntries === undefined) loadMemory();
+  const filters = S.memoryFilters || {}, entries = S.memoryEntries;
+  const kinds = (value) => `<option value="">${t('set.memory.all')}</option>${MEMORY_KINDS.map((kind) => `<option value="${kind}"${value === kind ? ' selected' : ''}>${t(`set.memory.kind.${kind}`)}</option>`).join('')}`;
+  const kindOptions = (value) => MEMORY_KINDS.map((kind) => `<option value="${kind}"${value === kind ? ' selected' : ''}>${t(`set.memory.kind.${kind}`)}</option>`).join('');
+  const scopeOptions = (value) => ['user', 'project', 'room'].map((scope) => `<option value="${scope}"${value === scope ? ' selected' : ''}>${t(`set.memory.scope.${scope}`)}</option>`).join('');
+  const rows = (entries || []).map((entry) => `<div class="setbox mem-entry" data-memory-entry="${entry.id}">
+    <div class="small muted">${t(`set.memory.source.${entry.source}`)} · ${esc(new Date(entry.createdAt).toLocaleString(loc()))}</div>
+    <label class="setrow"><span><b>${t('set.memory.text')}</b></span><textarea data-memory-text rows="3">${esc(entry.text)}</textarea></label>
+    <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-kind>${kindOptions(entry.kind)}</select></label>
+    <label class="setrow"><span><b>${t('set.memory.scope')}</b></span><select data-memory-scope>${scopeOptions(entry.scope)}</select></label>
+    <label class="setrow"><span><b>${t('set.memory.project')}</b></span><input class="txtin" data-memory-project value="${esc(entry.project || '')}"></label>
+    <label class="setrow"><span><b>${t('set.memory.room')}</b></span><input class="txtin" data-memory-room value="${esc(entry.room || '')}"></label>
+    <label class="setrow"><span><b>${t('set.memory.tags')}</b></span><input class="txtin" data-memory-tags value="${esc((entry.tags || []).join(', '))}"></label>
+    ${entry.urls?.length ? `<div class="small muted">${esc(entry.urls.join(' · '))}</div>` : ''}
+    <div class="row" style="display:flex;gap:8px"><button type="button" class="btn sm primary" data-memory-save>${t('set.memory.save')}</button><button type="button" class="btn sm" data-memory-delete>${t('set.memory.delete')}</button></div>
+  </div>`).join('');
+  const status = S.memoryError ? `<p class="small bad" role="alert">${esc(S.memoryError)}</p>` : entries === null ? `<p class="small muted">${t('set.memory.loading')}</p>` : entries.length ? rows : `<p class="small muted">${t('set.memory.none')}</p>`;
+  return `<h2>${t('set.memory.title')}</h2><p class="small muted">${t('set.memory.note')}</p>
+    <div class="setbox">
+      <label class="setrow"><span><b>${t('set.memory.room')}</b></span><input class="txtin" data-memory-filter="room" value="${esc(filters.room || '')}"></label>
+      <label class="setrow"><span><b>${t('set.memory.project')}</b></span><input class="txtin" data-memory-filter="project" value="${esc(filters.project || '')}"></label>
+      <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-filter="kind">${kinds(filters.kind)}</select></label>
+      <label class="setrow"><span><b>${t('set.memory.search')}</b></span><input class="txtin" data-memory-filter="q" value="${esc(filters.q || '')}"></label>
+      <div class="row" style="display:flex;gap:8px"><button type="button" class="btn" data-memory-search>${t('set.memory.search')}</button><button type="button" class="btn" data-memory-refresh>${t('data.refresh')}</button>
+        <button type="button" class="btn" data-memory-clear="room"${filters.room ? '' : ' disabled'}>${t('set.memory.clearRoom')}</button><button type="button" class="btn" data-memory-clear="project"${filters.project ? '' : ' disabled'}>${t('set.memory.clearProject')}</button></div>
+    </div>
+    <h2>${t('set.memory.add')}</h2><div class="setbox" id="memoryNew">
+      <label class="setrow"><span><b>${t('set.memory.text')}</b></span><textarea data-memory-new-text rows="3"></textarea></label>
+      <label class="setrow"><span><b>${t('set.memory.kind')}</b></span><select data-memory-new-kind>${kindOptions('context')}</select></label>
+      <label class="setrow"><span><b>${t('set.memory.scope')}</b></span><select data-memory-new-scope>${scopeOptions('user')}</select></label>
+      <label class="setrow"><span><b>${t('set.memory.project')}</b></span><input class="txtin" data-memory-new-project></label>
+      <label class="setrow"><span><b>${t('set.memory.room')}</b></span><input class="txtin" data-memory-new-room></label>
+      <label class="setrow"><span><b>${t('set.memory.tags')}</b></span><input class="txtin" data-memory-new-tags></label>
+      <button type="button" class="btn primary" data-memory-add>${t('set.memory.add')}</button>
+    </div>
+    <h2>${t('set.memory.list')}</h2>${status}`;
 }
 /** Machine export runs in the hub in the background (POST 202, then GET /api/machine until running is null); the last result also survives a hub restart (read from manifest.json). */
 const fmtWhen = (ts) => new Date(ts).toLocaleString(loc(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -4175,6 +4222,7 @@ function renderSettingsView() {
     ${dataBlock()}
     <h2>${t('info.title')}</h2>
     <p class="small muted">${t('info.paths', { backup: esc(st.archive.dir || t('common.off')) })}</p>`,
+    memory: S.setSub === 'memory' ? memoryBlock() : '',
     perms: permsBlock(st),
     health: healthBlock(),
     setup: setupBlock(st),
@@ -4330,7 +4378,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   });
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
-    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
+    if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'memory') S.memoryEntries = undefined; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
     const agyCheck = e.target.closest('[data-agy-check]');
     if (agyCheck) return checkAgyProfile(agyCheck);
@@ -4349,6 +4397,33 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     }, (err) => toast(err.message)));
     const hg = e.target.closest('[data-hgo]'); if (hg) { const [tab, sub] = hg.dataset.hgo.split(':'); if (sub) S.setSub = sub; showTab(tab); return; }
     if (e.target.closest('[data-datarefresh]')) { S.dataInfo = null; return renderSettingsView(); }
+    if (e.target.closest('[data-memory-search]')) {
+      S.memoryFilters = Object.fromEntries([...sv.querySelectorAll('[data-memory-filter]')].map((el) => [el.dataset.memoryFilter, el.value.trim()]).filter(([, value]) => value));
+      return loadMemory();
+    }
+    if (e.target.closest('[data-memory-refresh]')) return loadMemory();
+    const memoryClear = e.target.closest('[data-memory-clear]');
+    if (memoryClear) {
+      const by = memoryClear.dataset.memoryClear, value = (S.memoryFilters || {})[by];
+      if (!value) return;
+      return armed(memoryClear, t('common.pressAgainDelete'), () => api(`/api/memory?${by}=${enc(value)}`, undefined, 'DELETE').then((r) => { toast(t('set.memory.cleared', { n: r.removed })); loadMemory(); }, (err) => toast(err.message)));
+    }
+    if (e.target.closest('[data-memory-add]')) {
+      const box = $('memoryNew'), scope = box.querySelector('[data-memory-new-scope]').value;
+      const body = { text: box.querySelector('[data-memory-new-text]').value, kind: box.querySelector('[data-memory-new-kind]').value, tags: box.querySelector('[data-memory-new-tags]').value.split(',').map((v) => v.trim()).filter(Boolean), scope,
+        ...(scope === 'project' ? { project: box.querySelector('[data-memory-new-project]').value.trim() } : {}),
+        ...(scope === 'room' ? { room: box.querySelector('[data-memory-new-room]').value.trim() } : {}) };
+      return api('/api/memory', body).then((entry) => { toast(t('set.memory.created', { id: entry.id })); loadMemory(); }, (err) => toast(err.message));
+    }
+    const memoryEntry = e.target.closest('[data-memory-entry]');
+    if (memoryEntry && e.target.closest('[data-memory-save]')) {
+      const scope = memoryEntry.querySelector('[data-memory-scope]').value;
+      const body = { text: memoryEntry.querySelector('[data-memory-text]').value, kind: memoryEntry.querySelector('[data-memory-kind]').value, tags: memoryEntry.querySelector('[data-memory-tags]').value.split(',').map((v) => v.trim()).filter(Boolean), scope,
+        project: scope === 'user' ? null : memoryEntry.querySelector('[data-memory-project]').value.trim() || null,
+        room: scope === 'room' ? memoryEntry.querySelector('[data-memory-room]').value.trim() || null : null };
+      return api(`/api/memory/${memoryEntry.dataset.memoryEntry}`, body, 'PATCH').then(() => { toast(t('set.memory.saved')); loadMemory(); }, (err) => toast(err.message));
+    }
+    if (memoryEntry && e.target.closest('[data-memory-delete]')) return armed(e.target.closest('[data-memory-delete]'), t('common.pressAgainDelete'), () => api(`/api/memory/${memoryEntry.dataset.memoryEntry}`, undefined, 'DELETE').then(() => { toast(t('set.memory.deleted')); loadMemory(); }, (err) => toast(err.message)));
     const od = e.target.closest('[data-opendata]');
     if (od) return api('/api/data/open', od.dataset.opendata ? { sub: od.dataset.opendata } : {}).then(() => toast(t('data.opened')), (err) => toast(err.message));
     const swm = e.target.closest('[data-swmode]'); if (swm) return api('/api/settings', { accountSwitch: { mode: swm.dataset.swmode } }, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (err) => toast(err.message));
