@@ -469,7 +469,7 @@ test('Antigravity profiles require a successful login check, offer model and eff
   } finally { await hub.close(); }
 });
 
-test('main screen agent spawn dialog offers folder, API, and Copilot agents with profile validation errors', async () => {
+test('main screen agent spawn dialog offers folder, API, Copilot and a shortcut to the Antigravity form', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -479,12 +479,25 @@ test('main screen agent spawn dialog offers folder, API, and Copilot agents with
       'data-agent-kind="folder"',
       'data-agent-kind="api"',
       'data-agent-kind="copilot"',
+      'data-agent-kind="agy"',
+      "S.setSub = 'account'",
+      'S.focusAgyProfileForm = true',
+      "form.scrollIntoView({ behavior: 'smooth', block: 'start' })",
+      'form.elements.namedItem(\'id\').focus({ preventScroll: true })',
+      'id="agyProfileNew"',
+      'id="agyProfileHeading"',
       "createAgent({ name: get('name'), cwd: get('cwd'), room: get('room')",
       "provider: 'claude-api', name, cwd, providerId",
       "api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true })",
       'function agentKindBadge(s)',
       'e.message',
     ]) assert.ok(html.includes(s), `missing ${s}`);
+    const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
+    for (const dict of [vi, en]) {
+      assert.ok(dict['agent.spawn.agy']);
+      assert.ok(dict['agent.spawn.agyNote']);
+      assert.ok(dict['ac.copilot'].includes('Antigravity'));
+    }
   } finally { await hub.close(); }
 });
 

@@ -3908,7 +3908,7 @@ function accountBlock(st) {
   const agyModelOptions = agyChoices.map((item) => `<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
   const agyInstall = /Windows/i.test(navigator.userAgent) ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash';
   const agyInstallLabel = /Windows/i.test(navigator.userAgent) ? 'agents.agy.installWindows' : 'agents.agy.installUnix';
-  const agyForm = profiles.length >= 16 ? '' : `<h3>${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
+  const agyForm = profiles.length >= 16 ? '' : `<h3 id="agyProfileHeading">${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
     <select name="provider" aria-label="${t('agents.agy.type')}"><option value="agy">${t('agents.agy.title')}</option></select>
     <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
     <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('agents.agy.name')}" aria-label="${t('agents.agy.name')}">
@@ -3995,6 +3995,7 @@ function renderAgentDialog() {
     <button class="btn aspawn-type" type="button" data-agent-kind="folder"><b>${t('agent.spawn.folder')}</b><small>${t('agent.spawn.folderNote')}</small></button>
     <button class="btn aspawn-type" type="button" data-agent-kind="api"><b>${t('agent.spawn.api')}</b><small>${t('agent.spawn.apiNote')}</small></button>
     <button class="btn aspawn-type" type="button" data-agent-kind="copilot"><b>${t('agent.spawn.copilot')}</b><small>${t('agent.spawn.copilotNote')}</small></button>
+    <button class="btn aspawn-type" type="button" data-agent-kind="agy"><b>${t('agent.spawn.agy')}</b><small>${t('agent.spawn.agyNote')}</small></button>
   </div>`;
   let content = state.loading ? `<p class="small muted">${t('agent.spawn.loading')}</p>` : choices;
   if (!state.loading && state.kind === 'folder' && state.needConfirm) {
@@ -4035,7 +4036,18 @@ function renderAgentDialog() {
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true" aria-labelledby="agentSpawnTitle"><button class="zx" aria-label="${t('common.close')}">✕</button><h2 id="agentSpawnTitle">${t('agent.spawn.title')}</h2>${error}${content}</div>`;
   zoom.hidden = false;
   if (state.loading) return;
-  zoom.querySelectorAll('[data-agent-kind]').forEach((b) => b.addEventListener('click', () => { state.kind = b.dataset.agentKind; state.error = ''; renderAgentDialog(); }));
+  zoom.querySelectorAll('[data-agent-kind]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.agentKind === 'agy') {
+      S.agentDialog = null;
+      S.agyNewCheck = null;
+      S.setSub = 'account';
+      S.focusAgyProfileForm = true;
+      closeZoom();
+      showTab('settings');
+      return;
+    }
+    state.kind = b.dataset.agentKind; state.error = ''; renderAgentDialog();
+  }));
   zoom.querySelectorAll('[data-agent-back]').forEach((b) => b.addEventListener('click', () => { if (state.needConfirm) { state.needConfirm = false; state.body = undefined; } else state.kind = ''; state.error = ''; renderAgentDialog(); }));
   const confirm = zoom.querySelector('[data-agent-confirm]');
   if (confirm) confirm.addEventListener('click', () => createAgent({ ...state.body, confirm: true }, true));
@@ -4237,6 +4249,14 @@ function renderSettingsView() {
   const bar = `<span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
+  if (S.focusAgyProfileForm) {
+    const form = $('agyProfileNew');
+    if (form) {
+      S.focusAgyProfileForm = false;
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      form.elements.namedItem('id').focus({ preventScroll: true });
+    }
+  }
 }
 async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
