@@ -1502,7 +1502,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (changed) store.save();
     for (const candidate of accountSessions) {
       const pending = store.pending(candidate.id);
-      if (pending.wake && pending.messages.length) deliver(candidate.id, true);
+      if (pending.wake && pending.messages.length) deliver(candidate.id);   // #198: not directUser: an agent stopped by the account's usage pause keeps waiting
     }
   }
   function scheduleWake(key: string) {
