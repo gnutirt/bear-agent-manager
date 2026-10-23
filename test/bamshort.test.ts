@@ -6,16 +6,20 @@ import { formatDelivery } from '../shared/format.ts';
 // Room note [83]: the fixed set, same meaning in every room.
 const EMOJI = ['✅', '❌', '⚠️', '⏳', '🚫', '👀', '❓', '🔁'];
 
-test('BAMshort: terse deliveries carry one style line, other modes do not', () => {
+test('BAMshort: the terse style line comes once per context, not with every delivery (#200)', () => {
+  // #200: the style moved from each delivery to the one that opens a context (the SessionStart hook, or the first
+  // background delivery of a chat that runs --bare and so fires no hook).
+  const first = formatDelivery([], {}, [], undefined, 'terse', true);
   const terse = formatDelivery([], {}, [], undefined, 'terse');
-  const off = formatDelivery([], {}, [], undefined, 'off');
-  assert.equal(terse.split('\n').filter((l) => l.startsWith('Agent posts:')).length, 1, 'one line, not a paragraph');
-  assert.ok(terse.includes('Agent posts: BAMshort'));
-  for (const e of EMOJI) assert.ok(terse.includes(e), `terse line missing ${e}`);
+  const off = formatDelivery([], {}, [], undefined, 'off', true);
+  assert.equal(first.split('\n').filter((l) => l.startsWith('Agent posts:')).length, 1, 'one line, not a paragraph');
+  assert.ok(first.includes('Agent posts: BAMshort'));
+  for (const e of EMOJI) assert.ok(first.includes(e), `terse line missing ${e}`);
   for (const s of ['no greetings', 'path:line', '^sha', '@you', 'decisions', 'contracts', 'docs/bamshort.md']) {
-    assert.ok(terse.includes(s), `terse line lost "${s}"`);
+    assert.ok(first.includes(s), `terse line lost "${s}"`);
   }
   assert.ok(!off.includes('BAMshort'), 'the style line only belongs to the terse mode');
+  assert.ok(!terse.includes('BAMshort'), 'a later delivery in the same context does not repeat it');
 });
 
 test('docs/bamshort.md defines every fixed emoji and the hard rules', async () => {

@@ -22,6 +22,24 @@ export type NoteLite = { id: number; text: string; by: string };
 export const RENAMED_KEY = '*renamed';
 
 const size = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+// #200: these rules never change between two deliveries, and repeating them cost ~500 characters per delivery (~500 a day).
+// They are now handed to a session once per context load (SessionStart hook, or the first delivery of a background wake,
+// which runs `claude --bare` and so fires no hook); a later delivery carries only the new content.
+// One optional style, not a language switch: agents may mix English and Vietnamese (room note [83]); what costs tokens
+// is the greetings-and-recap prose, so 'terse' asks for BAMshort: one short status/handoff line, the dialect in
+// docs/bamshort.md, and keeps full sentences where a person or a decision is involved.
+const STYLE = 'Agent posts: BAMshort — 1 line, no greetings: verb + path:line + result, VN/EN slang ok, fixed emoji ✅done ❌fail ⚠️waiting ⏳running 🚫blocked 👀review ❓ask 🔁retry; keep @name and ^sha; Full sentences only for @you, decisions and contracts. Glossary: docs/bamshort.md.';
+const REPLY = 'Reply in the room with the room_send tool: mention @name to wake that agent, @you to report to the user. Record lasting agreements with room_note. Do not post acknowledgements like "ok" or "thanks".';
+const leadRule = (room: string, terse: boolean) => terse
+  ? `Lead #${room}: delegate actionable user requests with room_tasks add (one job per task; fromMsg = message id; owner = best-fit member). Track with room_tasks list; collect results, update room notes, then report one summary to @you. Handle only work with no suitable member. Check room_tasks for stuck tasks each wake; reassign when the owner is silent.`
+  : `You are the lead (★) of #${room}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`;
+
+/** The fixed part of a delivery: style, lead duty and how to answer. Printed once per context, not per message. */
+export function fixedRules(agentComms: AgentComms = 'off', leadOf: string[] = []): string {
+  const terse = agentComms === 'terse';
+  return [...(terse ? [STYLE] : []), ...leadOf.map((r) => leadRule(r, terse)), REPLY].join('\n');
+}
 /** A1: one line per attachment with its absolute path, so the agent opens it with Read only when it needs it (never inlined). */
 export const attachmentLines = (m: Message, home = HOME) =>
   (m.attachments ?? []).map((a) => `    📎 ${a.name} (${a.mime}, ${size(a.size)}): ${path.join(home, 'rooms', m.room, 'files', a.id)}`);
@@ -30,14 +48,14 @@ export const attachmentLines = (m: Message, home = HOME) =>
  * Text handed to a woken Claude: new messages (long ones trimmed) plus room notes that changed.
  * With forSid, a message that did not wake that session (no @ to it, not from the user or hub, not in a room it leads) is one line: about half of what agents received was such chatter.
  */
-export function formatDelivery(messages: Message[], notes: Record<string, NoteLite[]> = {}, leadOf: string[] = [], forSid?: string, agentComms: AgentComms = 'off'): string {
+export function formatDelivery(messages: Message[], notes: Record<string, NoteLite[]> = {}, leadOf: string[] = [], forSid?: string, agentComms: AgentComms = 'off', rules = false): string {
   const shown = messages.slice(-MAX_SHOWN);
   const head = messages.length > shown.length ? ` (last ${shown.length} of ${messages.length})` : '';
   const lines = [`[bear-agent-manager] New messages${head}:`];
-  // One optional style, not a language switch: agents may mix English and Vietnamese (room note [83]); what costs tokens
-  // is the greetings-and-recap prose, so 'terse' asks for BAMshort: one short status/handoff line, the dialect in
-  // docs/bamshort.md, and keeps full sentences where a person or a decision is involved.
-  if (agentComms === 'terse') lines.push('Agent posts: BAMshort — 1 line, no greetings: verb + path:line + result, VN/EN slang ok, fixed emoji ✅done ❌fail ⚠️waiting ⏳running 🚫blocked 👀review ❓ask 🔁retry; keep @name and ^sha; Full sentences only for @you, decisions and contracts. Glossary: docs/bamshort.md.');
+  // #200: `rules` is true only for the first delivery of a context that got no SessionStart (a background wake, or a
+  // provider agent that runs `--bare`); every later delivery carries just the new content.
+  const terse = rules && agentComms === 'terse';
+  if (terse) lines.push(STYLE);
   let room = '';
   let trimmed = false, short = false;
   for (const m of shown) {
@@ -64,13 +82,9 @@ export function formatDelivery(messages: Message[], notes: Record<string, NoteLi
     lines.push(`Room notes #${r}, new or changed (agreements everyone in the room relies on; room_notes lists all):`);
     for (const n of list) lines.push(`  [${n.id}] ${n.text.replace(/\n/g, ' ')} (${n.by})`);
   }
-  for (const r of leadOf) {
-    lines.push(agentComms === 'terse'
-      ? `Lead #${r}: delegate actionable user requests with room_tasks add (one job per task; fromMsg = message id; owner = best-fit member). Track with room_tasks list; collect results, update room notes, then report one summary to @you. Handle only work with no suitable member. Check room_tasks for stuck tasks each wake; reassign when the owner is silent.`
-      : `You are the lead (★) of #${r}: turn each request of the user into tasks with room_tasks add (one job each, fromMsg = the user's message id, owner = the member who fits; none for plain questions): the hub hands each task to its owner as one short message and tells you when it is done, so track them with room_tasks list instead of rereading the chat; collect their results, keep the room notes current with room_note, and report one summary to @you when everything is done. Do the work yourself only when no member fits.`);
-  }
+  if (rules) for (const r of leadOf) lines.push(leadRule(r, agentComms === 'terse'));
   if (trimmed) lines.push('Some messages were trimmed; use room_read to see them in full.');
   if (short) lines.push('One-line messages did not mention you; use room_read only if you need one in full.');
-  lines.push('Reply in the room with the room_send tool: mention @name to wake that agent, @you to report to the user. Record lasting agreements with room_note. Do not post acknowledgements like "ok" or "thanks".');
+  if (rules) lines.push(REPLY);
   return lines.join('\n');
 }

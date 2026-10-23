@@ -36,6 +36,8 @@ export type Session = {
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
+  rulesSent?: boolean;           // #200: the fixed rules (BAMshort, lead duty, room_send) were already handed out in this context
+  rulesMark?: string;            // ... the compaction boundary the transcript stood at then (a newer one threw them away)
   pids?: { pid: number; headless: boolean; at: number }[];   // every claude that registered for this chat (a tab and a background wake can both exist); End kills all of them
 };
 const TOPIC = /^[a-z0-9-]{1,32}$/;
@@ -367,6 +369,32 @@ export class Store {
     s.prevName = undefined;
     this.save();
     return r;
+  }
+
+  /**
+   * #200: the fixed rules (BAMshort style, lead duty, how to answer) are handed to a session once per context instead of
+   * riding on every delivery. The first caller gets true — the SessionStart hook for a tab, the first background delivery
+   * for a chat whose provider agent runs `--bare` (no hook at all) — and every later caller gets false.
+   */
+  takeRules(id: string, mark?: string): boolean {
+    const s = this.state.sessions[this.resolve(id)];
+    if (!s) return false;
+    if (s.rulesSent) return false;
+    s.rulesSent = true;
+    // The compaction boundary the transcript stood at. A provider agent runs `--bare`: Claude Code auto-compacts there
+    // without any hook, so this mark is how the hub learns later that the context (and the rules in it) was thrown away.
+    if (mark !== undefined) s.rulesMark = mark;
+    this.save();
+    return true;
+  }
+
+  /** The context was thrown away (a compaction, or a wake that never reached the agent): the next one gets the rules again. */
+  resetRules(id: string): void {
+    const s = this.state.sessions[this.resolve(id)];
+    if (!s?.rulesSent && s?.rulesMark === undefined) return;
+    delete s.rulesSent;
+    delete s.rulesMark;
+    this.save();
   }
 
   /** Like uniqueName, but an offline, auto-named holder gives the name up to the new session. */

@@ -17,8 +17,10 @@ test('no key is defined twice in a dictionary (the later one silently wins: sett
   }
 });
 
-test('K2: the room lead is told to turn requests into tasks with room_tasks, in the lead prompt and in every delivery', () => {
+test('K2: the room lead is told to turn requests into tasks with room_tasks, in the lead prompt and in the delivery that opens a context', () => {
   assert.match(leadPrompt('web', [], {}, 'en'), /room_tasks add/);
   assert.ok(!/room_tasks/.test(leadPrompt('web', [], { delegate: false }, 'en')));
-  assert.match(formatDelivery([], {}, ['web']), /room_tasks add/);
+  // #200: the duty rides on the first delivery of a context, not on every one.
+  assert.match(formatDelivery([], {}, ['web'], undefined, 'off', true), /room_tasks add/);
+  assert.ok(!/room_tasks/.test(formatDelivery([], {}, ['web'])), 'a later delivery no longer repeats the lead duty');
 });

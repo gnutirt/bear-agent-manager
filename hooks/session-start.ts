@@ -22,6 +22,11 @@ try {
     const q = `session=${encodeURIComponent(input.session_id)}&source=${encodeURIComponent(String(input.source ?? ''))}`;
     const { text } = await api<{ text: string }>(`/api/brief?${q}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
     if (text) process.stdout.write(text + '\n');
+    // #200: the fixed rules (BAMshort style, lead duty, how to answer) ride on the context, not on every delivery: the hub
+    // hands them out once — here for a tab, with the first delivery for a background wake, which runs `--bare` (no hook).
+    // A compact or clear throws the context away, so the hub prints them again for that source; a plain resume does not.
+    const rules = await api<{ text: string }>(`/api/rules?${q}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
+    if (rules.text) process.stdout.write(rules.text + '\n');
   }
 } catch {
   // unknown session or hub down: fail open, never break the session

@@ -34,8 +34,8 @@ import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTE
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
-import { activityFor, formatDelivery, RENAMED_KEY } from '../shared/format.ts';
-import { isSavedChat, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
+import { activityFor, fixedRules, formatDelivery, RENAMED_KEY } from '../shared/format.ts';
+import { isSavedChat, readCompactMark, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
 import type { Message, SysMeta } from './routing.ts';
@@ -642,7 +642,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       s.afterLimitDelivered = { fromCursor, at: store.now() };
       store.save();
     }
-    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms });
+    // #200: `rules` carries the fixed part of a delivery to the waiter, which prints it for the first one of a context only.
+    json(res, 200, { messages, notes: takeNotes(sid), lead: leadRooms(sid), agentComms: loadSettings(opts.dir, envCap).agentComms, rules: messages.length ? store.takeRules(sid) : false });
   }
 
   // Every wake is a full turn that re-reads the session's whole context, so a burst of messages
@@ -837,7 +838,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
-      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id, loadSettings(opts.dir, envCap).agentComms))) consume(st.id, p.messages[p.messages.length - 1].id);
+      if (p.wake && p.messages.length && liveChat.send(st.id, formatDelivery(p.messages, takeNotes(st.id), leadRooms(st.id), st.id, loadSettings(opts.dir, envCap).agentComms, store.takeRules(st.id)))) consume(st.id, p.messages[p.messages.length - 1].id);
       return;
     }
     // Checked before the waiter: a waiter left over from an earlier turn cannot rewake a chat whose last turn died on a
@@ -965,19 +966,27 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!api.enabled || apiLimited(api) || apiBudgetUntil(api)) return false;
       try { apiRun = apiJob(api, loadSettings(opts.dir, envCap), s.id); } catch (e) { apiFailed(api, (e as Error).message); return false; }
     }
-    const p = store.pending(s.id);
-    const delivery = p.messages.length
-      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id, loadSettings(opts.dir, envCap).agentComms)
-      : formatDelivery([], takeNotes(s.id), leadRooms(s.id), undefined, loadSettings(opts.dir, envCap).agentComms).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
-    const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
-    if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
-    reviving.add(s.id);
-    revivingTurn.add(s.id);
     // T18b/T18c: a long chat is compacted first (setting wakeCompact, else the role-based compact.thresholds), so the wake does not re-read all of it.
     const cfg = loadSettings(opts.dir, envCap);
     const rule = cfg.agentCompact[normAgent(s.name)];
     const before = readContextTokens(s.transcript);
     const compactFirst = wantsWakeCompact(rule, before, readModel(s.transcript), wakeRole(s), cfg.compact.thresholds);
+    const p = store.pending(s.id);
+    // #200: a background wake runs `claude --bare`, so no SessionStart hook ever prints the fixed rules; this wake takes
+    // them for its context, and a wake that never reaches the agent gives them back (below). A wake that compacts first
+    // throws the old context away, so it carries them even when an earlier context already had them.
+    // A provider agent is worse off: Claude Code auto-compacts it at 300k with no hook at all, so the hub learns about
+    // that compaction only from the transcript — a newer boundary than the one recorded means the rules are gone.
+    const ruleMark = readCompactMark(s.transcript);
+    if (compactFirst || (ruleMark && ruleMark !== (s.rulesMark ?? ''))) store.resetRules(s.id);
+    const gaveRules = store.takeRules(s.id, ruleMark);
+    const delivery = p.messages.length
+      ? formatDelivery(p.messages, takeNotes(s.id), leadRooms(s.id), s.id, cfg.agentComms, gaveRules)
+      : formatDelivery([], takeNotes(s.id), leadRooms(s.id), undefined, cfg.agentComms, gaveRules).replace('[bear-agent-manager] New messages:', '[bear-agent-manager] The user asked you to rejoin the room. Read it with room_read.');
+    const cursorBefore = s.cursor;   // handed back when the wake fails: the messages were never read
+    if (p.messages.length) consume(s.id, p.messages[p.messages.length - 1].id);
+    reviving.add(s.id);
+    revivingTurn.add(s.id);
     let compacted = false;
     const perm = apiRun?.perm ?? permFor(cfg, s.name);
     const configuredModel = cfg.agentModel[normAgent(s.name)];
@@ -1015,6 +1024,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
+          if (gaveRules) store.resetRules(s.id);   // #200: the agent never got them, the next delivery must carry them
           if (replaced) { /* ended on purpose: nothing failed */ }
           else if (api) apiFailed(api, failure);   // says it in the rooms itself (quota pause or error); no tab to open for a provider agent
           else {
@@ -1058,6 +1068,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
     if (code !== 0 && tabHolds(store.session(s.id))) return;   // the tab took the chat over while compaction ran
     if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
+    if (code === 0) store.resetRules(s.id);   // #200: the compaction dropped the context that held the fixed rules; the next delivery reprints them
     say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
   }
 
@@ -1397,7 +1408,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const pend = store.pending(sid);
         if (pend.wake && pend.messages.length) {
           consume(sid, pend.messages[pend.messages.length - 1].id);
-          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms) } });
+          return json(res, 200, { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(pend.messages, takeNotes(sid), leadRooms(sid), sid, loadSettings(opts.dir, envCap).agentComms, store.takeRules(sid)) } });
         }
         break;
       }
@@ -1959,6 +1970,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'GET' && p === '/api/events') return openSse(res);
     if (m === 'GET' && p === '/api/sessions') return json(res, 200, Object.values(store.state.sessions).map(publicSession));
+    // #200: the fixed rules (BAMshort, lead duty, room_send) go to a session once per context, printed by its SessionStart
+    // hook instead of riding on every delivery. A compact or clear threw the context away, so that call starts a new one.
+    if (m === 'GET' && p === '/api/rules') {
+      const sid = store.resolve(String(url.searchParams.get('session') ?? ''));
+      const source = String(url.searchParams.get('source') ?? '');
+      if (!store.state.sessions[sid]) return json(res, 404, { error: `unknown session ${sid}` });
+      if (source === 'compact' || source === 'clear') store.resetRules(sid);
+      const s = store.state.sessions[sid];
+      return json(res, 200, { text: store.takeRules(sid, readCompactMark(s.transcript)) ? fixedRules(loadSettings(opts.dir, envCap).agentComms, leadRooms(sid)) : '' });
+    }
     if (m === 'GET' && p === '/api/workers') {
       if (Date.now() - scannedAt > 2000) await scanWorkers();
       return json(res, 200, workersSnapshot());

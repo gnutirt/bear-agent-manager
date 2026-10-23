@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeHub, until } from './helpers.ts';
 import { accountEmail, activityFor, describeRun, formatDelivery, ideFromCommand, isOneShotCommand, parseInput, readContextTokens, readTitle, runContext } from '../hooks/lib.ts';
+import { fixedRules } from '../shared/format.ts';
+import { readCompactMark } from '../shared/transcript.ts';
 import fs from 'node:fs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,14 +45,17 @@ test('activityFor summarises tools in at most 60 chars', () => {
   assert.ok(activityFor('Bash', { command: 'x'.repeat(200) }).length <= 60);
 });
 
-test('formatDelivery groups by room and tells Claude how to answer', () => {
-  const text = formatDelivery([
-    { id: 1, room: 'proj', from: 'you', fromId: null, mentions: ['fw'], text: '@fw check', ts: 0, wake: ['s1'] },
-  ]);
+test('#200: formatDelivery groups by room; the fixed rules ride along only on the first delivery of a context', () => {
+  const message = [{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: ['fw'], text: '@fw check', ts: 0, wake: ['s1'] }];
+  const text = formatDelivery(message);
   assert.match(text, /^\[bear-agent-manager\] New messages/);
   assert.match(text, /#proj/);
   assert.match(text, /you: @fw check/);
-  assert.match(text, /room_send/);
+  assert.doesNotMatch(text, /room_send/, 'a normal delivery no longer repeats how to answer');
+  const first = formatDelivery(message, {}, [], undefined, 'off', true);
+  assert.match(first, /room_send/);
+  assert.ok(first.endsWith(fixedRules('off')), 'the block that moved is exactly the fixed rules');
+  assert.ok(first.length - text.length >= 150, 'and it is worth the move');
 });
 
 test('formatDelivery shows what a reply answers', () => {
@@ -72,16 +77,18 @@ test('formatDelivery adds changed room notes and trims very long messages', () =
   assert.match(text, /room_read/);
 });
 
-test('formatDelivery tells a room lead how to coordinate', () => {
-  const text = formatDelivery([{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: [], text: 'ship it', ts: 0, wake: ['s1'] }], {}, ['proj']);
+test('formatDelivery tells a room lead how to coordinate when it carries the fixed rules', () => {
+  const message = [{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: [], text: 'ship it', ts: 0, wake: ['s1'] }];
+  const text = formatDelivery(message, {}, ['proj'], undefined, 'off', true);
   assert.match(text, /You are the lead \(★\) of #proj/);
   assert.match(text, /@name/);
+  assert.doesNotMatch(formatDelivery(message, {}, ['proj']), /You are the lead/, 'a later delivery does not repeat the lead duty');
 });
 
 test('formatDelivery applies optional BAMshort guidance only when enabled', () => {
   const message = [{ id: 1, room: 'proj', from: 'you', fromId: null, mentions: [], text: 'ship it', ts: 0, wake: ['s1'] }];
-  const base = formatDelivery(message, {}, ['proj']);
-  const terse = formatDelivery(message, {}, ['proj'], undefined, 'terse');
+  const base = formatDelivery(message, {}, ['proj'], undefined, 'off', true);
+  const terse = formatDelivery(message, {}, ['proj'], undefined, 'terse', true);
   assert.doesNotMatch(base, /Agent posts:/);
   assert.match(terse, /Agent posts: BAMshort/);
   assert.match(terse, /Full sentences only for @you, decisions and contracts/);
@@ -102,6 +109,64 @@ test('session-start never registers; it only reminds a known member of its rooms
     const k = await runHook('session-start.ts', { session_id: 'known1', cwd: 'C:\\fw', hook_event_name: 'SessionStart', source: 'resume' }, e).done;
     assert.match(k.stdout, /#proj/);
   } finally { await hub.close(); }
+});
+
+test('#200: SessionStart prints the fixed rules once per context, again after a compact, never on a plain resume', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/settings', { agentComms: 'terse' }, { method: 'PUT' });
+    await call('/api/sessions/register', { id: 'r1', cwd: 'C:\\fw' });
+    await call('/api/sessions/r1/rename', { name: 'fw' });
+    await call('/api/rooms/proj/join', { sessionId: 'r1' });
+    const hook = (source: string) => runHook('session-start.ts', { session_id: 'r1', cwd: 'C:\\fw', hook_event_name: 'SessionStart', source }, e).done;
+    const first = await hook('startup');
+    assert.match(first.stdout, /Agent posts: BAMshort/);
+    assert.match(first.stdout, /room_send/);
+    assert.doesNotMatch((await hook('resume')).stdout, /Agent posts: BAMshort/, 'a resume still has the rules in its context');
+    assert.match((await hook('compact')).stdout, /room_send/, 'a compaction threw the context away, so they come back');
+    assert.doesNotMatch((await hook('resume')).stdout, /Agent posts: BAMshort/);
+  } finally { await hub.close(); }
+});
+
+test('#200: a second delivery to the same chat carries the new message only, not the fixed rules again', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/settings', { agentComms: 'terse' }, { method: 'PUT' });
+    await call('/api/sessions/register', { id: 's9', cwd: 'C:\\fw' });
+    await call('/api/sessions/s9/rename', { name: 'fw' });
+    await call('/api/rooms/proj/join', { sessionId: 's9' });
+    const w1 = runHook('waiter.ts', { session_id: 's9', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
+    await until(() => hub.waiting('s9'), 15_000, 'the first waiter');
+    await call('/api/rooms/proj/messages', { text: '@fw first' });
+    const r1 = await w1.done;
+    assert.equal(r1.code, 2);
+    assert.match(r1.stderr, /Agent posts: BAMshort/, 'the first delivery of the context carries the rules');
+    const w2 = runHook('waiter.ts', { session_id: 's9', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
+    await until(() => hub.waiting('s9'), 15_000, 'the second waiter');
+    await call('/api/rooms/proj/messages', { text: '@fw second' });
+    const r2 = await w2.done;
+    assert.equal(r2.code, 2);
+    assert.match(r2.stderr, /you: @fw second/, 'the new message still arrives');
+    assert.doesNotMatch(r2.stderr, /Agent posts:|room_send/, 'and the fixed block no longer repeats');
+  } finally { await hub.close(); }
+});
+
+test('#200: readCompactMark moves only when a new compaction boundary appears (Claude Code compacts a --bare chat with no hook)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-mark-'));
+  const file = path.join(dir, 't.jsonl');
+  const boundary = (pre: number, post: number) => JSON.stringify({ type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: pre, postTokens: post } });
+  try {
+    fs.writeFileSync(file, JSON.stringify({ type: 'user', message: { content: 'hi' } }) + '\n');
+    assert.equal(readCompactMark(file), '', 'a chat that was never compacted has no mark');
+    fs.appendFileSync(file, boundary(300000, 12000) + '\n');
+    const first = readCompactMark(file);
+    assert.match(first, /^\d+:[0-9a-f]{16}$/);
+    fs.appendFileSync(file, JSON.stringify({ type: 'assistant', message: { content: [], usage: { input_tokens: 1 } } }) + '\n');
+    assert.equal(readCompactMark(file), first, 'an ordinary turn does not move it');
+    fs.appendFileSync(file, boundary(300000, 12000) + '\n');   // the same numbers twice: the offset still tells them apart
+    assert.notEqual(readCompactMark(file), first, 'a second compaction is a new context');
+    assert.equal(readCompactMark(path.join(dir, 'missing.jsonl')), '');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('readContextTokens sums the last assistant turn input (fresh + cache read + cache write)', () => {

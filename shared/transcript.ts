@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 // Readers for a Claude Code transcript (.jsonl). Only the tail is read: transcripts reach many MB.
 const TAIL = 512 * 1024;
@@ -40,6 +41,34 @@ export function readContextTokens(transcript: string | undefined): number {
     } catch { /* partial first line of the tail */ }
   }
   return 0;
+}
+
+/**
+ * Stable id of the newest compaction boundary in the transcript ('' when the chat was never compacted): the context was
+ * thrown away at that line, so everything handed to the agent before it is gone. #200 uses it because a provider agent
+ * runs `claude --bare`, where Claude Code auto-compacts by itself and no hook tells the hub: a different id than the one
+ * recorded when the fixed rules were handed out means those rules are gone from the context and must ride again.
+ * The id is the byte offset of the line plus a hash of it, both stable in an append-only file.
+ */
+export function readCompactMark(transcript: string | undefined): string {
+  if (!transcript) return '';
+  try {
+    const fd = fs.openSync(transcript, 'r');
+    try {
+      const size = fs.fstatSync(fd).size, len = Math.min(size, TAIL), buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      let offset = size - len, mark = '';
+      for (const line of buf.toString('utf8').split('\n')) {
+        const at = offset;
+        offset += Buffer.byteLength(line, 'utf8') + 1;
+        if (!line.includes('"compact_boundary"')) continue;
+        try {
+          if (JSON.parse(line).subtype === 'compact_boundary') mark = `${at}:${createHash('sha256').update(line).digest('hex').slice(0, 16)}`;
+        } catch { /* the tail may start mid-line */ }
+      }
+      return mark;
+    } finally { fs.closeSync(fd); }
+  } catch { return ''; }
 }
 
 /** Model of the last assistant turn ('' when unknown). */

@@ -61,7 +61,7 @@ if (input.hook_event_name === 'Stop' || afterLimit) {
 }
 
 while (Date.now() - started < LIFETIME_MS) {
-  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; agentComms?: AgentComms; superseded?: boolean | 'dup' };
+  let r: { messages?: Message[]; notes?: Record<string, NoteLite[]>; lead?: string[]; agentComms?: AgentComms; rules?: boolean; superseded?: boolean | 'dup' };
   try {
     const left = Math.max(1, Math.min(50, Math.ceil((LIFETIME_MS - (Date.now() - started)) / 1000)));   // never poll past the idle limit
     r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}${afterLimit ? '&afterLimit=1' : ''}&pid=${process.ppid}`, { timeoutMs: 65_000 });
@@ -80,7 +80,9 @@ while (Date.now() - started < LIFETIME_MS) {
   if (r.superseded) process.exit(0);
   if (r.messages?.length) {
     await api(`/api/sessions/${id}/status`, { body: { status: 'busy', activity: 'reading room' } }).catch(() => {});
-    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? [], input.session_id, r.agentComms));
+    // #200: the hub says whether this delivery is the first of a context (no SessionStart printed the rules): only then
+    // does the fixed part ride along.
+    process.stderr.write(formatDelivery(r.messages, r.notes ?? {}, r.lead ?? [], input.session_id, r.agentComms, r.rules === true));
     process.exit(2);
   }
 }

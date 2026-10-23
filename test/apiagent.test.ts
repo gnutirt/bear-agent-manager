@@ -374,6 +374,46 @@ test('claude-api profile: a second @ wakes it with the provider env even with au
   } finally { await hub.close(); }
 });
 
+test('#200: a provider chat that Claude Code compacted by itself gets the fixed rules again', async () => {
+  const jobs: any[] = [], revived: any[] = [];
+  const cwd = fs.realpathSync(os.tmpdir());
+  const { hub, dir, call } = await makeHub(undefined, (job) => { revived.push(job); }, {
+    autoRevive: false,
+    spawnAgent: async (job: any) => {   // the first run: the (fake) claude saves its chat where Claude Code would
+      jobs.push(job);
+      const d = path.join(dir0.dir, '.claude', 'projects', projectSlug(cwd));
+      fs.mkdirSync(d, { recursive: true });
+      const line = (o: object) => JSON.stringify(o);
+      fs.writeFileSync(path.join(d, `${job.id}.jsonl`), [line({ type: 'user', message: { content: 'hi' } }), line({ type: 'assistant', message: { model: 'deepseek-flash', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1 } } })].join('\n') + '\n');
+      return 0;
+    },
+  });
+  const dir0 = { dir };
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    // terse here on purpose: the BAMshort style line is part of the fixed rules and nothing else in a wake prompt says it
+    // (the "answer with room_send" boilerplate does, so room_send cannot be the marker).
+    await call('/api/settings', { agentComms: 'terse', agents: { profiles: [prof({ cwd })] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'first run');
+    const sid = jobs[0].id;
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.status === 'offline', 5000, 'first run ended');
+    const chat = path.join(dir, '.claude', 'projects', projectSlug(cwd), `${sid}.jsonl`);
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local second question' });
+    await until(() => revived.length === 1, 5000, 'the second wake');
+    assert.match(revived[0].text, /Agent posts: BAMshort/, 'the first context of a --bare chat carries the fixed rules');
+    // --bare runs no hook, so Claude Code's own auto-compaction leaves only this trace in the transcript
+    fs.appendFileSync(chat, JSON.stringify({ type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: 300000, postTokens: 12000 } }) + '\n');
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local third question' });
+    await until(() => revived.length === 2, 5000, 'the third wake');
+    assert.match(revived[1].text, /Agent posts: BAMshort/, 'that compaction threw the rules away, so they ride again');
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local fourth question' });
+    await until(() => revived.length === 3, 5000, 'the fourth wake');
+    assert.match(revived[2].text, /fourth question/, 'the message still arrives');
+    assert.doesNotMatch(revived[2].text, /Agent posts: BAMshort/, 'no new compaction: the context still holds the rules');
+  } finally { await hub.close(); }
+});
+
 test('claude-api profile with a provider that has no key stays an error and never spawns', async () => {
   const jobs: any[] = [];
   const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); return 0; } });

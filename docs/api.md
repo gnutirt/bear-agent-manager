@@ -15,6 +15,7 @@
 | GET | `/api/ide/status` |  | có |
 | POST | `/api/sessions/:param/ide` |  | có |
 | GET | `/api/events` |  | có |
+| GET | `/api/rules` | `session`, `source` | có |
 | GET | `/api/sessions` |  | có |
 | GET | `/api/workers` |  | có |
 | GET | `/api/workers/slot` |  | có |
