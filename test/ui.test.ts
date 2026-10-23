@@ -412,7 +412,7 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of [
       "const profiles = st.agents?.profiles || []",
-      'id="copilotProfileNew"',
+      'data-open-agent-dialog',
       'name="model"',
       'data-profile-model="${esc(p.id)}"',
       'data-profile-model-save="${esc(p.id)}"',
@@ -420,7 +420,7 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       "t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') })",
       'data-profile-enabled="${esc(p.id)}"',
       'data-profile-remove="${esc(p.id)}"',
-      "saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd",
+      "submitAgentProfile({ id, provider: 'copilot', name, cwd",
       "api('/api/settings', { agents: { profiles } }, 'PUT')",
       "api('/api/agent-profiles')",
       "status?.auth === 'ok'",
@@ -429,7 +429,6 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       "api(profileRoute(id), { on, confirm: true })",
       "t('ac.profile.runtime')",
       "'ac.profile.login'",
-      'id="apiProfileNew"',
       "provider: 'claude-api', name, cwd, providerId",
       "m.kind === 'mirror' ? ' mirror'",
       "t('msg.fromTab')",
@@ -439,19 +438,18 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
   } finally { await hub.close(); }
 });
 
-test('Antigravity profiles require a successful login check, offer model and effort choices, and only show install commands to copy', async () => {
+test('Antigravity agents are added from the + Agent dialog: agy is checked on open, Create waits for a login, install commands are only copied', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
     for (const source of [
-      'id="agyProfileNew"',
-      '<option value="agy">${t(\'agents.agy.title\')}</option>',
+      'data-agent-agy',
+      "api('/api/agy/check?path=')",
       "api(`/api/agy/check?path=${enc(agyPath)}`)",
-      'model.replaceChildren(...choices.map',
-      'enabled.disabled = !result.loggedIn',
-      "check.path !== agyPath",
+      'model.replaceChildren(...models.map',
+      'submit.disabled = !result.loggedIn',
       "provider: 'agy', name, cwd",
-      'name="effort"',
+      'id: newProfileId(name, profiles)',
       "'gemini-4-argon-medium'",
       'irm https://antigravity.google/cli/install.ps1 | iex',
       'curl -fsSL https://antigravity.google/cli/install.sh | bash',
@@ -469,7 +467,7 @@ test('Antigravity profiles require a successful login check, offer model and eff
   } finally { await hub.close(); }
 });
 
-test('main screen agent spawn dialog offers folder, API, Copilot and a shortcut to the Antigravity form', async () => {
+test('main screen agent spawn dialog offers folder, API, Copilot and Antigravity, and Settings opens the same dialog', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -480,14 +478,8 @@ test('main screen agent spawn dialog offers folder, API, Copilot and a shortcut 
       'data-agent-kind="api"',
       'data-agent-kind="copilot"',
       'data-agent-kind="agy"',
-      "S.setSub = 'account'",
-      'S.focusAgyProfileForm = true',
-      'function focusAgyProfileForm()',
-      'heading.scrollIntoView({ behavior: \'smooth\', block: \'start\' })',
-      'form.elements.namedItem(\'id\').focus({ preventScroll: true })',
-      'renderSettingsView(); focusAgyProfileForm(); loadSkillUse(S.skAgent)',
-      'id="agyProfileNew"',
-      'id="agyProfileHeading"',
+      'function newProfileId(name, profiles)',
+      "if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();",
       "createAgent({ name: get('name'), cwd: get('cwd'), room: get('room')",
       "provider: 'claude-api', name, cwd, providerId",
       "api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true })",

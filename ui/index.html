@@ -3301,7 +3301,7 @@ function loadSettingsView() {
   Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus()]).then(([s, p, sk, ar, mc, browser]) => {
     S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
-    S.viewErr.settings = ''; renderSettingsView(); focusAgyProfileForm(); loadSkillUse(S.skAgent);
+    S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
   renderSettingsView();
 }
@@ -3729,7 +3729,7 @@ function healthBlock() {
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
-S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.agyChecks = {}; S.agyNewCheck = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null; S.mcpServers = undefined; S.mcpSrvTarget = ''; S.mcpDelScope = 'local';
+S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.agyChecks = {}; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null; S.mcpServers = undefined; S.mcpSrvTarget = ''; S.mcpDelScope = 'local';
 /** #155: claude mcp list can take seconds (it health-checks each server), so it loads on its own and the card says so meanwhile */
 function loadMcpServers() {
   S.mcpServers = undefined; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView();
@@ -3761,7 +3761,6 @@ async function saveCopilotProfiles(profiles) {
   try {
     S.settings = await api('/api/settings', { agents: { profiles } }, 'PUT');
     await loadCopilotProfiles();
-    S.agyNewCheck = null;
     toast(t('settings.saved'));
     renderSettingsView();
   }
@@ -3771,43 +3770,23 @@ const agyCheckMessage = (result) => !result.found ? t('agents.agy.notFound', { t
   : result.loggedIn ? t('agents.agy.ok', { n: result.models?.length || 0 })
     : `${t('agents.agy.notLogged')}${result.error ? ` ${result.error}` : ''}`;
 async function checkAgyProfile(button) {
-  const form = button.closest('form'), row = button.closest('.cprofile');
-  const agyPath = form?.id === 'agyProfileNew' ? form.elements.namedItem('path').value.trim() : (button.dataset.agyPath || '');
-  const profileId = button.dataset.agyCheckId;
-  const status = (form || row)?.querySelector('[data-agy-check-status]');
+  const row = button.closest('.cprofile'), agyPath = button.dataset.agyPath || '', profileId = button.dataset.agyCheckId;
+  const status = row?.querySelector('[data-agy-check-status]');
   button.disabled = true;
-  if (profileId) delete S.agyChecks[profileId];
-  else S.agyNewCheck = null;
+  delete S.agyChecks[profileId];
   if (status) { status.className = 'small muted'; status.textContent = t('common.loading'); }
   try {
     const result = await api(`/api/agy/check?path=${enc(agyPath)}`);
-    if (profileId) S.agyChecks[profileId] = { ...result, path: agyPath };
-    else S.agyNewCheck = { ...result, path: agyPath };
+    S.agyChecks[profileId] = { ...result, path: agyPath };
     if (status) {
       status.className = `small ${result.loggedIn ? 'okt' : result.found ? 'pwarn' : 'bad'}`;
       status.textContent = agyCheckMessage(result);
     }
-    if (form?.id === 'agyProfileNew') {
-      const model = form.elements.namedItem('model'), enabled = form.elements.namedItem('enabled');
-      const current = model.value;
-      const models = Array.isArray(result.models) ? result.models : [];
-      const choices = models.some((item) => item.id === 'gemini-4-argon-medium') ? models : [{ id: 'gemini-4-argon-medium', label: t('agents.agy.defaultModel') }, ...models];
-      model.replaceChildren(...choices.map((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; return option; }));
-      model.value = choices.some((item) => item.id === current) ? current : 'gemini-4-argon-medium';
-      enabled.disabled = !result.loggedIn;
-      if (!result.loggedIn) enabled.checked = false;
-    } else {
-      const enabled = row?.querySelector('[data-profile-enabled]');
-      const profile = (S.settings.agents?.profiles || []).find((item) => item.id === profileId);
-      if (enabled && !profile?.enabled) enabled.disabled = !result.loggedIn;
-    }
+    const enabled = row?.querySelector('[data-profile-enabled]');
+    const profile = (S.settings.agents?.profiles || []).find((item) => item.id === profileId);
+    if (enabled && !profile?.enabled) enabled.disabled = !result.loggedIn;
   } catch (error) {
-    if (profileId) delete S.agyChecks[profileId];
-    else {
-      S.agyNewCheck = null;
-      const enabled = form?.elements.namedItem('enabled');
-      if (enabled) { enabled.disabled = true; enabled.checked = false; }
-    }
+    delete S.agyChecks[profileId];
     if (status) { status.className = 'small bad'; status.textContent = error.message; }
   } finally {
     button.disabled = false;
@@ -3883,45 +3862,9 @@ function accountBlock(st) {
       <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : isAgy ? 'agents.agy.google' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isAgy ? 'agents.agy.retry' : isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
       ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(isAgy ? (ask.on ? 'agents.agy.confirmOn' : 'agents.agy.confirmOff') : ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
-  const profileForm = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<form class="cprofile-new" id="copilotProfileNew">
-    <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
-    <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
-    <input name="cwd" required placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
-    <input name="home" placeholder="${t('ac.profile.homeOptional')}" aria-label="${t('ac.profile.homeOptional')}" spellcheck="false">
-    <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" aria-label="${t('ac.profile.modelLabel')}" spellcheck="false">
-    <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
-    <button class="btn primary">${t('ac.profile.add')}</button>
-  </form>`;
-  // a headless claude on one of the worker providers (Settings > Providers): free / paid ones only read, a local one edits only when ticked
-  const provOpts = S.providers.filter((x) => x.enabled).map((x) => `<option value="${esc(x.id)}" data-tier="${esc(x.tier)}">${esc(x.label)} (${esc(x.tier)})</option>`).join('');
-  const apiForm = profiles.length >= 16 ? '' : `<h3>${t('ac.api.title')}</h3><p class="small muted note">${t('ac.api.note')}</p><form class="cprofile-new" id="apiProfileNew">
-    <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
-    <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
-    <input name="cwd" required placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
-    <select name="providerId" required aria-label="${t('ac.api.provider')}"><option value="">${t('ac.api.pickProvider')}</option>${provOpts}</select>
-    <input name="model" maxlength="80" placeholder="${t('ac.api.model')}" aria-label="${t('ac.api.model')}" spellcheck="false">
-    <label class="inline"><input name="edit" type="checkbox">${t('ac.api.edit')}</label>
-    <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
-    <button class="btn primary">${t('ac.api.add')}</button>
-  </form>`;
-  const agyModels = S.agyNewCheck?.models || [];
-  const agyChoices = agyModels.some((item) => item.id === 'gemini-4-argon-medium') ? agyModels : [{ id: 'gemini-4-argon-medium', label: t('agents.agy.defaultModel') }, ...agyModels];
-  const agyModelOptions = agyChoices.map((item) => `<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
-  const agyInstall = /Windows/i.test(navigator.userAgent) ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash';
-  const agyInstallLabel = /Windows/i.test(navigator.userAgent) ? 'agents.agy.installWindows' : 'agents.agy.installUnix';
-  const agyForm = profiles.length >= 16 ? '' : `<h3 id="agyProfileHeading">${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
-    <select name="provider" aria-label="${t('agents.agy.type')}"><option value="agy">${t('agents.agy.title')}</option></select>
-    <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
-    <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('agents.agy.name')}" aria-label="${t('agents.agy.name')}">
-    <input name="cwd" required placeholder="${t('agents.agy.cwd')}" aria-label="${t('agents.agy.cwd')}" spellcheck="false">
-    <input name="path" maxlength="500" placeholder="${t('agents.agy.path')}" aria-label="${t('agents.agy.path')}" spellcheck="false">
-    <label>${t('agents.agy.model')} <select name="model" aria-label="${t('agents.agy.model')}">${agyModelOptions}</select></label>
-    <label>${t('agents.agy.effort')} <select name="effort" aria-label="${t('agents.agy.effort')}"><option value=""></option>${['low', 'medium', 'high', 'xhigh', 'max'].map((effort) => `<option value="${effort}">${effort}</option>`).join('')}</select></label>
-    <button type="button" class="btn sm" data-agy-check>${t('agents.agy.check')}</button><span class="small" data-agy-check-status role="status"></span>
-    <label class="inline"><input name="enabled" type="checkbox" disabled>${t('ac.profile.enabled')}</label>
-    <button class="btn primary">${t('ac.profile.add')}</button>
-  </form>`;
-  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}${apiForm}${agyForm}`;
+  // one way to add a background agent: the same + Agent dialog as the main screen (it picks the kind, checks agy, makes the id)
+  const addAgent = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<div class="row"><button type="button" class="btn primary" data-open-agent-dialog>${t('agent.spawn.add')}</button></div>`;
+  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${addAgent}`;
   const mcpConnections = S.mcpConnections || [];
   const mcpRows = mcpConnections.length ? `<div class="cprofiles">${mcpConnections.map((connection) => `<article class="cprofile"><div class="pf"><b>${esc(connection.name)}</b><span class="small muted">${esc(connection.id)}</span><span style="flex:1"></span><button type="button" class="btn sm" data-mcp-revoke="${esc(connection.id)}">${t('mcp.revoke')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${S.mcpConnections === undefined ? t('mcp.loading') : t('mcp.empty')}</p>`;
   const mcpIssued = S.mcpIssued ? `<div class="aplan" role="status"><p class="small pwarn">${t('mcp.tokenOnce')}</p><label class="setrow"><span><b>${t('mcp.token')}</b></span><code class="mono">${esc(S.mcpIssued.token)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.token)}">${t('mcp.copy')}</button></label><label class="setrow"><span><b>${t('mcp.command')}</b><small>${t('mcp.envHint')}</small></span><code class="mono">${esc(S.mcpIssued.command)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.command)}">${t('mcp.copy')}</button></label><div class="row" style="display:flex;justify-content:flex-end"><button type="button" class="btn" id="mcpTokenDismiss">${t('mcp.dismiss')}</button></div></div>` : '';
@@ -4016,7 +3959,6 @@ function renderAgentDialog() {
     else if (state.kind === 'api') {
       const providerOptions = providers.filter((p) => p.enabled).map((p) => `<option value="${esc(p.id)}">${esc(p.label)} (${esc(p.tier)})</option>`).join('');
       content = `<form class="cprofile-new" data-agent-api>
-        <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
         <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
         <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
         <select name="providerId" required aria-label="${t('ac.api.provider')}"><option value="">${t('ac.api.pickProvider')}</option>${providerOptions}</select>
@@ -4026,29 +3968,29 @@ function renderAgentDialog() {
         <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary"${providerOptions ? '' : ' disabled'}>${t('agent.spawn.start')}</button></div>
       </form>`;
     } else content = `<form class="cprofile-new" data-agent-copilot>
-      <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
       <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
       <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
       <input name="home" placeholder="${t('ac.profile.homeOptional')}" aria-label="${t('ac.profile.homeOptional')}" spellcheck="false">
       <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" aria-label="${t('ac.profile.modelLabel')}" spellcheck="false">
       <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
     </form>`;
+  } else if (!state.loading && state.kind === 'agy') {
+    const agyInstall = /Windows/i.test(navigator.userAgent) ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash';
+    content = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button>` : `<form class="tform" data-agent-agy>
+      <p class="small muted">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p>
+      <label>${t('agents.agy.name')}<input name="name" required maxlength="40" value="${profiles.some((p) => p.name.toLowerCase() === 'agy') ? '' : 'agy'}" aria-label="${t('agents.agy.name')}"></label>
+      <label>${t('agents.agy.cwd')}<span class="row"><input name="cwd" required value="${esc(cwd)}" spellcheck="false" aria-label="${t('agents.agy.cwd')}" style="flex:1"><button type="button" class="btn sm" data-agent-browse>${t('ac.agent.browse')}</button></span></label>
+      <label>${t('agents.agy.model')}<select name="model" aria-label="${t('agents.agy.model')}"><option value="gemini-4-argon-medium">${t('agents.agy.defaultModel')}</option></select></label>
+      <p class="small muted" data-agy-check-status role="status">${t('common.loading')}</p>
+      <div class="pf" data-agy-install hidden><span class="small">${t('agents.agy.install')}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div>
+      <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary" disabled>${t('agent.spawn.start')}</button></div>
+    </form>`;
   }
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true" aria-labelledby="agentSpawnTitle"><button class="zx" aria-label="${t('common.close')}">✕</button><h2 id="agentSpawnTitle">${t('agent.spawn.title')}</h2>${error}${content}</div>`;
   zoom.hidden = false;
   if (state.loading) return;
-  zoom.querySelectorAll('[data-agent-kind]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.agentKind === 'agy') {
-      S.agentDialog = null;
-      S.agyNewCheck = null;
-      S.setSub = 'account';
-      S.focusAgyProfileForm = true;
-      closeZoom();
-      showTab('settings');
-      return;
-    }
-    state.kind = b.dataset.agentKind; state.error = ''; renderAgentDialog();
-  }));
+  zoom.querySelectorAll('[data-agent-kind]').forEach((b) => b.addEventListener('click', () => { state.kind = b.dataset.agentKind; state.error = ''; renderAgentDialog(); }));
+  zoom.querySelectorAll('[data-copytext]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copytext, t('sm.copied'))));
   zoom.querySelectorAll('[data-agent-back]').forEach((b) => b.addEventListener('click', () => { if (state.needConfirm) { state.needConfirm = false; state.body = undefined; } else state.kind = ''; state.error = ''; renderAgentDialog(); }));
   const confirm = zoom.querySelector('[data-agent-confirm]');
   if (confirm) confirm.addEventListener('click', () => createAgent({ ...state.body, confirm: true }, true));
@@ -4086,8 +4028,8 @@ function renderAgentDialog() {
     apiForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-      const id = get('id'), name = get('name'), cwd = get('cwd'), providerId = get('providerId'), model = get('model'), p = providers.find((x) => x.id === providerId);
-      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !p || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
+      const name = get('name'), id = newProfileId(name, profiles), cwd = get('cwd'), providerId = get('providerId'), model = get('model'), p = providers.find((x) => x.id === providerId);
+      if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !p || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
       if (edit.checked && p.tier === 'free') return showAgentDialogError(t('agent.spawn.editNote'));
       submitAgentProfile({ id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit.checked ? { edit: true } : {}) });
     });
@@ -4096,11 +4038,40 @@ function renderAgentDialog() {
   if (copilotForm) copilotForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-    const id = get('id'), name = get('name'), cwd = get('cwd'), home = get('home'), model = get('model');
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || (home && !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(home)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
+    const name = get('name'), id = newProfileId(name, profiles), cwd = get('cwd'), home = get('home'), model = get('model');
+    if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || (home && !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(home)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
     submitAgentProfile({ id, provider: 'copilot', name, cwd, ...(home ? { home } : {}), ...(model ? { model } : {}) });
   });
+  const agyForm = zoom.querySelector('[data-agent-agy]');
+  if (agyForm) {
+    // checks agy on open, so the user never has to press a separate Check button before Create
+    const status = agyForm.querySelector('[data-agy-check-status]'), submit = agyForm.querySelector('button.primary');
+    api('/api/agy/check?path=').then((result) => {
+      if (!agyForm.isConnected) return;
+      status.className = `small ${result.loggedIn ? 'okt' : result.found ? 'pwarn' : 'bad'}`;
+      status.textContent = agyCheckMessage(result);
+      agyForm.querySelector('[data-agy-install]').hidden = result.found;
+      const model = agyForm.elements.namedItem('model'), models = Array.isArray(result.models) ? result.models : [];
+      if (models.length) model.replaceChildren(...models.map((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; return option; }));
+      if (models.some((item) => item.id === 'gemini-4-argon-medium')) model.value = 'gemini-4-argon-medium';
+      submit.disabled = !result.loggedIn;
+    }, (e) => { if (agyForm.isConnected) { status.className = 'small bad'; status.textContent = e.message; } });
+    agyForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
+      const name = get('name'), cwd = get('cwd'), model = get('model');
+      if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd)) return showAgentDialogError(t('ac.profile.invalid'));
+      submitAgentProfile({ id: newProfileId(name, profiles), provider: 'agy', name, cwd, ...(model ? { model } : {}) });
+    });
+  }
   zoom.querySelector('.zx')?.focus();
+}
+/** a free profile id from the agent name (agy → agy, agy-2, …), so nobody has to invent one */
+function newProfileId(name, profiles) {
+  const base = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'agent';
+  let id = base;
+  for (let n = 2; profiles.some((p) => p.id.toLowerCase() === id); n++) id = `${base}-${n}`;
+  return id;
 }
 async function submitAgentProfile(profile) {
   const current = S.settings?.agents?.profiles || [];
@@ -4251,14 +4222,6 @@ function renderSettingsView() {
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
 }
-function focusAgyProfileForm() {
-  if (!S.focusAgyProfileForm) return;
-  const heading = $('agyProfileHeading'), form = $('agyProfileNew');
-  if (!heading || !form) return;
-  S.focusAgyProfileForm = false;
-  heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  form.elements.namedItem('id').focus({ preventScroll: true });
-}
 async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
   try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast(t('settings.saved')); }
@@ -4319,14 +4282,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     renderSettingsView();
     const q = $(id); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
   });
-  sv.addEventListener('input', (e) => {
-    if (e.target.form?.id !== 'agyProfileNew' || e.target.name !== 'path') return;
-    S.agyNewCheck = null;
-    const enabled = e.target.form.elements.namedItem('enabled');
-    enabled.disabled = true;
-    enabled.checked = false;
-    e.target.form.querySelector('[data-agy-check-status]').textContent = '';
-  });
   sv.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
@@ -4340,39 +4295,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       if (!key) return;
       api(`/api/providers/${enc(id)}`, { key }, 'PUT').then(() => { f.key.value = ''; toast(t('sm.s4.saved', { id })); loadHealth(); }, (err) => toast(err.message));
       return;
-    }
-    if (e.target.id === 'copilotProfileNew') {
-      e.preventDefault();
-      const f = e.target, id = f.elements.namedItem('id').value.trim(), name = f.elements.namedItem('name').value.trim(), cwd = f.elements.namedItem('cwd').value.trim(), home = f.elements.namedItem('home').value.trim(), model = f.elements.namedItem('model').value.trim();
-      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || (home && !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(home)) || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
-      const profiles = S.settings.agents?.profiles || [];
-      if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
-      return saveCopilotProfiles([...profiles, { id, provider: 'copilot', name, cwd, ...(home ? { home } : {}), ...(model ? { model } : {}), enabled: f.elements.namedItem('enabled').checked }]);
-    }
-    if (e.target.id === 'apiProfileNew') {
-      e.preventDefault();
-      const f = e.target, v = (n) => f.elements.namedItem(n).value.trim();
-      const id = v('id'), name = v('name'), cwd = v('cwd'), providerId = v('providerId'), model = v('model'), edit = f.elements.namedItem('edit').checked;
-      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !providerId || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
-      if (edit && !['local', 'paid'].includes(S.providers.find((p) => p.id === providerId)?.tier)) return toast(t('ac.api.editLocalOnly'));
-      const profiles = S.settings.agents?.profiles || [];
-      if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
-      return saveCopilotProfiles([...profiles, { id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit ? { edit: true } : {}), enabled: f.elements.namedItem('enabled').checked }]);
-    }
-    if (e.target.id === 'agyProfileNew') {
-      e.preventDefault();
-      const f = e.target, value = (name) => f.elements.namedItem(name).value.trim();
-      const id = value('id'), name = value('name'), cwd = value('cwd'), agyPath = value('path');
-      const check = S.agyNewCheck;
-      if (!check?.loggedIn || check.path !== agyPath) {
-        f.querySelector('[data-agy-check-status]').textContent = t('agents.agy.checkFirst');
-        return;
-      }
-      const model = value('model'), effort = value('effort');
-      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || agyPath.length > 500 || (model && !/^[\w.:/-]{1,64}$/.test(model))) return toast(t('ac.profile.invalid'));
-      const profiles = S.settings.agents?.profiles || [];
-      if (profiles.some((profile) => profile.id.toLowerCase() === id.toLowerCase() || profile.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
-      return saveCopilotProfiles([...profiles, { id, provider: 'agy', name, cwd, ...(agyPath ? { path: agyPath } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), enabled: f.elements.namedItem('enabled').checked }]);
     }
     if (e.target.id === 'mcpServerNew') {
       e.preventDefault();
@@ -4402,6 +4324,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const sb = e.target.closest('[data-sub]');
     if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'memory') S.memoryEntries = undefined; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
+    if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();
     const agyCheck = e.target.closest('[data-agy-check]');
     if (agyCheck) return checkAgyProfile(agyCheck);
     const ct = e.target.closest('[data-copytext]'); if (ct) return copy(ct.dataset.copytext, t('sm.copied'));
