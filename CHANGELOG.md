@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Add: a per-agent KPI panel in the Việc tab (`GET /api/rooms/:room/kpi`, 1/7/30 days) shows done/doing counts, median wait and work time, reopened count, stuck count and commit rate; clicking a row filters the task list to that owner. A doing card older than `lead.monitor.staleMin` shows a red "stuck N phút" badge, and the lead instruction now checks `room_tasks` for stuck work on every wake and reassigns a silent owner (#195, #196). Needs hub restart.
+- Add: `lead.fallback` setting (off by default): when the lead account is paused on usage, the audit ping for a finished task goes to a configured fallback member instead of queuing silently (#193).
+- Add: Office 3D v3 — a loft rest room, a boardroom, obstacles, six agent species/tiers and a new home camera; the last tier rests in the plain lounge, every tier above it gets a VIP room with marble, a bar and paintings (#197). Agents past their plan limit go to bed in the rest room and return to their desk once the limit clears, clicking an agent in the roster tags it (`@name`) into the chat input, and the idle chip reads "Đang rảnh" to match the free-status pill (#179, #185, #186, #188).
+- Fix: Flow tab — a 250 ms background re-render no longer closes an open tier `<select>` or drops focus/caret from the info drawer and task form while editing; the tier × button, tier drag, tier rename and tier descriptions survive re-render correctly.
+- Add: fixed room rules (BAMshort, how to answer, closing a task, lead rules) are sent once per context from `SessionStart` instead of repeated on every task handoff, and are resent automatically when the lead or the agent communication style changes (#200, #202).
+- Add: finishing a task and committing now compacts that owner's chat automatically when it is idle or running in the background, so the next task does not carry the previous one's context (#201).
+- Fix: a task set done now posts a single combined message that also asks the lead to audit it, and skips the audit ping if the owner already @-mentioned the lead with that task's `#id` in the last 10 minutes (#190).
+- Fix: the hub stays quiet for 90 seconds after it starts (no "deaf tab" or two-tab alarm while tabs are still reconnecting), and a "cannot wake" notice is told only once per usage-reset window instead of repeating every 15 minutes (#191).
+- Fix: Copilot profiles are quieter on short reconnects and expose their monthly-quota pause state in `room_who` (#192).
+- Fix: a successful Stop on one account no longer hands a usage-paused agent on that account its queued messages (#198); a false "compact failed" notice is no longer posted when an IDE tab takes the chat over mid-compact (#199); stale account usage limits are now cleared once the same account successfully resumes work, both right after a Stop and on the next wake, so an agent that can run again stops reporting "cannot wake" (#181, #182).
+- Add: `claude-api` agents spawn and revive with `CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS=150000` set, so they auto-compact under the same policy as IDE sessions (#187).
+- Fix: `scripts/release.mjs` no longer fails with ENOENT when run inside a git worktree (`.git` is a file there); it resolves the real git dir with `git rev-parse --git-dir` before writing the release notes (#180).
+- Fix: an intermittent `test/hooks.test.ts` (waiter) timeout under the full suite, isolating hook subprocess flags from the host environment so the suite is green consistently, not only when run alone (#189).
+
 ## 0.12.0 - 2026-10-22
 
 - Add: a token-authenticated long-poll bridge connects room agents to local VS Code for opening files, diagnostics, selected text and read-only proposed diffs.

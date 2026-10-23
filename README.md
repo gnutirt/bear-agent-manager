@@ -12,8 +12,8 @@
 
 - **Rooms** shared by Claude Code sessions, the optional Copilot SDK agent and configured API-backed agents, across repos and editors. Topics keep side discussions apart.
 - **Wake on mention**: an idle chat wakes up when someone writes `@its-name` (through an `asyncRewake` Stop hook). A busy chat receives the message between tool calls.
-- **Room lead ★**: one chat coordinates. Your untagged messages go to the lead, and untagged agent messages (progress, "done") are routed to it.
-- **Room notes and tasks**: keep shared decisions; assign work, set dependencies, track status and commits. When a dependency completes, the next task can be unblocked and its owner woken automatically.
+- **Room lead ★**: one chat coordinates. Your untagged messages go to the lead, and untagged agent messages (progress, "done") are routed to it. An optional fallback member (`lead.fallback`, off by default) picks up a finished task's audit ping when the lead itself is paused on usage.
+- **Room notes and tasks**: keep shared decisions; assign work, set dependencies, track status and commits. When a dependency completes, the next task can be unblocked and its owner woken automatically. A per-agent KPI panel (done/doing counts, median wait/work time, stuck tasks, commit rate) is in the Tasks tab; `lead.monitor` (Settings) flags a doing task stuck past `staleMin` with a badge and has the lead nudge or reassign a silent owner.
 - **Private chats and live chat**: talk 1-1 with an agent. Continue a Claude session in the hub, see its streamed response and tool calls, and approve or deny permission requests when prompted.
 - **Files in a private chat**: browse an agent's workspace, inspect files and diffs, edit and save, then commit selected paths. File access stays inside the agent folder.
 - **Work with or without an open editor**: the hub can resume an eligible saved Claude session in the background. It avoids starting a second writer when that same chat is open in an editor.
@@ -21,7 +21,8 @@
 - **Workers and skills**: delegate large reading or cleanup jobs to workers; manage per-agent skill rules and install skills from the bundled library.
 - **Usage and accounts**: see context estimates, Claude account usage, worker tokens and run history. Shared Claude accounts can switch a background wake to an available account when configured.
 - **Flow tab**: a room's agents by workflow tier (2–5 per room) with live message flow; assign tiers and tasks from the graph.
-- **Automatic compaction**: every 10 minutes the hub compacts offline chats that are past their role's context threshold and not held by a tab, waiter or background process. A chat can also be compacted when its task is done.
+- **Office tab**: a 3D view of the room's agents at their desks and a boardroom; an agent past its plan's usage limit goes to the rest room and sleeps until the limit resets.
+- **Automatic compaction**: every 10 minutes the hub compacts offline chats that are past their role's context threshold and not held by a tab, waiter or background process. A chat is also compacted when its task is marked done and committed.
 - **Live UI** in a browser, app window, or VS Code / Antigravity panel. Choose light, gray or dark themes and English or Vietnamese.
 
 | Shared room | Tasks |
@@ -156,6 +157,7 @@ Every wake is a model turn and may consume substantial context. The **Token** ta
 - untagged agent messages wake nobody, and the lead absorbs untagged traffic;
 - with `agentComms: 'terse'` (Settings) agents write to each other in BAMshort: short status/handoff lines, slang abbreviations and fixed status emoji, no greetings. Messages to you stay in full sentences;
 - a room message an agent starts with `~` is a status line: it is stored and readable (`room_read`), but it wakes nobody, is not routed to the lead and does not count towards the agent-to-agent wake limit. Use it for a short handover or "still working" note;
+- fixed room rules (BAMshort, how to answer, closing a task, lead rules) are sent once per session from `SessionStart` instead of repeated on every task handoff, and are resent automatically only when the lead or the agent communication style changes;
 - bursts are batched, and long messages are trimmed in deliveries (`room_read` has the full text);
 - the UI shows context estimates and previews which agents a message will wake;
 - account usage limits and background account switching are surfaced in the room and Settings.
@@ -225,8 +227,8 @@ No license is currently provided for this repository. Reuse, modification and re
 
 - **Phòng chung** cho phiên Claude Code, agent Copilot SDK tuỳ chọn và agent cấu hình qua API, dùng được giữa nhiều repo/editor. Topic giúp tách các cuộc bàn riêng.
 - **Gọi tên là dậy**: chat đang rảnh sẽ dậy khi có người viết `@tên-nó` (qua Stop hook `asyncRewake`). Chat đang bận nhận tin giữa hai lần gọi tool.
-- **Trưởng phòng ★**: một chat điều phối. Tin của bạn không gắn tên sẽ tới trưởng phòng, tin không gắn tên của agent (tiến độ, "xong") cũng chuyển về trưởng phòng.
-- **Ghi chú và việc của phòng**: lưu quyết định dùng chung; giao việc, đặt phụ thuộc, theo dõi trạng thái và commit. Việc tiếp theo có thể tự mở khoá và gọi người phụ trách khi việc phụ thuộc hoàn tất.
+- **Trưởng phòng ★**: một chat điều phối. Tin của bạn không gắn tên sẽ tới trưởng phòng, tin không gắn tên của agent (tiến độ, "xong") cũng chuyển về trưởng phòng. Có thể đặt thành viên dự phòng (`lead.fallback`, mặc định tắt) để nhận tin audit việc xong khi trưởng phòng đang bị tạm dừng vì hết hạn mức.
+- **Ghi chú và việc của phòng**: lưu quyết định dùng chung; giao việc, đặt phụ thuộc, theo dõi trạng thái và commit. Việc tiếp theo có thể tự mở khoá và gọi người phụ trách khi việc phụ thuộc hoàn tất. Tab Việc có bảng KPI theo từng agent (số việc xong/đang làm, thời gian chờ/làm trung vị, số việc kẹt, tỉ lệ commit); `lead.monitor` (Cài đặt) đánh dấu việc "đang làm" kẹt quá `staleMin` và để trưởng phòng nhắc hoặc giao lại khi người phụ trách im lặng.
 - **Chat riêng và chat trực tiếp**: nhắn 1-1 với agent. Tiếp tục phiên Claude trong hub, xem nội dung và tool chạy trực tiếp, duyệt hoặc từ chối yêu cầu quyền khi được hỏi.
 - **File trong chat riêng**: duyệt workspace của agent, xem file/diff, sửa và lưu, rồi commit các đường dẫn đã chọn. File chỉ được truy cập bên trong thư mục agent.
 - **Làm việc dù đóng editor**: hub có thể resume phiên Claude đã lưu đủ điều kiện. Hub tránh chạy đồng thời một tiến trình nền nếu phiên đó đang mở trong editor.
@@ -234,7 +236,8 @@ No license is currently provided for this repository. Reuse, modification and re
 - **Worker và skill**: giao việc đọc nhiều/dọn dẹp cho worker; quản lý rule skill từng agent và cài skill từ thư viện đi kèm.
 - **Theo dõi usage và tài khoản**: xem ước tính context, usage Claude theo tài khoản, token worker và lịch sử chạy. Có thể chuyển lượt đánh thức nền sang tài khoản Claude dùng chung còn hạn mức.
 - **Tab Luồng**: agent của phòng xếp theo tầng workflow (2–5 tầng mỗi phòng), tin nhắn chạy theo thời gian thực; gán tầng và giao việc ngay trên đồ thị.
-- **Tự compact**: cứ 10 phút hub compact các chat đang offline đã vượt ngưỡng context theo vai trò và không bị tab, waiter hay tiến trình nền giữ. Chat cũng có thể được compact khi việc của nó xong.
+- **Tab Văn phòng**: xem 3D agent của phòng ngồi ở bàn và phòng họp; agent vượt hạn mức gói của mình vào phòng nghỉ ngủ tới khi hạn mức reset.
+- **Tự compact**: cứ 10 phút hub compact các chat đang offline đã vượt ngưỡng context theo vai trò và không bị tab, waiter hay tiến trình nền giữ. Chat cũng được compact khi việc của nó được đánh dấu xong và đã commit.
 - **Giao diện trực tiếp** trên trình duyệt, cửa sổ app, hoặc panel VS Code / Antigravity. Có giao diện sáng, xám, tối, tiếng Anh và tiếng Việt.
 
 | Phòng chung | Việc |
@@ -357,6 +360,7 @@ Mỗi lần đánh thức là một lượt chạy model và có thể tiêu th�
 - tin agent không gắn tên không đánh thức ai, trưởng phòng nhận các tin không gắn tên;
 - bật `agentComms: 'terse'` (Cài đặt) thì agent nói với nhau bằng BAMshort: dòng trạng thái/bàn giao ngắn, lóng viết tắt và emoji trạng thái cố định, không chào hỏi. Tin gửi cho bạn vẫn viết đủ câu;
 - tin trong phòng mà agent bắt đầu bằng `~` là dòng trạng thái: vẫn được lưu và đọc được (`room_read`), nhưng không đánh thức ai, không chuyển về trưởng phòng và không tính vào giới hạn agent đánh thức nhau. Dùng cho câu bàn giao ngắn hoặc "vẫn đang làm";
+- luật cố định của phòng (BAMshort, cách trả lời, đóng việc, luật trưởng phòng) chỉ gửi 1 lần mỗi phiên từ `SessionStart` thay vì lặp lại ở mỗi lần giao việc, và chỉ gửi lại khi đổi trưởng phòng hoặc đổi kiểu giao tiếp agent;
 - tin dồn dập được gom lại, tin dài bị cắt bớt khi giao (`room_read` có bản đầy đủ);
 - UI hiện ước tính context và cho biết agent nào sẽ được đánh thức;
 - giới hạn usage và chuyển tài khoản khi chạy nền được thể hiện trong phòng và Cài đặt.
