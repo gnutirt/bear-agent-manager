@@ -71,6 +71,8 @@ test('tasks use grouped status sections with a completed checklist and an undo w
       assert.ok(html.includes(s), `missing ${s}`);
     }
     assert.ok(html.indexOf("const TGROUPS = ['planned', 'doing', 'done']") < html.indexOf('TGROUPS.map(sec)'), 'status groups are ordered from open work to completed');
+    assert.ok(!html.includes('id="agentNew"'), 'the old folder form must be gone: every add button opens the dialog');
+    assert.ok(!html.includes("e.target.id !== 'agentNew'"), 'the old create form handler must be gone');
     const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
     // #149: a todo with an owner was handed out (agent may have forgotten to claim) — shown as "Đã giao", not lumped with unowned work.
     assert.ok(html.includes("const tgroup = (x) => x.status === 'todo' || x.status === 'blocked' ? 'planned' : x.status;"));
@@ -137,16 +139,14 @@ test('T38: private chat per agent — popup button, dm rooms split from the room
   } finally { await hub.close(); }
 });
 
-test('T36: new-agent form — folder picker button, review step shows account/permission/folder before running', async () => {
+test('#238 new-agent dialog: folder picker, review before start, and the room folder default', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of [
-      'id="cwdBrowse"', "t('ac.agent.browse')",
-      "api('/api/browse-folder'",
-      't(\'ac.agent.reviewTitle\')', "t('ac.agent.reviewAccount'", "t('ac.agent.reviewPerm'", "t('ac.agent.reviewFolder'",
-      'S.agentAsk = { body }',
-      'createAgent(ask.needConfirm ? { ...ask.body, confirm: true } : ask.body)',
+      'data-agent-browse', "api('/api/browse-folder'", "t('ac.agent.browse')",
+      'data-agent-confirm', "t('ac.agent.confirmText'", "t('agent.spawn.back')", "t('agent.spawn.setRoomFolder')",
+      'createAgent({ ...state.body, confirm: true }, true)',
     ]) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
@@ -158,7 +158,6 @@ test('Room.cwd: both headless spawn forms default to the selected room folder an
     await call('/api/rooms/repo/cwd', { cwd: dir }, { method: 'PUT' });
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of [
-      'selectedRoomInfo?.cwd',
       'roomInfo?.cwd',
       'name="setRoomCwd"',
       "t('agent.spawn.setRoomFolder')",
@@ -382,7 +381,7 @@ test('Settings memory view loads, edits, deletes and clears BAM-owned entries wi
   } finally { await hub.close(); }
 });
 
-test('Duck settings add chat profiles, keep keys write-only, check models and clear room history without Muse UI', async () => {
+test('Duck and Muse profiles share memory, expose explicit Muse saves and keep Duck keys write-only', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -390,9 +389,9 @@ test('Duck settings add chat profiles, keep keys write-only, check models and cl
       'data-agent-kind="duck"', 'data-agent-duck', "api('/api/duck/host')", '/api/duck/check?id=',
       '/api/agents/${enc(id)}/key', '/api/duck/history?id=', 'type="password"',
       'data-duck-save', 'data-duck-check', 'data-duck-history-clear',
-      'data-memory-add', 'data-memory-save',
+      'data-memory-add', 'data-memory-save', 'data-agent-kind="muse"', 'data-agent-muse', 'data-muse-save="${m.id}"',
+      "api('/api/muse/status')", "api('/api/memory/from-message', { room, id })", 'data-muse-status-refresh',
     ]) assert.ok(html.includes(source), `Duck/memory UI is missing ${source}`);
-    assert.ok(!html.includes('data-agent-kind="muse"'), 'Muse is not exposed before its member is implemented');
     assert.ok(!html.includes('value="${esc(p.key)}"'), 'saved Duck keys must never be rendered back');
     const start = html.indexOf('const duckInfo = isDuck');
     const end = html.indexOf('const toggleDisabled', start);
@@ -403,6 +402,7 @@ test('Duck settings add chat profiles, keep keys write-only, check models and cl
     assert.ok(!check.includes('renderSettingsView()'), 'checking models must not re-render away unsaved profile edits');
     for (const key of [
       'agent.spawn.duck', 'agent.spawn.duckNote', 'agents.duck.title', 'agents.duck.upstream',
+      'agent.spawn.muse', 'agent.spawn.museNote', 'agents.muse.title', 'agents.muse.save', 'agents.muse.saved',
       'agents.duck.notLocal', 'agents.duck.useHub', 'agents.duck.baseUrl', 'agents.duck.model',
       'agents.duck.timeout', 'agents.duck.experimental', 'agents.duck.key', 'agents.duck.keySaved',
       'agents.duck.keyMissing', 'agents.duck.keyPlaceholder', 'agents.duck.keySave', 'agents.duck.keyClear',
@@ -505,7 +505,7 @@ test('Antigravity agents are added from the + Agent dialog: agy is checked on op
   } finally { await hub.close(); }
 });
 
-test('main screen agent spawn dialog offers folder, API, Copilot and Antigravity, and Settings opens the same dialog', async () => {
+test('#238 one + Agent dialog offers all six kinds, including Muse, and missing dependencies link to group 3', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
@@ -516,6 +516,13 @@ test('main screen agent spawn dialog offers folder, API, Copilot and Antigravity
       'data-agent-kind="api"',
       'data-agent-kind="copilot"',
       'data-agent-kind="agy"',
+      'data-agent-kind="duck"',
+      'data-agent-kind="muse"',
+      'data-agent-folder', 'data-agent-api', 'data-agent-copilot', 'data-agent-agy', 'data-agent-duck', 'data-agent-muse',
+      'data-agent-muse-refresh', 'provider: \'muse\'', '/api/muse/status',
+      "data-agent-goto=\"accounts\"", "agent.spawn.needAccount", "agent.spawn.needProvider", "agent.spawn.needCopilot", "agent.spawn.needDuck", "agent.spawn.openAccounts",
+      "if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();",
+      "zoom.querySelectorAll('[data-agent-goto]')",
       'function newProfileId(name, profiles)',
       "if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();",
       "createAgent({ name: get('name'), cwd: get('cwd'), room: get('room')",
@@ -528,7 +535,10 @@ test('main screen agent spawn dialog offers folder, API, Copilot and Antigravity
     for (const dict of [vi, en]) {
       assert.ok(dict['agent.spawn.agy']);
       assert.ok(dict['agent.spawn.agyNote']);
+      assert.ok(dict['agent.spawn.muse']);
+      assert.ok(dict['agent.spawn.museNote']);
       assert.ok(dict['ac.copilot'].includes('Antigravity'));
+      for (const k of ['agent.spawn.runBy', 'agent.spawn.needAccount', 'agent.spawn.needProvider', 'agent.spawn.needCopilot', 'agent.spawn.needDuck', 'agent.spawn.openAccounts']) assert.ok(dict[k], `missing ${k}`);
     }
   } finally { await hub.close(); }
 });

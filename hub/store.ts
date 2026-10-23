@@ -708,7 +708,7 @@ export class Store {
     return message;
   }
 
-  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number, topic?: string, attachments?: Message['attachments'], sys?: SysMeta): { message: Message; unknownMentions: string[]; paused: boolean } {
+  post(roomName: string, fromId: string | null, text: string, kind?: 'done', replyTo?: number, topic?: string, attachments?: Message['attachments'], sys?: SysMeta, research?: Message['research']): { message: Message; unknownMentions: string[]; paused: boolean } {
     const room = this.state.rooms[roomName];
     if (!room) throw new StoreError(404, `unknown room ${roomName}`);
     const body = String(text ?? '').trim();
@@ -745,7 +745,7 @@ export class Store {
     const inTopic = (reply.replyTo != null ? this.messages.find((m) => m.id === reply.replyTo)?.topic : wanted ?? (sender ? sender.turnTopic?.[roomName] : undefined)) || undefined;
     const message: Message = {
       id: this.newId(), room: roomName, from: sender?.name ?? (sys ? 'bear-agent-manager' : 'you'), fromId: sender?.id ?? null,
-      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}), ...(sys ? { sys } : {}),
+      mentions: parseMentions(body), text: body, ts: this.now(), wake: [], ...(kind ? { kind } : {}), ...(inTopic && inTopic !== 'chung' ? { topic: inTopic } : {}), ...reply, ...(attachments?.length ? { attachments } : {}), ...(sys ? { sys } : {}), ...(research ? { research } : {}),
     };
     if (!sender) { room.agentWakeStreak = 0; room.paused = false; room.done = []; }
     const members = this.members(roomName);

@@ -55,7 +55,7 @@ const redactHistoryText = (text: string): string => text
 const KINDS: MemKind[] = ['preference', 'decision', 'context', 'tracking', 'research', 'question'];
 const SOURCES: MemEntry['source'][] = ['user', 'duck', 'muse'];
 const ID = /^[a-z0-9-]{1,64}$/;
-const MAX_TEXT = 2000;
+export const MAX_TEXT = 2000;
 const MAX_ENTRIES = 5000;
 const DEFAULT_LIMIT = { n: 8, chars: 3000 };
 
@@ -291,14 +291,14 @@ export class Memory {
   }
 
   /** The entries one turn in `ctx.room` of `ctx.project` may see, ranked by shared words and capped for a prompt. */
-  relevant(query: string, ctx: { room: string; project: string }, limit: { n: number; chars: number } = DEFAULT_LIMIT): MemEntry[] {
+  relevant(query: string, ctx: { room: string; project: string }, limit: { n: number; chars: number; kind?: MemKind } = DEFAULT_LIMIT): MemEntry[] {
     const q = tokens(query);
     if (!q.size) return [];
     const visible = (e: MemEntry) =>
       e.scope === 'user' ||
       (e.scope === 'project' && e.project === ctx.project) ||
       (e.scope === 'room' && e.room === ctx.room);
-    const ranked = this.entries.filter(visible).map((e) => {
+    const ranked = this.entries.filter((e) => visible(e) && (limit.kind === undefined || e.kind === limit.kind)).map((e) => {
       const words = tokens(e.text + ' ' + e.tags.join(' '));
       let score = 0;
       for (const w of q) if (words.has(w)) score++;

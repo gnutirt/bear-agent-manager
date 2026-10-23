@@ -16,6 +16,7 @@ export type Message = {
   kind?: 'done' | 'system' | 'mirror'; // done = a member finished its part; system = hub notice (wakes nobody); mirror = a tab turn copied into the agent's private chat (wakes nobody, never delivered)
   sys?: SysMeta;          // system notices: what kind, how serious, about whom (the UI draws them as compact cards)
   attachments?: { id: string; name: string; mime: string; size: number; sha256: string }[];   // A1: files in rooms/<room>/files/<id>
+  research?: { urls: string[]; accessedAt: number }; // Muse provenance, saved only when the user asks
 };
 
 export const LOOP_LIMIT = 30;

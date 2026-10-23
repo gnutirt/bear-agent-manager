@@ -89,10 +89,21 @@ test('POST /api/memory/from-message accepts Muse research only and preserves its
     assert.equal(entry.source, 'muse');
     assert.deepEqual(entry.urls, ['https://example.test/source']);
     assert.equal(entry.accessedAt, 1234);
+    assert.ok(entry.tags.includes(`msg:${message.room}#${message.id}`));
+    const duplicate = await h.call<any>('/api/memory/from-message', { room: message.room, id: message.id });
+    assert.equal(duplicate.id, entry.id, 'saving the same room message twice returns its original entry');
 
     const noSource = h.hub.store.post('research-room', muse.id, 'A result without a source');
     Object.assign(noSource.message, { research: { urls: [], accessedAt: 5678 } });
     const unsourced = await h.call<any>('/api/memory/from-message', { room: noSource.message.room, id: noSource.message.id });
-    assert.deepEqual(unsourced.tags, ['chưa-có-nguồn']);
+    assert.ok(unsourced.tags.includes('chưa-có-nguồn'));
+    assert.ok(unsourced.tags.includes(`msg:${noSource.message.room}#${noSource.message.id}`));
+
+    const long = h.hub.store.post('research-room', muse.id, 'x'.repeat(2500));
+    Object.assign(long.message, { research: { urls: [], accessedAt: 6789 } });
+    const clipped = await h.call<any>('/api/memory/from-message', { room: long.message.room, id: long.message.id });
+    assert.ok(clipped.text.length <= 2000);
+    assert.ok(clipped.text.startsWith('x'.repeat(1900)));
+    assert.ok(clipped.text.endsWith(`… (room_read #${long.message.id})`));
   } finally { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); }
 });

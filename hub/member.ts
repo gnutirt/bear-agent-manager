@@ -25,6 +25,7 @@ export type MemberTurn = {
   error: string;
   kind?: string;
   usage?: { in: number; out: number };
+  research?: Message['research'];
 };
 
 export type HubMemberOptions<K extends string = string> = {
@@ -187,7 +188,7 @@ export class HubMember<K extends string = string> {
         return;
       }
       this.failureKinds.clear();
-      const posted = this.opts.store.post(room, id, cutResponse(turn.text));
+      const posted = this.opts.store.post(room, id, cutResponse(turn.text), undefined, undefined, undefined, undefined, undefined, turn.research);
       this.opts.onMessage(room, posted.message);
       this.opts.store.consume(id, upTo);
       this.opts.store.setStatus(id, 'idle');

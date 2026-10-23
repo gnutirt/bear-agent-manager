@@ -58,11 +58,14 @@ import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.t
 import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
 import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyTurn } from './agy.ts';
-import { clearHistory, Memory, MemoryError, type MemKind, type MemEntry } from './memory.ts';
+import { clearHistory, Memory, MemoryError, MAX_TEXT, type MemKind, type MemEntry } from './memory.ts';
 import { DuckHost } from './duckhost.ts';
 import { duckTurn, getAgentKey, loadAgentKeys, saveAgentKey } from './duck.ts';
 import { listModels } from './chatapi.ts';
 import { HubMember, type MemberStatus } from './member.ts';
+import { museTurn } from './muse-member.ts';
+import { chromeCdp } from '../mcp/muse.ts';
+import { museStatus, type Cdp } from '../mcp/muse-core.ts';
 
 export type { ReviveJob };
 
@@ -215,6 +218,8 @@ export type HubOptions = {
   duck?: DuckHost | null;
   /** OpenAI-compatible Duck API calls (tests supply a fake fetch). */
   duckFetch?: typeof fetch;
+  /** Muse browser automation (tests provide a fake Chrome DevTools client). */
+  museCdp?: Cdp;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -282,6 +287,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
   const store = new Store(opts.dir, opts.now);
   const memory = new Memory(opts.dir, opts.now);
+  const museCdp = opts.museCdp ?? chromeCdp();
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
@@ -478,7 +484,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const copilotQuotaNotices = new Set<string>();
   function copilotProfiles(): AgentProfile[] {
     const s = loadSettings(opts.dir, envCap);
-    const list = s.agents.profiles.filter((p) => p.provider === 'copilot' || p.provider === 'agy' || p.provider === 'duck');
+    const list = s.agents.profiles.filter((p) => p.provider === 'copilot' || p.provider === 'agy' || p.provider === 'duck' || p.provider === 'muse');
     return list.some((p) => p.provider === 'copilot') ? list : [...list, { id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
   }
   function publicSettings() {
@@ -630,6 +636,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           }),
           now: opts.now,
         })
+        : p.provider === 'muse'
+          ? new HubMember({
+            dir: opts.dir,
+            id: p.id,
+            name: p.name,
+            cwd: p.cwd,
+            kind: 'muse',
+            identityFile: `muse-agent-${p.id}.json`,
+            store,
+            format: (_sid, messages) => messages.map((message) => message.text).join('\n\n'),
+            onChange,
+            onRoom: emitRoom,
+            onRooms,
+            onMessage,
+            workerModel: () => 'muse',
+            turn: museTurn({ cdp: museCdp, memory, project: p.cwd, now: opts.now }),
+            now: opts.now,
+          })
         : new CopilotAgent({
         dir: opts.dir, profile: p, port: () => port, store,
         settings: () => loadSettings(opts.dir, envCap),
@@ -2198,6 +2222,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         lastError: duckApplyError || duck?.lastError() || '',
       });
     }
+    if (m === 'GET' && p === '/api/muse/status') {
+      const busy = copilotProfiles().some((profile) =>
+        profile.provider === 'muse' && copilots.get(profile.id)?.agent.snapshot().state === 'busy');
+      return json(res, 200, await museStatus(museCdp, busy));
+    }
     if (m === 'GET' && p === '/api/duck/check') {
       const id = url.searchParams.get('id') ?? '';
       const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
@@ -2452,10 +2481,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             throw new StoreError(400, 'message must come from a Muse member');
           }
           const urls = Array.isArray(research?.urls) ? research.urls.map(String) : [];
+          const messageTag = `msg:${room}#${id}`;
+          const existing = memory.list({ room, kind: 'research' }).find((entry) => entry.tags.includes(messageTag));
+          if (existing) return json(res, 200, existing);
+          const suffix = `… (room_read #${id})`;
+          const text = message.text.length > MAX_TEXT
+            ? `${message.text.slice(0, Math.min(1900, MAX_TEXT - suffix.length)).trimEnd()}${suffix}`
+            : message.text;
           const entry: Omit<MemEntry, 'id' | 'createdAt' | 'updatedAt'> = {
             kind: 'research',
-            text: message.text,
-            tags: urls.length ? [] : ['chưa-có-nguồn'],
+            text,
+            tags: [...(urls.length ? [] : ['chưa-có-nguồn']), messageTag],
             scope: 'room',
             room,
             source: 'muse',
@@ -2661,7 +2697,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (!permissions.decide(pm[1], b.allow, typeof b.message === 'string' ? b.message : undefined)) throw new StoreError(404, 'no such open request (answered or timed out)');
       return json(res, 200, { ok: true });
     }
-    // Every headless profile (copilot and claude-api) with its status; claude-api profiles are switched here, copilot ones under /api/copilot/profiles.
+    // Hub-run member profiles and claude-api profiles with status; claude-api profiles are switched here, members under /api/copilot/profiles.
     if (m === 'GET' && p === '/api/agent-profiles') return json(res, 200, [...copilotProfiles().map((x) => ({ provider: 'copilot', ...copilotStatus(x.id) })), ...apiProfiles().map(apiStatus)]);
     const ap = m === 'POST' ? p.match(/^\/api\/agent-profiles\/([a-z0-9-]+)(\/retry)?$/) : null;
     if (ap) {
