@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { renameRetry } from './atomic.ts';
+import { ROOM_NAME } from './store.ts';
 
 export type MemKind = 'preference' | 'decision' | 'context' | 'tracking' | 'research' | 'question';
 
@@ -42,6 +43,15 @@ export class MemoryError extends Error {
 export const isSecretText = (t: string): boolean =>
   /(sk-|ghp_|github_pat_|xox[bp]-|AKIA)[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY|\b(password|passwd|mật khẩu|token|api[ _-]?key)\s*[:=]|\bbí mật\b|\bsecret\b/i.test(String(t));
 
+const SECRET_REDACTION = '[secret bị lược]';
+const SECRET_PLACEHOLDER = '\u0000bam-redacted\u0000';
+const redactHistoryText = (text: string): string => text
+  .replace(/-----BEGIN [A-Z ]*PRIVATE KEY[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gi, SECRET_PLACEHOLDER)
+  .replace(/\b(?:password|passwd|mật khẩu|token|api[ _-]?key)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)?/gi, SECRET_PLACEHOLDER)
+  .replace(/(?:sk-|ghp_|github_pat_|xox[bp]-|AKIA)[A-Za-z0-9_-]{8,}/gi, SECRET_PLACEHOLDER)
+  .replace(/\b(?:bí mật|secret)\b[^\r\n]*/gi, SECRET_PLACEHOLDER)
+  .split(SECRET_PLACEHOLDER).join(SECRET_REDACTION);
+
 const KINDS: MemKind[] = ['preference', 'decision', 'context', 'tracking', 'research', 'question'];
 const SOURCES: MemEntry['source'][] = ['user', 'duck', 'muse'];
 const ID = /^[a-z0-9-]{1,64}$/;
@@ -66,7 +76,10 @@ function readJson<T>(file: string, fallback: T): T {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return fallback;
     throw e;
   }
-  try { return JSON.parse(raw) as T; } catch { return fallback; }
+  try { return JSON.parse(raw) as T; } catch {
+    fs.renameSync(file, `${file}.bad-${Date.now()}`);
+    return fallback;
+  }
 }
 
 function checkText(t: unknown): string {
@@ -85,7 +98,9 @@ function checkKind(k: unknown): MemKind {
 function checkTags(tags: unknown): string[] {
   if (tags === undefined) return [];
   if (!Array.isArray(tags)) throw new MemoryError(400, 'memory tags must be an array');
-  return tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 32);
+  const out = tags.map((t) => String(t).trim()).filter(Boolean);
+  if (out.some(isSecretText)) throw new MemoryError(400, 'memory tags look like a secret');
+  return out.slice(0, 32);
 }
 
 /** A scope carries exactly its own partition: user has neither project nor room, project has a project, room has a room. */
@@ -101,10 +116,10 @@ function checkScope(scope: unknown, project: unknown, room: unknown): Pick<MemEn
 
 const emptyHistory = (): ChatHistory => ({ summary: '', turns: [] });
 
-/** `<home>/memory/history/<agentId>--<room>.json`; both parts are path-checked before they are used. */
+/** `<home>/memory/history/<agentId>/<room>.json`; both parts are path-checked before they are used. */
 export function historyFile(home: string, agentId: string, room: string): string {
-  if (!ID.test(String(agentId)) || !ID.test(String(room))) throw new MemoryError(400, 'agent id and room must match [a-z0-9-]{1,64}');
-  return path.join(home, 'memory', 'history', `${agentId}--${room}.json`);
+  if (!ID.test(String(agentId)) || !ROOM_NAME.test(String(room))) throw new MemoryError(400, 'agent id or room name is invalid');
+  return path.join(home, 'memory', 'history', agentId, `${room}.json`);
 }
 
 export function loadHistory(home: string, agentId: string, room: string): ChatHistory {
@@ -120,8 +135,8 @@ export function loadHistory(home: string, agentId: string, room: string): ChatHi
 export function saveHistory(home: string, agentId: string, room: string, h: ChatHistory): void {
   const turns = (Array.isArray(h && h.turns) ? h.turns : [])
     .filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.text === 'string')
-    .map((t) => ({ role: t.role, text: t.text, at: Number(t.at) || 0 }));
-  writeJson(historyFile(home, agentId, room), { summary: String((h && h.summary) || ''), turns });
+    .map((t) => ({ role: t.role, text: redactHistoryText(t.text), at: Number(t.at) || 0 }));
+  writeJson(historyFile(home, agentId, room), { summary: redactHistoryText(String((h && h.summary) || '')), turns });
 }
 
 export function clearHistory(home: string, agentId: string, room: string): void {
@@ -171,11 +186,13 @@ export class Memory {
     const source = e.source;
     if (!SOURCES.includes(source)) throw new MemoryError(400, 'memory source is unknown');
     const tags = checkTags(e.tags);
+    const urls = Array.isArray(e.urls) ? e.urls.map(String) : undefined;
+    if (urls?.some(isSecretText)) throw new MemoryError(400, 'memory URLs look like a secret');
     if (this.entries.length >= MAX_ENTRIES) this.dropOldest();
     const ts = this.now();
     const entry: MemEntry = {
       id: this.nextId(), kind, text, tags, ...sc, source, createdAt: ts, updatedAt: ts,
-      ...(Array.isArray(e.urls) ? { urls: e.urls.map(String) } : {}),
+      ...(urls ? { urls } : {}),
       ...(e.accessedAt !== undefined && Number.isFinite(e.accessedAt) ? { accessedAt: Number(e.accessedAt) } : {}),
     };
     this.entries.push(entry);
@@ -214,8 +231,8 @@ export class Memory {
     const project = by && by.project !== undefined ? String(by.project) : undefined;
     if (room === undefined && project === undefined) throw new MemoryError(400, 'clear needs a room or a project');
     const hit = (e: MemEntry) =>
-      (room === undefined || (e.scope === 'room' && e.room === room)) &&
-      (project === undefined || (e.scope === 'project' && e.project === project));
+      (room !== undefined && e.scope === 'room' && e.room === room) ||
+      (project !== undefined && e.scope === 'project' && e.project === project);
     const before = this.entries.length;
     this.entries = this.entries.filter((e) => !hit(e));
     const removed = before - this.entries.length;

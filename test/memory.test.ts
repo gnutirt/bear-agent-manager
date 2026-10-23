@@ -58,7 +58,7 @@ test('memory: relevant matches through Vietnamese diacritics and honours n/chars
   assert.equal(m.relevant('postgres', { room: 'a', project: 'p' }, { n: 8, chars: 5 }).length, 1, 'the first entry still fits even when chars is tiny');
 });
 
-test('memory: secrets, empty text, over-long text and scope mismatches are refused and nothing is written', () => {
+test('memory: secrets in text, tags and URLs, empty text, over-long text and scope mismatches are refused', () => {
   const h = home();
   const m = new Memory(h);
   m.add(entry({ text: 'safe note' }) as never);
@@ -66,6 +66,9 @@ test('memory: secrets, empty text, over-long text and scope mismatches are refus
   const before = fs.readFileSync(file, 'utf8');
   assert.throws(() => m.add(entry({ text: 'token là ghp_abcdefgh12345678' }) as never), is400);
   assert.equal(fs.readFileSync(file, 'utf8'), before, 'a refused entry never reaches the file');
+  assert.throws(() => m.add(entry({ tags: ['safe', 'api_key=ghp_abcdefgh12345678'] }) as never), is400);
+  assert.throws(() => m.add(entry({ urls: ['https://example.test/?token=ghp_abcdefgh12345678'] }) as never), is400);
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'refused tags and URLs never reach the file');
   assert.equal(m.list({ room: 'a' }).length, 1);
   assert.throws(() => m.add(entry({ text: '   ' }) as never), is400);
   assert.throws(() => m.add(entry({ text: 'x'.repeat(2001) }) as never), is400);
@@ -90,9 +93,22 @@ test('memory: clear({ room }) removes only that room; a project clear leaves roo
   assert.throws(() => m.clear({}), is400);
 });
 
-test('history: the file name refuses ids and rooms that do not match [a-z0-9-]{1,64}', () => {
+test('memory: clear({ room, project }) removes both matching partitions', () => {
+  const m = new Memory(home());
+  m.add(entry({ text: 'room a', room: 'a' }) as never);
+  m.add(entry({ text: 'room a in project q', room: 'a', project: 'q' }) as never);
+  m.add(entry({ text: 'room b in project p', room: 'b', project: 'p' }) as never);
+  m.add(entry({ text: 'project p', scope: 'project', room: undefined, project: 'p' }) as never);
+  m.add(entry({ text: 'project q', scope: 'project', room: undefined, project: 'q' }) as never);
+  m.add(entry({ text: 'user', scope: 'user', room: undefined }) as never);
+  assert.equal(m.clear({ room: 'a', project: 'p' }), 3);
+  assert.deepEqual(m.list().map((e) => e.text), ['room b in project p', 'project q', 'user']);
+});
+
+test('history: filenames isolate each room and use the shared room-name rule including underscores', () => {
   const h = home();
-  assert.equal(historyFile(h, 'agent-1', 'room-a'), path.join(h, 'memory', 'history', 'agent-1--room-a.json'));
+  assert.equal(historyFile(h, 'agent-1', 'room_a'), path.join(h, 'memory', 'history', 'agent-1', 'room_a.json'));
+  assert.notEqual(historyFile(h, 'agent-1', 'room_a'), historyFile(h, 'agent-1', 'room-b'));
   for (const [a, r] of [['../x', 'room'], ['Agent', 'room'], ['a/b', 'room'], ['agent', '../room'], ['agent', 'Room_A'], ['', 'room']]) {
     assert.throws(() => historyFile(h, a, r), is400, `${a} / ${r} must not become a path`);
   }
@@ -109,6 +125,46 @@ test('history: save then load round-trips, a missing file is empty, clear remove
   const bad = home();
   fs.writeFileSync(path.join(bad, 'memory'), 'not a directory');
   assert.throws(() => saveHistory(bad, 'agent-1', 'room-a', hist), 'an unwritable history path must throw');
+});
+
+test('history: save redacts credential values from the summary and turns', () => {
+  const h = home();
+  const hist = {
+    summary: 'Use token: ghp_abcdefgh12345678 for this test',
+    turns: [
+      { role: 'user' as const, text: 'api_key=topsecret-value', at: 1 },
+      { role: 'assistant' as const, text: 'This secret must not be persisted', at: 2 },
+    ],
+  };
+  saveHistory(h, 'agent-1', 'room-a', hist);
+  const raw = fs.readFileSync(historyFile(h, 'agent-1', 'room-a'), 'utf8');
+  assert.ok(!raw.includes('ghp_abcdefgh12345678'));
+  assert.ok(!raw.includes('topsecret-value'));
+  assert.ok(!raw.includes('must not be persisted'));
+  assert.deepEqual(loadHistory(h, 'agent-1', 'room-a'), {
+    summary: 'Use [secret bị lược] for this test',
+    turns: [
+      { role: 'user', text: '[secret bị lược]', at: 1 },
+      { role: 'assistant', text: 'This [secret bị lược]', at: 2 },
+    ],
+  });
+});
+
+test('corrupt memory and history JSON are quarantined before falling back to empty data', () => {
+  const h = home();
+  const entriesFile = path.join(h, 'memory', 'entries.json');
+  fs.mkdirSync(path.dirname(entriesFile), { recursive: true });
+  fs.writeFileSync(entriesFile, '{broken');
+  assert.deepEqual(new Memory(h).list(), []);
+  assert.ok(fs.readdirSync(path.dirname(entriesFile)).some((name) => /^entries\.json\.bad-\d+$/.test(name)));
+  assert.equal(fs.existsSync(entriesFile), false);
+
+  const history = historyFile(h, 'agent-1', 'room_a');
+  fs.mkdirSync(path.dirname(history), { recursive: true });
+  fs.writeFileSync(history, '{broken');
+  assert.deepEqual(loadHistory(h, 'agent-1', 'room_a'), { summary: '', turns: [] });
+  assert.ok(fs.readdirSync(path.dirname(history)).some((name) => /^room_a\.json\.bad-\d+$/.test(name)));
+  assert.equal(fs.existsSync(history), false);
 });
 
 test('memory: the 5001st entry drops the oldest non-preference entry', () => {
