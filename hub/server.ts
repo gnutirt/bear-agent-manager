@@ -1056,6 +1056,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const blocked = apiRun ? '' : await blockedAccount(s, cjob);
     if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
     const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
+    if (code !== 0 && tabHolds(store.session(s.id))) return;   // the tab took the chat over while compaction ran
     if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
     say(code === 0 ? tr(left ? 'sys.compact.doneLeft' : 'sys.compact.done', { name: s.name, size: compactSize(before, s.transcript), left }) : tr('sys.compact.failed', { name: s.name, code: String(code) }));
   }

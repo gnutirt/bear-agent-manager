@@ -208,6 +208,48 @@ test('idle compact: compacts only ended sessions over their role threshold, neve
   } finally { await h.hub.close(); }
 });
 
+test('a tab taking over a failed saved-chat compact does not report compact failure', async () => {
+  let compactStarted!: () => void;
+  let finishCompact!: (code: number) => void;
+  const started = new Promise<void>((resolve) => { compactStarted = resolve; });
+  const h = await makeHub(undefined, () => {}, {
+    compactRevive: () => {
+      compactStarted();
+      return new Promise<number>((resolve) => { finishCompact = resolve; });
+    },
+    isAlive: (pid: number) => pid === 4242,
+  });
+  try {
+    const transcript = path.join(h.dir, 'tab-compact.jsonl');
+    fs.writeFileSync(transcript, JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 1000 } } }) + '\n');
+    await h.call('/api/sessions/register', { id: 'tab-compact', cwd: h.dir, transcript });
+    await h.call('/api/sessions/tab-compact/rename', { name: 'tab-compact' });
+    await h.call('/api/rooms/proj/join', { sessionId: 'tab-compact' });
+    await fetch(`${h.hub.url}/hooks/end`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'tab-compact' }),
+    });
+    await h.call('/api/sessions/tab-compact/compact', {});
+    await started;
+
+    await h.call('/api/sessions/register', {
+      id: 'tab-compact',
+      cwd: h.dir,
+      transcript,
+      pid: 4242,
+      ide: 'vscode',
+    });
+    finishCompact(1);
+    await until(() => h.hub.store.session('tab-compact').ended, 5000, 'the compact to finish');
+
+    const messages = await h.call<any[]>('/api/rooms/proj/messages?after=0');
+    assert.ok(!messages.some((message) => /compact (?:bị lỗi|failed)/i.test(message.text)), messages.map((message) => message.text).join(' | '));
+  } finally {
+    await h.hub.close();
+  }
+});
+
 test('a wake that fails leaves the messages unread and says so in the room', async () => {
   const h = await makeHub(undefined, () => 1);
   try {
