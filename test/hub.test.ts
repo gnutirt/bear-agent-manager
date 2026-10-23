@@ -723,16 +723,28 @@ test('killTree ends a child started through a shell together with what it starte
   const { spawn } = await import('node:child_process');
   const { killTree } = await import('../hub/revive.ts');
   const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
-  const pidFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'kt-')), 'pid');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kt-'));
+  const pidFile = path.join(dir, 'pid');
   const script = `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 60000)`;
   const child = spawn(`"${process.execPath}" -e "${script.replace(/"/g, '\\"')}"`, { shell: true, stdio: 'ignore', windowsHide: true });
-  for (let i = 0; i < 100 && !fs.existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 50));
-  const inner = Number(fs.readFileSync(pidFile, 'utf8'));
   const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-  assert.ok(alive(inner));
-  killTree(child);
-  for (let i = 0; i < 100 && alive(inner); i++) await new Promise((r) => setTimeout(r, 100));
-  assert.equal(alive(inner), false);
+  let inner = 0;
+  try {
+    await until(() => fs.existsSync(pidFile), 15_000, 'child pid file');
+    inner = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.ok(alive(inner));
+    killTree(child);
+    await until(() => !alive(inner), 30_000, 'shell child tree to exit');
+    await until(() => child.exitCode !== null || child.signalCode !== null, 30_000, 'shell process to exit');
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) killTree(child);
+    if (inner && alive(inner)) {
+      try { process.kill(inner); } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+      }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('GET /api/settings says firstRun on a brand new hub until a room or a settings file exists', async () => {
