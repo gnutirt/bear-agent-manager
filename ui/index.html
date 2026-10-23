@@ -4101,8 +4101,8 @@ function accountParts(st) {
   const srvRows = srvList === undefined ? `<p class="small muted">${t('mcps.loading')}</p>` : srvList.length ? `<div class="cprofiles">${srvList.map((s) => `<article class="cprofile"><div class="pf"><b>${esc(s.name)}</b><span class="small muted mono">${esc(s.target ?? (s.view ? [s.view.command, ...(s.view.args || []), s.view.url, ...Object.keys(s.view.env || {}).map((k) => k + '=***'), ...Object.keys(s.view.headers || {}).map((k) => k + ': ***')].filter(Boolean).join(' ') : ''))}</span>${s.status ? `<span class="small ${/Connected/.test(s.status) ? 'okt' : 'muted'}">${esc(s.status)}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-mcps-del="${esc(s.name)}">${t('common.delete')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${t('mcps.empty')}</p>`;
   // #235 (S2): one function, four homes — accounts (group 3), agents (group 2), MCP (group 5), autostart (group 6).
   return {
-    accounts: `<h2>${t('agents.duck.host.title')}</h2><div class="setbox">${duckHostBlock(st)}</div>
-    <h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
+    duck: `<h3>${t('agents.duck.host.title')}</h3>${duckHostBlock(st)}`,
+    accounts: `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>`,
     copilot: `<h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}</div>`,
@@ -4433,7 +4433,8 @@ function renderSettingsView() {
     ${account.copilot}
     <h2>${t('prov.workerTitle')}</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
-    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
+    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>
+    ${account.duck}`,
     rooms: `<h2>${t('sub.lead')}</h2><div class="setbox">
       ${swVal('autoLead', st.autoLead === 'terminal', 'terminal', 'off')}
     </div>
