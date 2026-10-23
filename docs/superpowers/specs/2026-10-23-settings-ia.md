@@ -123,7 +123,7 @@ Mỗi bước để app chạy được và test xanh. Bước 1–3 **không đ
 | S1 | **Sổ đăng ký cài đặt**: một bảng JS mô tả mọi cài đặt `{key, group, label, hint, detail, type, default, min, max}`; sw()/num() render từ bảng; ô tìm kiếm + liên kết sâu + chấm "đã đổi" | ui/index.html, ui.test | test: mọi `data-set` trong UI có trong sổ và ngược lại; mỗi key render đúng 1 lần |
 | S2 | **6 nhóm mới**: chuyển các khối có sẵn sang nhóm theo §3 (không sửa logic); `S.setSub` cũ chuyển hướng sang nhóm mới | ui/index.html | ảnh 1440/390 do frontend duyệt; không còn tab con nào chứa trên 5 khối |
 | S3 | **Bảng agent + drawer** (§4): gom các editor theo agent có sẵn (model, quyền, compact, skill, tầng, MCP) vào drawer; nơi cũ đổi thành liên kết | ui/index.html, ui.test | sửa được model, quyền, compact, skill, tầng của 1 agent ở đúng 1 chỗ |
-| S4 | **Wizard + Agent** gộp 3 cách tạo agent hiện có (tạo agent nền, + Agent dialog, profile agy) thành 1 wizard | ui/index.html | tạo được đủ 5 loại từ 1 nút |
+| S4 | **+ Agent**: từ ^e0e5912 đã có hộp thoại chung `openAgentDialog` (Tài khoản không còn 3 form). Bảng agent và drawer **dùng lại** hộp thoại này, không làm form mới; chỉ thêm bước 2 "chạy bằng" (link sang nhóm 3 khi thiếu tài khoản/provider) và loại Duck khi D4 xong | ui/index.html | mọi nút "thêm agent" đều gọi `openAgentDialog` |
 | S5 | **Viết lại chữ** vi/en theo §5 và nguyên tắc 3: hint ≤ 1 câu; phần kỹ thuật chuyển vào "Chi tiết" | shared/i18n/*.ts, dict-keys test | không hint nào hơn 160 ký tự; không còn chữ `--bare`, `T18`, `allTools` trong nhãn/hint |
 | S6 | (tuỳ chọn, sau) **Gộp quyền ở server**: `reviveTools` thành một phần của `permissions.perAgent`; đọc key cũ để tương thích | hub/settings.ts, test | settings cũ chuyển đổi đúng; 1 nguồn quyền |
 
