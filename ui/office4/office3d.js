@@ -70,6 +70,7 @@ export class Office3D {
     this.layoutSig = '';
     this.spots = [];             // chỗ ngồi ở khu cà phê / giải trí
     this.beds = [];              // giường ở khu nghỉ (#225)
+    this.floorLabels = [];       // nhãn sàn (Tầng 3, Cà phê…) — phóng to khi màn hình dọc cho đọc được
     this.games = new L.GameScreens();
     this.leisureSpeed = 1;       // >1 để thử nhanh (?nghi=nhanh)
   }
@@ -237,7 +238,7 @@ export class Office3D {
     this.layout = new THREE.Group(); this.dynamic = new THREE.Group();
     this.scene.add(this.layout, this.dynamic);
     this.agents.clear(); this.clusters = []; this.hitboxes = [];
-    this.games.dispose(); this.spots = []; this.beds = [];
+    this.games.dispose(); this.spots = []; this.beds = []; this.floorLabels = [];
     this.nav = new NavGrid(FLOOR.w, FLOOR.d);
 
     const build = new THREE.Group();           // gom tĩnh rồi gộp
@@ -261,6 +262,7 @@ export class Office3D {
     const leftovers = [];
     build.traverse(o => { if (o !== build && o.userData.dynamic && !o.parent?.userData.dynamic) leftovers.push(o); });
     for (const o of leftovers) { o.updateMatrixWorld(true); const m = o.matrixWorld.clone(); o.parent.remove(o); m.decompose(o.position, o.quaternion, o.scale); this.dynamic.add(o); }
+    this.fitLabelScale();
     this.applyShadows();
   }
 
@@ -278,7 +280,12 @@ export class Office3D {
     m.rotation.x = -Math.PI / 2; m.position.set(x, 0.045, z); m.renderOrder = 2;
     markDynamic(m);
     build.add(m);
+    this.floorLabels.push(m);
   }
+  /** Màn hình dọc nhìn sàn từ rất xa nên nhãn sàn nhỏ như hạt gạo; nhân cỡ nhãn theo tỉ lệ khung (audit 390 của
+   *  frontend). Nhãn nằm trên thảm nên to hơn vẫn không đè HUD, và bề ngang vẫn bị chặn bởi maxW lúc dựng. */
+  labelScale() { const a = this.camera.aspect || 1; return a >= 1 ? 1 : Math.min(2.4, 1 / a); }
+  fitLabelScale() { const b = this.labelScale(); for (const m of this.floorLabels) m.scale.set(b, b, 1); }
 
   // ---------------------------------------------------------------- khu cụm bàn
   buildZone(d, style, members, build) {
@@ -1064,6 +1071,7 @@ export class Office3D {
     this.composer?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.fitLabelScale();
     this.homeView = this.homeFor(this.camera.aspect);
     this.controls.maxDistance = Math.max(70, Math.ceil(this.homeView.d + 10));
     const sig = this.homeView.pos.toArray().concat(this.homeView.target.toArray()).map((n) => n.toFixed(1)).join();

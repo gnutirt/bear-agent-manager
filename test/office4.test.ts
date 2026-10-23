@@ -81,3 +81,25 @@ test('Office 4 #240: the overview fills a portrait screen and the model fetches 
   assert.ok(mixamo.includes("fetch(BASE + 'people.json', { cache: 'no-cache', headers: this.headers })"), 'people.json must send the token');
   assert.ok(mixamo.includes('.setRequestHeader(this.headers)'), 'character files must send the token');
 });
+
+/* ---------- Office 4 #241: the floor labels grow on a portrait screen ---------- */
+// On a 390 px phone the whole floor fits the width, so the tier names land at a few pixels. The labels are kept in
+// a list and scaled by 1/aspect (capped) on every resize, so they stay readable without moving the camera.
+
+test('Office 4 #241: portrait floor labels grow with the screen ratio and shrink back on desktop', async () => {
+  const scene = await readFile(new URL('../ui/office4/office3d.js', import.meta.url), 'utf8');
+  for (const s of [
+    'this.floorLabels = [];',
+    'this.floorLabels.push(m);',
+    'labelScale() { const a = this.camera.aspect || 1; return a >= 1 ? 1 : Math.min(2.4, 1 / a); }',
+    'fitLabelScale() { const b = this.labelScale(); for (const m of this.floorLabels) m.scale.set(b, b, 1); }',
+    // resizing (phone rotate, window resize) re-fits them, and a rebuild starts from the current ratio
+    'this.fitLabelScale();',
+  ]) assert.ok(scene.includes(s), `missing #241 label wiring: ${s}`);
+
+  // the phone ratio really is bigger than one label unit: 390/844 -> 1/aspect = 2.16, capped at 2.4
+  const clamp = (a: number) => (a >= 1 ? 1 : Math.min(2.4, 1 / a));
+  assert.equal(clamp(390 / 844), 1 / (390 / 844));
+  assert.equal(clamp(1440 / 900), 1);
+  assert.equal(clamp(320 / 900), 2.4);
+});
