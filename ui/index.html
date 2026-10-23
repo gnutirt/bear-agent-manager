@@ -4117,7 +4117,7 @@ function accountParts(st) {
     const museInfo = isMuse ? `<div class="pf small"><span>${t('agents.muse.chrome')}: <b>${esc(museChrome)}</b></span><span>${t('ac.profile.login')}: <b>${esc(museLogin)}</b></span>${S.museStatus?.busy ? `<span>${t('agents.muse.busy')}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-muse-status-refresh>${t('agents.muse.refresh')}</button></div>` : '';
     const toggleDisabled = isAgy && !p.enabled && !agyVerified || isDuck && !p.enabled && !duckReady || isMuse && !p.enabled && !museReady ? ' disabled' : '';
     return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : isAgy ? `<span class="lic">${t('agents.agy.title')}</span>` : isDuck ? `<span class="lic">${t('agents.duck.title')}</span>` : isMuse ? `<span class="lic">${t('agents.muse.title')}</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}${toggleDisabled}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
-      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${agyInfo}${duckInfo}${museInfo}${!isApi && !isAgy && !isDuck && !isMuse ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
+      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${agyInfo}${duckInfo}${museInfo}${!isApi && !isAgy && !isDuck && !isMuse ? `<div class="pf small"><span>${t('ac.profile.modelLabel')}: <b class="mono">${esc(p.model || t('common.default'))}</b></span><button type="button" class="btn sm" data-agent-open="${esc(normAgent(p.name))}">${t('agent.settings')}</button></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
       <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span>${!isDuck ? `<span>${t(isApi ? 'ac.api.authLabel' : isAgy ? 'agents.agy.google' : 'ac.profile.login')}: <b>${esc(login)}</b></span>` : ''}${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isAgy ? 'agents.agy.retry' : isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
       ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(isAgy ? (ask.on ? 'agents.agy.confirmOn' : 'agents.agy.confirmOff') : isDuck ? (ask.on ? 'agents.duck.confirmOn' : 'agents.duck.confirmOff') : isMuse ? (ask.on ? 'agents.muse.confirmOn' : 'agents.muse.confirmOff') : ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
@@ -4572,6 +4572,8 @@ function paintAgentSettings() {
     const el = e.target;
     if (el.id === 'agentModelInput') return saveAgentModel(a, el.value.trim());
     if (el.id === 'agentTier') return saveAgentTier(a, el.value, room);
+    // #247: the drawer lives in #zoom, so the settings-view handler never sees these two; save them here
+    if (el.matches('[data-plist]')) { const list = el.value.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean); return savePerm(el.dataset.plist, { [el.dataset.pk]: list }); }
     if (el.closest('[data-cagent]')) return saveCompact(el.closest('[data-cagent]'));
   });
 }
@@ -4874,18 +4876,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('#copilotConfirm')) return api('/api/copilot', { on: S.copilotAsk.on, confirm: true }).then((d) => { S.copilot = d; S.copilotAsk = null; loadCopilotProfiles().then(renderSettingsView); toast(t(d.enabled ? 'ac.copilot.enabled' : 'ac.copilot.disabled')); renderSettingsView(); }, (err) => { if (err.data?.status) S.copilot = err.data.status; S.copilotAsk = null; toast(err.message); renderSettingsView(); });
     const profileRemove = e.target.closest('[data-profile-remove]');
     if (profileRemove) return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== profileRemove.dataset.profileRemove));
-    const profileModelSave = e.target.closest('[data-profile-model-save]');
-    if (profileModelSave) {
-      const id = profileModelSave.dataset.profileModelSave, input = sv.querySelector(`[data-profile-model="${id}"]`), model = input?.value.trim() || '';
-      if (model && !/^[\w.:\/-]{1,80}$/.test(model)) return toast(t('ac.profile.modelInvalid'));
-      return saveCopilotProfiles((S.settings.agents?.profiles || []).map((p) => {
-        if (p.id !== id) return p;
-        const next = { ...p };
-        if (model) next.model = model;
-        else delete next.model;
-        return next;
-      }));
-    }
     const profileRetry = e.target.closest('[data-profile-retry]');
     if (profileRetry) {
       const id = profileRetry.dataset.profileRetry, agy = (S.settings.agents?.profiles || []).find((profile) => profile.id === id)?.provider === 'agy';

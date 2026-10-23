@@ -452,10 +452,8 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       "const profiles = st.agents?.profiles || []",
       'data-open-agent-dialog',
       'name="model"',
-      'data-profile-model="${esc(p.id)}"',
-      'data-profile-model-save="${esc(p.id)}"',
-      "ac.profile.modelInvalid",
-      "t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') })",
+      // #247: a profile card shows its model read-only and links to the one drawer, like the member panel
+      '`<div class="pf small"><span>${t(\'ac.profile.modelLabel\')}: <b class="mono">${esc(p.model || t(\'common.default\'))}</b></span><button type="button" class="btn sm" data-agent-open="${esc(normAgent(p.name))}">${t(\'agent.settings\')}</button></div>`',
       'data-profile-enabled="${esc(p.id)}"',
       'data-profile-remove="${esc(p.id)}"',
       "submitAgentProfile({ id, provider: 'copilot', name, cwd",
@@ -473,6 +471,8 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       'data-profile-retry="${esc(p.id)}"',
       "api(`${profileRoute(id)}/retry`, {})",
     ]) assert.ok(html.includes(s), `missing ${s}`);
+    // #247: the inline model editor is gone — the drawer owns the model, the agent table owns the link
+    assert.ok(!html.includes('data-profile-model'), 'a profile card still edits the model outside the drawer');
   } finally { await hub.close(); }
 });
 
@@ -731,6 +731,15 @@ test('#237 every agent is listed in one table and its settings are edited only i
       assert.ok(paint.includes(s), `the agent drawer is missing ${s}`);
     }
     assert.ok(script.includes('function openAgentSettings(key)'), 'no function opens the drawer');
+    // #247: the drawer sits in #zoom, outside the settings-view handler, so it saves the allow/deny lists itself
+    assert.ok(paint.includes("if (el.matches('[data-plist]'))"), 'the drawer does not save the allow/deny lists');
+    // #247: the catalog knows every kind the spawn dialog offers, muse included
+    for (const s of ["p.provider === 'muse' ? 'muse'", "muse: 'agent.spawn.muse'", "k === 'muse' ? t('agents.muse.title')"]) {
+      assert.ok(script.includes(s), `the agent catalog does not know the muse kind: ${s}`);
+    }
+    for (const key of ['agent.spawn.muse', 'agents.muse.title']) {
+      assert.ok(key in vi && key in en, `missing translated string ${key}`);
+    }
     assert.ok(script.includes("const ao = e.target.closest('[data-agent-open]'); if (ao) return openAgentSettings(ao.dataset.agentOpen);"), 'the table does not open the drawer');
     assert.ok(script.includes("if (e.target.id === 'agentKindFilter')"), 'the kind filter is not wired');
     // The old per-agent editors are now links: model in the member popup, permissions in the permissions card.
