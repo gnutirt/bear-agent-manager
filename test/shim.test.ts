@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pluginCopies, versionInfo } from '../hub/version.ts';
+import { isOneShotCommand, runContext } from '../hooks/lib.ts';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHIM = path.join(ROOT, 'hooks', 'shim.mjs');
@@ -67,7 +68,8 @@ test('hooks.json and plugin.json start everything through the shim', () => {
   assert.deepEqual(cmds.map((h: any) => h.args[2]).sort(), ['hooks/session-start.ts', 'hooks/waiter.ts', 'hooks/waiter.ts', 'hooks/waiter.ts']);
   assert.ok(hooks.StopFailure[0].hooks.some((h: any) => h.type === 'command' && h.asyncRewake));
   // #158: a /compact or /clear runs no turn (no Stop hook): SessionStart must start the waiter or the tab goes deaf
-  const after = hooks.SessionStart.find((g: any) => g.matcher === 'compact|clear');
+  // #214: a chat reopened in the editor resumes (source=resume) with no turn either — new-planner sat deaf for five hours
+  const after = hooks.SessionStart.find((g: any) => g.matcher === 'compact|clear|resume');
   assert.ok(after?.hooks.some((h: any) => h.args?.[2] === 'hooks/waiter.ts' && h.asyncRewake && h.timeout === 604800));
   // no hook registered twice (the same event+matcher+target)
   const seen = new Set<string>();
@@ -76,6 +78,26 @@ test('hooks.json and plugin.json start everything through the shim', () => {
     assert.ok(!seen.has(key), `duplicate hook ${key}`);
     seen.add(key);
   }
+});
+
+test('#214: a resumed editor tab starts a waiter; the hub\'s background wake never adds a second one', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks', 'hooks.json'), 'utf8')).hooks;
+  const resume = hooks.SessionStart.find((g: any) => g.matcher === 'compact|clear|resume');
+  assert.ok(resume, 'SessionStart must cover resume as well as compact and clear, or a reopened chat sits deaf');
+  assert.ok(resume.hooks.some((h: any) => h.args?.[2] === 'hooks/waiter.ts' && h.asyncRewake && h.timeout === 604800));
+  // A resumed editor tab is an interactive session (no -p): hooks/waiter.ts keeps its waiter.
+  assert.equal(isOneShotCommand('claude --resume 8f1c2a'), false);
+  assert.equal(isOneShotCommand('claude --resume 8f1c2a --permission-mode plan'), false);
+  // The hub's own wake is `claude --resume <id> -p` and sets BEAR_AGENT_IDLE_MIN: hooks/waiter.ts exits at SessionStart
+  // when IDLE_MIN > 0 (waiter.ts:30) and for a one-shot -p parent (:40), so that same resume adds no waiter next to the
+  // wake the hub already runs. BEAR_AGENT_HEADLESS=1 is not that guard — it opts a worker INTO waiting; the idle limit
+  // and -p are what keep a background wake from starting a second waiter.
+  for (const cmd of ['claude --resume 8f1c2a -p', 'claude --resume 8f1c2a -p --output-format text', 'claude --resume 8f1c2a --print=go']) {
+    assert.equal(isOneShotCommand(cmd), true, cmd);
+  }
+  assert.equal(runContext({ BEAR_AGENT_HEADLESS: '1', BEAR_AGENT_IDLE_MIN: '15' }, 'claude --resume 8f1c2a -p').where, 'background');
+  // and the tab side of the same function
+  assert.equal(runContext({ CLAUDE_CODE_ENTRYPOINT: 'claude-vscode', VSCODE_CWD: '/w' }, 'claude --resume 8f1c2a').where, 'tab');
 });
 
 test('plugin copies: a shim copy is not a version mismatch while the hub names its source', () => {

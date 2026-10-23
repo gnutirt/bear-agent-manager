@@ -16,7 +16,7 @@
         ]
       },
       {
-        "matcher": "compact|clear",
+        "matcher": "compact|clear|resume",
         "hooks": [
           {
             "type": "command",
