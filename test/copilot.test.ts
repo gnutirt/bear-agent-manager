@@ -401,6 +401,7 @@ test('Copilot auth failure disables autostart and waits for an explicit retry', 
   const common = {
     dir, port: 0, usageFetch: null, versionFetch: null, probe: null,
     listProcs: async () => [], legacyKeyFile: path.join(dir, 'no-legacy.key'), usageHome: dir, pluginUpdateEveryMs: null,
+    browser: null,
   };
   const missingLogin = fakeFactory({ authenticated: false });
   let hub = await startHub({ ...common, copilotClientFactory: missingLogin.factory });
@@ -470,6 +471,7 @@ test('hub startup restores the opted-in Copilot agent without an IDE', async () 
   const common = {
     dir, port: 0, usageFetch: null, versionFetch: null, probe: null,
     listProcs: async () => [], legacyKeyFile: path.join(dir, 'no-legacy.key'), usageHome: dir, pluginUpdateEveryMs: null,
+    browser: null,
   };
   let hub = await startHub({ ...common, copilotClientFactory: first.factory });
   try {

@@ -52,6 +52,7 @@ test('a chat carrying an old handled marker still unsticks on the next @', async
   const killed: number[] = [], revived: number[] = [];
   const hub = await startHub({
     dir, port: 0, revive: () => { revived.push(1); }, batchMs: 0, autoRevive: true,
+    browser: null,
     listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
     kill: async (pid: number) => { killed.push(pid); },
     isAlive: () => false,   // the kill landed at once

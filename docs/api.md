@@ -9,14 +9,15 @@
 | POST | `/hooks/:event` |  | không |
 | GET | `/` |  | không |
 | GET | `/api/health` |  | không |
+| GET | `/api/browser` |  | có |
 | POST | `/api/ide/hello` |  | có |
 | GET | `/api/ide/next` |  | có |
 | POST | `/api/ide/result` |  | có |
 | GET | `/api/ide/status` |  | có |
 | POST | `/api/sessions/:param/ide` |  | có |
 | GET | `/api/events` |  | có |
-| GET | `/api/rules` | `session`, `source` | có |
 | GET | `/api/sessions` |  | có |
+| GET | `/api/rules` | `session`, `source` | có |
 | GET | `/api/workers` |  | có |
 | GET | `/api/workers/slot` |  | có |
 | GET | `/api/room-chat` |  | có |

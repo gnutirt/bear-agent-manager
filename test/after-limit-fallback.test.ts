@@ -23,6 +23,7 @@ async function setup(sweepMs: number, deliverImmediately = false) {
   fs.writeFileSync(transcript, limitLine(Math.floor((Date.now() - 60_000) / 1000)) + '\n');
   const start = (every = sweepMs) => startHub({
     dir, port: 0, now: () => now, sweepMs: every, batchMs: 0, autoRevive: true,
+    browser: null,
     revive: (job) => { revived.push(job.text); return 0; },
     listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
     kill: async (pid) => { killed.push(pid); alive = false; },

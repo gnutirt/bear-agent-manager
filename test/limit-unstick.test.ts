@@ -142,6 +142,7 @@ test('an old limit line with no queued message is not handled across repeated us
   } finally { await h.hub.close(); }
   const restarted = await startHub({
     dir: h.dir, port: 0, sweepMs: 20, revive: () => { operations.push('revive'); }, batchMs: 0, autoRevive: true,
+    browser: null,
     listProcs: async () => [{ pid: 800, ppid: 1, name: 'claude.exe', cmd: 'claude.exe', started: 1 }],
     kill: async () => { operations.push('kill'); }, probe: null, legacyKeyFile: path.join(h.dir, 'no-legacy.key'),
     usageFetch: null, versionFetch: null, usageHome: h.dir, openUrl: () => {},

@@ -115,14 +115,14 @@ test('usage poll posts one @you warning per cycle into the rooms of that account
     // the start-up poll ran before the room existed; restart a hub on the same dir to poll again
   } finally { await h.hub.close(); }
   const { startHub } = await import('../hub/server.ts');
-  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: hot, usageHome: home });
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: hot, usageHome: home, browser: null });
   try {
     await until(() => again.store.history('proj').some((m) => m.text.includes('Claude Pro')), 15_000, 'the usage warning');
     const msgs = again.store.history('proj').map((m) => m.text).filter((t) => t.includes('Claude Pro'));
     assert.equal(msgs.length, 1, msgs.join(' | '));
     assert.match(msgs[0], /82% hạn mức 5 giờ/);
   } finally { await again.close(); }
-  const third = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: hot, usageHome: home });
+  const third = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: hot, usageHome: home, browser: null });
   try {
     await new Promise((r) => setTimeout(r, 200));
     assert.equal(third.store.history('proj').filter((m) => m.text.includes('Claude Pro')).length, 1, 'same cycle: no second warning');

@@ -61,7 +61,7 @@ test('autoLead: off never opens; terminal opens once per room, the joiner from t
   } finally { await h.hub.close(); }
 
   // The once-per-room lock survives a restart.
-  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, usageFetch: null, usageHome: h.dir, openUrl: (u: string) => opened.push(u) });
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, usageFetch: null, usageHome: h.dir, openUrl: (u: string) => opened.push(u), browser: null });
   try {
     assert.deepEqual(again.store.state.leadOpened, ['fw']);
   } finally { await again.close(); }

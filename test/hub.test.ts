@@ -727,7 +727,7 @@ test('GET /api/settings says firstRun on a brand new hub until a room or a setti
   const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
   const { startHub } = await import('../hub/server.ts');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-first-'));
-  const opts = { dir, port: 0, revive: () => {}, batchMs: 0, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no.key'), usageFetch: null, versionFetch: null, usageHome: dir, openUrl: () => {} } as any;
+  const opts = { dir, port: 0, revive: () => {}, batchMs: 0, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'no.key'), usageFetch: null, versionFetch: null, usageHome: dir, openUrl: () => {}, browser: null } as any;
   const hub = await startHub(opts);
   const get = async () => (await (await fetch(`${hub.url}/api/settings`, { headers: { 'x-room-token': hub.token } })).json()) as any;
   try {

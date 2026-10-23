@@ -23,6 +23,7 @@ Nghiên cứu: function-research.
    - Lệnh: `npx -y @playwright/mcp@<bản ghim> --cdp-endpoint http://127.0.0.1:<port> --isolated`.
    - Playwright MCP tự kết nối tới Chrome đó, không tự mở Chrome thứ hai.
    - Mỗi phiên Claude Code chạy một tiến trình MCP riêng, nên nhiều agent cùng nối vào một Chrome. README Playwright MCP: "concurrent MCP clients sharing the same workspace will conflict", và cách tránh là `--isolated`. Với `--isolated`, mỗi agent có browser context riêng (cookie, tab riêng) và context bị xoá khi agent đóng trình duyệt.
+   - BAM kiểm tra `enabledPlugins` trong cấu hình Claude local trước khi khởi động hoặc đăng ký `bam-browser`. Nếu plugin Playwright đã bật, BAM không đăng ký MCP thứ hai và chỉ báo trạng thái; tránh trùng bộ tool làm tăng token context. Schema tool của Playwright MCP cũng tiêu thụ token context của agent.
 
    Phải kiểm trong bước e2e: hai agent mở hai trang cùng lúc mà không giành tab của nhau.
 

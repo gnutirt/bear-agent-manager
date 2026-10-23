@@ -15,6 +15,7 @@ const cfg = { enabled: true, atPct: 90, afterResetMin: 2 };
 async function startUsageHub(dir: string, home: string, usageFetch: typeof fetch, revived: string[], sweepMs = 60_000) {
   const hub = await startHub({
     dir, port: 0, revive: (job: ReviveJob) => { revived.push(job.id); return 0; }, batchMs: 0, autoRevive: true,
+    browser: null,
     listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'x.key'), usageFetch, versionFetch: null,
     usageHome: home, openUrl: () => {}, sweepMs,
   });
@@ -64,7 +65,7 @@ test('usage wake: books at the poll, then at the reset posts as the user to this
     for (const id of ['w1', 'w2']) await h.call('/api/rooms/proj/join', { sessionId: id });
     await h.call('/api/settings', { lead: { wake: { enabled: true, atPct: 90, afterResetMin: 0 } } }, { method: 'PUT' });
   } finally { await h.hub.close(); }
-  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {} });
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {}, browser: null });
   try {
     await until(() => again.store.history('proj').some((m) => !m.kind && m.fromId === null && /đã reset/.test(m.text)), 20_000, 'the wake-up after the reset');
     const msgs = again.store.history('proj');
@@ -318,7 +319,7 @@ test('usage wake (#152): an agent woken in the room in the last 10 minutes (s: r
     await h.call('/api/settings', { lead: { wake: { enabled: true, atPct: 90, afterResetMin: 0 } } }, { method: 'PUT' });
     h.hub.store.post('proj', null, '@alice continue', undefined, undefined, undefined, undefined, { type: 'wake', level: 'info' });   // the s: resume wake
   } finally { await h.hub.close(); }
-  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {} });
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: fetchStub, usageHome: home, openUrl: () => {}, browser: null });
   try {
     await until(() => again.store.history('proj').some((m) => m.kind === 'system' && /hẹn đánh thức/.test(m.text)) && !again.store.state.wakeAt?.['a@x.com'], 20_000, 'the booking fired');
     assert.equal(again.store.history('proj').filter((m) => m.sys?.type === 'wake').length, 1, 'only the earlier resume wake: ' + again.store.history('proj').map((m) => m.text).join(' | '));
@@ -340,7 +341,7 @@ test('usage wake (#178): with the account reset booked within 10 minutes the s: 
     h.hub.store.state.wakeAt = { 'a@x.com': { at: Date.now() + 120_000, tries: 0 }, 's:o1': { at: Date.now() + 300, tries: 0 } };
     h.hub.store.save();
   } finally { await h.hub.close(); }
-  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {} });
+  const again = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {}, browser: null });
   try {
     await until(() => !again.store.state.wakeAt?.['s:o1'], 5_000, 'the s: wake fired');
     assert.equal(again.store.history('proj').filter((m) => m.sys?.type === 'wake').length, 0, 'reset is booked: no resume message');
@@ -348,7 +349,7 @@ test('usage wake (#178): with the account reset booked within 10 minutes the s: 
     again.store.state.wakeAt!['s:o2'] = { at: Date.now() + 300, tries: 0 };
     again.store.save();
   } finally { await again.close(); }
-  const third = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {} });
+  const third = await startHub({ dir: h.dir, port: 0, revive: () => {}, listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'x.key'), usageFetch: null, usageHome: home, openUrl: () => {}, browser: null });
   try {
     await until(() => !third.store.state.wakeAt?.['s:o2'], 5_000, 'the s: wake fired');
     const wakes = third.store.history('proj').filter((m) => m.sys?.type === 'wake');

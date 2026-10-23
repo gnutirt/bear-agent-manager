@@ -56,6 +56,7 @@ import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from '
 import { roomChatDir, workerConfigDir } from '../shared/worker-chat.ts';
 import { createMcpHttpHandler, createMcpToken, hashMcpToken } from './mcp-http.ts';
 import { IdeBridge, type IdeOp } from './ide.ts';
+import { BrowserError, BrowserHost, mcpServerFor } from './browser.ts';
 
 export type { ReviveJob };
 
@@ -159,6 +160,8 @@ export type HubOptions = {
   listProcs?: () => Promise<Proc[]>;
   /** Runs `claude <args>` for the MCP settings (tests fake it; the real one starts claude without a shell). */
   mcpRun?: mcpcfg.Run;
+  /** Browser lifecycle; null disables it for tests that do not exercise the feature. */
+  browser?: BrowserHost | null;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -242,6 +245,70 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const killProc = opts.kill ?? killTree;
   const isAlive = opts.isAlive ?? pidAlive;
   const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
+  let applyBrowser: () => Promise<void> = async () => {};
+  const browser = opts.browser === null ? undefined : opts.browser ?? new BrowserHost({
+    dir: opts.dir,
+    cfg: () => loadSettings(opts.dir, envCap).browser,
+    onCrash: () => applyBrowser(),
+  });
+  let browserApplyError = '';
+  let browserAgents = false;
+  let appliedBrowserCfg = '';
+  let browserApplyQueue = Promise.resolve();
+  applyBrowser = (): Promise<void> => {
+    const task = browserApplyQueue.then(async () => {
+      if (!browser) return;
+      const cfg = loadSettings(opts.dir, envCap).browser;
+      const key = JSON.stringify(cfg);
+      const run = opts.mcpRun ?? mcpcfg.runClaude;
+      const cwd = os.homedir();
+      browserApplyError = '';
+      try {
+        if (!cfg.enabled) {
+          await browser.stop();
+          const rows = await mcpcfg.listServers(run, cwd);
+          if (rows.some((row) => row.name === 'bam-browser')) {
+            await mcpcfg.removeServer(run, cwd, 'bam-browser', 'user');
+          }
+          browserAgents = false;
+          appliedBrowserCfg = key;
+          return;
+        }
+        if (appliedBrowserCfg && appliedBrowserCfg !== key) {
+          if (browser.running()) await browser.stop();
+          const rows = await mcpcfg.listServers(run, cwd);
+          if (rows.some((row) => row.name === 'bam-browser')) {
+            await mcpcfg.removeServer(run, cwd, 'bam-browser', 'user');
+          }
+          browserAgents = false;
+        }
+        const playwrightDir = enabledPlaywrightConfig();
+        if (playwrightDir) {
+          if (browser.running()) await browser.stop();
+          const rows = await mcpcfg.listServers(run, cwd);
+          if (rows.some((row) => row.name === 'bam-browser')) {
+            await mcpcfg.removeServer(run, cwd, 'bam-browser', 'user');
+          }
+          browserAgents = false;
+          appliedBrowserCfg = key;
+          browserApplyError = `Playwright plugin is enabled in ${path.basename(playwrightDir)}; bam-browser was not registered to avoid duplicate tools. The plugin MCP tools also consume context tokens.`;
+          return;
+        }
+        await browser.start();
+        const rows = await mcpcfg.listServers(run, cwd);
+        if (!rows.some((row) => row.name === 'bam-browser')) {
+          await mcpcfg.addServer(run, cwd, 'bam-browser', 'user', mcpServerFor(browser.endpoint()));
+        }
+        browserAgents = true;
+        appliedBrowserCfg = key;
+      } catch (e) {
+        appliedBrowserCfg = key;
+        browserApplyError = (e as Error).message;
+      }
+    });
+    browserApplyQueue = task.catch(() => {});
+    return task;
+  };
   // Resuming a closed or limit-killed chat is the default (2026-10-21: the real hub ran with BEAR_AGENT_REVIVE unset, which
   // meant off, so deliver() never unstuck or revived anything and every wake fix #89/#121/#130 was dead code). Settings >
   // Agent: agents.autoRevive; BEAR_AGENT_REVIVE=0/1 still forces it off/on (tests, a hub that must never spawn claude).
@@ -701,6 +768,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let siblings: string[] = [];
     try { siblings = fs.readdirSync(usageHome).filter((n) => /^\.claude(-[\w.-]+)?$/.test(n)).map((n) => path.join(usageHome, n)).filter(looksLikeClaudeDir); } catch { /* none */ }
     return [...new Set([...usageDirs(), ...siblings])];
+  };
+  const enabledPlaywrightConfig = (): string | undefined => {
+    for (const dir of machineAccountDirs()) {
+      try {
+        const settings = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'));
+        const enabled = settings.enabledPlugins;
+        if (enabled && typeof enabled === 'object' && Object.entries(enabled).some(([name, value]) =>
+          name.split('@', 1)[0].toLowerCase() === 'playwright' && value === true)) return dir;
+      } catch { /* missing or invalid settings are not an enabled plugin */ }
+    }
+    return undefined;
   };
   // ---- D2: move an agent whose account ran out to another account (chats must be shared) ----
   const offerTold = new Map<string, string>();   // session -> account already offered (one offer per target)
@@ -1895,6 +1973,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (ideEndpoint && req.headers['x-room-token'] !== token) return json(res, 401, { error: 'bad or missing token' });
     if (given !== token) return json(res, 401, { error: 'bad or missing token' });
 
+    if (m === 'GET' && p === '/api/browser') {
+      return json(res, 200, {
+        enabled: loadSettings(opts.dir, envCap).browser.enabled,
+        running: browser?.running() ?? false,
+        endpoint: browser?.endpoint() ?? '',
+        lastError: browserApplyError || browser?.lastError() || '',
+        agents: browserAgents,
+      });
+    }
     if (m === 'POST' && p === '/api/ide/hello') {
       return json(res, 200, ideBridge.hello(await readBody(req)));
     }
@@ -2385,6 +2472,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       const next = patchSettings(loadSettings(opts.dir, envCap), patch);
       saveSettings(opts.dir, next);
+      if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
       void syncCopilots();
       syncApiAgents();
       autoCfg.at = 0;
@@ -2998,6 +3086,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const server = http.createServer((req, res) => {
     route(req, res).catch((e) => {
       if (e instanceof StoreError) json(res, e.status, { error: e.message });
+      else if (e instanceof BrowserError) json(res, e.status, { error: e.message });
       else json(res, 500, { error: String(e?.message ?? e) });
     });
   });
@@ -3026,6 +3115,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       resolve();
     });
   });
+
+  void applyBrowser();
 
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
@@ -3225,6 +3316,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const w of waiters.values()) { clearTimeout(w.timer); w.res.destroy(); }
       for (const r of sse) r.destroy();
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
+      await browserApplyQueue.catch(() => {});
+      if (browser) await browser.stop();
       ideBridge.close();
       liveChat.stopAll();
       server.closeAllConnections();

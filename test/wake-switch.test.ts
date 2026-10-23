@@ -32,7 +32,7 @@ async function wakeOnA(sharedChats: boolean) {
   const m = machine(sharedChats);
   const jobs: any[] = [];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-wsw-hub-'));
-  const hub = await startHub({ dir, port: 0, revive: (j: any) => { jobs.push(j); }, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'x.key'), usageFetch: m.usageFetch, usageHome: m.home, openUrl: () => {}, versionFetch: null });
+  const hub = await startHub({ dir, port: 0, revive: (j: any) => { jobs.push(j); }, batchMs: 0, autoRevive: true, listProcs: async () => [], probe: null, legacyKeyFile: path.join(dir, 'x.key'), usageFetch: m.usageFetch, usageHome: m.home, openUrl: () => {}, versionFetch: null, browser: null });
   const call = async (p: string, body?: unknown) => {
     const r = await fetch(hub.url + p, { method: body === undefined ? 'GET' : 'POST', headers: { 'content-type': 'application/json', 'x-room-token': hub.token }, body: body === undefined ? undefined : JSON.stringify(body) });
     return r.json() as any;
