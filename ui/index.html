@@ -4041,6 +4041,10 @@ function renderSettingsView() {
       ${num('workerCap', st.workerCap, t('set.cap'), t('set.cap.hint'), 1, 16)}
       ${sw('roomChat.autoSweep', st.roomChat.autoSweep, t('set.sweep'), t('set.sweep.hint'))}
     </div>
+    <h2>${t('set.apiAgents')}</h2><div class="setbox">
+      ${sw('apiAgents.allTools', st.apiAgents?.allTools ?? true, t('set.apiAgents.allTools'), t('set.apiAgents.allTools.hint'))}
+      <p class="small muted note">${t('set.apiAgents.allTools.warning')}</p>
+    </div>
     <h2>${t('set.browser')}</h2><div class="setbox"><p class="small muted note">${t('set.browser.hint')}</p>
       ${sw('browser.enabled', browserCfg.enabled ?? true, t('set.browser.enabled'))}
       <label class="setrow"><span><b>${t('set.browser.port')}</b></span><input type="number" class="numin" data-set="browser.port" value="${browserCfg.port ?? 9333}" min="1024" max="65535"></label>

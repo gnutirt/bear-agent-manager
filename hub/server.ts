@@ -584,7 +584,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function apiJob(p: AgentProfile, cfg: ReturnType<typeof loadSettings>, sid: string) {
     const prov = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
     if (!prov || !prov.enabled) throw new Error(`provider ${p.providerId} is missing or off`);
-    const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name));
+    const env = apiEnv(p, prov), perm = apiPerm(p, prov, permFor(cfg, p.name), cfg.apiAgents.allTools);
     const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
     const lean = leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined);
     fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { ...mcpcfg.extraForAgent(opts.dir, p.id), ...lean.mcpServers } }));   // #155: the servers added for this agent in Settings; the hub's own win
@@ -2313,10 +2313,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'POST' && p === '/api/permissions/ask') {
       const b = await readBody(req);
       const s = store.session(String(b.session ?? ''));
-      // note [54]: an agent on a provider off this machine asks nobody: the hub checks the path (inside its folder by realpath, no secrets)
+      // API agents either use the configured full Claude toolset or have remote path tools checked by the hub.
       const api = apiProfileOf(s), prov = api && loadProviders(opts.dir, legacyKey).find((x) => x.id === api.providerId);
       if (api) {
-        const d = prov && prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov)) : { allow: false, message: 'not guarded here' };
+        const settings = loadSettings(opts.dir, envCap);
+        const d = !prov ? { allow: false, message: 'provider is missing' }
+          : settings.apiAgents.allTools ? { allow: true }
+            : prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov))
+              : { allow: false, message: 'not guarded here' };
         try { fs.appendFileSync(path.join(opts.dir, 'revive.log'), `${new Date().toISOString()} guard ${s.name} ${String(b.tool ?? '').slice(0, 40)} ${d.allow ? 'allow' : `deny: ${d.message}`}\n`); } catch { /* log only */ }
         return json(res, 200, d);
       }

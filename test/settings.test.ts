@@ -22,6 +22,27 @@ test('browser defaults on; invalid port keeps the current value', () => {
   assert.deepEqual(patchSettings(d, { browser: { port: 65536 } }).browser, d.browser);
 });
 
+test('API agents get all tools by default; the switch validates and migrates older settings', () => {
+  const d = defaultSettings();
+  assert.deepEqual(d.apiAgents, { allTools: true });
+  assert.deepEqual(patchSettings(d, { apiAgents: { allTools: false } }).apiAgents, { allTools: false });
+  assert.deepEqual(patchSettings(d, { apiAgents: { allTools: 'false' } }).apiAgents, { allTools: true });
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'api-agents-mig-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ workerCap: 2 }));
+    assert.equal(loadSettings(dir).apiAgents.allTools, true, 'settings saved before the switch existed default to enabled');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('API-agent permission switch and full-access warning appear in Worker settings', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of ["sw('apiAgents.allTools'", 'set.apiAgents.allTools.warning']) assert.ok(html.includes(source), `missing ${source}`);
+  } finally { await hub.close(); }
+});
+
 test('agentComms: optional style is validated and preserved by unrelated patches', () => {
   let s = patchSettings(defaultSettings(4), { agentComms: 'terse' });
   assert.equal(s.agentComms, 'terse');

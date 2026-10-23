@@ -140,6 +140,16 @@ test('apiPerm: off this machine guarded (no Bash, no pre-allowed path tool); pai
   assert.ok(leanMcpConfig('s', 'H', 1, 'S/mcp.ts', 'node', 'S/perm.ts').mcpServers.bearperm);
 });
 
+test('apiPerm: allTools uses the configured permission mode and preserves per-agent deny rules', () => {
+  const perm = apiPerm(prof(), prov({ tier: 'free' }), { mode: 'acceptEdits', allow: [], deny: ['Bash'] }, true);
+  assert.deepEqual(perm, { mode: 'acceptEdits', allow: [LEAN_TOOL], deny: ['Bash'] });
+  assert.ok(!perm.guarded);
+  assert.ok(!leanArgs('f', perm.guarded).includes('--permission-prompt-tool'));
+  assert.ok(!leanMcpConfig('s', 'H', 1, 'S/mcp.ts', 'node').mcpServers.bearperm);
+  assert.ok(claudeArgs('s', apiPerm(prof(), prov({ tier: 'free' }), own, true)).includes('--dangerously-skip-permissions'),
+    'the default bypass mode keeps the complete Claude toolset');
+});
+
 test('pathGuard (note [54]): path tools only inside the agent folder by realpath, never secrets, writes only when it may edit', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-guard-')), cwd = path.join(root, 'repo'), out = path.join(root, 'outside');
   fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
@@ -188,7 +198,7 @@ test('claude-api real CLI integration: the hub permission prompt blocks outside 
   const { hub, dir, call } = await makeHub();
   try {
     fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([provider]));
-    await call('/api/settings', { agents: { profiles: [profile] } }, { method: 'PUT' });
+    await call('/api/settings', { apiAgents: { allTools: false }, agents: { profiles: [profile] } }, { method: 'PUT' });
     const port = Number(new URL(hub.url).port);
     const run = async (tools: { tool: 'Read' | 'Edit'; input: object }[], omitPermissionMode = false) => {
       const fake = await fakeAnthropic(tools);
@@ -270,7 +280,7 @@ test('claude-api profile: starts with the provider env and a read-only perm, pau
     fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'free', key: 'sk-top-secret-123' })]));
     await call('/api/rooms', { name: 'bear-agent-manager' });
     fs.writeFileSync(path.join(dir, 'revive.log'), 'unrelated concurrent run: no quota\n');
-    await call('/api/settings', { agents: { profiles: [prof()] } }, { method: 'PUT' });
+    await call('/api/settings', { apiAgents: { allTools: false }, agents: { profiles: [prof()] } }, { method: 'PUT' });
     await until(() => jobs.length === 1, 5000, 'the agent starts');
     assert.equal(jobs[0].env.ANTHROPIC_API_KEY, 'sk-top-secret-123');
     assert.equal(jobs[0].perm.mode, 'default');
@@ -295,6 +305,48 @@ test('claude-api profile: starts with the provider env and a read-only perm, pau
     const off = await call<any>('/api/agent-profiles/loc', { on: false, confirm: true });
     assert.equal(off.state, 'off');
     assert.equal((await call<any>('/api/settings')).agents.profiles[0].enabled, false);
+  } finally { await hub.close(); }
+});
+
+test('claude-api profile: allTools defaults on, omits the guard, keeps configured denies, and bypasses the path guard', async () => {
+  const jobs: any[] = [];
+  const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); return 0; } });
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'free', key: 'sk-top-secret-123' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', {
+      permissions: { perAgent: { FullTools: { mode: 'acceptEdits', deny: ['Bash'] } } },
+      agents: { profiles: [prof({ id: 'all-tools', name: 'FullTools' })] },
+    }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'the API agent starts');
+
+    const job = jobs[0];
+    assert.equal(job.perm.mode, 'acceptEdits');
+    assert.deepEqual(job.perm.deny, ['Bash']);
+    assert.ok(!job.perm.guarded);
+    assert.ok(!job.args.includes('--permission-prompt-tool'));
+    const mcp = JSON.parse(fs.readFileSync(job.args[job.args.indexOf('--mcp-config') + 1], 'utf8'));
+    assert.ok(mcp.mcpServers.room);
+    assert.ok(!mcp.mcpServers.bearperm);
+
+    const result = await call<any>('/api/permissions/ask', { session: job.id, tool: 'Bash', input: { command: 'echo test' } });
+    assert.equal(result.allow, true, 'allTools bypasses the remote path guard');
+  } finally { await hub.close(); }
+});
+
+test('claude-api allTools off keeps remote permission prompts behind the project path guard', async () => {
+  const { hub, dir, call } = await makeHub();
+  try {
+    const profile = prof({ id: 'guard-off', name: 'GuardOff', enabled: false });
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'free', key: 'sk-top-secret-123' })]));
+    await call('/api/settings', { apiAgents: { allTools: false }, agents: { profiles: [profile] } }, { method: 'PUT' });
+    await call('/api/sessions/register', { id: 'guard-off-session', cwd: profile.cwd, name: profile.name });
+
+    const denied = await call<any>('/api/permissions/ask', {
+      session: 'guard-off-session', tool: 'Bash', input: { command: 'echo test' },
+    });
+    assert.equal(denied.allow, false);
+    assert.match(denied.message, /not available to this agent/);
   } finally { await hub.close(); }
 });
 

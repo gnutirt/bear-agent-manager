@@ -94,10 +94,11 @@ export const leanArgs = (configFile: string, guarded = false): string[] =>
 export const remoteCanEdit = (p: AgentProfile, prov: Provider): boolean => prov.tier === 'paid' && p.edit === true;
 
 /**
- * A local provider may edit when the profile says so (edit: true). Off this machine (note [53], [54]): never Bash (`cat .env` would get round every
- * read rule), and no tool is pre-allowed but the room's, so each Read/Grep/Glob/Edit/Write asks pathGuard through the hub (guarded).
+ * With allTools off, a local provider keeps its profile-based rules; a remote provider never gets Bash and every path tool is checked by pathGuard.
+ * With allTools on, use the configured Claude permission mode and per-agent tool lists without the path guard.
  */
-export function apiPerm(p: AgentProfile, prov: Provider, own: Perm): Perm {
+export function apiPerm(p: AgentProfile, prov: Provider, own: Perm, allTools = false): Perm {
+  if (allTools) return { ...own, allow: [...new Set([...own.allow, LEAN_TOOL])] };
   if (prov.tier === 'local') return p.edit === true ? { ...own, allow: [...own.allow, LEAN_TOOL] } : { mode: 'default', allow: [LEAN_TOOL], deny: NO_WRITE };
   return { mode: 'default', guarded: true, allow: [LEAN_TOOL], deny: ['Bash', ...(remoteCanEdit(p, prov) ? [] : NO_WRITE), ...SECRET_READS] };
 }

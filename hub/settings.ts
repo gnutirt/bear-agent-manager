@@ -40,6 +40,7 @@ export type Settings = {
   copilot: { autoStart: boolean };   // legacy single Copilot toggle, kept until hub/server.ts reads agents.profiles (M3a); migrated into profile 'copilot'
   localSummarize: LocalSummarize;   // summaries by an AI on this machine (Ollama); off by default
   permissions: Permissions;   // what the claude processes the hub starts itself (background wake) may do; per agent overrides
+  apiAgents: { allTools: boolean };   // claude-api agents receive the full Claude toolset when enabled
   reviveTools: Record<string, string[]>;   // extra tools (e.g. Edit, Write) a woken-up offline agent may use, beyond the read-only default
   autoLead: 'off' | 'terminal';   // T19: open a lead terminal when a room has no lead (the user presses Enter)
   accountSwitch: { mode: 'off' | 'ask' | 'auto'; atPct: number; minOtherLeftPct: number; autoOnWake: boolean };   // autoOnWake: a wake blocked by the limit runs on the other account without asking   // D2: move an agent to another Claude account when its own runs out
@@ -119,7 +120,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 }
 
 /** M3b: one headless provider agent (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
-// 'claude-api': a headless claude on a providers.json provider (providerId) and model; outside this machine it is read-only unless the tier is local and edit is on.
+// 'claude-api': a headless claude on a providers.json provider (providerId) and model; permissions follow apiAgents.allTools.
 export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
@@ -184,7 +185,7 @@ function migrateProfiles(raw: any): any {
 
 export function defaultSettings(envCap = 4): Settings {
   return {
-    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '', monitor: { on: true, staleMin: 60, nudgeMin: 15 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
+    skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, apiAgents: { allTools: true }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '', monitor: { on: true, staleMin: 60, nudgeMin: 15 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' }, browser: { enabled: true, port: 9333, chromePath: '' },
   };
@@ -296,6 +297,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     port: typeof browserPatch.port === 'number' && Number.isInteger(browserPatch.port) && browserPatch.port >= 1024 && browserPatch.port <= 65535 ? browserPatch.port : s.browser.port,
     chromePath: typeof browserPatch.chromePath === 'string' && browserPatch.chromePath.length <= 500 ? browserPatch.chromePath : s.browser.chromePath,
   };
+  const apiAgents = { allTools: bool(p?.apiAgents?.allTools, s.apiAgents?.allTools ?? true) };
   return {
     skills: {
       worker: { enabled: bool(p?.skills?.worker?.enabled, s.skills.worker.enabled) },
@@ -306,6 +308,7 @@ export function patchSettings(s: Settings, p: any): Settings {
     flowTiers: flowTiersPatch(s.flowTiers ?? {}, p?.flowTiers),
     compact: { thresholds: compactThresholds, onTaskDone: bool(p?.compact?.onTaskDone, s.compact.onTaskDone ?? true) },
     permissions: perm,
+    apiAgents,
     autoUpdatePlugin: bool(p?.autoUpdatePlugin, s.autoUpdatePlugin ?? true),
     agents: { maxBackground: int(p?.agents?.maxBackground, s.agents?.maxBackground ?? 4, 1, 16), profiles: profilesOf(p?.agents?.profiles, s.agents?.profiles ?? []).profiles, autoRevive: bool(p?.agents?.autoRevive, s.agents?.autoRevive ?? true) },
     copilot: { autoStart: bool(p?.copilot?.autoStart, s.copilot?.autoStart ?? false) },
