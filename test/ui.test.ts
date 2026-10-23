@@ -717,6 +717,14 @@ test('#237 every agent is listed in one table and its settings are edited only i
     for (const s of ['function agentTableBlock(st)', 'id="agentKindFilter"', 'data-agent-open="${esc(a.key)}"', "t('agent.col.name')", "t('agent.col.tier')", "t('agent.settings')"]) {
       assert.ok(script.includes(s), `the agent table is missing ${s}`);
     }
+    // #245: AGENT_KIND is a lazy() map of already-translated strings, so wrapping it in t() prints an empty kind.
+    assert.ok(!script.includes('t(AGENT_KIND'), 'AGENT_KIND is translated twice, so the kind column goes blank');
+    for (const s of ['<td>${AGENT_KIND[a.kind]}</td>', '...kinds.map((k) => [k, AGENT_KIND[k]])', '<span class="lic">${AGENT_KIND[a.kind]}</span>']) {
+      assert.ok(script.includes(s), `the kind is not read straight from AGENT_KIND: ${s}`);
+    }
+    // #245: the agent table carries the "+ Agent" button of the spec (settings-ia §3), next to the kind filter.
+    assert.ok(script.includes("data-open-agent-dialog>${t('agent.spawn.add')}"), 'the agent table has no "+ Agent" button');
+    assert.ok(script.includes("if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();"), 'the "+ Agent" button is not wired to the dialog');
     // The drawer is the one place for model, permissions, compact, skill, tier and MCP.
     const paint = script.slice(script.indexOf('function paintAgentSettings()'), script.indexOf('function renderSettingsView()'));
     for (const s of ['id="agentModelInput"', 'id="agentTier"', 'permRadios(', 'permLists(', 'data-cagent="${esc(a.key)}"', 'data-cmode', 'data-cpct', 'data-cwake', 'data-rtools', 'data-agent-skill', 'data-agent-mcp', 'data-agent-close']) {
