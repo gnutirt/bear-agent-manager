@@ -87,8 +87,8 @@ test('revive and compact spawn Claude with an isolated executable and append run
   fs.mkdirSync(bin);
   const command = path.join(bin, process.platform === 'win32' ? 'claude.cmd' : 'claude');
   fs.writeFileSync(command, process.platform === 'win32'
-    ? '@echo off\r\necho revive-stdout\r\necho revive-stderr 1>&2\r\necho ANTHROPIC_MODEL=%ANTHROPIC_MODEL%\r\necho ANTHROPIC_BASE_URL=%ANTHROPIC_BASE_URL%\r\necho ANTHROPIC_AUTH_TOKEN=%ANTHROPIC_AUTH_TOKEN%\r\nexit /b 0\r\n'
-    : '#!/bin/sh\necho revive-stdout\necho revive-stderr >&2\nprintf "ANTHROPIC_MODEL=%s\\n" "$ANTHROPIC_MODEL"\nprintf "ANTHROPIC_BASE_URL=%s\\n" "$ANTHROPIC_BASE_URL"\nprintf "ANTHROPIC_AUTH_TOKEN=%s\\n" "$ANTHROPIC_AUTH_TOKEN"\nexit 0\n');
+    ? '@echo off\r\necho revive-stdout\r\necho revive-stderr 1>&2\r\necho ANTHROPIC_MODEL=%ANTHROPIC_MODEL%\r\necho ANTHROPIC_BASE_URL=%ANTHROPIC_BASE_URL%\r\necho ANTHROPIC_AUTH_TOKEN=%ANTHROPIC_AUTH_TOKEN%\r\necho COMPACT=%BEAR_AGENT_COMPACT%\r\necho HEADLESS=%BEAR_AGENT_HEADLESS%\r\nexit /b 0\r\n'
+    : '#!/bin/sh\necho revive-stdout\necho revive-stderr >&2\nprintf "ANTHROPIC_MODEL=%s\\n" "$ANTHROPIC_MODEL"\nprintf "ANTHROPIC_BASE_URL=%s\\n" "$ANTHROPIC_BASE_URL"\nprintf "ANTHROPIC_AUTH_TOKEN=%s\\n" "$ANTHROPIC_AUTH_TOKEN"\nprintf "COMPACT=%s\\n" "$BEAR_AGENT_COMPACT"\nprintf "HEADLESS=%s\\n" "$BEAR_AGENT_HEADLESS"\nexit 0\n');
   if (process.platform !== 'win32') fs.chmodSync(command, 0o755);
   const oldPath = process.env.PATH;
   const oldEnv = Object.fromEntries(['ANTHROPIC_MODEL', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'].map((key) => [key, process.env[key]]));
@@ -120,9 +120,15 @@ test('revive and compact spawn Claude with an isolated executable and append run
     assert.match(providerOutput, /ANTHROPIC_MODEL=deepseek-flash/);
     assert.match(providerOutput, /ANTHROPIC_BASE_URL=https:\/\/provider\.example/);
     assert.match(providerOutput, /ANTHROPIC_AUTH_TOKEN=test-provider-token/);
-    const compacting = spawnCompact({ id: 'compact-fixture', cwd: dir, logDir: dir });
+    assert.match(output, /COMPACT=\s*(?:\r?\n|$)/, 'a plain revive is not a compact');
+    assert.match(newAgentOutput, /HEADLESS=1/, 'a background wake still opts into the Stop-hook waiter');
+    assert.match(newAgentOutput, /COMPACT=\s*(?:\r?\n|$)/, 'a wake is not a compact');
+    let compactOut = '';
+    const compacting = spawnCompact({ id: 'compact-fixture', cwd: dir, logDir: dir, onOutput: (chunk) => { compactOut += chunk; } });
     assert.ok(isBackground('compact-fixture'), '#176: a running compact is a background claude a tab can stop');
     assert.equal(await compacting, 0);
+    assert.match(compactOut, /COMPACT=1/, '#243: a compact turn says it is headless');
+    assert.match(compactOut, /HEADLESS=\s*(?:\r?\n|$)/, '#243: and does not opt into the Stop-hook waiter (it must exit)');
     assert.ok(!isBackground('compact-fixture'));
     const log = fs.readFileSync(path.join(dir, 'revive.log'), 'utf8');
     assert.match(log, /revive revive-fixture/);

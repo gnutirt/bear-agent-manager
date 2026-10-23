@@ -239,6 +239,28 @@ test('a BAM live chat registers as headless, so its own SessionStart is not take
   } finally { await h.hub.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('#243: a compact turn registers as background, so its own SessionStart cannot stop the compact', async () => {
+  const h = await makeHub();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-compact-hook-'));
+  const tr = path.join(dir, 'compact1.jsonl');
+  fs.writeFileSync(tr, JSON.stringify({ type: 'user', message: { content: 'hi' } }) + '\n');
+  try {
+    const base = { BEAR_AGENT_HOME: h.dir, BEAR_AGENT_PORT: String(h.hub.port), BEAR_AGENT_HEADLESS: '' };
+    const compactEnv = { ...base, BEAR_AGENT_COMPACT: '1' };
+    const r = await runHook('session-start.ts', { session_id: 'compact1', cwd: 'C:\\compact', hook_event_name: 'SessionStart', source: 'compact', transcript_path: tr }, compactEnv).done;
+    assert.equal(r.code, 0);
+    const s = (await h.call<any>('/api/sessions/compact1')).session;
+    assert.equal(s.bg, true, 'the compact claude is a background process');
+    assert.equal(s.tab, false, 'a tab here would call tabCameUp and kill the compact that just registered');
+
+    // The same SessionStart without the flag is a tab: that is exactly what used to kill the compact 10 minutes in.
+    const r2 = await runHook('session-start.ts', { session_id: 'tab1', cwd: 'C:\\tabwork', hook_event_name: 'SessionStart', source: 'resume', transcript_path: tr }, { ...base, BEAR_AGENT_COMPACT: '' }).done;
+    assert.equal(r2.code, 0);
+    const s2 = (await h.call<any>('/api/sessions/tab1')).session;
+    assert.equal(s2.tab, true, 'without the flag the hub still treats the chat as a tab');
+  } finally { await h.hub.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('readTitle returns the latest custom title, else the latest AI title', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-title-'));
   const f = path.join(dir, 't.jsonl');

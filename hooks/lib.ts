@@ -38,7 +38,7 @@ export async function readInput(): Promise<HookInput> {
 export function register(input: HookInput, extra: { ide?: string; title?: string } = {}) {
   return api<{ session: { name: string; rooms: string[] } }>('/api/sessions/register', {
     body: {
-      id: input.session_id, cwd: input.cwd, source: input.source, configDir: process.env.CLAUDE_CONFIG_DIR ?? '', pid: process.ppid, headless: process.env.BEAR_AGENT_HEADLESS === '1' || process.env.BEAR_AGENT_LIVE === '1' || undefined,   // hooks run as `node` + args, so the parent is claude itself; headless: a background wake or a BAM live chat, never an editor tab (a "new tab" would stop the live chat that asked)
+      id: input.session_id, cwd: input.cwd, source: input.source, configDir: process.env.CLAUDE_CONFIG_DIR ?? '', pid: process.ppid, headless: process.env.BEAR_AGENT_HEADLESS === '1' || process.env.BEAR_AGENT_LIVE === '1' || process.env.BEAR_AGENT_COMPACT === '1' || undefined,   // hooks run as `node` + args, so the parent is claude itself; headless: a background wake, a BAM live chat or a compact turn, never an editor tab (a "new tab" would stop the process that asked)
       transcript: input.transcript_path ?? '', ide: extra.ide || undefined, title: extra.title || readTitle(input.transcript_path) || undefined,
       ctx: readContextTokens(input.transcript_path) || undefined,
     },

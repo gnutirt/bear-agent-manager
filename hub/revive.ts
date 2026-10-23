@@ -127,8 +127,12 @@ function resumeTurn(job: CompactJob, text: string, label: string, maxMs: number,
   }
   delete env.BEAR_AGENT_HEADLESS;
   delete env.BEAR_AGENT_IDLE_MIN;
+  delete env.BEAR_AGENT_COMPACT;
   // Stays alive after the answer: the Stop hook's waiter keeps waiting for room messages for idleMin minutes
   if (idleMin) { env.BEAR_AGENT_HEADLESS = '1'; env.BEAR_AGENT_IDLE_MIN = String(idleMin); }
+  // #243: a compact turn is headless too, but under its own flag: BEAR_AGENT_HEADLESS also opts the session
+  // into a Stop-hook waiter (waiter.ts:36), and a compact must not sit waiting for room messages.
+  if (label === 'compact') env.BEAR_AGENT_COMPACT = '1';
   const log = openRunLog(job.logDir, job.id, label, job.cwd, perm);
   const child = spawn('claude', [...claudeArgs(job.id, perm, model), ...(job.args ?? [])].map(shellArg), {
     cwd: fs.existsSync(job.cwd) ? job.cwd : undefined,
