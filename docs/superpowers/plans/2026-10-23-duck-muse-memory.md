@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Two chat-only room members:
-- **Duck** chats through Duck2api (OpenAI Chat Completions).
+- **Duck** chats through a generic OpenAI Chat Completions adapter. The user configures the endpoint; Duck2api is one optional, experimental choice: a separate Go service that the user downloads and the hub can run for them (D3b, off by default).
 - **Muse** researches through `muse-core`.
 
 Both read a BAM-owned memory partitioned by user, project and room, and that memory survives a restart.
@@ -31,7 +31,9 @@ Both read a BAM-owned memory partitioned by user, project and room, and that mem
   - An API never returns any part of a key, only `hasKey`.
   - Never log a key, a whole prompt or a conversation.
   - Board and log lines carry sizes only, like `board()` in `mcp/muse.ts`.
-- Duck defaults: `baseUrl: 'http://127.0.0.1:8080'`, `model: 'gpt-5.4-mini'`, `timeoutMs: 60000`. Muse uses CDP `http://127.0.0.1:9222`.
+- Duck has no default `baseUrl`. A Duck profile can be enabled only with a source (`useHubDuck2api: true` or a user-entered `baseUrl`) and `experimental: true` (the user ticked "Tôi hiểu đây là tính năng thử nghiệm"). Defaults: `model: ''` (picked from `/v1/models`), `timeoutMs: 60000`. Muse uses CDP `http://127.0.0.1:9222`.
+- BAM never ports the duck.ai protocol, never ships, downloads or updates Duck2api, and never wires it to the BAM background browser. The hub runs a user-chosen `duck2api.exe` only when `duck.exePath` is set (default `''`).
+- Order (user 23/10): memory core and Duck against a **mock provider** first. Every automated test uses a fake `fetch` or the local fake server from D3; none needs Duck2api. Real Duck2api appears only in D7, after the user configures it.
 - Limits:
   - Memory in a prompt: ≤ 8 entries and ≤ 3000 characters.
   - Summary: ≤ 2000 characters.
@@ -164,11 +166,51 @@ Both read a BAM-owned memory partitioned by user, project and room, and that mem
     - a 200 SSE body `data: {...}`;
     - a 200 where `message` has only `tool_calls`.
   - `listModels reads data[].id`
-  - `live (DUCK_LIVE=1)`: skipped unless set. It runs against `process.env.DUCK_URL ?? 'http://127.0.0.1:8080'` with `gpt-5.4-mini` and "Reply with one word: PONG", and asserts `ok` and `/PONG/i`. This also answers the open spec question about `stream:false`.
+  - `fake server`: `export function startFakeChatServer(reply: (body) => { status: number; body: string; type?: string }): Promise<{ url: string; close(): Promise<void> }>` in `test/helpers.ts` (node:http on 127.0.0.1:0). `chatComplete` against it returns the reply; D4 and D7 reuse it as the mock provider.
+  - `live (DUCK_LIVE=1)`: skipped unless set. It runs against `process.env.DUCK_URL` (skipped when unset) with `process.env.DUCK_MODEL ?? 'gpt-5.4-mini'` and "Reply with one word: PONG", and asserts `ok` and `/PONG/i`. This also answers the open spec question about `stream:false`.
 - [ ] **Step 2:** Run `node --test test/chatapi.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** Run `node --test test/chatapi.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** with the message `feat(duck): one OpenAI Chat Completions call with no tools and clear errors (#id)`.
+
+### Task D3b: `hub/duckhost.ts` (hub runs the user's duck2api.exe, off by default)
+
+**Files:**
+- Create: `hub/duckhost.ts`
+- Modify: `hub/server.ts`: `const duckHost = new DuckHost(...)`; `applyDuck()` at start and after every settings change; `close()` stops it; route `GET /api/duck/host` returns `{ configured, running, endpoint, lastError }` and never the key.
+- Test: `test/duckhost.test.ts`
+
+**Interfaces:**
+- Consumes: the `BrowserHost` pattern in `hub/browser.ts`: pid file, injectable `findProcess`/`killProcess`, readiness loop, `restartAfterCrash` (3 per 10 minutes). Copy the pattern. Do not refactor `BrowserHost`, which just shipped in #204–#216.
+- Produces: `export class DuckHost`, constructor `({ dir, cfg: () => { exePath: string; port: number }, spawn?, fetch?, findProcess?, killProcess?, randomKey?: () => string })`. Methods:
+  - `start(): Promise<{ endpoint: string }>`
+  - `stop(): Promise<void>`
+  - `running(): boolean`
+  - `endpoint(): string`, which is `http://127.0.0.1:<port>`
+  - `key(): string`
+  - `lastError(): string`
+- Errors carry a status, like `BrowserError`:
+  - 404: no file at `exePath`.
+  - 409: the port is busy and the process is not ours.
+  - 502: no `/ping` 200 within 15 s.
+- Spawn: `spawn(exePath, [], { cwd: <dir>/duck, env, stdio: 'ignore', windowsHide: true })`.
+  - `env` is a minimal set: `SystemRoot`, `PATH`, `TEMP`, `TMP`, plus `SERVER_HOST: '127.0.0.1'`, `SERVER_PORT: String(port)`, `Authorization: key`.
+  - Never pass the hub's own environment: it holds tokens.
+  - `key` is `randomBytes(32).toString('hex')`, new on every start, kept in memory only.
+- Pid file `<dir>/duck/duck2api.pid`. A recorded pid is adopted only if its command line contains the configured `exePath`; otherwise it is left alone.
+
+- [ ] **Step 1: Write the failing tests** with a fake `spawn` and a fake `fetch`:
+  - `exePath empty → start is a no-op and running() is false`
+  - `spawn gets SERVER_HOST=127.0.0.1, the port, a 64-hex Authorization, cwd <dir>/duck, and no hub env (no BEAR_* or token keys)`
+  - `ready only after /ping 200; 15 s without it → 502 and the child is killed`
+  - `missing exe → 404; port answered by a foreign process → 409, nothing killed`
+  - `a crash restarts it, at most 3 times in 10 minutes`
+  - `a stale pid whose command line is another program is not killed`
+  - `GET /api/duck/host never contains the key`
+- [ ] **Step 2:** Run `node --test test/duckhost.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4:** Run `node scripts/gen-api-doc.mjs`, then `node --test test/duckhost.test.ts test/browser.test.ts test/api-doc.test.ts`. Expected: PASS.
+- [ ] **Step 5: Commit** with the message `feat(duck): hub runs the user's duck2api.exe on loopback with a per-run key, off by default (#id)`.
 
 ### Task D4: Duck member (after agy Task 2 `AgyAgent` is on main)
 
@@ -179,7 +221,7 @@ Both read a BAM-owned memory partitioned by user, project and room, and that mem
   - `AgyAgent` becomes `HubMember` + the agy turn. Its tests must stay green unchanged.
 - Create: `hub/duck.ts`
 - Modify:
-  - `hub/settings.ts`: `AgentProfile.provider` adds `'duck' | 'muse'`, plus `baseUrl?`, `timeoutMs?`. `patchSettings` accepts `baseUrl` only as `http:` or `https:` and `timeoutMs` in 5000..300000.
+  - `hub/settings.ts`: `AgentProfile.provider` adds `'duck' | 'muse'`, plus `baseUrl?`, `useHubDuck2api?`, `timeoutMs?`, `experimental?`. `Settings` gains `duck: { exePath: string; port: number }`, default `{ exePath: '', port: 8080 }`. `patchSettings` accepts `baseUrl` only as `http:` or `https:` and `timeoutMs` in 5000..300000, and refuses (400) `enabled: true` on a duck profile that has neither `useHubDuck2api` nor `baseUrl`, or lacks `experimental: true`. With `useHubDuck2api`, `duckTurn`'s `profile()`/`key()` return `duckHost.endpoint()`/`duckHost.key()`.
   - `hub/server.ts`: `copilotFor(p)` builds `new HubMember({ …, turn: duckTurn(...) })` for `p.provider === 'duck'`. Add the routes `PUT /api/agents/:id/key` (`{ key: string | null }`), `GET /api/duck/check?id=` and `DELETE /api/duck/history?id=&room=`.
 - Test: `test/duck.test.ts`, `test/member.test.ts`, `test/settings.test.ts`
 
@@ -214,12 +256,13 @@ Both read a BAM-owned memory partitioned by user, project and room, and that mem
   - `over 12000 characters: the summary request is sent and only the newest turns are kept`
   - `banned (418) → one sys.duck.failed, messages unread, no second post for the next message of the same kind`
   - `a response with tool_calls and no content is an error, nothing is executed`
-  - `settings: duck profile accepts http(s) baseUrl only; GET settings never contains the key`
+  - `settings: duck profile accepts http(s) baseUrl only; enabling without baseUrl or experimental is 400; GET settings never contains the key`
+  - `mock provider: a full Duck turn against startFakeChatServer posts the reply as the member and cites [M<id>]`
   - `PUT /api/agents/:id/key then GET /api/settings shows hasKey true and no key text`
 - [ ] **Step 2:** Run `node --test test/duck.test.ts test/member.test.ts test/settings.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** Run `node scripts/gen-api-doc.mjs`, then `node --test test/duck.test.ts test/member.test.ts test/agy-agent.test.ts test/settings.test.ts test/api-doc.test.ts test/copilot.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** with the message `feat(duck): Duck chat member on Duck2api with BAM memory, remember/forget and per-room history (#id)`.
+- [ ] **Step 5: Commit** with the message `feat(duck): Duck chat member on an OpenAI-compatible provider with BAM memory, remember/forget and per-room history (#id)`.
 
 ### Task D5: Muse research member
 
@@ -262,7 +305,8 @@ Both read a BAM-owned memory partitioned by user, project and room, and that mem
 The changes in `ui/index.html`:
 - Add agent types "Duck (trò chuyện)" and "Muse (nghiên cứu)".
 - Duck form:
-  - fields baseUrl, model (filled from check), key and timeout;
+  - fields baseUrl (empty by default, placeholder only), model (filled from check), key and timeout;
+  - an "experimental" checkbox; the enable switch stays off until baseUrl is set and the box is ticked;
   - the key field is a password input that shows only "đã có key / chưa có key", with Save and Clear buttons;
   - a "Kiểm tra" button;
   - a non-loopback baseUrl shows a warning;
@@ -289,14 +333,15 @@ i18n (vi / en), in addition to D2's `set.memory.*`:
 ### Task D7: End-to-end by hand, docs, full test run
 
 **Files:**
-- Modify: `README.md` (a short Duck/Muse/memory section that says the user runs Duck2api), `CHANGELOG.md`
+- Modify: `README.md` (a short Duck/Muse/memory section: any OpenAI-compatible endpoint; Duck2api optional, experimental, run by the user; no promise duck.ai stays free or up), `CHANGELOG.md`
 
-- [ ] **Step 1:** The user starts Duck2api on `127.0.0.1:8080`; BAM never starts it. Restart the hub only when the user says when. Add Duck, press Kiểm tra, and expect the model list.
+- [ ] **Step 0:** Run Steps 2–4 first against the D3 fake server as the provider (mock). Steps with real Duck2api run only after the user starts it and ticks experimental.
+- [ ] **Step 1:** The user downloads `duck2api.exe`, sets its path in Settings (D3b), ticks experimental and picks "Duck2api của hub". Restart the hub only when the user says when. Add Duck, press Kiểm tra, and expect the model list.
 - [ ] **Step 2:** In room A: `@duck dự án này dùng Postgres hay Mongo?` gets an answer. Then `@duck hãy nhớ: dự án dùng Postgres 16`, then `@duck nên backup DB thế nào?`. Expected: the answer cites [M<id>].
 - [ ] **Step 3:** In room B, ask the same thing. Expected: no [M<id>] from room A.
 - [ ] **Step 4:** Restart the hub, then ask Duck a follow-up in room A. Expected: it still knows the earlier turns and the entry.
 - [ ] **Step 5:** `@muse nghiên cứu chiến lược backup Postgres 16`. Expected: an answer with sources. Press "Lưu vào bộ nhớ", then ask Duck about backup. Expected: Duck cites the research entry with its URL and date.
-- [ ] **Step 6:** Stop Duck2api, then ask Duck. Expected: one clear error, and the message stays unread.
+- [ ] **Step 6:** Kill the duck2api process once: the hub restarts it. Then clear `exePath` and ask Duck. Expected: one clear error, and the message stays unread.
 - [ ] **Step 7:** Run `npm test` and `npm run smoke`. Expected: both pass.
 - [ ] **Step 8:** Commit with the message `docs: Duck, Muse and BAM memory for users (#id)`.
 
@@ -306,6 +351,7 @@ i18n (vi / en), in addition to D2's `set.memory.*`:
 
 - D1 and D3 are new files only and can start now, in parallel with the agy and browser tasks.
 - D2, then D4, then D5 touch `hub/server.ts`/`settings.ts`/`store.ts`. Run them in that order, after the agy A3 and browser B2 tasks that touch the same files. D4 also needs agy Task 2 (`AgyAgent`) on main, because it extracts `HubMember` from it.
-- D6 is frontend, after D4 and D5.
-- D7 is done with the user (Duck2api running, hub restart).
+- D3b touches `hub/server.ts`: after D2, before D4.
+- D6 is frontend, after D4 and D5. It also adds the "Duck2api (thử nghiệm)" section: exePath, port, status from `GET /api/duck/host`, and the Releases link.
+- D7: mock first; the real Duck2api part only with the user (Duck2api running, hub restart).
 - Audit: core-improve for the hub, frontend for the UI.

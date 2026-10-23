@@ -3,7 +3,7 @@
 User 23/10 dán 2 yêu cầu: "DuckAI chat agent qua Duck2api" và "Memory/Knowledge layer cho Duck + Muse". Spec này gộp cả hai. Nghiên cứu: function-research.
 
 ## Mục tiêu
-- **Duck**: thành viên phòng chỉ để trò chuyện và tư vấn. Gọi Duck2api qua OpenAI Chat Completions và dùng lại những gì BAM đã nhớ.
+- **Duck**: thành viên phòng chỉ để trò chuyện và tư vấn. Gọi một API tương thích OpenAI Chat Completions do user cấu hình (ví dụ Duck2api, tuỳ chọn) và dùng lại những gì BAM đã nhớ.
 - **Muse**: thành viên phòng chỉ để nghiên cứu. Hỏi Muse (Meta) qua Chrome debug, như `mcp/muse-core.ts`. Kết quả có URL và ngày truy cập; user bấm lưu thì vào bộ nhớ.
 - **BAM** sở hữu bộ nhớ. Backend không nhớ gì giữa các lượt.
 - Không phải coding agent. Không file, shell, MCP, browser, tool hay function calling. Không có đường nào gọi Claude CLI.
@@ -20,7 +20,25 @@ User 23/10 dán 2 yêu cầu: "DuckAI chat agent qua Duck2api" và "Memory/Knowl
   - Điều khoản duck.ai cấm "automated querying". Duck2api là cầu nối không chính thức.
   - duck.ai khoá theo IP: lỗi `418 ERR_BN_LIMIT`, không có thời gian chờ.
   - "Miễn phí" không có nghĩa là có SLA hay hạn mức bảo đảm.
-  - BAM không cài, không chạy, không tải Duck2api; user tự lo phần đó. UI ghi rõ câu hỏi được gửi tới duck.ai qua Duck2api.
+  - BAM không chứa, không chạy, không tải Duck2api. UI ghi rõ: nếu `baseUrl` là Duck2api thì câu hỏi được gửi tới duck.ai qua cầu nối không chính thức.
+
+## Thứ tự và nhà cung cấp chat (user chỉnh 23/10)
+- Bộ nhớ dài hạn, context, phân vùng room/project và UI quản lý bộ nhớ thuộc BAM, độc lập với Duck2api. Duck và Muse cùng đọc/ghi lớp này.
+- Duck gọi qua **adapter tổng quát** OpenAI Chat Completions (`baseUrl` + key + model). Duck2api chỉ là một địa chỉ user có thể điền vào; sau này đổi sang API được hỗ trợ chính thức thì chỉ đổi cài đặt, không đổi code.
+- Duck2api là dịch vụ Go riêng, tuỳ chọn. BAM không port giao thức duck.ai, không chứa code và không tự tải Duck2api, không gắn vào trình duyệt ngầm, không coi nó là dependency mặc định.
+- **Hub chạy Duck2api (user 23/10), mặc định TẮT.** User tự tải `duck2api.exe` từ trang Releases rồi chọn đường dẫn trong Cài đặt. Từ đó hub bật, giữ sống, tắt nó như Chrome ngầm:
+  - Cài đặt `duck: { exePath: '', port: 8080 }`. `exePath` rỗng thì nằm im: chỉ hiện trạng thái, không báo vào phòng.
+  - Hub bật khi `exePath` có giá trị và có ít nhất một profile Duck đang bật dùng Duck2api của hub; tắt khi không còn profile nào hoặc khi xoá `exePath`.
+  - Biến môi trường (đã đọc main.go, middlewares/auth.go, router.go @ f446c1c):
+    - `SERVER_HOST=127.0.0.1`, vì mặc định Duck2api nghe `0.0.0.0`, tức máy khác trong LAN gọi được.
+    - `SERVER_PORT=<port>`.
+    - `Authorization=<key ngẫu nhiên 32 byte, mỗi lần chạy>`: tiến trình khác trên máy không gọi được API này. Key chỉ nằm trong bộ nhớ hub, không ghi file, không trả qua API.
+    - Không truyền `PROXY_URL`, `PREFIX`, `TLS_*`, và không truyền môi trường của hub (có token).
+  - Thư mục chạy là `<home>/duck/` (rỗng), vì Duck2api tự đọc `.env` ở thư mục chạy.
+  - Sẵn sàng khi `GET /ping` trả 200 trong 15 s. Chết thì bật lại tối đa 3 lần trong 10 phút. Có file pid để nhận lại hoặc kill tiến trình mồ côi. Cổng bận thì báo 409, không kill tiến trình lạ.
+  - Profile Duck chọn một trong hai: "Duck2api của hub" (endpoint + key nội bộ) hoặc `baseUrl` tự điền (API tương thích bất kỳ, key trong `agent-keys.json`).
+- Profile Duck không có `baseUrl` mặc định. Bật profile đòi user chọn "Duck2api của hub" hoặc tự điền `baseUrl`, và tick "Tôi hiểu đây là tính năng thử nghiệm" (`experimental: true`). BAM không hứa duck.ai luôn miễn phí hay luôn hoạt động.
+- Làm trước: bộ nhớ + Duck chạy với **mock provider** (server HTTP giả tương thích OpenAI trong test). Nối Duck2api thật chỉ ở bước e2e, sau khi user chủ động cấu hình.
 
 ## Bộ nhớ (Memory layer)
 - Một mục gồm:
@@ -71,7 +89,8 @@ User 23/10 dán 2 yêu cầu: "DuckAI chat agent qua Duck2api" và "Memory/Knowl
 5. v1 chưa dùng trình duyệt ngầm của BAM (spec browser ^0f31b11).
 
 ## Cài đặt / UI
-- Profile `provider: 'duck'`: `{ name, enabled, baseUrl (mặc định http://127.0.0.1:8080), model (mặc định gpt-5.4-mini), timeoutMs }`.
+- Mục "Duck2api (thử nghiệm)": đường dẫn `duck2api.exe` (kèm link trang Releases), cổng, trạng thái (đang chạy / lỗi / chưa chọn file).
+- Profile `provider: 'duck'`: `{ name, enabled, useHubDuck2api, baseUrl, model (lấy từ `/v1/models`), timeoutMs, experimental }`; chưa chọn nguồn (Duck2api của hub hoặc `baseUrl`) hoặc chưa tick `experimental` thì không bật được.
   - baseUrl chỉ nhận `http(s)`. Host không phải loopback thì UI cảnh báo.
   - Key lưu riêng ở `<home>/agent-keys.json` (0600). API chỉ trả `hasKey`, không trả bất kỳ phần nào của key.
   - Nút "Kiểm tra" gọi `/v1/models`.
@@ -80,4 +99,4 @@ User 23/10 dán 2 yêu cầu: "DuckAI chat agent qua Duck2api" và "Memory/Knowl
 - Không thêm thiết lập browser cho Duck hay Muse.
 
 ## Ngoài phạm vi v1
-Streaming, vector DB, LLM tự trích bộ nhớ, Muse qua trình duyệt ngầm, Duck tự đi nghiên cứu web.
+Streaming, vector DB, LLM tự trích bộ nhớ, Muse qua trình duyệt ngầm, Duck tự đi nghiên cứu web. BAM tự tải hoặc tự cập nhật Duck2api; port giao thức duck.ai; chạy Duck2api bằng Docker.
