@@ -49,7 +49,7 @@ import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
-import { countBackground, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
+import { countBackgroundWith, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
 import { ToolConsole } from './console.ts';
 import { killTree, listProcesses, parseWorkers, readWorkerLog, type LiveWorker, type Proc } from './workers.ts';
 import { listRoomChat, sweepProject, adoptWorkerTranscripts, type Swept } from './roomchat.ts';
@@ -821,7 +821,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (apiBudgetUntil(p)) return false;
     try {
       if (!store.state.rooms[room]) throw new Error(`room #${room} does not exist`);
-      if (Math.max(countBackground(), reviving.size) >= cfg.agents.maxBackground) throw new Error(`${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+      if (countBackgroundWith(reviving) >= cfg.agents.maxBackground) throw new Error(`${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
       const cwd = resolveWorkspace(p.cwd, true), id = crypto.randomUUID(), job = apiJob(p, cfg, id);
       if (stale) store.forget(stale.id);
       store.register({ id, cwd });
@@ -1246,7 +1246,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function drainWakeQueue() {
     clearTimeout(wakeDrainTimer); wakeDrainTimer = undefined;
     const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
-    while (wakeQueue.length && Math.max(countBackground(), reviving.size) < cap) revive(wakeQueue.shift()!);
+    while (wakeQueue.length && countBackgroundWith(reviving) < cap) revive(wakeQueue.shift()!);
     if (wakeQueue.length) { wakeDrainTimer = setTimeout(() => drainWakeQueue(), 60_000); wakeDrainTimer.unref(); }
   }
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
@@ -1262,7 +1262,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
     // #246(c): the same cap the routes use for spawning applies to a wake. Queue it (true: it will run) rather than refuse:
     // the caller must not mark the chat ended or fall back to a tab, and the pending messages stay unread until it starts.
-    if (Math.max(countBackground(), reviving.size) >= loadSettings(opts.dir, envCap).agents.maxBackground) { enqueueWake(s.id); return true; }
+    if (countBackgroundWith(reviving) >= loadSettings(opts.dir, envCap).agents.maxBackground) { enqueueWake(s.id); return true; }
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = profile;
     let apiRun: ReturnType<typeof apiJob> | undefined;
@@ -2746,7 +2746,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (!b.on) { syncApiAgents(); return json(res, 200, { ...apiStatus({ ...prof, enabled: false }), done: true }); }
       }
       const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
-      if (!apiSessionOf(prof) && Math.max(countBackground(), reviving.size) >= cap) return json(res, 429, { error: `${cap} background agents already run (settings agents.maxBackground)`, status: apiStatus(prof) });
+      if (!apiSessionOf(prof) && countBackgroundWith(reviving) >= cap) return json(res, 429, { error: `${cap} background agents already run (settings agents.maxBackground)`, status: apiStatus(prof) });
       const now = { ...prof, enabled: true };
       if (!apiStart(now)) return json(res, 503, { error: apiState.get(prof.id)?.error ?? 'could not start', status: apiStatus(now) });
       return json(res, 200, { ...apiStatus(now), done: true });
@@ -2783,7 +2783,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       let cwd: string;
       try { cwd = resolveWorkspace(asked.trim() || roomState.cwd, true); } catch (e) { throw new StoreError(400, (e as Error).message); }
       const cfgA = loadSettings(opts.dir, envCap);
-      if (Math.max(countBackground(), reviving.size) >= cfgA.agents.maxBackground) throw new StoreError(429, `${cfgA.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+      if (countBackgroundWith(reviving) >= cfgA.agents.maxBackground) throw new StoreError(429, `${cfgA.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
       const roomFolderKnown = !!roomState.cwd && (() => { try { return fs.realpathSync(roomState.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } })();
       const known = !isWideWorkspace(cwd) && (roomFolderKnown || Object.values(store.state.sessions).some((s) => { try { return !!s.cwd && fs.realpathSync(s.cwd).toLowerCase() === cwd.toLowerCase(); } catch { return false; } }));
       if (!known && b.confirm !== true) return json(res, 409, { error: tr('sys.agent.newFolder', { cwd }), needConfirm: true });
@@ -3140,7 +3140,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (reviving.has(s.id) || isBackground(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
         if (copilotHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
         const cfg = loadSettings(opts.dir, envCap), model = cfg.agentModel[normAgent(s.name)];
-        if (Math.max(countBackground(), reviving.size) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
+        if (countBackgroundWith(reviving) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
         const perm = permFor(cfg, s.name);
         let args: string[] | undefined;
         if (perm.mode !== 'bypass') {   // a tool the agent is not allowed yet asks the person in BAM instead of being refused silently

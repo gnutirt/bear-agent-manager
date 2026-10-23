@@ -70,6 +70,17 @@ export const adoptBackground = (id: string, child: ChildProcess): void => { live
 /** How many background claudes run now (wakes that stay alive and agents created without an IDE). */
 export const countBackground = (): number => live.size;
 
+/**
+ * #250: background slots taken now, counting the live claudes together with turns the caller is still preparing
+ * (`reviving`): a compact of one agent (live) plus a wake of another that has not spawned yet are two slots. A session
+ * in both is counted once. `Math.max(live, reviving)` used to undercount exactly that pair.
+ */
+export const countBackgroundWith = (preparing: Iterable<string> = []): number => {
+  const ids = new Set(live.keys());
+  for (const id of preparing) ids.add(id);
+  return ids.size;
+};
+
 /** True while a background claude (a wake that stays alive) runs for this session. */
 export const isBackground = (id: string): boolean => live.has(id);
 
