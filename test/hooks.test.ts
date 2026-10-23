@@ -151,6 +151,29 @@ test('#200: a second delivery to the same chat carries the new message only, not
   } finally { await hub.close(); }
 });
 
+test('#202: a promotion to lead makes the next delivery carry the fixed rules again (a boolean flag would have missed it)', async () => {
+  const { hub, call, env: e } = await env();
+  try {
+    await call('/api/sessions/register', { id: 'l1', cwd: 'C:\\fw' });
+    await call('/api/sessions/l1/rename', { name: 'fw' });
+    await call('/api/rooms/proj/join', { sessionId: 'l1' });
+    const w1 = runHook('waiter.ts', { session_id: 'l1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
+    await until(() => hub.waiting('l1'), 15_000, 'the first waiter');
+    await call('/api/rooms/proj/messages', { text: '@fw one' });
+    const r1 = await w1.done;
+    assert.equal(r1.code, 2);
+    assert.match(r1.stderr, /room_send/, 'the first context of a chat carries the fixed rules');
+    assert.doesNotMatch(r1.stderr, /lead \(★\)/, 'it was not the lead yet');
+    await call('/api/rooms/proj/lead', { sessionId: 'l1' });
+    const w2 = runHook('waiter.ts', { session_id: 'l1', cwd: 'C:\\fw', hook_event_name: 'Stop' }, e);
+    await until(() => hub.waiting('l1'), 15_000, 'the second waiter');
+    await call('/api/rooms/proj/messages', { text: '@fw two' });
+    const r2 = await w2.done;
+    assert.equal(r2.code, 2);
+    assert.match(r2.stderr, /You are the lead \(★\) of #proj/, 'the duty is new, so the rules ride again');
+  } finally { await hub.close(); }
+});
+
 test('#200: readCompactMark moves only when a new compaction boundary appears (Claude Code compacts a --bare chat with no hook)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-mark-'));
   const file = path.join(dir, 't.jsonl');

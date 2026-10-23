@@ -414,6 +414,43 @@ test('#200: a provider chat that Claude Code compacted by itself gets the fixed 
   } finally { await hub.close(); }
 });
 
+test('#202: /api/rules stays silent while a wake runs, so SessionStart cannot print the fixed rules twice', async () => {
+  const jobs: any[] = [], revived: any[] = [];
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  const cwd = fs.realpathSync(os.tmpdir());
+  const { hub, dir, call } = await makeHub(undefined, async (job) => { revived.push(job); await held; }, {
+    autoRevive: false,
+    spawnAgent: async (job: any) => {   // the first run: the (fake) claude saves its chat where Claude Code would
+      jobs.push(job);
+      const d = path.join(dir0.dir, '.claude', 'projects', projectSlug(cwd));
+      fs.mkdirSync(d, { recursive: true });
+      const line = (o: object) => JSON.stringify(o);
+      fs.writeFileSync(path.join(d, `${job.id}.jsonl`), [line({ type: 'user', message: { content: 'hi' } }), line({ type: 'assistant', message: { model: 'deepseek-flash', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1 } } })].join('\n') + '\n');
+      return 0;
+    },
+  });
+  const dir0 = { dir };
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', { agentComms: 'terse', agents: { profiles: [prof({ cwd })] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'first run');
+    const sid = jobs[0].id;
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.status === 'offline', 5000, 'first run ended');
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local second question' });
+    await until(() => revived.length === 1, 5000, 'the waking turn');
+    assert.match(revived[0].text, /Agent posts: BAMshort/, 'the wake prompt itself carries the fixed rules');
+    // the wake's own /compact ends with a SessionStart(compact) on a hooked chat: that hook must find nothing to print
+    const mid = await call<{ text: string }>(`/api/rules?session=${sid}&source=compact`);
+    assert.equal(mid.text, '', 'a running wake speaks for the chat; the hook stays quiet');
+    release();
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.status !== 'busy', 5000, 'the wake ended');
+    const after = await call<{ text: string }>(`/api/rules?session=${sid}&source=startup`);
+    assert.equal(after.text, '', 'and the context that holds them does not ask for them again');
+  } finally { release(); await hub.close(); }
+});
+
 test('claude-api profile with a provider that has no key stays an error and never spawns', async () => {
   const jobs: any[] = [];
   const { hub, dir, call } = await makeHub(undefined, undefined, { spawnAgent: async (job: any) => { jobs.push(job); return 0; } });

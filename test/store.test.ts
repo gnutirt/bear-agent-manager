@@ -27,20 +27,22 @@ test('renameRoom moves members, history and the log file; survives reload', () =
   assert.throws(() => st.renameRoom('nope', 'x'), (e: StoreError) => e.status === 404);
 });
 
-test('#200: the fixed rules are handed out once per context; a compaction or a failed wake gives them back', () => {
+test('#200/#202: the fixed rules are handed out once per context key — a new lead, style or compaction gives them back', () => {
   const dir = tmp();
   const st = new Store(dir);
   const s = st.register({ id: 's1', cwd: path.join('D:', 'fw') });
-  assert.equal(st.takeRules(s.id), true);
-  assert.equal(st.takeRules(s.id), false, 'a later delivery carries the new content only');
-  st.resetRules(s.id);
-  assert.equal(st.takeRules(s.id, '10:abc'), true, 'a compaction (or a wake that never reached the agent) lets them ride again');
-  assert.equal(st.session(s.id).rulesMark, '10:abc');
+  assert.equal(st.takeRules(s.id, 'off||'), true);
+  assert.equal(st.takeRules(s.id, 'off||'), false, 'the same context does not repeat them');
+  assert.equal(st.takeRules(s.id, 'off|proj|'), true, 'promoted to lead: the duty is new, so it rides again');
+  assert.equal(st.takeRules(s.id, 'terse|proj|'), true, 'switched to BAMshort: the style line is new too');
+  assert.equal(st.takeRules(s.id, 'terse|proj|42:abc'), true, 'a compaction boundary is a new context');
+  assert.equal(st.session(s.id).rulesKey, 'terse|proj|42:abc');
   const again = new Store(dir);
-  assert.equal(again.takeRules(s.id, '10:abc'), false, 'the flag and its compaction mark survive a hub restart');
+  assert.equal(again.takeRules(s.id, 'terse|proj|42:abc'), false, 'the key survives a hub restart');
+  again.markRules(s.id, 'terse|proj|50:def');   // a wake that compacted on the way in: the rules went on its prompt
+  assert.equal(again.takeRules(s.id, 'terse|proj|50:def'), false);
   again.resetRules(s.id);
-  assert.equal(again.takeRules(s.id, '20:def'), true, 'a newer compaction boundary means a new context');
-  assert.equal(again.session(s.id).rulesMark, '20:def');
+  assert.equal(again.takeRules(s.id, 'terse|proj|50:def'), true, 'a wake that never reached the agent gives them back');
 });
 
 test('room log rewrites use an atomic temp-file rename', () => {
