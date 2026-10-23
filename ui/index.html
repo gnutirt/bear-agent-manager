@@ -3300,7 +3300,7 @@ function loadSettingsView() {
   Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus()]).then(([s, p, sk, ar, mc, browser]) => {
     S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
-    S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
+    S.viewErr.settings = ''; renderSettingsView(); focusAgyProfileForm(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
   renderSettingsView();
 }
@@ -4249,14 +4249,14 @@ function renderSettingsView() {
   const bar = `<span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
-  if (S.focusAgyProfileForm) {
-    const form = $('agyProfileNew');
-    if (form) {
-      S.focusAgyProfileForm = false;
-      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      form.elements.namedItem('id').focus({ preventScroll: true });
-    }
-  }
+}
+function focusAgyProfileForm() {
+  if (!S.focusAgyProfileForm) return;
+  const heading = $('agyProfileHeading'), form = $('agyProfileNew');
+  if (!heading || !form) return;
+  S.focusAgyProfileForm = false;
+  heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  form.elements.namedItem('id').focus({ preventScroll: true });
 }
 async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
