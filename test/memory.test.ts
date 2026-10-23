@@ -200,6 +200,43 @@ test('a locked corrupt JSON file keeps Memory available but blocks writes withou
   }
 });
 
+test('a memory file we cannot read (EACCES/EPERM) opens read-only instead of throwing, and is reported once', () => {
+  const h = home();
+  const entriesFile = path.join(h, 'memory', 'entries.json');
+  fs.mkdirSync(path.dirname(entriesFile), { recursive: true });
+  fs.writeFileSync(entriesFile, JSON.stringify({ entries: [{ id: 1, kind: 'context', text: 'hidden', tags: [], scope: 'user', source: 'user', createdAt: 1, updatedAt: 1 }] }));
+  const history = historyFile(h, 'agent-1', 'room_a');
+  fs.mkdirSync(path.dirname(history), { recursive: true });
+  fs.writeFileSync(history, JSON.stringify({ summary: 'old', turns: [{ role: 'user', text: 'hi', at: 1 }] }));
+
+  const originalRead = fs.readFileSync, originalWarn = console.warn;
+  const denied = (file: fs.PathLike) => String(file) === entriesFile || String(file) === history;
+  fs.readFileSync = ((file: fs.PathLike, ...rest: unknown[]) => {
+    if (denied(file)) throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    return (originalRead as (...args: unknown[]) => unknown)(file, ...rest);
+  }) as typeof fs.readFileSync;
+  const warnings: string[] = [];
+  console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
+  const is503 = (e: unknown) => e instanceof MemoryError && (e as MemoryError).status === 503;
+  try {
+    const m = new Memory(h);   // was: this throw used to take the hub down
+    assert.deepEqual(m.list(), [], 'an unreadable store reads as empty instead of throwing');
+    assert.throws(() => m.add(entry() as never), is503);
+    assert.throws(() => m.update(1, { text: 'x' }), is503, 'a read-only store says 503, not "entry not found"');
+    assert.throws(() => m.remove(1), is503);
+    assert.deepEqual(loadHistory(h, 'agent-1', 'room_a'), { summary: '', turns: [] });
+    assert.throws(() => saveHistory(h, 'agent-1', 'room_a', { summary: 'new', turns: [] }), is503);
+    new Memory(h);
+    loadHistory(h, 'agent-1', 'room_a');
+    assert.equal(warnings.length, 2, 'the permission error is logged once per file, not once per read');
+    assert.ok(warnings.every((w) => /EACCES/.test(w)), 'the log names the errno');
+  } finally {
+    fs.readFileSync = originalRead;
+    console.warn = originalWarn;
+  }
+  assert.ok(fs.readFileSync(entriesFile, 'utf8').includes('hidden'), 'the unreadable file is left untouched');
+});
+
 test('memory: the 5001st entry drops the oldest non-preference entry', () => {
   const h = home();
   const dir = path.join(h, 'memory');

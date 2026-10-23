@@ -70,11 +70,28 @@ function writeJson(file: string, data: unknown): void {
   renameRetry(tmp, file);
 }
 
-type JsonRead<T> = { value: T; readOnly: boolean };
+type JsonRead<T> = { value: T; readOnly: boolean; reason?: string };
+
+/** A file we cannot read must not take the hub down: it is reported once per file+code, not on every turn (#239). */
+const warnedReadOnly = new Set<string>();
+function warnReadOnly(file: string, code: string, note: string): void {
+  const key = `${file}|${code}`;
+  if (warnedReadOnly.has(key)) return;
+  warnedReadOnly.add(key);
+  console.warn(`[memory] ${note}; using an empty read-only store: ${file}`);
+}
+
 function readJson<T>(file: string, fallback: T): JsonRead<T> {
   let raw: string;
   try { raw = fs.readFileSync(file, 'utf8'); } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { value: fallback, readOnly: false };
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return { value: fallback, readOnly: false };
+    // EACCES/EPERM (a locked or permission-denied file) used to be rethrown, so `new Memory()` inside startHub
+    // brought the whole hub down. Instead: empty fallback, writes refused with a clear 503.
+    if (code === 'EACCES' || code === 'EPERM') {
+      warnReadOnly(file, code, `cannot read the memory file (${code})`);
+      return { value: fallback, readOnly: true, reason: `cannot read ${file} (${code})` };
+    }
     throw e;
   }
   try { return { value: JSON.parse(raw) as T, readOnly: false }; } catch {
@@ -83,7 +100,7 @@ function readJson<T>(file: string, fallback: T): JsonRead<T> {
       return { value: fallback, readOnly: false };
     } catch (error) {
       console.warn(`[memory] could not quarantine corrupt JSON at ${file}; using read-only fallback: ${(error as Error).message}`);
-      return { value: fallback, readOnly: true };
+      return { value: fallback, readOnly: true, reason: `corrupt JSON at ${file} could not be quarantined` };
     }
   }
 }
@@ -140,7 +157,8 @@ export function loadHistory(home: string, agentId: string, room: string): ChatHi
 
 export function saveHistory(home: string, agentId: string, room: string, h: ChatHistory): void {
   const file = historyFile(home, agentId, room);
-  if (readJson<unknown>(file, null).readOnly) throw new MemoryError(503, 'chat history is read-only because its corrupt file could not be quarantined');
+  const read = readJson<unknown>(file, null);
+  if (read.readOnly) throw new MemoryError(503, `chat history is read-only: ${read.reason ?? 'the file could not be read'}`);
   const turns = (Array.isArray(h && h.turns) ? h.turns : [])
     .filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.text === 'string')
     .map((t) => ({ role: t.role, text: redactHistoryText(t.text), at: Number(t.at) || 0 }));
@@ -159,13 +177,15 @@ export class Memory {
   private entries: MemEntry[];
   private readonly file: string;
   private readOnly = false;
+  private readOnlyReason = '';
 
   constructor(home: string, now: () => number = Date.now) {
     this.home = home;
     this.now = now;
     this.file = path.join(home, 'memory', 'entries.json');
-    const { value: raw, readOnly } = readJson<unknown>(this.file, null);
+    const { value: raw, readOnly, reason } = readJson<unknown>(this.file, null);
     this.readOnly = readOnly;
+    this.readOnlyReason = readOnly ? reason ?? 'the memory file could not be read' : '';
     const list = Array.isArray(raw) ? raw : raw && Array.isArray((raw as { entries?: unknown }).entries) ? (raw as { entries: unknown[] }).entries : [];
     this.entries = list.filter((e) => e && typeof e === 'object' && Number.isFinite((e as MemEntry).id)).map((e) => ({
       ...(e as MemEntry),
@@ -181,7 +201,7 @@ export class Memory {
     writeJson(this.file, { entries: this.entries });
   }
   private assertWritable(): void {
-    if (this.readOnly) throw new MemoryError(503, 'memory is read-only because its corrupt file could not be quarantined');
+    if (this.readOnly) throw new MemoryError(503, `memory is read-only: ${this.readOnlyReason || 'the memory file could not be read'}`);
   }
 
   private nextId(): number { return this.entries.reduce((m, e) => Math.max(m, e.id), 0) + 1; }
@@ -218,9 +238,9 @@ export class Memory {
   }
 
   update(id: number, patch: Partial<Pick<MemEntry, 'text' | 'kind' | 'tags' | 'scope' | 'project' | 'room'>>): MemEntry {
+    this.assertWritable();   // a read-only store holds no entries: say why instead of "not found"
     const e = this.entries.find((x) => x.id === id);
     if (!e) throw new MemoryError(404, 'memory entry not found');
-    this.assertWritable();
     const next: MemEntry = { ...e };
     if ('text' in patch) next.text = checkText(patch.text);
     if ('kind' in patch) next.kind = checkKind(patch.kind);
@@ -237,9 +257,9 @@ export class Memory {
   }
 
   remove(id: number): void {
+    this.assertWritable();
     const i = this.entries.findIndex((x) => x.id === id);
     if (i < 0) throw new MemoryError(404, 'memory entry not found');
-    this.assertWritable();
     this.entries.splice(i, 1);
     this.save();
   }
