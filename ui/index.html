@@ -3680,7 +3680,7 @@ function healthBlock() {
     <div class="hlist">${rows.sort((a, b) => order[a.level] - order[b.level]).map((r) => `<div class="hrow ${r.level}"><span class="hdot ${r.level}"></span><div class="hb"><b>${esc(r.title)}</b><span>${esc(r.text)}</span>${r.fix ? `<small>${esc(t('hc.fix', { t: r.fix }))}</small>` : ''}</div>${r.go ? `<button type="button" class="btn sm" data-hgo="${esc(r.go)}">${t('hc.go')}</button>` : ''}</div>`).join('')}</div>`;
 }
 /** Tab Tài khoản: the Claude accounts, shared chats between editors, background agents without an editor, autostart (GET /api/accounts, POST /api/accounts/share, POST /api/agents, /api/autostart). Every change shows its plan first and needs a confirm. */
-S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null; S.mcpServers = undefined; S.mcpSrvTarget = ''; S.mcpDelScope = 'local';
+S.acct = undefined; S.auto = undefined; S.copilot = undefined; S.copilotProfiles = {}; S.agentProfiles = {}; S.agentDialog = null; S.copilotProfileError = ''; S.copilotProfileAsk = null; S.agyChecks = {}; S.agyNewCheck = null; S.sharePlan = null; S.agentAsk = null; S.autoAsk = null; S.copilotAsk = null; S.mcpConnections = undefined; S.mcpIssued = null; S.mcpServers = undefined; S.mcpSrvTarget = ''; S.mcpDelScope = 'local';
 /** #155: claude mcp list can take seconds (it health-checks each server), so it loads on its own and the card says so meanwhile */
 function loadMcpServers() {
   S.mcpServers = undefined; if (S.tab === 'settings' && S.setSub === 'account') renderSettingsView();
@@ -3712,19 +3712,67 @@ async function saveCopilotProfiles(profiles) {
   try {
     S.settings = await api('/api/settings', { agents: { profiles } }, 'PUT');
     await loadCopilotProfiles();
+    S.agyNewCheck = null;
     toast(t('settings.saved'));
     renderSettingsView();
   }
   catch (e) { toast(e.message); }
 }
-/** copilot profiles have their own routes; claude-api ones (a headless claude on a worker provider) use /api/agent-profiles. */
+const agyCheckMessage = (result) => !result.found ? t('agents.agy.notFound', { tried: (result.tried || []).join(', ') || '—' })
+  : result.loggedIn ? t('agents.agy.ok', { n: result.models?.length || 0 })
+    : `${t('agents.agy.notLogged')}${result.error ? ` ${result.error}` : ''}`;
+async function checkAgyProfile(button) {
+  const form = button.closest('form'), row = button.closest('.cprofile');
+  const agyPath = form?.id === 'agyProfileNew' ? form.elements.namedItem('path').value.trim() : (button.dataset.agyPath || '');
+  const profileId = button.dataset.agyCheckId;
+  const status = (form || row)?.querySelector('[data-agy-check-status]');
+  button.disabled = true;
+  if (profileId) delete S.agyChecks[profileId];
+  else S.agyNewCheck = null;
+  if (status) { status.className = 'small muted'; status.textContent = t('common.loading'); }
+  try {
+    const result = await api(`/api/agy/check?path=${enc(agyPath)}`);
+    if (profileId) S.agyChecks[profileId] = { ...result, path: agyPath };
+    else S.agyNewCheck = { ...result, path: agyPath };
+    if (status) {
+      status.className = `small ${result.loggedIn ? 'okt' : result.found ? 'pwarn' : 'bad'}`;
+      status.textContent = agyCheckMessage(result);
+    }
+    if (form?.id === 'agyProfileNew') {
+      const model = form.elements.namedItem('model'), enabled = form.elements.namedItem('enabled');
+      const current = model.value;
+      const models = Array.isArray(result.models) ? result.models : [];
+      const choices = models.some((item) => item.id === 'gemini-4-argon-medium') ? models : [{ id: 'gemini-4-argon-medium', label: t('agents.agy.defaultModel') }, ...models];
+      model.replaceChildren(...choices.map((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; return option; }));
+      model.value = choices.some((item) => item.id === current) ? current : 'gemini-4-argon-medium';
+      enabled.disabled = !result.loggedIn;
+      if (!result.loggedIn) enabled.checked = false;
+    } else {
+      const enabled = row?.querySelector('[data-profile-enabled]');
+      const profile = (S.settings.agents?.profiles || []).find((item) => item.id === profileId);
+      if (enabled && !profile?.enabled) enabled.disabled = !result.loggedIn;
+    }
+  } catch (error) {
+    if (profileId) delete S.agyChecks[profileId];
+    else {
+      S.agyNewCheck = null;
+      const enabled = form?.elements.namedItem('enabled');
+      if (enabled) { enabled.disabled = true; enabled.checked = false; }
+    }
+    if (status) { status.className = 'small bad'; status.textContent = error.message; }
+  } finally {
+    button.disabled = false;
+  }
+}
+/** Copilot and Agy profiles share these routes; claude-api profiles use /api/agent-profiles. */
 const profileRoute = (id) => `${(S.settings.agents?.profiles || []).find((p) => p.id === id)?.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/'}${enc(id)}`;
 async function setCopilotProfile(id, on) {
   try {
     await api(profileRoute(id), { on, confirm: true });
     [S.settings] = await Promise.all([api('/api/settings'), loadCopilotProfiles()]);
     S.copilotProfileAsk = null;
-    toast(t(on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
+    const agy = S.settings.agents?.profiles?.find((profile) => profile.id === id)?.provider === 'agy';
+    toast(t(agy ? (on ? 'agents.agy.enabled' : 'agents.agy.disabled') : on ? 'ac.copilot.enabled' : 'ac.copilot.disabled'));
     renderSettingsView();
   } catch (e) {
     if (e.status === 429) toast(e.message);
@@ -3773,14 +3821,18 @@ function accountBlock(st) {
     const status = S.copilotProfiles?.[p.id];
     const ask = S.copilotProfileAsk?.id === p.id ? S.copilotProfileAsk : null;
     const runtime = status ? t(`ac.copilot.${status.state === 'error' ? 'error' : status.state === 'busy' ? 'busy' : status.state === 'idle' ? 'ready' : status.state === 'starting' ? 'starting' : 'off'}`) : t('ac.profile.statusUnavailable');
-    const isApi = p.provider === 'claude-api';
+    const isApi = p.provider === 'claude-api', isAgy = p.provider === 'agy';
+    const check = S.agyChecks?.[p.id], agyVerified = check?.loggedIn && check.path === (p.path || '');
     const login = isApi ? (status?.auth === 'ok' ? t('ac.api.auth.ok') : status?.auth === 'no' ? t('ac.api.auth.no') : t('ac.profile.authUnknown'))
-      : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
+      : isAgy ? agyVerified ? t('agents.agy.ok', { n: check.models?.length || 0 }) : t('ac.profile.authUnknown')
+        : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
     const apiInfo = isApi ? `<div class="small">${esc(t('ac.api.info', { provider: p.providerId || '?', model: status?.model || p.model || '?' }))}${p.edit ? ` · <b>${t('ac.api.mayEdit')}</b>` : ` · ${t('ac.api.readOnly')}`}</div>${status?.limited ? `<p class="small pwarn">${esc(t('ac.api.limited', { at: fmtWhen(status.limited) }))}</p>` : ''}` : '';
-    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
-      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${!isApi ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
-      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
-      ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
+    const agyInfo = isAgy ? `<div class="pf small"><span>${t('agents.agy.model')}: <b>${esc(p.model || 'gemini-4-argon-medium')}</b></span>${p.effort ? `<span>${t('agents.agy.effort')}: ${esc(p.effort)}</span>` : ''}${p.path ? `<span class="mono">${esc(p.path)}</span>` : ''}<button type="button" class="btn sm" data-agy-check data-agy-check-id="${esc(p.id)}" data-agy-path="${esc(p.path || '')}">${t('agents.agy.check')}</button><span class="small" data-agy-check-status>${agyVerified ? esc(t('agents.agy.ok', { n: check.models?.length || 0 })) : check ? esc(agyCheckMessage(check)) : ''}</span></div>` : '';
+    const toggleDisabled = isAgy && !p.enabled && !agyVerified ? ' disabled' : '';
+    return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : isAgy ? `<span class="lic">${t('agents.agy.title')}</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}${toggleDisabled}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
+      <div class="small mono">${esc(p.cwd)}</div>${apiInfo}${agyInfo}${!isApi && !isAgy ? `<div class="pf small"><label>${t('ac.profile.modelLabel')} <input type="text" data-profile-model="${esc(p.id)}" value="${esc(p.model || '')}" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('ac.profile.modelDefault')}" spellcheck="false" aria-label="${t('ac.profile.modelLabel')}"></label><button type="button" class="btn sm" data-profile-model-save="${esc(p.id)}">${t('ac.profile.modelSave')}</button><span class="muted">${esc(t('ac.profile.modelCurrent', { model: p.model || t('ac.profile.modelDefault') }))}</span></div>` : ''}${p.home ? `<div class="small mono muted">${t('ac.profile.home')}: ${esc(p.home)}</div>` : ''}
+      <div class="pf small"><span>${t('ac.profile.runtime')}: <b>${esc(runtime)}</b></span><span>${t(isApi ? 'ac.api.authLabel' : isAgy ? 'agents.agy.google' : 'ac.profile.login')}: <b>${esc(login)}</b></span>${p.enabled && (status?.auth === 'no' || status?.state === 'error') ? `<button type="button" class="btn sm" data-profile-retry="${esc(p.id)}">${t(isAgy ? 'agents.agy.retry' : isApi ? 'ac.api.retry' : 'ac.profile.retry')}</button>` : ''}</div>
+      ${status?.error ? `<p class="small bad" role="alert">${esc(status.error)}</p>` : ''}${ask ? `<div class="aplan"><p class="small pwarn">${esc(t(isAgy ? (ask.on ? 'agents.agy.confirmOn' : 'agents.agy.confirmOff') : ask.on ? 'ac.copilot.confirmOn' : 'ac.copilot.confirmOff', { cwd: p.cwd }))}</p><div class="row"><button type="button" class="btn" data-profile-cancel>${t('ac.cancel')}</button><button type="button" class="btn primary" data-profile-confirm="${esc(p.id)}">${t('ac.share.confirm')}</button></div></div>` : ''}</article>`;
   }).join('');
   const profileForm = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p>` : `<form class="cprofile-new" id="copilotProfileNew">
     <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
@@ -3803,7 +3855,24 @@ function accountBlock(st) {
     <label class="inline"><input name="enabled" type="checkbox" checked>${t('ac.profile.enabled')}</label>
     <button class="btn primary">${t('ac.api.add')}</button>
   </form>`;
-  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}${apiForm}`;
+  const agyModels = S.agyNewCheck?.models || [];
+  const agyChoices = agyModels.some((item) => item.id === 'gemini-4-argon-medium') ? agyModels : [{ id: 'gemini-4-argon-medium', label: t('agents.agy.defaultModel') }, ...agyModels];
+  const agyModelOptions = agyChoices.map((item) => `<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
+  const agyInstall = /Windows/i.test(navigator.userAgent) ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash';
+  const agyInstallLabel = /Windows/i.test(navigator.userAgent) ? 'agents.agy.installWindows' : 'agents.agy.installUnix';
+  const agyForm = profiles.length >= 16 ? '' : `<h3>${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
+    <select name="provider" aria-label="${t('agents.agy.type')}"><option value="agy">${t('agents.agy.title')}</option></select>
+    <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
+    <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('agents.agy.name')}" aria-label="${t('agents.agy.name')}">
+    <input name="cwd" required placeholder="${t('agents.agy.cwd')}" aria-label="${t('agents.agy.cwd')}" spellcheck="false">
+    <input name="path" maxlength="500" placeholder="${t('agents.agy.path')}" aria-label="${t('agents.agy.path')}" spellcheck="false">
+    <label>${t('agents.agy.model')} <select name="model" aria-label="${t('agents.agy.model')}">${agyModelOptions}</select></label>
+    <label>${t('agents.agy.effort')} <select name="effort" aria-label="${t('agents.agy.effort')}"><option value=""></option>${['low', 'medium', 'high', 'xhigh', 'max'].map((effort) => `<option value="${effort}">${effort}</option>`).join('')}</select></label>
+    <button type="button" class="btn sm" data-agy-check>${t('agents.agy.check')}</button><span class="small" data-agy-check-status role="status"></span>
+    <label class="inline"><input name="enabled" type="checkbox" disabled>${t('ac.profile.enabled')}</label>
+    <button class="btn primary">${t('ac.profile.add')}</button>
+  </form>`;
+  const profilesHtml = `${S.copilotProfileError ? `<p class="small bad" role="alert">${esc(S.copilotProfileError)}</p><button type="button" class="btn sm" id="profileStatusRefresh">${t('hc.refresh')}</button>` : ''}${profiles.length ? `<div class="cprofiles">${profileRows}</div>` : `<p class="small muted">${t('ac.profile.empty')}</p>`}${profileForm}${apiForm}${agyForm}`;
   const mcpConnections = S.mcpConnections || [];
   const mcpRows = mcpConnections.length ? `<div class="cprofiles">${mcpConnections.map((connection) => `<article class="cprofile"><div class="pf"><b>${esc(connection.name)}</b><span class="small muted">${esc(connection.id)}</span><span style="flex:1"></span><button type="button" class="btn sm" data-mcp-revoke="${esc(connection.id)}">${t('mcp.revoke')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${S.mcpConnections === undefined ? t('mcp.loading') : t('mcp.empty')}</p>`;
   const mcpIssued = S.mcpIssued ? `<div class="aplan" role="status"><p class="small pwarn">${t('mcp.tokenOnce')}</p><label class="setrow"><span><b>${t('mcp.token')}</b></span><code class="mono">${esc(S.mcpIssued.token)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.token)}">${t('mcp.copy')}</button></label><label class="setrow"><span><b>${t('mcp.command')}</b><small>${t('mcp.envHint')}</small></span><code class="mono">${esc(S.mcpIssued.command)}</code><button type="button" class="btn sm" data-copytext="${esc(S.mcpIssued.command)}">${t('mcp.copy')}</button></label><div class="row" style="display:flex;justify-content:flex-end"><button type="button" class="btn" id="mcpTokenDismiss">${t('mcp.dismiss')}</button></div></div>` : '';
@@ -4180,6 +4249,14 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     renderSettingsView();
     const q = $(id); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
   });
+  sv.addEventListener('input', (e) => {
+    if (e.target.form?.id !== 'agyProfileNew' || e.target.name !== 'path') return;
+    S.agyNewCheck = null;
+    const enabled = e.target.form.elements.namedItem('enabled');
+    enabled.disabled = true;
+    enabled.checked = false;
+    e.target.form.querySelector('[data-agy-check-status]').textContent = '';
+  });
   sv.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
@@ -4212,6 +4289,21 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       if (profiles.some((p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
       return saveCopilotProfiles([...profiles, { id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit ? { edit: true } : {}), enabled: f.elements.namedItem('enabled').checked }]);
     }
+    if (e.target.id === 'agyProfileNew') {
+      e.preventDefault();
+      const f = e.target, value = (name) => f.elements.namedItem(name).value.trim();
+      const id = value('id'), name = value('name'), cwd = value('cwd'), agyPath = value('path');
+      const check = S.agyNewCheck;
+      if (!check?.loggedIn || check.path !== agyPath) {
+        f.querySelector('[data-agy-check-status]').textContent = t('agents.agy.checkFirst');
+        return;
+      }
+      const model = value('model'), effort = value('effort');
+      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || agyPath.length > 500 || (model && !/^[\w.:/-]{1,64}$/.test(model))) return toast(t('ac.profile.invalid'));
+      const profiles = S.settings.agents?.profiles || [];
+      if (profiles.some((profile) => profile.id.toLowerCase() === id.toLowerCase() || profile.name.toLowerCase() === name.toLowerCase())) return toast(t('ac.profile.duplicate'));
+      return saveCopilotProfiles([...profiles, { id, provider: 'agy', name, cwd, ...(agyPath ? { path: agyPath } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), enabled: f.elements.namedItem('enabled').checked }]);
+    }
     if (e.target.id === 'mcpServerNew') {
       e.preventDefault();
       const f = e.target, v = (n) => f.elements.namedItem(n)?.value.trim() || '', agent = S.mcpSrvTarget || '';
@@ -4240,6 +4332,8 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const sb = e.target.closest('[data-sub]');
     if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
+    const agyCheck = e.target.closest('[data-agy-check]');
+    if (agyCheck) return checkAgyProfile(agyCheck);
     const ct = e.target.closest('[data-copytext]'); if (ct) return copy(ct.dataset.copytext, t('sm.copied'));
     if (e.target.closest('#mcpTokenDismiss')) { S.mcpIssued = null; return renderSettingsView(); }
     if (e.target.closest('#mcpsRefresh')) return loadMcpServers();
@@ -4286,7 +4380,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       }));
     }
     const profileRetry = e.target.closest('[data-profile-retry]');
-    if (profileRetry) return api(`${profileRoute(profileRetry.dataset.profileRetry)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t('ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
+    if (profileRetry) {
+      const id = profileRetry.dataset.profileRetry, agy = (S.settings.agents?.profiles || []).find((profile) => profile.id === id)?.provider === 'agy';
+      return api(`${profileRoute(id)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t(agy ? 'agents.agy.retryDone' : 'ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
+    }
     if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
     const profileConfirm = e.target.closest('[data-profile-confirm]');
     if (profileConfirm) return setCopilotProfile(profileConfirm.dataset.profileConfirm, S.copilotProfileAsk?.on === true);

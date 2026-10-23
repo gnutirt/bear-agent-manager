@@ -411,8 +411,36 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       "m.kind === 'mirror' ? ' mirror'",
       "t('msg.fromTab')",
       'data-profile-retry="${esc(p.id)}"',
-      "api(`${profileRoute(profileRetry.dataset.profileRetry)}/retry`, {})",
+      "api(`${profileRoute(id)}/retry`, {})",
     ]) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
+test('Antigravity profiles require a successful login check, offer model and effort choices, and only show install commands to copy', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of [
+      'id="agyProfileNew"',
+      '<option value="agy">${t(\'agents.agy.title\')}</option>',
+      "api(`/api/agy/check?path=${enc(agyPath)}`)",
+      'model.replaceChildren(...choices.map',
+      'enabled.disabled = !result.loggedIn',
+      "check.path !== agyPath",
+      "provider: 'agy', name, cwd",
+      'name="effort"',
+      "'gemini-4-argon-medium'",
+      'irm https://antigravity.google/cli/install.ps1 | iex',
+      'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+      'data-copytext="${esc(agyInstall)}"',
+      "agents.agy.quota",
+      "agents.agy.commit",
+    ]) assert.ok(html.includes(source), `missing Agy setup behavior: ${source}`);
+    const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
+    for (const key of ['title', 'type', 'name', 'cwd', 'path', 'model', 'defaultModel', 'effort', 'check', 'ok', 'notFound', 'notLogged', 'install', 'installWindows', 'installUnix', 'quota', 'commit', 'checkFirst']) {
+      assert.ok(vi[`agents.agy.${key}`], `vi missing agents.agy.${key}`);
+      assert.ok(en[`agents.agy.${key}`], `en missing agents.agy.${key}`);
+    }
   } finally { await hub.close(); }
 });
 
