@@ -333,8 +333,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const playwrightDir = enabledPlaywrightConfig();
         await browser.start();
         const rows = await mcpcfg.listServers(run, cwd);
-        if (!rows.some((row) => row.name === 'bam-browser')) {
-          await mcpcfg.addServer(run, cwd, 'bam-browser', 'user', mcpServerFor(browser.endpoint(), process.platform, port));
+        const browserMcp = mcpServerFor(browser.endpoint(), process.platform, port);
+        const browserTarget = [browserMcp.command, ...(browserMcp.args ?? [])].filter((part): part is string => !!part).join(' ');
+        const existingBrowser = rows.find((row) => row.name === 'bam-browser');
+        if (existingBrowser && existingBrowser.target !== browserTarget) {
+          await mcpcfg.removeServer(run, cwd, 'bam-browser', 'user');
+        }
+        if (!existingBrowser || existingBrowser.target !== browserTarget) {
+          await mcpcfg.addServer(run, cwd, 'bam-browser', 'user', browserMcp);
         }
         browserAgents = true;
         appliedBrowserCfg = key;
@@ -2041,6 +2047,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return res.end(fs.readFileSync(file));
     }
     if (m === 'GET' && (p === '/' || p === '/index.html')) {
+      // User-Agent blocking is only a speed bump: an agent can change it in run_code. Remove token injection from HTML for a real boundary.
+      if (/BAM-Agent|HeadlessChrome/i.test(String(req.headers['user-agent'] ?? ''))) return json(res, 403, { error: 'hub UI is unavailable to the shared browser' });
       const html = withManifest(fs.readFileSync(UI_FILE, 'utf8')).replace('__BEAR_AGENT_TOKEN__', token);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       return res.end(html);

@@ -39,6 +39,18 @@ test('UI page has the token injected', async () => {
   } finally { await hub.close(); }
 });
 
+test('the shared headless browser cannot load token-bearing hub UI HTML', async () => {
+  const { hub } = await makeHub();
+  try {
+    for (const [route, userAgent] of [['/', 'HeadlessChrome/130.0'], ['/index.html', 'BAM-Agent']] as const) {
+      const response = await fetch(hub.url + route, { headers: { 'user-agent': userAgent } });
+      const body = await response.text();
+      assert.equal(response.status, 403);
+      assert.ok(!body.includes(hub.token));
+    }
+  } finally { await hub.close(); }
+});
+
 test('wait resolves when a waking message is posted and consumes it', async () => {
   const { hub, call } = await twoInRoom();
   try {

@@ -45,13 +45,18 @@ function fakeMcp(entries: string[] = []) {
   const calls: string[][] = [], configs = new Map<string, unknown>();
   const run: Run = async (args) => {
     calls.push([...args]);
-    if (args[1] === 'list') return { code: 0, stdout: entries.map((name) => `${name}: node - Connected`).join('\n'), stderr: '' };
+    if (args[1] === 'list') return { code: 0, stdout: entries.map((name) => {
+      const config = configs.get(name) as { command?: string; args?: string[] } | undefined;
+      const target = config ? [config.command, ...(config.args ?? [])].filter(Boolean).join(' ') : 'node';
+      return `${name}: ${target} - Connected`;
+    }).join('\n'), stderr: '' };
     if (args[1] === 'add-json') {
       entries.push(args[2]);
       configs.set(args[2], JSON.parse(args[3]));
     } else if (args[1] === 'remove') {
       const index = entries.indexOf(args[2]);
       if (index >= 0) entries.splice(index, 1);
+      configs.delete(args[2]);
     }
     return { code: 0, stdout: '', stderr: '' };
   };
@@ -116,9 +121,10 @@ test('browser is enabled by default and registers one user-scope bam-browser MCP
   const existing = fakeMcp(['bam-browser', 'user-owned-server']);
   const again = await makeBrowserHub(existingBrowser, existing.run);
   try {
-    await until(() => existing.calls.some((args) => args[1] === 'list'));
-    assert.equal(existing.calls.some((args) => args[1] === 'add-json'), false, 'an existing entry is not duplicated');
-    assert.deepEqual(existing.entries, ['bam-browser', 'user-owned-server']);
+    await until(() => existing.calls.some((args) => args[1] === 'add-json'));
+    assert.deepEqual(existing.calls.filter((args) => args[1] === 'remove').map((args) => args.slice(0, 3)), [['mcp', 'remove', 'bam-browser']]);
+    assert.deepEqual(existing.entries, ['user-owned-server', 'bam-browser']);
+    assert.deepEqual(existing.configs.get('bam-browser'), mcpServerFor('http://127.0.0.1:9333', process.platform, again.hub.port));
   } finally { await again.hub.close(); }
 });
 

@@ -54,6 +54,7 @@ export function chromeArgs(cfg: BrowserCfg, profileDir: string): string[] {
     `--remote-debugging-port=${cfg.port}`,
     '--remote-debugging-address=127.0.0.1',
     `--user-data-dir=${profileDir}`,
+    '--user-agent=BAM-Agent',
     '--no-first-run',
     '--no-default-browser-check',
     'about:blank',

@@ -799,6 +799,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .setbox .note{margin:10px 0 4px}
 .setbox p.note{display:block}.setbox .pf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .cprofiles{display:grid;gap:8px;margin:10px 0}.cprofile{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.cprofile .mono{overflow-wrap:anywhere}.cprofile .pf{justify-content:flex-start}.cprofile-new{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.cprofile-new input:not([type=checkbox]){min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.cprofile-new .inline{display:flex;align-items:center;gap:7px}.cprofile-new .btn{justify-self:end}@media(max-width:600px){.cprofile-new{grid-template-columns:1fr}.cprofile-new .btn{justify-self:stretch}}
+.agy-install-command{min-width:0;overflow-wrap:anywhere}
 .pcard input.warn{border-color:#F5A524}.pcard input.warn::placeholder{color:#B7791F}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
@@ -3907,7 +3908,7 @@ function accountBlock(st) {
   const agyModelOptions = agyChoices.map((item) => `<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
   const agyInstall = /Windows/i.test(navigator.userAgent) ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash';
   const agyInstallLabel = /Windows/i.test(navigator.userAgent) ? 'agents.agy.installWindows' : 'agents.agy.installUnix';
-  const agyForm = profiles.length >= 16 ? '' : `<h3>${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
+  const agyForm = profiles.length >= 16 ? '' : `<h3>${t('agents.agy.title')}</h3><p class="small muted note">${t('agents.agy.quota')} ${t('agents.agy.commit')}</p><div class="setbox"><p class="small">${t('agents.agy.install')}</p><div class="pf"><span>${t(agyInstallLabel)}</span><code class="mono agy-install-command">${esc(agyInstall)}</code><button type="button" class="btn sm" data-copytext="${esc(agyInstall)}">${t('mcp.copy')}</button></div></div><form class="cprofile-new" id="agyProfileNew">
     <select name="provider" aria-label="${t('agents.agy.type')}"><option value="agy">${t('agents.agy.title')}</option></select>
     <input name="id" required maxlength="32" pattern="[a-z0-9][a-z0-9-]{0,31}" placeholder="${t('ac.profile.id')}" aria-label="${t('ac.profile.id')}">
     <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('agents.agy.name')}" aria-label="${t('agents.agy.name')}">

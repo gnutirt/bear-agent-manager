@@ -22,6 +22,7 @@ test('chromeArgs: always headless, loopback CDP on the configured port, own prof
     '--remote-debugging-port=9333',
     '--remote-debugging-address=127.0.0.1',
     '--user-data-dir=C:\\home\\browser\\profile',
+    '--user-agent=BAM-Agent',
     '--no-first-run',
     '--no-default-browser-check',
     'about:blank',

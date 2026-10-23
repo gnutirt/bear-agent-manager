@@ -456,6 +456,8 @@ test('Antigravity profiles require a successful login check, offer model and eff
       'irm https://antigravity.google/cli/install.ps1 | iex',
       'curl -fsSL https://antigravity.google/cli/install.sh | bash',
       'data-copytext="${esc(agyInstall)}"',
+      'agy-install-command{min-width:0;overflow-wrap:anywhere}',
+      '<code class="mono agy-install-command">',
       "agents.agy.quota",
       "agents.agy.commit",
     ]) assert.ok(html.includes(source), `missing Agy setup behavior: ${source}`);
