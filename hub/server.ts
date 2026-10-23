@@ -1227,6 +1227,28 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
   /** A background claude of this session, under its current id or an id it was aliased from (clear/resume). */
   const bgRunning = (id: string) => store.idsFor(id).some((x) => isBackground(x));
+  // #246(c): a reset wake posts one message mentioning every agent, and each delivery used to resume its own claude in the
+  // same second (23/10: 11 agents, usage 0 -> 55%, every one of them re-reading a cold context). Wakes that find
+  // agents.maxBackground background turns already running wait here instead: the lead of a room first, the rest in arrival
+  // order, one starting each time a turn ends. A queued session keeps its messages unread — nothing is taken from the
+  // store before the turn actually starts.
+  const wakeQueue: string[] = [];
+  let wakeDrainTimer: NodeJS.Timeout | undefined;
+  const wakeRank = (sid: string) => Object.values(store.state.rooms).some((r) => r?.lead === sid) ? 0 : 1;
+  function enqueueWake(sid: string) {
+    if (!wakeQueue.includes(sid)) {
+      wakeQueue.push(sid);
+      wakeQueue.sort((a, b) => wakeRank(a) - wakeRank(b));   // stable: equal ranks keep the order they arrived in
+    }
+    setImmediate(() => drainWakeQueue());   // never inline: drain -> revive -> (cap taken meanwhile) -> enqueue -> drain
+  }
+  /** Starts queued wakes while a background slot is free; the rest stay queued and a timer retries (a process may end without a turn of ours ending). */
+  function drainWakeQueue() {
+    clearTimeout(wakeDrainTimer); wakeDrainTimer = undefined;
+    const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
+    while (wakeQueue.length && Math.max(countBackground(), reviving.size) < cap) revive(wakeQueue.shift()!);
+    if (wakeQueue.length) { wakeDrainTimer = setTimeout(() => drainWakeQueue(), 60_000); wakeDrainTimer.unref(); }
+  }
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
@@ -1238,6 +1260,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // started before a clear/resume lives under the old id, and looking only at the new one started a twin agent.
     if (reviving.has(s.id) || waiters.has(s.id) || bgRunning(s.id) || !hasTranscript(s)) return false;
     if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
+    // #246(c): the same cap the routes use for spawning applies to a wake. Queue it (true: it will run) rather than refuse:
+    // the caller must not mark the chat ended or fall back to a tab, and the pending messages stay unread until it starts.
+    if (Math.max(countBackground(), reviving.size) >= loadSettings(opts.dir, envCap).agents.maxBackground) { enqueueWake(s.id); return true; }
     // A claude-api agent runs on its provider only: off or paused (quota) it stays asleep and its messages wait; a provider that cannot serve it is an error.
     const api = profile;
     let apiRun: ReturnType<typeof apiJob> | undefined;
@@ -1320,6 +1345,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (api && !failure) apiState.delete(api.id);
         reviving.delete(s.id);
         revivingTurn.delete(s.id);
+        drainWakeQueue();   // #246(c): this turn freed a background slot: the next queued wake starts now, lead first
         // A message that arrived while this turn ran met revive()'s "already running" guard. A provider agent has no Stop
         // hook and no waiter, so nothing else would ever hand it over: drain its queue here, one turn at a time, instead
         // of leaving the message unread until the next one is posted. A tab agent has a waiter, and chaining a revive
@@ -1868,6 +1894,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const marker = limitErrorMarker(s.transcript);
           return (pending.wake && pending.messages.length > 0) || (!!marker && !limitHandled(s, marker));
         });
+        // #246(b): an agent whose work is still open (todo/doing) is woken after the reset as well, even with no message
+        // waiting for it: it was mid-task when the account ran out and would otherwise sleep through the new window.
+        const owners = new Set(listTasks(opts.dir, r, { status: 'todo,doing' }).map((t) => (t.owner ?? '').toLowerCase()).filter(Boolean));
+        for (const s of ms) if (owners.has(s.name.toLowerCase()) && !targets.some((x) => x.id === s.id)) targets.push(s);
         const lead = ms.find((s) => s.id === store.state.rooms[r]?.lead);
         if (lead && !targets.some((s) => s.id === lead.id)) targets.unshift(lead);
         if (!lead && !targets.length) targets.push(...ms);

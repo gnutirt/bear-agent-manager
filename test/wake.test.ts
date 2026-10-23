@@ -6,6 +6,7 @@ import path from 'node:path';
 import { limitErrorMarker, planWakes, quotaResetFromTranscript } from '../hub/wake.ts';
 import { defaultSettings, patchSettings } from '../hub/settings.ts';
 import { startHub, type ReviveJob } from '../hub/server.ts';
+import { addTask } from '../hub/tasks.ts';
 import { t } from '../shared/i18n.ts';
 import { makeHub, until } from './helpers.ts';
 
@@ -356,4 +357,49 @@ test('usage wake (#178): with the account reset booked within 10 minutes the s: 
     assert.equal(wakes.length, 1);
     assert.match(wakes[0].text, /@bob/);
   } finally { await third.close(); }
+});
+
+test('#246(b): a reset wake also wakes the owners of open tasks, not only the lead and the chats with a message', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-wake-owners-home-'));
+  const configDir = path.join(home, '.claude');
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'tok', expiresAt: Date.now() + 3_600_000, subscriptionType: 'pro' } }));
+  fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'a@x.com' } }));
+  const usageFetch = (async () => new Response(JSON.stringify({ five_hour: { utilization: 3, resets_at: new Date(Date.now() + 3_600_000).toISOString() } }))) as typeof fetch;
+  const h = await makeHub(undefined, undefined, { usageFetch, usageHome: home });
+  try {
+    for (const id of ['alice', 'bob', 'carol']) {
+      const transcript = path.join(h.dir, `${id}.jsonl`);
+      fs.writeFileSync(transcript, JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n');
+      await h.call('/api/sessions/register', { id, cwd: `C:/w/${id}`, configDir, transcript });
+      await h.call(`/api/sessions/${id}/rename`, { name: id });
+      await h.call('/api/rooms/proj/join', { sessionId: id });
+      h.hub.store.markEnded(id);   // every tab is closed: only the reset can bring them back
+    }
+    h.hub.store.state.rooms.proj.lead = 'alice';
+    h.hub.store.save();
+    // Bob is mid-task, nobody sent him a message: without #246(b) he would sleep through the new window.
+    addTask(h.dir, 'proj', { title: 'đang làm dở', owner: 'bob', status: 'doing' });
+    addTask(h.dir, 'proj', { title: 'xong rồi', owner: 'carol', status: 'done' });
+    await h.call('/api/settings', { lead: { wake: { enabled: true, atPct: 90, afterResetMin: 0 } } }, { method: 'PUT' });
+  } finally { await h.hub.close(); }
+
+  // Book the account reset a moment from now; the hub schedules booked wakes when it starts.
+  const stateFile = path.join(h.dir, 'state.json');
+  const seeded = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  seeded.wakeAt = { ...(seeded.wakeAt ?? {}), 'a@x.com': { at: Date.now() + 50, tries: 0 } };
+  fs.writeFileSync(stateFile, JSON.stringify(seeded));
+
+  const revived: string[] = [];
+  const again = await startHub({
+    dir: h.dir, port: 0, revive: (job: ReviveJob) => { revived.push(job.id); return 0; }, batchMs: 0, autoRevive: true, sweepMs: 60_000,
+    listProcs: async () => [], probe: null, legacyKeyFile: path.join(h.dir, 'no-legacy.key'), usageFetch, versionFetch: null,
+    usageHome: home, openUrl: () => {}, settleMs: 0, browser: null,
+  });
+  try {
+    const wake = await until(() => again.store.history('proj').find((m) => m.fromId === null && /đã reset/.test(m.text)), 20_000, 'the wake-up after the reset');
+    assert.deepEqual((wake as any).mentions, ['alice', 'bob'], 'the lead and the owner of the doing task; carol owns nothing open');
+    await until(() => revived.includes('bob'), 5_000, 'the owner of an open task is really resumed');
+    assert.ok(!revived.includes('carol'), 'a done task does not wake its owner');
+  } finally { await again.close(); }
 });
