@@ -52,7 +52,7 @@ class OfficeGTAO extends GTAOPass {
 export const QUALITY = { high: 'Cao', medium: 'Vừa', low: 'Thấp' };
 
 export class Office3D {
-  constructor(container, { onPick, onHover, onProgress } = {}) {
+  constructor(container, { onPick, onHover, onProgress, token } = {}) {
     this.container = container;
     this.onPick = onPick; this.onHover = onHover; this.onProgress = onProgress;
     this.agents = new Map();     // agentId → visual
@@ -60,9 +60,11 @@ export class Office3D {
     this.hitboxes = [];
     this.couriers = [];
     this.selectedId = null; this.hoveredId = null;
+    // #240: the optional model files sit behind the hub token like every other route (no token → 401 in the console)
+    this.headers = token ? { 'x-room-token': token } : {};
     this.screens = new ScreenBank();
-    this.assets = new Assets();
-    this.people = new MixamoLibrary();
+    this.assets = new Assets(this.headers);
+    this.people = new MixamoLibrary(this.headers);
     this.mobile = matchMedia('(max-width: 760px)').matches;
     this.quality = this.loadQuality();
     this.layoutSig = '';
@@ -972,7 +974,20 @@ export class Office3D {
     const dir = this.camera.position.clone().sub(this.controls.target).setY(0).normalize();
     this.animateCamera(target.clone().add(dir.multiplyScalar(4.2)).setY(target.y + 3.4), target);
   }
-  overview() { this.animateCamera(this.home.pos.clone().multiplyScalar(this.homeScale ?? 1).setY(this.home.pos.y * (this.homeScale ?? 1)), this.home.target.clone()); }
+  overview() { const v = this.homeView ?? this.home; this.animateCamera(v.pos.clone(), v.target.clone()); }
+  /** "Toàn cảnh" theo tỉ lệ khung. Ngang: lùi vừa đủ thấy chiều ngang sàn như trước. Dọc (điện thoại): sàn
+   *  rộng hơn màn hình nên chúc camera xuống và lùi xa, để mép trước của sàn rơi đúng đáy khung — không còn
+   *  dải đen dưới cảnh (#240). Hai bên chấp nhận cắt bớt, nhãn tầng vẫn nằm gần mép. */
+  homeFor(aspect) {
+    if (aspect >= 1) {
+      const scale = aspect < 1.6 ? Math.min(2.1, 1.6 / aspect) : 1;
+      return { pos: this.home.pos.clone().multiplyScalar(scale), target: this.home.target.clone(), d: this.home.pos.distanceTo(this.home.target) * scale };
+    }
+    const pitch = (62 * Math.PI) / 180, half = (this.camera.fov * Math.PI) / 360, margin = (0.8 * Math.PI) / 180;
+    const d = Math.min(82, Math.max(46, 9.9 / (Math.tan(half) * aspect)));   // ~9,9 m nửa bề ngang sàn nhìn thấy
+    const z = 14 + d * Math.cos(pitch) * (Math.tan(pitch) / Math.tan(pitch + half + margin));   // mép trước sàn (z=14) ở đáy khung
+    return { pos: new THREE.Vector3(0, d * Math.sin(pitch), z), target: new THREE.Vector3(0, 0, z - d * Math.cos(pitch)), d };
+  }
   animateCamera(pos, target, dur = 0.9) {
     this.camAnim = { p0: this.camera.position.clone(), t0: this.controls.target.clone(), p1: pos, t1: target, t: 0, dur };
   }
@@ -1046,12 +1061,13 @@ export class Office3D {
     this.composer?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    // màn hình dọc: lùi camera để thấy đủ chiều ngang văn phòng
-    const scale = this.camera.aspect < 1.6 ? Math.min(2.1, 1.6 / this.camera.aspect) : 1;
-    if (force || this.homeScale !== scale) {
-      this.homeScale = scale;
-      this.camera.position.copy(this.home.pos).multiplyScalar(scale).setY(this.home.pos.y * scale);
-      this.controls.target.copy(this.home.target);
+    this.homeView = this.homeFor(this.camera.aspect);
+    this.controls.maxDistance = Math.max(70, Math.ceil(this.homeView.d + 10));
+    const sig = this.homeView.pos.toArray().concat(this.homeView.target.toArray()).map((n) => n.toFixed(1)).join();
+    if (force || this.viewSig !== sig) {
+      this.viewSig = sig;
+      this.camera.position.copy(this.homeView.pos);
+      this.controls.target.copy(this.homeView.target);
     }
   }
 

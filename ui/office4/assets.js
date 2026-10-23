@@ -16,21 +16,23 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 export class Assets {
-  constructor() {
+  /** headers: the hub token, so the optional model files do not answer 401 (#240) */
+  constructor(headers = {}) {
     this.items = new Map();   // key → [{ scene, entry }]
     this.counter = new Map();
+    this.headers = headers;
   }
 
   async load(onProgress) {
     let manifest;
     try {
-      const res = await fetch('/models/manifest.json', { cache: 'no-cache' });
+      const res = await fetch('/models/manifest.json', { cache: 'no-cache', headers: this.headers });
       if (!res.ok) return;
       manifest = await res.json();
     } catch { return; }
 
     const draco = new DRACOLoader().setDecoderPath('/vendor/three/examples/jsm/libs/draco/gltf/');
-    const loader = new GLTFLoader().setDRACOLoader(draco);
+    const loader = new GLTFLoader().setDRACOLoader(draco).setRequestHeader(this.headers);
     const jobs = [];
     for (const [key, val] of Object.entries(manifest)) for (const entry of [].concat(val)) jobs.push({ key, entry });
     let done = 0;

@@ -23,7 +23,9 @@ const lerpAngle = (a, b, k) => a + wrapAngle(b - a) * k;
 const yawOf = (dx, dz) => Math.atan2(-dx, -dz);
 
 export class MixamoLibrary {
-  constructor() {
+  /** headers: the hub token, so the optional character files do not answer 401 (#240) */
+  constructor(headers = {}) {
+    this.headers = headers;
     this.ready = false;
     this.chars = [];        // { id, scene, scale, hipsY, names }
     this.clips = {};        // tên → AnimationClip gốc
@@ -34,12 +36,12 @@ export class MixamoLibrary {
   async load(onProgress) {
     let manifest;
     try {
-      const res = await fetch(BASE + 'people.json', { cache: 'no-cache' });
+      const res = await fetch(BASE + 'people.json', { cache: 'no-cache', headers: this.headers });
       if (!res.ok) return false;
       manifest = await res.json();
     } catch { return false; }
     this.manifest = manifest;
-    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setRequestHeader(this.headers);
     const total = manifest.characters.length + Object.keys(manifest.animations).length;
     let done = 0;
     const tick = () => onProgress?.(`Đang mời nhân viên vào văn phòng… ${++done}/${total}`);

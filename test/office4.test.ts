@@ -47,3 +47,35 @@ test('Office 4 #225: a limited agent walks to a bed in the rest zone, shows its 
   const rest = scene.slice(scene.indexOf('buildRest(d, style, build) {'), scene.indexOf('showZzz(v) {'));
   for (const s of ['addPendant', 'poolMaterial', 'PointLight', 'castShadow = true', 'Bloom']) assert.ok(!rest.includes(s), `buildRest must not add ${s}`);
 });
+
+/* ---------- Office 4 #240: portrait overview + the optional model files behind the hub token ---------- */
+// Audit #225 found ~300 px of empty space below the scene on a 390 px phone; the fetches for the optional
+// model files also answered 401 because they carried no token. Both are checked here on the sources.
+
+test('Office 4 #240: the overview fills a portrait screen and the model fetches carry the token', async () => {
+  const main = await readFile(new URL('../ui/office4/main.js', import.meta.url), 'utf8');
+  assert.ok(main.includes('token: api.token,'), 'mountOffice4 hands the hub token to the scene');
+
+  const scene = await readFile(new URL('../ui/office4/office3d.js', import.meta.url), 'utf8');
+  for (const s of [
+    'constructor(container, { onPick, onHover, onProgress, token } = {})',
+    "token ? { 'x-room-token': token } : {}",
+    'this.assets = new Assets(this.headers);',
+    'this.people = new MixamoLibrary(this.headers);',
+    'homeFor(aspect) {',
+    // portrait: steep, pulled-back camera whose near floor edge lands on the bottom edge of the frame
+    'const z = 14 + d * Math.cos(pitch) * (Math.tan(pitch) / Math.tan(pitch + half + margin));',
+    'return { pos: new THREE.Vector3(0, d * Math.sin(pitch), z), target: new THREE.Vector3(0, 0, z - d * Math.cos(pitch)), d };',
+    // the pulled-back portrait camera needs a larger orbit limit, and "Toàn cảnh" uses the same view
+    'this.controls.maxDistance = Math.max(70, Math.ceil(this.homeView.d + 10));',
+    'overview() { const v = this.homeView ?? this.home;',
+  ]) assert.ok(scene.includes(s), `missing #240 portrait/token wiring: ${s}`);
+
+  const assets = await readFile(new URL('../ui/office4/assets.js', import.meta.url), 'utf8');
+  assert.ok(assets.includes("fetch('/models/manifest.json', { cache: 'no-cache', headers: this.headers })"), 'manifest.json must send the token');
+  assert.ok(assets.includes('.setRequestHeader(this.headers)'), 'model files must send the token');
+
+  const mixamo = await readFile(new URL('../ui/office4/mixamo.js', import.meta.url), 'utf8');
+  assert.ok(mixamo.includes("fetch(BASE + 'people.json', { cache: 'no-cache', headers: this.headers })"), 'people.json must send the token');
+  assert.ok(mixamo.includes('.setRequestHeader(this.headers)'), 'character files must send the token');
+});

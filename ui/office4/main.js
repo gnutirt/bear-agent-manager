@@ -140,6 +140,7 @@ export function mountOffice4(el, api) {
   (async () => {
     try {
       office = new Office3D(host, {
+        token: api.token,   // #240: the optional model files sit behind the same token as the API
         onPick: (id) => { picked = id; office.select(id); paintCard(); },   // #226: bấm agent mở thẻ nổi, không mở chat ngay
         onProgress: (m) => { loading.textContent = m; },
       });
