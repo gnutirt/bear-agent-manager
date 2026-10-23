@@ -41,7 +41,7 @@ test('chatapi: the body is exactly model/messages/stream:false and never carries
 
 test('chatapi: trailing slash is trimmed; no key means no Authorization header, a key is a Bearer', async () => {
   const f1 = fake(() => reply(okBody));
-  await chatComplete(ask({ baseUrl: 'http://127.0.0.1:8080/', fetch: f1.fn }));
+  await chatComplete(ask({ baseUrl: 'http://127.0.0.1:8080/v1/', fetch: f1.fn }));
   assert.equal(f1.calls[0].url, 'http://127.0.0.1:8080/v1/chat/completions');
   const h1 = f1.calls[0].init.headers as Record<string, string>;
   assert.ok(!('authorization' in h1) && !('Authorization' in h1));
@@ -50,6 +50,18 @@ test('chatapi: trailing slash is trimmed; no key means no Authorization header, 
   await chatComplete(ask({ key: 'k-1', fetch: f2.fn }));
   const h2 = f2.calls[0].init.headers as Record<string, string>;
   assert.equal(h2.authorization, 'Bearer k-1');
+});
+
+test('chatapi: an ordinary answer mentioning ERR_BN_LIMIT is not classified as an IP ban', async () => {
+  const r = await chatComplete(ask({
+    fetch: fake(() => reply({ choices: [{ message: { content: 'ERR_BN_LIMIT is an error code.' } }] })).fn,
+  }));
+  assert.deepEqual(r, { ok: true, text: 'ERR_BN_LIMIT is an error code.', usage: { in: 0, out: 0 } });
+  const bodyError = await chatComplete(ask({
+    fetch: fake(() => reply({ error: 'ERR_BN_LIMIT: blocked' })).fn,
+  }));
+  assert.equal(bodyError.ok, false);
+  assert.equal((bodyError as { kind: string }).kind, 'banned');
 });
 
 test('chatapi: a good answer returns the text and usage from prompt_tokens/completion_tokens', async () => {
@@ -98,15 +110,50 @@ test('chatapi: HTML, an SSE body and tool_calls without content are invalid, not
   await kind(JSON.stringify({ choices: [] }));
 });
 
+test('chatapi: oversized completion body is cancelled and returned as invalid', async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(2 * 1024 * 1024 + 1)); },
+    cancel() { cancelled = true; },
+  });
+  const r = await chatComplete(ask({ fetch: fake(() => new Response(body)).fn }));
+  assert.deepEqual(r, { ok: false, kind: 'invalid', error: 'phản hồi quá lớn' });
+  assert.equal(cancelled, true);
+});
+
+test('chatapi: abort while reading the completion body remains a timeout', async () => {
+  const f = (async (_url: string, init: RequestInit) => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"choices":'));
+        init.signal?.addEventListener('abort', () => {
+          controller.error(Object.assign(new Error('aborted while reading'), { name: 'AbortError' }));
+        }, { once: true });
+      },
+    });
+    return new Response(body);
+  }) as unknown as typeof fetch;
+  const r = await chatComplete(ask({ timeoutMs: 10, fetch: f }));
+  assert.deepEqual(r, { ok: false, kind: 'timeout', error: 'quá thời gian chờ trả lời' });
+});
+
 test('chatapi: listModels reads data[].id and reports a bad status without throwing', async () => {
   const f = fake(() => reply({ data: [{ id: 'gpt-5.4-mini' }, { id: 'claude-x' }, { nope: 1 }] }));
-  const r = await listModels({ baseUrl: 'http://127.0.0.1:8080/', key: 'k-1', timeoutMs: 1000, fetch: f.fn });
+  const r = await listModels({ baseUrl: 'http://127.0.0.1:8080/v1/', key: 'k-1', timeoutMs: 1000, fetch: f.fn });
   assert.deepEqual(r, { ok: true, models: ['gpt-5.4-mini', 'claude-x'] });
   assert.equal(f.calls[0].url, 'http://127.0.0.1:8080/v1/models');
   assert.equal((f.calls[0].init.headers as Record<string, string>).authorization, 'Bearer k-1');
   const bad = await listModels({ baseUrl: 'http://x', timeoutMs: 1000, fetch: fake(() => reply('no', 500)).fn });
   assert.equal(bad.ok, false);
   assert.match(String(bad.error), /500/);
+  const oversized = await listModels({
+    baseUrl: 'http://x',
+    timeoutMs: 1000,
+    fetch: fake(() => new Response(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(256 * 1024 + 1)); },
+    }))).fn,
+  });
+  assert.deepEqual(oversized, { ok: false, models: [], error: 'phản hồi quá lớn' });
 });
 
 test('chatapi live (DUCK_LIVE=1): Duck2api answers PONG when stream:false', { skip: !(process.env.DUCK_LIVE === '1' && process.env.DUCK_URL) }, async () => {

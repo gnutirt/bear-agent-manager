@@ -5,7 +5,7 @@ export type ChatResult =
   | { ok: true; text: string; usage: { in: number; out: number } }
   | { ok: false; kind: 'timeout' | 'auth' | 'rate' | 'banned' | 'http' | 'invalid' | 'network'; error: string };
 
-const base = (u: string): string => String(u || '').trim().replace(/\/+$/, '');
+const base = (u: string): string => String(u || '').trim().replace(/\/+$/, '').replace(/\/v1$/i, '');
 
 const headersFor = (key?: string): Record<string, string> => {
   const h: Record<string, string> = { 'content-type': 'application/json' };
@@ -20,11 +20,26 @@ const isAbort = (e: unknown): boolean => {
 
 const reason = (e: unknown): string => String((e as { message?: string } | null)?.message || e || 'unknown');
 
-async function readText(res: Response): Promise<string> {
+async function readText(res: Response, maxBytes: number): Promise<{ text: string; tooLarge: boolean }> {
+  if (!res.body) return { text: '', tooLarge: false };
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0, text = '';
   try {
-    return await res.text();
-  } catch {
-    return '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > maxBytes - bytes) {
+        void reader.cancel().catch(() => {});
+        return { text: '', tooLarge: true };
+      }
+      bytes += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return { text, tooLarge: false };
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -57,11 +72,21 @@ export async function chatComplete(o: {
       ? { ok: false, kind: 'timeout', error: 'quá thời gian chờ trả lời' }
       : { ok: false, kind: 'network', error: `không kết nối được: ${reason(e)}` };
   }
-  const text = await readText(res);
-  // the order of the checks is the contract: auth first, then an IP ban (any status), then rate, then other statuses
+  // The order of status checks is the contract: auth first, then an IP ban, then rate, then other statuses.
   if (res.status === 401 || res.status === 403) return { ok: false, kind: 'auth', error: `sai hoặc thiếu khoá (HTTP ${res.status})` };
-  if (res.status === 418 || /ERR_BN_LIMIT/.test(text)) return { ok: false, kind: 'banned', error: 'duck.ai đã chặn IP này (ERR_BN_LIMIT)' };
+  if (res.status === 418) return { ok: false, kind: 'banned', error: 'duck.ai đã chặn IP này (ERR_BN_LIMIT)' };
   if (res.status === 429) return { ok: false, kind: 'rate', error: 'bị giới hạn tần suất (HTTP 429)' };
+  let response: { text: string; tooLarge: boolean };
+  try {
+    response = await readText(res, 2 * 1024 * 1024);
+  } catch (e) {
+    return isAbort(e)
+      ? { ok: false, kind: 'timeout', error: 'quá thời gian chờ trả lời' }
+      : { ok: false, kind: 'network', error: `không đọc được phản hồi: ${reason(e)}` };
+  }
+  if (response.tooLarge) return { ok: false, kind: 'invalid', error: 'phản hồi quá lớn' };
+  const text = response.text;
+  if (!res.ok && /ERR_BN_LIMIT/.test(text)) return { ok: false, kind: 'banned', error: 'duck.ai đã chặn IP này (ERR_BN_LIMIT)' };
   if (!res.ok) return { ok: false, kind: 'http', error: `HTTP ${res.status}` };
   let body: unknown;
   try {
@@ -69,6 +94,8 @@ export async function chatComplete(o: {
   } catch {
     return { ok: false, kind: 'invalid', error: 'phản hồi không hợp lệ (không phải JSON)' };
   }
+  const apiError = (body as { error?: unknown } | null)?.error;
+  if (typeof apiError === 'string' && /ERR_BN_LIMIT/.test(apiError)) return { ok: false, kind: 'banned', error: 'duck.ai đã chặn IP này (ERR_BN_LIMIT)' };
   const choices = (body as { choices?: { message?: { content?: unknown } }[] } | null)?.choices;
   const content = Array.isArray(choices) ? choices[0]?.message?.content : undefined;
   if (typeof content !== 'string') return { ok: false, kind: 'invalid', error: 'phản hồi không hợp lệ (thiếu nội dung)' };
@@ -103,12 +130,16 @@ export async function listModels(o: {
   }
   if (!res.ok) return { ok: false, models: [], error: `HTTP ${res.status}` };
   try {
-    const body = JSON.parse(await readText(res));
+    const response = await readText(res, 256 * 1024);
+    if (response.tooLarge) return { ok: false, models: [], error: 'phản hồi quá lớn' };
+    const body = JSON.parse(response.text);
     const rows = (body as { data?: unknown } | null)?.data;
     if (!Array.isArray(rows)) return { ok: false, models: [], error: 'phản hồi không hợp lệ' };
     const models = rows.map((r) => (r as { id?: unknown } | null)?.id).filter((id): id is string => typeof id === 'string' && !!id);
     return { ok: true, models };
-  } catch {
+  } catch (e) {
+    if (isAbort(e)) return { ok: false, models: [], error: 'quá thời gian chờ trả lời' };
+    if (!(e instanceof SyntaxError)) return { ok: false, models: [], error: `không đọc được phản hồi: ${reason(e)}` };
     return { ok: false, models: [], error: 'phản hồi không hợp lệ (không phải JSON)' };
   }
 }
