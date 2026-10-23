@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { makeHub } from './helpers.ts';
+import { defaultSettings } from '../hub/settings.ts';
 import { en } from '../shared/i18n/en.ts';
 import { vi } from '../shared/i18n/vi.ts';
 
@@ -353,7 +354,7 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "data-set=\"agentComms\"", "t('settings.agentComms.hint')", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const s of ['function renderSettingsView', 'type="password"', 'key: null', "t('compact.note')", "sel('agentComms'", "'settings.agentComms.hint'", "force: 'mode.force'", "ban: 'mode.ban'", 'agentSkills', "'/api/skills'", "'/api/settings'", "method || (body ? 'POST' : 'GET')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("(wildcard ? ['auto', 'ban'] : ['force', 'auto', 'ban'])"), 'a whole plugin can never be forced');
   } finally { await hub.close(); }
 });
@@ -390,8 +391,8 @@ test('browser settings are in Worker, save browser fields, show live status, and
       "t('set.browser.running'",
       "t('set.browser.stopped')",
       "sw('browser.enabled'",
-      'data-set="browser.port"',
-      'data-set="browser.chromePath"',
+      "num('browser.port'",
+      "txt('browser.chromePath'",
       'set.browser.agentsNote',
       'set.browser.noPasswords',
     ]) assert.ok(html.includes(source), `browser settings are missing ${source}`);
@@ -551,6 +552,72 @@ test('settings sub-tabs, Claude usage first in the Token tab, text button to mak
     for (const s of ['data-sub="${k}"', "general: 'sub.general'", "lead: 'sub.lead'", "account: 'sub.account'", "t('members.lead')", "t('members.unlead')"]) assert.ok(html.includes(s), `missing ${s}`);
     assert.ok(html.includes("<div class=\"vw\">${claudeProBlock()}${copilotUsageBlock()}${paidUsageBlock()}<h2>${t('usage.worker')}</h2>${head}"), 'Usage tab: Claude, Copilot and paid providers come before the worker token KPIs');
     for (const x of ["'/api/paid-usage'", 'data-tab="tokens" data-i18n="tab.usage"', 'function copilotUsageBlock', 'function paidUsageBlock']) assert.ok(html.includes(x), `Usage tab: missing ${x}`);
+  } finally { await hub.close(); }
+});
+
+/* ---------- Settings IA S1 (#234): one registry, search, deep links, changed dot ---------- */
+
+test('#234 the settings registry matches the UI and the server defaults, and every key renders once', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = html.slice(html.indexOf('<script>'), html.lastIndexOf('</script>'));
+    const routes = /const SETTING_ROUTES = \[([^\]]+)\]/.exec(script)?.[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean) ?? [];
+    assert.deepEqual(routes, ['read', 'edit', 'osin'], 'the routes table drives the dynamic workerRoutes keys');
+    const defStart = script.indexOf('const SETTING_DEFS = ') + 'const SETTING_DEFS = '.length;
+    const defEnd = script.indexOf('\nconst DEF = (key)');
+    assert.ok(defStart > 0 && defEnd > defStart, 'the registry table is missing');
+    const defs = new Function('SETTING_ROUTES', `return (${script.slice(defStart, defEnd).trim().replace(/;$/, '')});`)(routes) as {
+      key: string; group: string; sub: string; label: string; hint: string; detail: string; type: string; default: unknown; min?: number; max?: number;
+    }[];
+    assert.ok(defs.length > 30, `the registry should cover the whole settings tab (${defs.length})`);
+    for (const d of defs) {
+      for (const field of ['key', 'group', 'sub', 'label', 'type']) assert.ok(d[field], `${d.key}: missing ${field}`);
+      assert.ok(['bool', 'number', 'text', 'select'].includes(d.type), `${d.key}: unknown type ${d.type}`);
+      assert.ok(d.label in en && d.label in vi, `${d.key}: label key ${d.label} is not translated`);
+      if (d.hint) assert.ok(d.hint in en && d.hint in vi, `${d.key}: hint key ${d.hint} is not translated`);
+      if (d.type === 'number') assert.ok(Number.isFinite(d.min) && Number.isFinite(d.max) && (d.min as number) < (d.max as number), `${d.key}: a number needs min < max`);
+    }
+
+    // The registry's default must be what the server writes when nothing is saved (#archive.enabled is only
+    // written once the switch is used, so its implicit default is false).
+    const defaults = defaultSettings(4);
+    const at = (key: string) => key.split('.').reduce<any>((o, k) => (o == null ? undefined : o[k]), defaults);
+    for (const d of defs) {
+      const want = d.key === 'archive.enabled' ? false : at(d.key);
+      assert.deepEqual(d.default, want, `${d.key}: registry default differs from hub defaultSettings()`);
+    }
+
+    // Every row the UI draws: a literal data-set, or the first argument of the row helpers.
+    const rendered = new Map<string, number>();
+    const bump = (key: string) => rendered.set(key, (rendered.get(key) ?? 0) + 1);
+    for (const m of script.matchAll(/data-set="([A-Za-z0-9_.-]+)"/g)) bump(m[1]);
+    for (const m of script.matchAll(/\b(?:sw|swVal|num|txt|sel)\('([A-Za-z0-9_.-]+)'/g)) bump(m[1]);
+    for (const m of script.matchAll(/data-set="workerRoutes\.\$\{k\}\.(enabled|provider|model)"/g)) for (const k of routes) bump(`workerRoutes.${k}.${m[1]}`);
+
+    const registered = new Set(defs.map((d) => d.key));
+    for (const [key, n] of rendered) {
+      assert.ok(registered.has(key), `the UI renders ${key}${n > 1 ? ` ${n} times` : ''} but it is not in SETTING_DEFS`);
+      assert.equal(n, 1, `${key} is rendered ${n} times; a setting has exactly one home`);
+    }
+    for (const key of registered) assert.ok(rendered.has(key), `${key} is registered but no row renders it`);
+  } finally { await hub.close(); }
+});
+
+test('#234 settings search, deep link and changed dot are wired, and the old duplicate archive rows are gone', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'id="setSearch"', 'function applySettingsFilter', "S.setQuery", "settings.search.ph",
+      'function settingsDeepLink', "startsWith('settings/')", 'data-row="${key}"',
+      'data-reset="${key}"', "t('settings.reset')", "t('settings.changed')", 'isChanged(d)',
+      'saveValue(d.key, d.default)',
+    ]) assert.ok(html.includes(s), `settings S1 is missing ${s}`);
+    assert.ok(!html.includes("data-set=\"archive.dir\"") && !html.includes("sw('archive.enabled', arOn, t('set.archive')"), 'the machine wizard must link to the Data tab instead of drawing the archive inputs a second time');
+    for (const key of ['settings.search', 'settings.search.ph', 'settings.changed', 'settings.reset', 'settings.noMatch', 'sm.s2.open']) {
+      assert.ok(key in vi && key in en, `missing translated string ${key}`);
+    }
   } finally { await hub.close(); }
 });
 

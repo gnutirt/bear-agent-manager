@@ -805,6 +805,14 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
 .setrow{display:flex;align-items:center;gap:20px;padding:14px 0;border-top:1px solid var(--line)}
+#view-settings .setrow[hidden]{display:none!important}
+.setbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;max-width:1100px}
+.setbar .txtin{flex:1;min-width:220px}
+.setrow .chg{width:7px;height:7px;border-radius:50%;background:var(--accent,#E5484D);flex:none;margin-left:-10px}
+.setrow .reset{border:0;background:none;color:var(--mute);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;border-radius:6px}
+.setrow .reset:hover{color:var(--text);background:var(--hover)}
+.setrow.pulse{animation:setpulse 1.2s ease-out}
+@keyframes setpulse{0%{background:var(--hover)}100%{background:transparent}}
 /* settings: roomier cards, a real sub-tab bar, section titles with an accent mark */
 #view-settings .setbox{padding:6px 22px;border-radius:16px;box-shadow:0 1px 2px rgba(17,24,39,.05)}
 #view-settings .setrow b{font-size:14px}
@@ -997,7 +1005,7 @@ const TOKEN = '__BEAR_AGENT_TOKEN__';
 const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, rooms: [], sessions: {}, messages: {}, notes: {}, current: null, unread: {}, showOffline: false, renaming: null, editingNote: null, repo: (() => { try { return localStorage.repoFilter || ''; } catch { return ''; } })() };
 // The log sticks to the newest message while the user is at the bottom (S.stick, set by scrolling,
 // sending and switching rooms), instead of measuring "at bottom" on the old DOM before each render.
-S.stick = true; S.expanded = new Set(); S.seen = {}; S.setSub = 'general';   // seen[room] = message count when the user last was at the bottom
+S.stick = true; S.expanded = new Set(); S.seen = {}; S.setSub = 'general'; S.setQuery = ''; S.setFocusRow = undefined;   // seen[room] = message count when the user last was at the bottom
 const logEl = document.getElementById('log'), logBody = document.getElementById('logBody');   // $ is declared below
 const pinBottom = () => { if (S.stick) logEl.scrollTop = logEl.scrollHeight; };
 logEl.addEventListener('scroll', () => {
@@ -2550,6 +2558,10 @@ function syncChatTabs() {
   $('tabDmCount').textContent = un || '';
 }
 function showTab(name) {
+  // #234: #settings/<group>/<key> (or #settings/<key>) is a deep link into one setting.
+  const deep = typeof name === 'string' && name.startsWith('settings/') ? settingsDeepLink('#' + name) : undefined;
+  if (name.startsWith('settings/')) name = 'settings';
+  if (deep) { S.setSub = deep.sub; S.setFocusRow = deep.key; }
   if (name === 'dm' || name === 'rooms') {
     const wantDm = name === 'dm', isDm = !!room(S.current)?.dm;
     if (wantDm !== isDm) {
@@ -2568,7 +2580,7 @@ function showTab(name) {
   }
   document.body.dataset.tab = name;
   syncChatTabs();
-  if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
+  if (location.hash !== '#' + name && !location.hash.startsWith('#' + name + '/')) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
   ({ tasks: () => loadTasks(), workers: loadWorkersView, tokens: loadTokens, flow: loadFlow, office: openOffice, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
@@ -3311,8 +3323,93 @@ function loadBrowserStatus() {
     lastError: `/api/browser: ${e.message}`,
   }));
 }
-const sw = (path, on, label, hint = '') => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="checkbox" class="switch" data-set="${path}"${on ? ' checked' : ''}></label>`;
-const num = (path, v, label, hint, min, max) => `<label class="setrow"><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="number" class="numin" data-set="${path}" value="${v}" min="${min}" max="${max}"></label>`;
+// #234 (settings IA S1): one row per setting the UI edits. sw/num/txt/sel/swVal render from this table,
+// the search box filters by label/hint/key, and #settings/<group>/<key> deep-links to a row.
+// `group` is the S2 section and `sub` is the sub-tab that holds the row today; no schema or key changes.
+const SETTING_ROUTES = ['read', 'edit', 'osin'];
+const SETTING_DEFS = [
+  { key: 'language', group: 'system', sub: 'general', label: 'settings.language', hint: 'settings.language.hint', detail: '', type: 'select', default: 'auto' },
+  { key: 'agentComms', group: 'rooms', sub: 'general', label: 'settings.agentComms', hint: 'settings.agentComms.hint', detail: '', type: 'select', default: 'off' },
+  { key: 'apiAgents.allTools', group: 'agent', sub: 'worker', label: 'set.apiAgents.allTools', hint: 'set.apiAgents.allTools.hint', detail: '', type: 'bool', default: true },
+  { key: 'agents.maxBackground', group: 'agent', sub: 'account', label: 'ac.agent.max', hint: 'ac.agent.max.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
+  { key: 'openTabOnWake', group: 'agent', sub: 'lead', label: 'set.openTabOnWake', hint: 'set.openTabOnWake.hint', detail: '', type: 'bool', default: false },
+  { key: 'relayChat', group: 'agent', sub: 'lead', label: 'set.relayChat', hint: 'set.relayChat.hint', detail: '', type: 'bool', default: true },
+  { key: 'skills.worker.enabled', group: 'tools', sub: 'worker', label: 'set.worker.on', hint: 'set.worker.on.hint', detail: '', type: 'bool', default: true },
+  { key: 'skills.osin.enabled', group: 'tools', sub: 'worker', label: 'set.osin.on', hint: 'set.osin.on.hint', detail: '', type: 'bool', default: true },
+  { key: 'allowPaidFallback', group: 'tools', sub: 'worker', label: 'set.paid', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'workerCap', group: 'tools', sub: 'worker', label: 'set.cap', hint: 'set.cap.hint', detail: '', type: 'number', default: 4, min: 1, max: 16 },
+  { key: 'roomChat.autoSweep', group: 'tools', sub: 'worker', label: 'set.sweep', hint: 'set.sweep.hint', detail: '', type: 'bool', default: false },
+  { key: 'browser.enabled', group: 'tools', sub: 'worker', label: 'set.browser.enabled', hint: 'set.browser.hint', detail: '', type: 'bool', default: true },
+  { key: 'browser.port', group: 'tools', sub: 'worker', label: 'set.browser.port', hint: '', detail: '', type: 'number', default: 9333, min: 1024, max: 65535 },
+  { key: 'browser.chromePath', group: 'tools', sub: 'worker', label: 'set.browser.chromePath', hint: '', detail: '', type: 'text', default: '' },
+  { key: 'localSummarize.enabled', group: 'tools', sub: 'worker', label: 'local.on', hint: 'local.on.hint', detail: '', type: 'bool', default: false },
+  { key: 'localSummarize.host', group: 'tools', sub: 'worker', label: 'local.host', hint: '', detail: '', type: 'text', default: 'http://127.0.0.1:11434' },
+  { key: 'localSummarize.model', group: 'tools', sub: 'worker', label: 'local.model', hint: '', detail: '', type: 'text', default: 'qwen2.5:7b' },
+  { key: 'localSummarize.numCtx', group: 'tools', sub: 'worker', label: 'local.numCtx', hint: '', detail: '', type: 'number', default: 8192, min: 1024, max: 131072 },
+  { key: 'localSummarize.timeoutSec', group: 'tools', sub: 'worker', label: 'local.timeout', hint: '', detail: '', type: 'number', default: 120, min: 5, max: 900 },
+  { key: 'localSummarize.maxChars', group: 'tools', sub: 'worker', label: 'local.maxChars', hint: '', detail: '', type: 'number', default: 24000, min: 1000, max: 200000 },
+  ...SETTING_ROUTES.flatMap((k) => [
+    { key: `workerRoutes.${k}.enabled`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'bool', default: true },
+    { key: `workerRoutes.${k}.provider`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
+    { key: `workerRoutes.${k}.model`, group: 'tools', sub: 'worker', label: `route.${k}`, hint: '', detail: '', type: 'select', default: 'auto' },
+  ]),
+  { key: 'autoLead', group: 'rooms', sub: 'lead', label: 'set.autoLead', hint: 'set.autoLead.hint', detail: '', type: 'select', default: 'off' },
+  { key: 'lead.wake.enabled', group: 'rooms', sub: 'lead', label: 'lead.wake.on', hint: '', detail: '', type: 'bool', default: true },
+  { key: 'lead.wake.atPct', group: 'rooms', sub: 'lead', label: 'lead.wake.at', hint: 'lead.wake.at.hint', detail: '', type: 'number', default: 90, min: 50, max: 100 },
+  { key: 'lead.wake.afterResetMin', group: 'rooms', sub: 'lead', label: 'lead.wake.after', hint: 'lead.wake.after.hint', detail: '', type: 'number', default: 2, min: 0, max: 120 },
+  { key: 'lead.delegate', group: 'rooms', sub: 'lead', label: 'lead.delegate', hint: 'lead.delegate.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.distribute', group: 'rooms', sub: 'lead', label: 'lead.distribute', hint: 'lead.distribute.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.handoffOnDone', group: 'rooms', sub: 'lead', label: 'lead.handoff', hint: 'lead.handoff.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.idleMin', group: 'rooms', sub: 'lead', label: 'lead.idle', hint: 'lead.idle.hint', detail: '', type: 'number', default: 30, min: 1, max: 240 },
+  { key: 'lead.monitor.on', group: 'rooms', sub: 'lead', label: 'lead.monitor', hint: 'lead.monitor.hint', detail: '', type: 'bool', default: true },
+  { key: 'lead.monitor.staleMin', group: 'rooms', sub: 'lead', label: 'lead.monitor.staleMin', hint: '', detail: '', type: 'number', default: 60, min: 5, max: 1440 },
+  { key: 'lead.monitor.nudgeMin', group: 'rooms', sub: 'lead', label: 'lead.monitor.nudgeMin', hint: '', detail: '', type: 'number', default: 15, min: 0, max: 240 },
+  { key: 'lead.fallback', group: 'rooms', sub: 'lead', label: 'lead.fallback', hint: 'lead.fallback.hint', detail: '', type: 'text', default: '' },
+  { key: 'autoJobs.handoff.enabled', group: 'rooms', sub: 'lead', label: 'set.handoff', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.handoff.thresholdK', group: 'rooms', sub: 'lead', label: 'set.handoff.k', hint: '', detail: '', type: 'number', default: 300, min: 50, max: 2000 },
+  { key: 'autoJobs.digest.enabled', group: 'rooms', sub: 'lead', label: 'set.digest', hint: '', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.digest.minChars', group: 'rooms', sub: 'lead', label: 'set.digest.min', hint: '', detail: '', type: 'number', default: 4000, min: 1000, max: 100000 },
+  { key: 'autoJobs.notes.enabled', group: 'rooms', sub: 'lead', label: 'set.notes', hint: 'set.notes.hint', detail: '', type: 'bool', default: false },
+  { key: 'autoJobs.notes.minNotes', group: 'rooms', sub: 'lead', label: 'set.notes.min', hint: '', detail: '', type: 'number', default: 15, min: 5, max: 500 },
+  { key: 'autoJobs.maxRunsPerDay', group: 'rooms', sub: 'lead', label: 'set.maxRuns', hint: '', detail: '', type: 'number', default: 10, min: 0, max: 200 },
+  { key: 'accountSwitch.atPct', group: 'accounts', sub: 'account', label: 'sw.atPct', hint: '', detail: '', type: 'number', default: 90, min: 50, max: 100 },
+  { key: 'accountSwitch.minOtherLeftPct', group: 'accounts', sub: 'account', label: 'sw.minLeft', hint: '', detail: '', type: 'number', default: 20, min: 1, max: 100 },
+  { key: 'archive.enabled', group: 'system', sub: 'data', label: 'set.archive', hint: 'set.archive.hint', detail: '', type: 'bool', default: false },
+  { key: 'archive.dir', group: 'system', sub: 'data', label: 'set.archive.dir', hint: '', detail: '', type: 'text', default: '' },
+];
+const DEF = (key) => SETTING_DEFS.find((d) => d.key === key);
+/** The live value at a dotted path ("lead.wake.atPct"), read from the settings the server sent. */
+const settingAt = (key) => key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), S.settings);
+const isChanged = (d) => { const v = settingAt(d.key); return d && v !== undefined && JSON.stringify(v) !== JSON.stringify(d.default); };
+/** A settings row: label and one-line hint from the table, a dot and "back to default" when it differs. */
+function settingRow(key, input) {
+  const d = DEF(key), changed = isChanged(d);
+  const label = d ? t(d.label) : key, hint = d?.hint ? t(d.hint) : '';
+  return `<label class="setrow${changed ? ' changed' : ''}" data-row="${key}"${d ? ` data-group="${d.group}"` : ''}><span><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span>${input}${changed ? `<i class="chg" title="${t('settings.changed')}"></i><button type="button" class="reset" data-reset="${key}" title="${t('settings.reset')}" aria-label="${t('settings.reset')}">↺</button>` : ''}</label>`;
+}
+const sw = (key, on) => settingRow(key, `<input type="checkbox" class="switch" data-set="${key}"${on ? ' checked' : ''}>`);
+const swVal = (key, on, onVal, offVal) => settingRow(key, `<input type="checkbox" class="switch" data-set="${key}" data-on="${onVal}" data-off="${offVal}"${on ? ' checked' : ''}>`);
+const num = (key, v) => { const d = DEF(key) || {}; return settingRow(key, `<input type="number" class="numin" data-set="${key}" value="${v}" min="${d.min ?? ''}" max="${d.max ?? ''}">`); };
+const txt = (key, v, attrs = '') => settingRow(key, `<input class="txtin" data-set="${key}" value="${esc(v ?? '')}" spellcheck="false"${attrs}>`);
+const sel = (key, v, options) => settingRow(key, `<select data-set="${key}">${options.map(([val, label]) => `<option value="${esc(val)}"${val === v ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select>`);
+/** The search box only shows matching rows; it looks at the label, the hint and the settings key. */
+function applySettingsFilter() {
+  const q = (S.setQuery || '').trim().toLowerCase(), view = $('view-settings');
+  if (!view) return;
+  let shown = 0;
+  for (const row of view.querySelectorAll('[data-row]')) {
+    const hit = !q || row.textContent.toLowerCase().includes(q) || (row.dataset.row || '').toLowerCase().includes(q);
+    row.hidden = !hit;
+    if (hit) shown++;
+  }
+  const none = $('setNoMatch'); if (none) none.hidden = shown > 0;
+}
+/** S1 deep link: #settings/<group>/<key> (or #settings/<key>) opens the sub-tab and scrolls to that row. */
+function settingsDeepLink(hash) {
+  const m = /^#settings\/([\w.-]+)(?:\/([\w.-]+))?$/.exec(hash || '');
+  if (!m) return undefined;
+  return SETTING_DEFS.find((d) => d.key === (m[2] || m[1])) || SETTING_DEFS.find((d) => d.group === m[1] && !m[2]);
+}
 /** What the agent really called (GET /api/skill-usage, recorded by the hub's PreToolUse hook): "used N times, last ..." or "not used yet". */
 function loadSkillUse(agent) {
   if (!agent) return;
@@ -3635,9 +3732,9 @@ function localBlock(st) {
   const stt = !S.local ? t('local.status.checking') : !S.local.reachable ? t('local.status.down', { host: esc(L.host || '') }) : !S.local.hasModel ? t('local.status.nomodel', { model: esc(L.model || '') }) : t('local.status.ok', { model: esc(L.model || '') });
   const txt = (path, v, label) => `<label class="setrow"><span><b>${label}</b></span><input class="txtin" data-set="${path}" value="${esc(v ?? '')}" spellcheck="false"></label>`;
   return `<h2>${t('local.title')}</h2><div class="setbox"><p class="small muted note">${t('local.note')}</p>
-    ${sw('localSummarize.enabled', !!L.enabled, t('local.on'), t('local.on.hint'))}
-    ${txt('localSummarize.host', L.host, t('local.host'))}${txt('localSummarize.model', L.model, t('local.model'))}
-    ${num('localSummarize.numCtx', L.numCtx ?? 8192, t('local.numCtx'), '', 1024, 131072)}${num('localSummarize.timeoutSec', L.timeoutSec ?? 120, t('local.timeout'), '', 5, 900)}${num('localSummarize.maxChars', L.maxChars ?? 24000, t('local.maxChars'), '', 1000, 200000)}
+    ${sw('localSummarize.enabled', !!L.enabled)}
+    ${txt('localSummarize.host', L.host)}${txt('localSummarize.model', L.model)}
+    ${num('localSummarize.numCtx', L.numCtx ?? 8192)}${num('localSummarize.timeoutSec', L.timeoutSec ?? 120)}${num('localSummarize.maxChars', L.maxChars ?? 24000)}
     ${remote ? `<div class="verr" role="alert">${t('local.remote')}</div>` : ''}
     <div class="pf"><button type="button" class="btn" id="localCheck">${t('local.check')}</button><span class="small ${S.local?.reachable && S.local?.hasModel ? 'muted' : 'bad'}">${stt}</span></div></div>`;
 }
@@ -3755,7 +3852,7 @@ function switchBlock(st) {
   const sw_ = st.accountSwitch || { mode: 'ask', atPct: 90, minOtherLeftPct: 20 };
   const modes = ['off', 'ask', 'auto'];
   return `<div class="pmodes" role="radiogroup" aria-label="${t('sw.mode')}">${modes.map((m) => `<button type="button" class="pmode" role="radio" aria-checked="${sw_.mode === m}" data-swmode="${m}">${SWM[m]}</button>`).join('')}</div><p class="small muted">${SWH[sw_.mode]}</p>
-    ${num('accountSwitch.atPct', sw_.atPct, t('sw.atPct'), '', 50, 100)}${num('accountSwitch.minOtherLeftPct', sw_.minOtherLeftPct, t('sw.minLeft'), '', 1, 100)}`;
+    ${num('accountSwitch.atPct', sw_.atPct)}${num('accountSwitch.minOtherLeftPct', sw_.minOtherLeftPct)}`;
 }
 async function saveCopilotProfiles(profiles) {
   try {
@@ -3887,7 +3984,7 @@ function accountBlock(st) {
   return `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>
-    <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4, t('ac.agent.max'), t('ac.agent.max.hint'), 1, 16)}</div>
+    <h2>${t('ac.agent')}</h2><div class="setbox"><p class="small muted note">${t('ac.agent.note')}</p>${agent}${num('agents.maxBackground', st.agents?.maxBackground ?? 4)}</div>
     <h2>${t('ac.copilot')}</h2><div class="setbox"><p class="small muted note">${t('ac.copilot.note', { cwd: cp?.cwd || '' })}</p>${copilotHtml}<h3>${t('ac.profile.title')}</h3><p class="small muted note">${t('ac.profile.note')}</p>${profilesHtml}</div>
     ${mcpHtml}
     <h2>${t('ac.auto')}</h2><div class="setbox"><p class="small muted note">${t('ac.auto.note')}</p>${autoHtml}</div>`;
@@ -4105,7 +4202,7 @@ function setupBlock(st) {
   const ar = st.archive || {}, arOn = ar.enabled ?? !!ar.dir, last = H.archive?.last;
   const l2 = !arOn || !ar.dir ? 'warn' : last?.ok === false ? 'bad' : 'ok';
   const t2 = !arOn || !ar.dir ? t('sm.s2.off') : last?.ok === false ? t('sm.s2.fail', { reason: esc(last.reason || '?') }) : t('sm.s2.ok', { dir: esc(ar.dir), at: last ? fmtWhen(last.at) : '-' });
-  const body2 = `<span>${t2}</span>${sw('archive.enabled', arOn, t('set.archive'))}<label class="setrow"><span><b>${t('set.archive.dir')}</b></span><input class="txtin" data-set="archive.dir" value="${esc(ar.dir || '')}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>`;
+  const body2 = `<span>${t2}</span><div><button type="button" class="btn sm" data-hgo="settings:data">${t('sm.s2.open')}</button></div>`;   // #234: the folder switch lives in one place only
   // 3. restore from the export bundle
   const ml = H.machine?.last, mdir = H.machine?.dir || '';
   const l3 = ml && ml.ok !== false ? 'ok' : 'info';
@@ -4136,9 +4233,9 @@ function renderSettingsView() {
   const P = {
     general: `    <p class="lede">${t('settings.lede')}</p>
     <h2>${t('settings.language')}</h2>
-    <div class="setbox"><label class="setrow"><span><b>${t('settings.language')}</b><small>${t('settings.language.hint')}</small></span><select data-set="language">${[['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']].map(([v, l]) => `<option value="${v}"${(st.language ?? 'auto') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
+    <div class="setbox">${sel('language', st.language ?? 'auto', [['auto', t('settings.language.auto', { lang: uiLang() === 'vi' ? 'Tiếng Việt' : 'English' })], ['vi', 'Tiếng Việt'], ['en', 'English']])}</div>
     <h2>${t('settings.agentComms')}</h2>
-    <div class="setbox"><label class="setrow"><span><b>${t('settings.agentComms')}</b><small>${t('settings.agentComms.hint')}</small></span><select data-set="agentComms">${[['off', t('settings.agentComms.off')], ['terse', t('settings.agentComms.terse')]].map(([v, l]) => `<option value="${v}"${(st.agentComms ?? 'off') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
+    <div class="setbox">${sel('agentComms', st.agentComms ?? 'off', [['off', t('settings.agentComms.off')], ['terse', t('settings.agentComms.terse')]])}</div>
     <h2>${t('machine.title')}</h2>
     <div class="setbox"><p class="small muted note">${t('machine.note', { dir: esc(S.machine?.dir || '') })}</p>
       <label class="setrow"><span><b>${t('machine.keys')}</b><small>${t('machine.keys.hint')}</small></span><input type="checkbox" class="switch" id="machineKeys"${S.machineWithKeys ? ' checked' : ''}></label>
@@ -4149,59 +4246,60 @@ function renderSettingsView() {
       <div class="pf"><button class="btn" id="hubRestart">${t('hub.restart')}</button></div></div>
 `,
     worker: `    <h2>Worker</h2><div class="setbox">
-      ${sw('skills.worker.enabled', st.skills.worker.enabled, t('set.worker.on'), t('set.worker.on.hint'))}
-      ${sw('skills.osin.enabled', st.skills.osin.enabled, t('set.osin.on'), t('set.osin.on.hint'))}
-      ${sw('allowPaidFallback', st.allowPaidFallback, t('set.paid'))}
-      ${num('workerCap', st.workerCap, t('set.cap'), t('set.cap.hint'), 1, 16)}
-      ${sw('roomChat.autoSweep', st.roomChat.autoSweep, t('set.sweep'), t('set.sweep.hint'))}
+      ${sw('skills.worker.enabled', st.skills.worker.enabled)}
+      ${sw('skills.osin.enabled', st.skills.osin.enabled)}
+      ${sw('allowPaidFallback', st.allowPaidFallback)}
+      ${num('workerCap', st.workerCap)}
+      ${sw('roomChat.autoSweep', st.roomChat.autoSweep)}
     </div>
     <h2>${t('set.apiAgents')}</h2><div class="setbox">
-      ${sw('apiAgents.allTools', st.apiAgents?.allTools ?? true, t('set.apiAgents.allTools'), t('set.apiAgents.allTools.hint'))}
+      ${sw('apiAgents.allTools', st.apiAgents?.allTools ?? true)}
       <p class="small muted note">${t('set.apiAgents.allTools.warning')}</p>
     </div>
     <h2>${t('set.browser')}</h2><div class="setbox"><p class="small muted note">${t('set.browser.hint')}</p>
-      ${sw('browser.enabled', browserCfg.enabled ?? true, t('set.browser.enabled'))}
-      <label class="setrow"><span><b>${t('set.browser.port')}</b></span><input type="number" class="numin" data-set="browser.port" value="${browserCfg.port ?? 9333}" min="1024" max="65535"></label>
-      <label class="setrow"><span><b>${t('set.browser.chromePath')}</b></span><input class="txtin" data-set="browser.chromePath" value="${esc(browserCfg.chromePath || '')}" maxlength="500" spellcheck="false"></label>
+      ${sw('browser.enabled', browserCfg.enabled ?? true)}
+      ${num('browser.port', browserCfg.port ?? 9333)}
+      ${txt('browser.chromePath', browserCfg.chromePath || '', ' maxlength="500"')}
       <p class="small" role="status">${esc(browserState)}</p>
       ${browserStatus.lastError ? `<p class="small bad" role="alert">${esc(browserStatus.lastError)}</p>` : ''}
       <p class="small muted">${t('set.browser.agentsNote', { v: esc(browserStatus.mcpVersion || '?') })}</p>
       <p class="small muted">${t('set.browser.noPasswords')}</p>
     </div>` + routesBlock() + localBlock(st),
     lead: `    <h2>${t('sub.lead')}</h2><div class="setbox">
-      <label class="setrow"><span><b>${t('set.autoLead')}</b><small>${t('set.autoLead.hint')}</small></span><input type="checkbox" class="switch" data-set="autoLead" data-on="terminal" data-off="off"${st.autoLead === 'terminal' ? ' checked' : ''}></label>
-      ${sw('openTabOnWake', !!st.openTabOnWake, t('set.openTabOnWake'), t('set.openTabOnWake.hint'))}
-      ${sw('relayChat', st.relayChat ?? true, t('set.relayChat'), t('set.relayChat.hint'))}
+      ${swVal('autoLead', st.autoLead === 'terminal', 'terminal', 'off')}
+      ${sw('openTabOnWake', !!st.openTabOnWake)}
+      ${sw('relayChat', st.relayChat ?? true)}
     </div>
     <h2>${t('lead.wake.title')}</h2><div class="setbox">
       <p class="small muted note">${t('lead.wake.note')}</p>
-      ${sw('lead.wake.enabled', !!st.lead?.wake?.enabled, t('lead.wake.on'))}
-      ${num('lead.wake.atPct', st.lead?.wake?.atPct ?? 90, t('lead.wake.at'), t('lead.wake.at.hint'), 50, 100)}
-      ${num('lead.wake.afterResetMin', st.lead?.wake?.afterResetMin ?? 2, t('lead.wake.after'), t('lead.wake.after.hint'), 0, 120)}
+      ${sw('lead.wake.enabled', !!st.lead?.wake?.enabled)}
+      ${num('lead.wake.atPct', st.lead?.wake?.atPct ?? 90)}
+      ${num('lead.wake.afterResetMin', st.lead?.wake?.afterResetMin ?? 2)}
     </div>
     <h2>${t('lead.duties.title')}</h2><div class="setbox">
-      ${sw('lead.delegate', st.lead?.delegate ?? true, t('lead.delegate'), t('lead.delegate.hint'))}
-      ${sw('lead.distribute', st.lead?.distribute ?? true, t('lead.distribute'), t('lead.distribute.hint'))}
-      ${sw('lead.handoffOnDone', st.lead?.handoffOnDone ?? true, t('lead.handoff'), t('lead.handoff.hint'))}
-      ${num('lead.idleMin', st.lead?.idleMin ?? 30, t('lead.idle'), t('lead.idle.hint'), 1, 240)}
-      ${sw('lead.monitor.on', st.lead?.monitor?.on ?? true, t('lead.monitor'), t('lead.monitor.hint'))}
-      ${num('lead.monitor.staleMin', st.lead?.monitor?.staleMin ?? 60, t('lead.monitor.staleMin'), '', 5, 1440)}
-      ${num('lead.monitor.nudgeMin', st.lead?.monitor?.nudgeMin ?? 15, t('lead.monitor.nudgeMin'), '', 0, 240)}
-      <label class="setrow"><span><b>${t('lead.fallback')}</b><small>${t('lead.fallback.hint')}</small></span><input type="text" data-set="lead.fallback" value="${esc(st.lead?.fallback ?? '')}" maxlength="40" placeholder="${t('lead.fallback.ph')}"></label>
+      ${sw('lead.delegate', st.lead?.delegate ?? true)}
+      ${sw('lead.distribute', st.lead?.distribute ?? true)}
+      ${sw('lead.handoffOnDone', st.lead?.handoffOnDone ?? true)}
+      ${num('lead.idleMin', st.lead?.idleMin ?? 30)}
+      ${sw('lead.monitor.on', st.lead?.monitor?.on ?? true)}
+      ${num('lead.monitor.staleMin', st.lead?.monitor?.staleMin ?? 60)}
+      ${num('lead.monitor.nudgeMin', st.lead?.monitor?.nudgeMin ?? 15)}
+      ${txt('lead.fallback', st.lead?.fallback ?? '', ` maxlength="40" placeholder="${t('lead.fallback.ph')}"`)}
     </div>
     <h2>${t('set.auto.title')}</h2><div class="setbox">
       <p class="small muted note">${t('set.auto.note')}</p>
-      ${sw('autoJobs.handoff.enabled', aj.handoff.enabled, t('set.handoff'))}
-      ${num('autoJobs.handoff.thresholdK', aj.handoff.thresholdK, t('set.handoff.k'), '', 50, 2000)}
-      ${sw('autoJobs.digest.enabled', aj.digest.enabled, t('set.digest'))}
-      ${num('autoJobs.digest.minChars', aj.digest.minChars, t('set.digest.min'), '', 1000, 100000)}
-      ${sw('autoJobs.notes.enabled', aj.notes.enabled, t('set.notes'), t('set.notes.hint'))}
-      ${num('autoJobs.notes.minNotes', aj.notes.minNotes, t('set.notes.min'), '', 5, 500)}
-      ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay, t('set.maxRuns'), '', 0, 200)}
+      ${sw('autoJobs.handoff.enabled', aj.handoff.enabled)}
+      ${num('autoJobs.handoff.thresholdK', aj.handoff.thresholdK)}
+      ${sw('autoJobs.digest.enabled', aj.digest.enabled)}
+      ${num('autoJobs.digest.minChars', aj.digest.minChars)}
+      ${sw('autoJobs.notes.enabled', aj.notes.enabled)}
+      ${num('autoJobs.notes.minNotes', aj.notes.minNotes)}
+      ${num('autoJobs.maxRunsPerDay', aj.maxRunsPerDay)}
     </div>`,
     data: `    <h2>${t('set.archive')}</h2><div class="setbox">
-      ${sw('archive.enabled', arOn, t('set.archive'), t('set.archive.hint'))}
-      <label class="setrow"><span><b>${t('set.archive.dir')}</b><small class="${ar && !ar.ok && arOn ? 'bad' : ''}">${arState}</small></span><input class="txtin" data-set="archive.dir" value="${esc(st.archive.dir)}" placeholder="X:\\Coding\\claude-mem" spellcheck="false"></label>
+      ${sw('archive.enabled', arOn)}
+      ${txt('archive.dir', st.archive.dir, ` placeholder="X:\\Coding\\claude-mem"`)}
+      ${arState ? `<p class="small muted">${arState}</p>` : ''}
     </div>
     <h2>${t('data.title')}</h2>
     ${dataBlock()}
@@ -4218,16 +4316,26 @@ function renderSettingsView() {
     <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
     account: accountBlock(st),
   };
-  const bar = `<span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
+  const bar = `<div class="setbar"><input id="setSearch" class="txtin" type="search" value="${esc(S.setQuery || '')}" placeholder="${t('settings.search.ph')}" aria-label="${t('settings.search')}" autocomplete="off"><span class="small muted" id="setNoMatch" hidden>${t('settings.noMatch')}</span></div><span class="seg" role="group" aria-label="${t('set.groups')}" style="margin-bottom:14px">${Object.entries(SUBS).map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === S.setSub}">${l}</button>`).join('')}</span>`;
   $('view-settings').innerHTML = `<div class="vw">${bar}${P[S.setSub]}
   </div>`;
+  applySettingsFilter();
+  if (S.setFocusRow) {
+    const row = $('view-settings').querySelector(`[data-row="${S.setFocusRow}"]`);
+    S.setFocusRow = undefined;
+    if (row) { row.scrollIntoView({ block: 'center' }); row.classList.add('pulse'); setTimeout(() => row.classList.remove('pulse'), 1200); }
+  }
 }
 async function saveSetting(el) {
   const v = el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
-  try { S.settings = await api('/api/settings', patchAt(el.dataset.set, v), 'PUT'); toast(t('settings.saved')); }
+  return saveValue(el.dataset.set, v);
+}
+/** One write path for a row and its "back to default" button (#234). */
+async function saveValue(key, v) {
+  try { S.settings = await api('/api/settings', patchAt(key, v), 'PUT'); toast(t('settings.saved')); }
   catch (e) { toast(e.message); }
-  if (el.dataset.set.startsWith('browser.')) S.browserStatus = await loadBrowserStatus();
-  if (el.dataset.set === 'language') renderEverything(); else renderSettingsView();
+  if (key.startsWith('browser.')) S.browserStatus = await loadBrowserStatus();
+  if (key === 'language') renderEverything(); else renderSettingsView();
 }
 async function saveRule(skill, rule) {
   try { S.settings = await api('/api/settings', { agentSkills: { [S.skAgent]: { [skill]: rule } } }, 'PUT'); }
@@ -4277,6 +4385,7 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
   });
   sv.addEventListener('input', (e) => {
+    if (e.target.id === 'setSearch') { S.setQuery = e.target.value; return applySettingsFilter(); }
     const id = e.target.id; if (id !== 'skQuery' && id !== 'cmpQuery') return;
     if (id === 'cmpQuery') S.cmpQuery = e.target.value; else S.skQuery = e.target.value;
     renderSettingsView();
@@ -4323,6 +4432,8 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('click', (e) => {
     const sb = e.target.closest('[data-sub]');
     if (sb) { S.setSub = sb.dataset.sub; if (S.setSub === 'data') S.dataInfo = null; if (S.setSub === 'memory') S.memoryEntries = undefined; if (S.setSub === 'health' || S.setSub === 'setup') loadHealth(); if (S.setSub === 'account') S.acct = undefined; return renderSettingsView(); }
+    const rs = e.target.closest('[data-reset]');
+    if (rs) { e.preventDefault(); const d = DEF(rs.dataset.reset); if (d) saveValue(d.key, d.default); return; }
     if (e.target.closest('#healthRefresh') || e.target.closest('[data-hcheck]')) { loadHealth(); return; }
     if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();
     const agyCheck = e.target.closest('[data-agy-check]');
