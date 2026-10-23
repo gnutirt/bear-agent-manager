@@ -29,6 +29,12 @@ const faceToward = (fx, fz, tx, tz) => Math.atan2(-(tx - fx), -(tz - fz));
 const behind = (x, z, facing, dist) => ({ x: x + Math.sin(facing) * dist, z: z + Math.cos(facing) * dist });
 const rand = (a, b) => a + Math.random() * (b - a);
 const at = (obj, x, z) => { obj.position.set(x, 0, z); return obj; };
+/** Giờ dậy trên chip của người đang ngủ: hôm nay chỉ giờ:phút, khác ngày thì kèm ngày */
+const wakeText = (ts) => {
+  const d = new Date(ts), n = new Date();
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return d.toDateString() === n.toDateString() ? hm : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
+};
 // Thời gian nghỉ (giây): ngồi rảnh bao lâu thì đi, ở lại bao lâu
 const BREAK = { first: [1, 4], again: [8, 20], stay: [45, 120] };   // rảnh là đi ngay; hết chỗ thì thử lại sau vài giây
 
@@ -61,6 +67,7 @@ export class Office3D {
     this.quality = this.loadQuality();
     this.layoutSig = '';
     this.spots = [];             // chỗ ngồi ở khu cà phê / giải trí
+    this.beds = [];              // giường ở khu nghỉ (#225)
     this.games = new L.GameScreens();
     this.leisureSpeed = 1;       // >1 để thử nhanh (?nghi=nhanh)
   }
@@ -209,7 +216,14 @@ export class Office3D {
       this.rebuild(departments, agents);
       this.layoutSig = sig;            // chỉ ghi nhận khi dựng thành công
     }
-    for (const a of agents) this.setStatus(a.id, a.status, true);
+    for (const a of agents) {
+      const v = this.agents.get(a.id);
+      if (v) {
+        v.sleepUntil = Number(a.sleepUntil) || 0;
+        if (v.where === 'sleep') this.showZzz(v);   // giờ dậy đổi thì chip đổi theo
+      }
+      this.setStatus(a.id, a.status, true);
+    }
     this.refreshLights();
   }
 
@@ -221,7 +235,7 @@ export class Office3D {
     this.layout = new THREE.Group(); this.dynamic = new THREE.Group();
     this.scene.add(this.layout, this.dynamic);
     this.agents.clear(); this.clusters = []; this.hitboxes = [];
-    this.games.dispose(); this.spots = [];
+    this.games.dispose(); this.spots = []; this.beds = [];
     this.nav = new NavGrid(FLOOR.w, FLOOR.d);
 
     const build = new THREE.Group();           // gom tĩnh rồi gộp
@@ -236,6 +250,7 @@ export class Office3D {
       else if (style.shape === 'room') this.buildRoom(d, style, members, build);
       else if (style.shape === 'cafe' && !members.length) this.buildCafe(d, style, build);
       else if (style.shape === 'game' && !members.length) this.buildGame(d, style, build);   // lỡ xếp người vào khu nghỉ → dựng bàn làm việc để không ai bị mất
+      else if (style.shape === 'rest') this.buildRest(d, style, build);
       else this.buildZone(d, style, members, build);
     }
     this.buildDecor(departments, build, dense);
@@ -585,6 +600,118 @@ export class Office3D {
     this.clusters.push(cluster);
   }
 
+  // ---------------------------------------------------------------- khu nghỉ (#225)
+  /** Bốn giường cho agent hết hạn mức. Không đèn điểm / vũng sáng / bóng thật mới: giữ mức Thấp nhẹ. */
+  bedProp() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.06, 0.26, 2.08), MAT.woodDark, 0, 0.17, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.96, 0.2, 1.96), MAT.desk, 0, 0.4, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.64, 0.13, 0.36), MAT.sofa, 0, 0.56, 0.7));           // gối ở đầu +z
+    g.add(mesh(new THREE.BoxGeometry(0.98, 0.1, 1.05), MAT.cushionGreen, 0, 0.55, -0.32));  // chăn
+    g.add(mesh(new THREE.BoxGeometry(1.06, 0.66, 0.08), MAT.woodDark, 0, 0.62, 1.02));      // ván đầu giường
+    return g;
+  }
+
+  buildRest(d, style, build) {
+    const r = rng(style.seed ?? 9);
+    this.addRug(d, build, 0.14, r);
+    this.addLabel(style.label || d.name, d.x, d.z + d.d / 2 + 0.32, d.w * 0.6, build, 0.44);   // giữa cà phê và khu giải trí, trước hai hàng giường
+    const cluster = { id: d.id, deptId: d.id, agents: [], lamps: [], center: new THREE.Vector3(d.x, 2.0, d.z), amenity: true, occupants: new Set() };
+    let i = 0;
+    for (const oz of [-0.95, 0.95]) for (const ox of [-1.2, 1.2]) {
+      const bx = d.x + ox, bz = d.z + oz;
+      const bed = this.bedProp(); bed.position.set(bx, 0, bz); build.add(bed);
+      this.nav.rect(bx - 0.6, bz - 1.06, bx + 0.6, bz + 1.06);
+      this.beds.push({ id: `${d.id}-${i++}`, kind: 'bed', x: bx, z: bz, facing: 0, seatH: 0.58, exit: { x: bx + 1.25, z: bz }, occupant: null, cluster });
+    }
+    for (const [lx, k] of [[-d.w / 2 + 0.35, 1], [d.w / 2 - 0.35, 2]]) {
+      const p = this.make('plant_big', () => F.bigPlant((style.seed ?? 9) * 7 + k, 0.8));
+      p.position.set(d.x + lx, 0, d.z + d.d / 2 - 0.35); build.add(p);
+      this.nav.circle(p.position.x, p.position.z, 0.28);
+    }
+    this.clusters.push(cluster);
+  }
+
+  // ---------------------------------------------------------------- ngủ khi hết hạn mức (#225)
+  /** Người ngủ hiện rõ (không mờ 35% như agent hết hạn mức ngồi bàn) */
+  faded(p, opacity) {
+    for (const m of (p.materials ?? (p.mat ? [p.mat] : []))) {
+      m.transparent = opacity < 1;
+      m.opacity = opacity;
+      m.depthWrite = opacity >= 1;
+      m.needsUpdate = true;
+    }
+  }
+
+  /** Chip 💤 + giờ dậy nổi trên giường; đổi giờ thì dựng lại texture */
+  showZzz(v) {
+    const bed = v.bed; if (!bed) return;
+    const text = v.sleepUntil ? `💤 ${wakeText(v.sleepUntil)}` : '💤';
+    if (!v.zzz || v.zzzText !== text) {
+      if (v.zzz) { this.dynamic.remove(v.zzz); v.zzz.material.map?.dispose(); v.zzz.material.dispose(); }
+      const { texture, aspect } = pillLabel(text, { size: 44, color: '#cfe0ff', bg: 'rgba(15,17,16,.82)', pad: 12 });
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false }));
+      s.userData = { aspect, h: 0.3 };
+      s.scale.set(0.3 * aspect, 0.3, 1); s.renderOrder = 12;
+      this.dynamic.add(s);
+      v.zzz = s; v.zzzText = text;
+    }
+    v.zzz.visible = true;
+    v.zzz.position.set(bed.x, 1.28, bed.z + 0.35);
+  }
+
+  /** Tới giường: nằm ngửa, đầu phía gối (+z), chân chui xuống đệm (che bằng khung giường) */
+  layDown(v) {
+    const p = v.person, bed = v.bed;
+    this.faded(p, 1);
+    p.baseY = bed.seatH;
+    p.root.rotation.x = Math.PI / 2;
+    p.root.rotation.y = bed.facing;
+    p.root.position.set(bed.x, bed.seatH + 0.16, bed.z + (p.model ? -0.85 : 0.05));
+    p.anchor.set(bed.x, 0, bed.z);
+    v.where = 'sleep';
+    bed.occupant = v.id;
+    bed.cluster.occupants.add(v.id);
+    this.showZzz(v);
+    this.refreshLights();
+  }
+
+  goSleep(v) {
+    const bed = this.beds.find((b) => !b.occupant);
+    if (!bed) return false;
+    const path = this.route(v, bed);
+    this.leaveSpot(v);
+    this.faded(v.person, 1);   // đi ngủ thì hiện rõ, không còn bóng mờ
+    v.bed = bed; v.where = 'going-sleep';
+    v.person.travel({ path, seat: bed, run: false, onArrive: () => this.layDown(v) });
+    return true;
+  }
+
+  wakeUp(v) {
+    const bed = v.bed, p = v.person;
+    p.root.rotation.x = 0;
+    if (bed) p.place(bed.x, bed.seatH, bed.z, bed.facing);
+    this.goHome(v);            // tuyến tính từ lối cạnh giường, lúc này v.bed còn để startPoint dùng
+    if (bed) { bed.occupant = null; bed.cluster.occupants.delete(v.id); }
+    v.bed = null; v.sleepTryAt = 0;
+    if (v.zzz) v.zzz.visible = false;
+    this.refreshLights();
+  }
+
+  /** Gọi mỗi khung hình: hết hạn mức thì đi nằm, hết hạn thì về bàn */
+  updateSleep() {
+    for (const v of this.agents.values()) {
+      if (v.where === 'sleep' || v.where === 'going-sleep') {
+        if (v.status !== 'offline') this.wakeUp(v);
+        continue;
+      }
+      if (v.status !== 'offline' || v.where !== 'home' || v.person.trip) continue;
+      if (Date.now() < (v.sleepTryAt || 0)) continue;
+      if (!v.sleepUntil) v.sleepUntil = 0;
+      if (!this.goSleep(v)) v.sleepTryAt = Date.now() + 4000;   // hết giường: thử lại sau, vẫn ngồi bàn mờ
+    }
+  }
+
   // ---------------------------------------------------------------- trang trí chung
   buildDecor(departments, build, dense) {
     const { w, d } = FLOOR;
@@ -715,6 +842,7 @@ export class Office3D {
   /** Điểm đứng hiện tại (cạnh ghế đang ngồi, hoặc ngay chỗ đang đi) */
   startPoint(v) {
     const p = v.person;
+    if (v.bed && (v.where === 'sleep' || v.where === 'going-sleep')) return v.bed.exit;
     if (p.trip) return { x: p.anchor.x, z: p.anchor.z };
     return v.where === 'home' ? v.home.exit : v.spot?.exit ?? { x: p.anchor.x, z: p.anchor.z };
   }
@@ -775,7 +903,7 @@ export class Office3D {
     if (v._ax === a.x && v._az === a.z && v._st === p.standing) return;
     v._ax = a.x; v._az = a.z; v._st = p.standing;
     const seatH = p.baseY ?? 0.5;
-    const ly = (1.4 + seatH) * (1 - p.standing) + 2.08 * p.standing;
+    const ly = v.where === 'sleep' ? 1.15 : (1.4 + seatH) * (1 - p.standing) + 2.08 * p.standing;
     v.label.position.set(a.x, ly, a.z);
     v.alert.position.x = a.x; v.alert.position.z = a.z; v.alertY = ly + 0.4;
     if (v.icon) v.icon.position.x = a.x, v.icon.position.z = a.z;
@@ -946,6 +1074,7 @@ export class Office3D {
     this.screens.update(t);
     this.games.update(t);
     this.updateLeisure(dt);
+    this.updateSleep();
     for (const v of this.agents.values()) {
       v.person.update(t, dt);
       this.syncAgent(v);
