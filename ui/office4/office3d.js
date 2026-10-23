@@ -425,16 +425,22 @@ export class Office3D {
     }
 
     // bàn tròn + ghế
+    const meet = !!style.meeting, R = meet ? 1.45 : 0.55;   // phòng họp: bàn lớn, 8 ghế
     const tx = d.x + side * 0.15, tz = d.z;
-    build.add(mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.04, 32), MAT.desk, tx, 0.74, tz));
-    build.add(mesh(new THREE.CylinderGeometry(0.05, 0.22, 0.72, 16), MAT.aluminium, tx, 0.36, tz));
-    build.add(blobShadow(1.6, 1.6).translateX(tx).translateZ(tz));
-    this.nav.circle(tx, tz, 0.55);
+    build.add(mesh(new THREE.CylinderGeometry(R, R, 0.04, 40), MAT.desk, tx, 0.74, tz));
+    build.add(mesh(new THREE.CylinderGeometry(0.05, meet ? 0.5 : 0.22, 0.72, 16), MAT.aluminium, tx, 0.36, tz));
+    build.add(blobShadow(R * 2.9, R * 2.9).translateX(tx).translateZ(tz));
+    this.nav.circle(tx, tz, R);
     const cluster = { id: d.id, deptId: d.id, agents: [], lamps: [], center: new THREE.Vector3(tx, 2.2, tz) };
     this.addPendant(cluster, tx, tz, build, 0.76);
     const angles = [Math.PI, 0, Math.PI / 2, -Math.PI / 2];
+    if (meet) for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4, x = tx + Math.sin(a) * (R + 0.45), z = tz + Math.cos(a) * (R + 0.45), facing = faceToward(x, z, tx, tz);
+      const ch = this.make('chair_office', () => F.officeChair(i * 7)); ch.position.set(x, 0, z); ch.rotation.y = facing; build.add(ch);
+      this.nav.circle(x, z, 0.24);
+    }
     const n = Math.max(members.length, 3);
-    for (let i = 0; i < Math.min(n, 4); i++) {
+    for (let i = 0; i < (meet ? 0 : Math.min(n, 4)); i++) {
       const a = angles[i];
       const x = tx + Math.sin(a) * 0.95, z = tz + Math.cos(a) * 0.95;
       const facing = faceToward(x, z, tx, tz);

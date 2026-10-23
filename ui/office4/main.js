@@ -9,19 +9,19 @@ const LAYOUT = [   // positions and styles of the ai-office floor; names and the
   { id: 'san-xuat-noi-dung', color: '#b9745a', x: 8.6, z: 4.9, w: 8.6, d: 6.4, style: { shape: 'zone', screenTheme: 'media', seed: 41 } },
   { id: 'dieu-phoi', color: '#2f3033', x: 0, z: -0.7, w: 8.4, d: 8.4, style: { shape: 'lounge', screenTheme: 'docs', seed: 53 } },
   { id: 'khach-hang', color: '#6d7a8c', x: -16.1, z: -0.6, w: 3.6, d: 6.6, style: { shape: 'room', screenTheme: 'docs', seed: 61 } },
-  { id: 'san-xuat-phim', color: '#8c6d7a', x: 16.1, z: -0.6, w: 3.6, d: 6.6, style: { shape: 'room', screenTheme: 'media', seed: 67 } },
+  { id: 'san-xuat-phim', color: '#8c6d7a', x: 14.9, z: -0.4, w: 6, d: 6.4, style: { shape: 'room', meeting: true, screenTheme: 'media', seed: 67 } },
   { id: 'ca-phe', color: '#6b4a34', x: -9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'cafe', seed: 71 } },
   { id: 'giai-tri', color: '#2a2f6b', x: 9.4, z: 11.35, w: 11.4, d: 4.0, style: { shape: 'game', seed: 73 } },
 ];
-const ZONE_TIER = { 'san-xuat-phim': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'dieu-phoi': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí' };
+const ZONE_TIER = { 'dieu-phoi': 2, 'thiet-ke': 3, 'chien-luoc': 4, 'ky-thuat': 5, 'san-xuat-noi-dung': 5 }, FIXED = { 'khach-hang': 'Phòng trưởng phòng', 'san-xuat-phim': 'Phòng họp', 'ca-phe': 'Cà phê', 'giai-tri': 'Giải trí' };
 const SEATS = 8;   // one bench cluster of the zone
 const enc = encodeURIComponent;
 const lower = (s) => String(s).toLowerCase();
 
-/** The room lead sits in the left private room, tiers 1 and 2 in the right one (the lounge is the meeting room), 3 and 4 get their own zone, 5 and up fill two zones of 8. */
+/** The room lead sits in the left private room, tiers 1 and 2 in the lounge (the right private room is the meeting room), 3 and 4 get their own zone, 5 and up fill two zones of 8. */
 function zoneFor(tier, nth, lead) {
   if (lead) return 'khach-hang';
-  if (tier <= 2) return 'san-xuat-phim';
+  if (tier <= 2) return 'dieu-phoi';
   if (tier === 3) return 'thiet-ke';
   if (tier === 4) return 'chien-luoc';
   return nth < SEATS ? 'ky-thuat' : 'san-xuat-noi-dung';
