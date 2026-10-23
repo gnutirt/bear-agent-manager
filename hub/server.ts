@@ -332,7 +332,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         await browser.start();
         const rows = await mcpcfg.listServers(run, cwd);
         if (!rows.some((row) => row.name === 'bam-browser')) {
-          await mcpcfg.addServer(run, cwd, 'bam-browser', 'user', mcpServerFor(browser.endpoint()));
+          await mcpcfg.addServer(run, cwd, 'bam-browser', 'user', mcpServerFor(browser.endpoint(), process.platform, port));
         }
         browserAgents = true;
         appliedBrowserCfg = key;
@@ -541,7 +541,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         onRooms,
         onMessage,
         onQuota: (limit) => handleCopilotQuota(p.id, limit),
-        browserMcp: () => (browser && loadSettings(opts.dir, envCap).browser.enabled ? mcpServerFor(browser.endpoint()) : undefined),
+        browserMcp: () => (browser && loadSettings(opts.dir, envCap).browser.enabled ? mcpServerFor(browser.endpoint(), process.platform, port) : undefined),
         createClient: opts.copilotClientFactory,
       });
     copilots.set(p.id, { agent, key });
@@ -656,7 +656,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const mcp = path.join(opts.dir, `api-agent-${p.id}.mcp.json`);   // no keys in it: only the session id and where the hub is
     const lean = leanMcpConfig(sid, opts.dir, port, path.join(ROOT, 'mcp', 'server.ts'), process.execPath, perm.guarded ? path.join(ROOT, 'mcp', 'perm-server.ts') : undefined);
     // #216: `--bare` hides the user scope, so a claude-api agent only sees bam-browser if it is copied into this lean file.
-    const browserMcp = browser && cfg.browser.enabled ? { 'bam-browser': mcpServerFor(browser.endpoint()) } : {};
+    const browserMcp = browser && cfg.browser.enabled ? { 'bam-browser': mcpServerFor(browser.endpoint(), process.platform, port) } : {};
     fs.writeFileSync(mcp, JSON.stringify({ mcpServers: { ...mcpcfg.extraForAgent(opts.dir, p.id), ...browserMcp, ...lean.mcpServers } }));   // #155: the servers added for this agent in Settings; the hub's own win
     return { env, perm, model: p.model || prov.models.read[0], args: leanArgs(mcp, perm.guarded) };
   }

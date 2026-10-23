@@ -108,7 +108,7 @@ test('browser is enabled by default and registers one user-scope bam-browser MCP
     assert.deepEqual(add?.slice(0, 3), ['mcp', 'add-json', 'bam-browser']);
     assert.equal(add?.[4], '--scope');
     assert.equal(add?.[5], 'user');
-    assert.deepEqual(JSON.parse(add?.[3] ?? '{}'), mcpServerFor('http://127.0.0.1:9333'));
+    assert.deepEqual(JSON.parse(add?.[3] ?? '{}'), mcpServerFor('http://127.0.0.1:9333', process.platform, hub.port));
     assert.equal(mcp.calls.filter((args) => args[1] === 'add-json').length, 1);
   } finally { await hub.close(); }
 
@@ -174,7 +174,7 @@ test('a browser config change replaces bam-browser while Chrome is stopped after
     await until(() => browser.running() && mcp.entries.includes('bam-browser'));
     assert.deepEqual(mcp.calls.filter((args) => args[1] === 'remove').map((args) => args.slice(0, 3)), [['mcp', 'remove', 'bam-browser']]);
     const add = mcp.calls.filter((args) => args[1] === 'add-json').at(-1);
-    assert.deepEqual(JSON.parse(add?.[3] ?? '{}'), mcpServerFor('http://127.0.0.1:9444'));
+    assert.deepEqual(JSON.parse(add?.[3] ?? '{}'), mcpServerFor('http://127.0.0.1:9444', process.platform, hub.port));
     assert.deepEqual(mcp.entries, ['user-owned-server', 'bam-browser']);
   } finally { await hub.close(); }
 });

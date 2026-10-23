@@ -153,7 +153,7 @@ test('Copilot reconnects quietly unless it was offline for more than ten minutes
 
 test('#216 Copilot receives the hub browser as an MCP server when Settings > Browser is on', async () => {
   const { hub, dir } = await makeHub();
-  const browserMcp = mcpServerFor('http://127.0.0.1:9333');
+  const browserMcp = mcpServerFor('http://127.0.0.1:9333', process.platform, hub.port);
   const on = fakeFactory();
   const makeAgent = (name: string, opts: Record<string, unknown>) => new CopilotAgent({
     dir,

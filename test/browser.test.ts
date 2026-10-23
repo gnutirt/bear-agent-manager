@@ -203,16 +203,18 @@ test('stop() is intentional and does not trigger a restart', async () => {
 });
 
 test('mcpServerFor pins Playwright MCP and isolates each client', () => {
-  const win = mcpServerFor('http://127.0.0.1:9333', 'win32');
+  const win = mcpServerFor('http://127.0.0.1:9333', 'win32', 7788);
   assert.deepEqual(win, {
     type: 'stdio', command: 'cmd',
-    args: ['/c', 'npx', '-y', `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, '--cdp-endpoint', 'http://127.0.0.1:9333', '--isolated'],
+    args: ['/c', 'npx', '-y', `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, '--cdp-endpoint', 'http://127.0.0.1:9333', '--isolated', '--blocked-origins', 'http://127.0.0.1:7788;http://localhost:7788;http://[::1]:7788'],
   });
-  const unix = mcpServerFor('http://127.0.0.1:9333', 'linux');
+  const unix = mcpServerFor('http://127.0.0.1:9333', 'linux', 7788);
   assert.equal(unix.command, 'npx');
   assert.ok(unix.args?.includes('--isolated'));
   assert.ok(unix.args?.includes('--cdp-endpoint'));
   assert.ok(unix.args?.includes('http://127.0.0.1:9333'));
+  const blockedIndex = unix.args?.indexOf('--blocked-origins') ?? -1;
+  assert.equal(unix.args?.[blockedIndex + 1], 'http://127.0.0.1:7788;http://localhost:7788;http://[::1]:7788');
 });
 
 function fakeChild() {

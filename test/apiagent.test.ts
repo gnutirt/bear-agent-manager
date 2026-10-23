@@ -347,7 +347,7 @@ test('#216 a claude-api agent gets the hub browser in its lean MCP file while Se
     await call('/api/settings', { agents: { profiles: [prof({ id: 'browser-on', name: 'BrowserOn' })] } }, { method: 'PUT' });
     await until(() => jobs.length === 1, 5000, 'the API agent starts');
     const mcp = JSON.parse(fs.readFileSync(jobs[0].args[jobs[0].args.indexOf('--mcp-config') + 1], 'utf8'));
-    assert.deepEqual(mcp.mcpServers['bam-browser'], mcpServerFor('http://127.0.0.1:9333'));
+    assert.deepEqual(mcp.mcpServers['bam-browser'], mcpServerFor('http://127.0.0.1:9333', process.platform, hub.port));
     assert.ok(mcp.mcpServers.room, 'the hub room server is still in the same file');
     assert.equal(mcp.mcpServers.room.env.CLAUDE_CODE_SESSION_ID, jobs[0].id);
   } finally { await hub.close(); }

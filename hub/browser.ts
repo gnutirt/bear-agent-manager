@@ -5,8 +5,12 @@ import type { McpServer } from './mcpconfig.ts';
 import { killTree } from './workers.ts';
 
 export const PLAYWRIGHT_MCP_VERSION = '0.0.83'; // Published 2026-09-28, more than 14 days before the 2026-10-23 pin.
-export function mcpServerFor(endpoint: string, platform: NodeJS.Platform = process.platform): McpServer {
+export function mcpServerFor(endpoint: string, platform: NodeJS.Platform = process.platform, hubPort?: number): McpServer {
   const args = ['-y', `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, '--cdp-endpoint', endpoint, '--isolated'];
+  if (hubPort != null) {
+    const blockedOrigins = ['127.0.0.1', 'localhost', '[::1]'].map((host) => `http://${host}:${hubPort}`);
+    args.push('--blocked-origins', blockedOrigins.join(';'));
+  }
   return {
     type: 'stdio',
     command: platform === 'win32' ? 'cmd' : 'npx',
