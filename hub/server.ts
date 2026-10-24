@@ -378,7 +378,7 @@ const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
 const IDLE_COMPACT_EVERY_MS = 10 * 60_000;
 const API_RETRY_MS = [30_000, 2 * 60_000, 5 * 60_000];
-const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop()?.slice(0, 160) ?? '';
+const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.includes('unrecognized_model')).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const ideBridge = new IdeBridge();
