@@ -56,6 +56,27 @@ test('#293b a DM is addressed at the duck: no @ needed, and the answer goes back
   await h.member.stop();
 });
 
+test('#297 a DM turn is not swallowed by an unrelated unmentioned shared-room message', async (t) => {
+  const h = await setup(t);
+  const dm = h.store.dmRoom(h.sid);
+  const other = h.store.register({ id: 'other-agent', name: 'OtherAgent', cwd: h.dir });
+  h.store.join(other.id, ROOM);
+  const roomMessage = h.store.post(ROOM, other.id, 'This is an unrelated update.').message;
+  assert.equal(roomMessage.wake.includes(h.sid), false, 'an unmentioned agent message does not wake the duck');
+
+  const dmMessage = h.store.post(dm.name, null, 'beli').message;
+  assert.ok(dmMessage.wake.includes(h.sid));
+  h.replies.push('Saya bisa membantu menjawab pertanyaan dan meninjau ide.');
+  await h.member.wake(h.sid);
+
+  assert.equal(h.calls.length, 1, 'only the DM should trigger a turn');
+  assert.equal(h.calls[0].room, dm.name);
+  assert.match(answers(h, dm.name)[0]?.text ?? '', /bisa membantu/);
+  assert.equal(answers(h, ROOM).length, 0, 'the unrelated room message is consumed without a reply');
+  assert.equal(h.store.pending(h.sid).messages.length, 0);
+  await h.member.stop();
+});
+
 test('#295 the shared room: SKIP is silent, the gap is respected, and an @ skips the gap', async (t) => {
   const h = await setup(t);
   const first = h.store.post(ROOM, null, 'mọi người nghĩ gì về kế hoạch này?').message;
@@ -83,6 +104,32 @@ test('#295 the shared room: SKIP is silent, the gap is respected, and an @ skips
   h.store.post(ROOM, null, 'còn ý kiến gì không?');
   await h.member.wake(h.sid);
   assert.equal(h.calls.length, 2, 'the answered @ restarted the gap');
+  await h.member.stop();
+});
+
+test('#297 an empty DM answer posts an error in the DM and leaves its message pending', async (t) => {
+  const h = await setup(t);
+  const dm = h.store.dmRoom(h.sid);
+  const message = h.store.post(dm.name, null, 'Beli, bạn giúp gì được?').message;
+  assert.ok(message.wake.includes(h.sid));
+  h.replies.push('');
+  await h.member.wake(h.sid);
+
+  assert.equal(h.member.snapshot().state, 'error');
+  assert.ok(h.store.history(dm.name).some((m) => m.sys?.type === 'error'), 'the DM should show the failure');
+  assert.equal(h.store.pending(h.sid).messages.some((m) => m.id === message.id), true, 'the failed DM stays pending');
+  await h.member.stop();
+});
+
+test('#297 a DM reply of SKIP is posted instead of being silently consumed', async (t) => {
+  const h = await setup(t);
+  const dm = h.store.dmRoom(h.sid);
+  h.store.post(dm.name, null, 'Beli, bạn hỗ trợ được gì?');
+  h.replies.push('SKIP');
+  await h.member.wake(h.sid);
+
+  assert.equal(answers(h, dm.name)[0]?.text, 'SKIP');
+  assert.equal(h.store.pending(h.sid).messages.length, 0);
   await h.member.stop();
 });
 

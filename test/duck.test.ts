@@ -58,6 +58,7 @@ test('Duck flatten formats natural advice request, places question at end, and o
       ],
     },
     text: 'Dự án này nên cấu hình backup thế nào?',
+    skip: true,
   });
   assert.ok(promptVi.startsWith('Mình đang làm việc trong nhóm phát triển phần mềm, cần bạn góp ý.'));
   assert.ok(promptVi.includes('Bối cảnh ngắn:'));
@@ -75,6 +76,7 @@ test('Duck flatten formats natural advice request, places question at end, and o
   // English question uses English intro and labels
   const promptEn = flatten({
     text: 'What is the recommended database backup strategy?',
+    skip: true,
   });
   assert.ok(promptEn.startsWith('I am working with a software development team and would like your advice.'));
   assert.ok(promptEn.includes('Question:\nWhat is the recommended database backup strategy?'));
@@ -90,12 +92,16 @@ test('Duck flatten formats natural advice request, places question at end, and o
   const trimmed = flatten({
     history: { summary: 'Summary', turns: longTurns },
     text: 'Cần giải pháp gì cho caching?',
+    skip: true,
   });
   assert.ok(trimmed.length <= 8000);
   assert.ok(trimmed.includes('Câu hỏi:\nCần giải pháp gì cho caching?'));
   assert.ok(trimmed.trimEnd().endsWith('SKIP'), 'the hint stays at the end even when context is cut');
   assert.ok(!trimmed.includes('[Hệ thống]'));
   assert.ok(trimmed.includes('turn 19 content'));
+
+  const dmPrompt = flatten({ text: 'Beli, bạn hỗ trợ được gì?', skip: false });
+  assert.ok(!dmPrompt.includes('SKIP'));
 });
 
 test('Duck remember stores room/project memories, but refuses secrets without saving them', async (t) => {

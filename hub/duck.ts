@@ -59,6 +59,7 @@ export function flatten(o: {
   memories?: MemEntry[];
   history?: ChatHistory;
   text: string;
+  skip?: boolean;
 }): string {
   const query = o.text.trim();
   const isVi = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(query);
@@ -68,11 +69,12 @@ export function flatten(o: {
     : 'I am working with a software development team and would like your advice.';
   const contextLabel = isVi ? 'Bối cảnh ngắn:' : 'Brief context:';
   const questionLabel = isVi ? 'Câu hỏi:' : 'Question:';
-  // #295: the duck now reads the shared room too and decides whether to speak; SKIP is the quiet answer (nothing is posted).
+  // #295: in shared rooms the duck may opt out with SKIP; DMs should always get an answer.
   const skipHint = isVi
     ? 'Nếu tin này không cần bạn góp ý, chỉ trả lời đúng một chữ: SKIP'
     : 'If this message needs no advice from you, reply with exactly one word: SKIP';
-  const budget = MAX_PROMPT - skipHint.length - 2;   // the hint always fits in the prompt
+  const hint = o.skip ? `\n\n${skipHint}` : '';
+  const budget = MAX_PROMPT - hint.length;
 
   const contextParts: string[] = [];
 
@@ -99,7 +101,6 @@ export function flatten(o: {
   }
 
   const questionPart = `${questionLabel}\n${query}`;
-  const hint = `\n\n${skipHint}`;
 
   if (`${intro}\n\n${questionPart}`.length > budget) {
     const head = `${intro}\n\n${questionLabel}\n`;
@@ -225,7 +226,7 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
       const history = loadHistory(o.home, o.agentId, room);
       const memories = o.memory.relevant(text, { room, project: o.project });
 
-      const prompt = flatten({ memories, history, text });
+      const prompt = flatten({ memories, history, text, skip: !room.startsWith('dm-') });
       let answer = '';
       try {
         const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));

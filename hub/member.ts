@@ -208,6 +208,10 @@ export class HubMember<K extends string = string> {
           // answer is the word SKIP (hub/duck.ts asks for it), so it is not forced to say something in every batch.
           const direct = room.startsWith('dm-') || batch.some((m) => m.mentions.includes(myName));
           if (!direct) {
+            if (!batch.some((m) => m.wake.includes(id))) {
+              this.opts.store.consumeIn(id, room, upToRoom);
+              continue;
+            }
             const gap = this.opts.roomCooldownMs?.() ?? 0;
             if (gap > 0 && this.lastRoomTurnAt !== undefined && this.now() - this.lastRoomTurnAt < gap) {
               this.opts.store.consumeIn(id, room, upToRoom);   // too soon: read it, do not spend a turn
@@ -229,10 +233,15 @@ export class HubMember<K extends string = string> {
         const turn = await this.opts.turn(id, room, prompt, promptBatch);
         finishBoard(turn);
         const reply = turn.text.trim();
-        const quiet = this.opts.kind === 'duck' && (turn.ok ? !reply || reply.toUpperCase() === 'SKIP' : turn.kind === 'empty');
+        const isDm = room.startsWith('dm-');
+        const quiet = this.opts.kind === 'duck' && !isDm && (turn.ok ? !reply || reply.toUpperCase() === 'SKIP' : turn.kind === 'empty');
         if (!turn.ok && !quiet) {
           // Rooms already answered keep their own cursors; this one stays pending and is retried on the next wake.
-          this.failedTurn(id, turn.error || `${this.opts.kind} returned an empty response`, turn.kind ?? turn.error);
+          this.failedTurn(id, turn.error || `${this.opts.kind} returned an empty response`, turn.kind ?? turn.error, room);
+          return;
+        }
+        if (this.opts.kind === 'duck' && isDm && turn.ok && !reply) {
+          this.failedTurn(id, `${this.opts.kind} returned an empty response`, 'empty', room);
           return;
         }
         this.failureKinds.clear();
@@ -252,14 +261,14 @@ export class HubMember<K extends string = string> {
     }
   }
 
-  private failedTurn(id: string, why: string, kind: string): void {
+  private failedTurn(id: string, why: string, kind: string, room = this.room): void {
     this.setStatus({ state: 'error', error: why });
     this.opts.store.setStatus(id, 'idle', `${this.opts.kind} needs attention`);
     if (this.opts.dedupeFailures && this.failureKinds.has(kind)) return;
     this.failureKinds.add(kind);
     const key = this.opts.failureKey ?? 'sys.agent.failed';
     const text = this.opts.store.tr(key, { name: this.opts.name, why });
-    this.opts.onMessage(this.room, this.opts.store.postSystem(this.room, text, undefined, { type: 'error', level: 'error', agent: this.opts.name }));
+    this.opts.onMessage(room, this.opts.store.postSystem(room, text, undefined, { type: 'error', level: 'error', agent: this.opts.name }));
   }
 
   async stop(): Promise<void> {
