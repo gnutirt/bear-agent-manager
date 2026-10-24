@@ -736,6 +736,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           workerModel: () => p.model || 'gpt-5.4-mini',
           failureKey: 'sys.duck.failed',
           dedupeFailures: true,
+          roomCooldownMs: () => (settings().duck?.roomCooldownSec ?? 180) * 1000,   // #295: at most one shared-room turn per gap
           turn: duckTurn({
             home: opts.dir,
             agentId: p.id,
@@ -2577,10 +2578,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
 
     // #284 (log T4): fetch a raw run log from logs/runs/ (never logs/ or ..)
-    const runLogMatch = p.match(/^\/api\/logs\/run\/(.+)$/);
-    if (m === 'GET' && (runLogMatch || p === '/api/logs/state.json' || (p.startsWith('/api/logs/') && p !== '/api/logs' && !runLogMatch) || req.url?.includes('/api/logs/run/..'))) {
-      const rawFile = runLogMatch ? runLogMatch[1] : '';
-      const decoded = decodeURIComponent(rawFile);
+    if (m === 'GET' && (p.startsWith('/api/logs/') && p !== '/api/logs')) {
+      const runLogMatch = p.match(/^\/api\/logs\/run\/(.+)$/);
+      let decoded = '';
+      try { decoded = runLogMatch ? decodeURIComponent(runLogMatch[1]) : ''; } catch {
+        return json(res, 400, { error: 'invalid log file name' });
+      }
       if (!runLogMatch || decoded.includes('..') || req.url?.includes('..') || !RUN_FILE_NAME.test(decoded)) {
         return json(res, 400, { error: 'invalid log file name' });
       }
