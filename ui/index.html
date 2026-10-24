@@ -3391,6 +3391,30 @@ function logQuery() {
   p.set('limit', '300');
   return p.toString();
 }
+/** #299: the lines the tab is showing — every filter applied, newest-first like the API. */
+const logShown = () => S.logs.filter(logKeep);
+/** #299: bam-logs-YYYYMMDD-HHmm.<ext> from the machine clock. */
+function logFileName(ext, at = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `bam-logs-${at.getFullYear()}${p(at.getMonth() + 1)}${p(at.getDate())}-${p(at.getHours())}${p(at.getMinutes())}.${ext}`;
+}
+/** #299: .jsonl — one entry per line exactly as GET /api/logs returned it (already redacted). */
+function logJsonExport(rows) {
+  return rows.map((e) => JSON.stringify(e)).join('\n') + (rows.length ? '\n' : '');
+}
+/** #299: .log — one readable line per entry: ts level area agent msg. */
+function logTextExport(rows) {
+  const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+  return rows.map((e) => [e.ts, e.level, e.area, clean(e.agent || '-'), clean(e.msg)].join(' ')).join('\n') + (rows.length ? '\n' : '');
+}
+/** #299: client-side download; no hub route is added for exports. */
+function downloadText(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 function logRowHtml(e) {
   const key = logKey(e), open = key === S.logOpenKey;
   return `<button type="button" class="logrow ${esc(e.level)}" data-log-row="${esc(key)}" aria-expanded="${open}"><span class="lt">${esc(logTime(e.ts))}</span><span class="ll ${esc(e.level)}">${esc(e.level)}</span><span class="la">${esc(e.area)}</span><span class="lg">${esc(e.agent || e.sid || '')}</span><span class="lm" title="${esc(e.msg)}">${esc(e.msg)}</span></button>`;
@@ -3399,7 +3423,7 @@ function logDetailHtml() {
   const e = S.logs.find((x) => logKey(x) === S.logOpenKey);
   if (!e) return '';
   const run = S.logRun
-    ? `<h3>${esc(t('logs.runTitle', { name: S.logRun.name }))}</h3>${S.logRun.error ? `<p class="small" style="color:#E5484D">${esc(S.logRun.error)}</p>` : `<pre>${esc(S.logRun.text)}</pre>`}`
+    ? `<h3>${esc(t('logs.runTitle', { name: S.logRun.name }))}${S.logRun.error ? '' : ` <button type="button" class="btn" data-log-download>${t('logs.download')}</button>`}</h3>${S.logRun.error ? `<p class="small" style="color:#E5484D">${esc(S.logRun.error)}</p>` : `<pre>${esc(S.logRun.text)}</pre>`}`
     : '';
   return `<div class="logdetail"><div class="logdhead"><b>${esc(e.area)}</b> · ${esc(e.ts)}${e.room ? ` · #${esc(e.room)}` : ''}${e.sid ? ` · ${esc(String(e.sid).slice(0, 8))}` : ''}${e.runLog ? ` <button type="button" class="btn" data-log-run="${esc(e.runLog)}">${t('logs.runLog')}</button>` : ''}<button type="button" class="btn" data-log-close>${t('common.close')}</button></div>${e.data !== undefined ? `<h3>${t('logs.data')}</h3><pre>${esc(JSON.stringify(e.data, null, 2))}</pre>` : ''}${run}</div>`;
 }
@@ -3438,6 +3462,8 @@ function renderLogPage() {
       <input id="logQ" type="search" placeholder="${esc(t('logs.q'))}" value="${esc(f.q)}" aria-label="${esc(t('logs.q'))}">
       <button type="button" class="btn" id="logLive" aria-pressed="${S.logLive}">${t('logs.live')}</button>
       <button type="button" class="btn" id="logRefresh">${t('logs.refresh')}</button>
+      <button type="button" class="btn" id="logExportJson">${t('logs.exportJson')}</button>
+      <button type="button" class="btn" id="logExportText">${t('logs.exportText')}</button>
     </div>
     <details class="logareas"><summary>${esc(t('logs.area'))}${f.area.length ? ` (${f.area.length})` : ''}</summary><div class="logchips">${LOG_AREAS.map((a) => chip('area', a)).join('')}</div></details>
     <p class="verr" id="logErr" hidden></p>
@@ -3485,6 +3511,10 @@ $('view-logs').addEventListener('click', (e) => {
   }
   if (e.target.closest('#logLive')) { S.logLive = !S.logLive; $('logLive').setAttribute('aria-pressed', String(S.logLive)); return; }
   if (e.target.closest('#logRefresh')) { loadLogs(); return; }
+  // #299: export the lines this tab is showing; the browser saves the blob, the hub has no export route.
+  if (e.target.closest('#logExportJson')) { downloadText(logFileName('jsonl'), logJsonExport(logShown()), 'application/x-ndjson'); return; }
+  if (e.target.closest('#logExportText')) { downloadText(logFileName('log'), logTextExport(logShown()), 'text/plain'); return; }
+  if (e.target.closest('[data-log-download]')) { if (S.logRun && !S.logRun.error) downloadText(S.logRun.name, S.logRun.text, 'text/plain'); return; }
   if (e.target.closest('[data-log-close]')) { S.logOpenKey = null; S.logRun = null; renderLogList(); return; }
   const run = e.target.closest('[data-log-run]');
   if (run) {

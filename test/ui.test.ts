@@ -401,6 +401,46 @@ test('Log tab: filters query GET /api/logs, a row opens its data, raw output loa
   } finally { await hub.close(); }
 });
 
+test('#299 Log export: JSON/text buttons build .jsonl and .log from the filtered lines, and a raw run can be saved', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'id="logExportJson"', 'id="logExportText"', "t('logs.exportJson')", "t('logs.exportText')",
+      'const logShown = () => S.logs.filter(logKeep)', 'function logFileName(', 'function logJsonExport(', 'function logTextExport(', 'function downloadText(',
+      "downloadText(logFileName('jsonl'), logJsonExport(logShown()), 'application/x-ndjson')",
+      "downloadText(logFileName('log'), logTextExport(logShown()), 'text/plain')",
+      'data-log-download', 'URL.createObjectURL(new Blob(', 'a.download = name',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+    for (const key of ['logs.exportJson', 'logs.exportText', 'logs.download']) assert.ok(key in en && key in vi, `missing log export translation ${key}`);
+    // The two builders are pure: take them out of the page and check the bytes they would save.
+    const grab = (name: string) => {
+      const m = html.match(new RegExp(`function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n\\}`));
+      assert.ok(m, `missing function ${name}`);
+      return m![0];
+    };
+    const mod = new Function(`${grab('logJsonExport')}\n${grab('logTextExport')}\n${grab('logFileName')}\nreturn { logJsonExport, logTextExport, logFileName };`)() as {
+      logJsonExport: (rows: any[]) => string;
+      logTextExport: (rows: any[]) => string;
+      logFileName: (ext: string, at?: Date) => string;
+    };
+    const rows = [
+      { ts: '2026-10-24T08:00:00.000Z', level: 'warn', area: 'turn', agent: 'agy', msg: 'hết hạn mức\nthử lại sau', data: { sid: 'abc' } },
+      { ts: '2026-10-24T08:01:00.000Z', level: 'info', area: 'hub', msg: 'started' },
+    ];
+    const jsonl = mod.logJsonExport(rows);
+    assert.equal(jsonl.split('\n').filter(Boolean).length, 2, 'one entry per line');
+    assert.deepEqual(jsonl.trimEnd().split('\n').map((line) => JSON.parse(line)), rows, 'JSONL keeps the API entry as it arrived');
+    assert.equal(mod.logTextExport(rows), [
+      '2026-10-24T08:00:00.000Z warn turn agy hết hạn mức thử lại sau',
+      '2026-10-24T08:01:00.000Z info hub - started',
+    ].join('\n') + '\n', 'ts level area agent msg, one physical line per entry');
+    assert.equal(mod.logJsonExport([]) + mod.logTextExport([]), '', 'an empty filter exports an empty file');
+    assert.equal(mod.logFileName('jsonl', new Date(2026, 9, 24, 8, 5)), 'bam-logs-20261024-0805.jsonl');
+    assert.equal(mod.logFileName('log', new Date(2026, 0, 2, 3, 4)), 'bam-logs-20260102-0304.log');
+  } finally { await hub.close(); }
+});
+
 test('settings tab: worker switches, auto jobs, per-agent skill rules, providers (keys write-only), accounts frame', async () => {
   const { hub } = await makeHub();
   try {
