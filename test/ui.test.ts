@@ -543,6 +543,29 @@ test('#238 one + Agent dialog offers all six kinds, including Muse, and missing 
   } finally { await hub.close(); }
 });
 
+test('#253 Duck + Agent explains setup and hides custom URL/key when using hub Duck2api', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const source of [
+    "t('agent.spawn.duckStep1')",
+    "href=\"https://github.com/aurora-develop/Duck2api/releases\" target=\"_blank\" rel=\"noopener\"",
+    "t('agents.duck.host.release')",
+    "t('agent.spawn.duckStep2')",
+    "data-agent-goto=\"accounts\"",
+    "t('agent.spawn.duckStep3')",
+    'class="small pwarn duck-setup"',
+    '.duck-setup{grid-column:1/-1}',
+    "S.duckHost?.running ? `<p class=\"small muted\" role=\"status\" data-duck-host-status>",
+    "field.hidden = useHub.checked",
+    "duckForm.querySelectorAll('[data-duck-custom-source]')",
+  ]) assert.ok(html.includes(source), `missing Duck setup wiring: ${source}`);
+  const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
+  for (const dict of [vi, en]) {
+    for (const key of ['agent.spawn.duckStep1', 'agent.spawn.duckStep2', 'agent.spawn.duckStep3']) {
+      assert.ok(dict[key], `missing translation ${key}`);
+    }
+  }
+});
+
 test('+ Agent stays available on home and private chats and uses the last normal room', async () => {
   const { hub } = await makeHub();
   try {
