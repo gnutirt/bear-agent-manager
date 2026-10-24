@@ -365,6 +365,7 @@ export const vi: Record<string, string> = {
   'members.chatDm.tip': 'Nhắn riêng',
   'members.chatDm.hide': 'Ẩn chat riêng (giữ lịch sử, mở lại được)',
   'members.chatDm.hidden': 'Đã ẩn. Mở lại bằng nút 💬 cạnh tên agent hoặc "+ Nhắn riêng…".',
+  'rooms.pm.title': 'Agent nói riêng',
   'rooms.dm.title': 'Chat riêng',
   'rooms.dm.new': '+ Nhắn riêng…',
   'rooms.dm.none': 'Chưa có chat riêng nào.',

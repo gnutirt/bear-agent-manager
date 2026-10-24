@@ -926,6 +926,8 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div class="sec"><span data-i18n="rooms.title">Phòng</span> <button id="addRoomBtn" title="Tạo phòng" aria-label="Tạo phòng" data-i18n-ta="rooms.new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <form class="new-room" id="newRoom"><input id="roomName" placeholder="ten-phong" autocomplete="off" aria-label="Tên phòng mới" data-i18n-ph="rooms.name.ph" data-i18n-aria="rooms.name.label"></form>
     <div id="rooms"></div>
+    <div class="sec" id="pmSec" hidden><button type="button" id="pmToggle" class="sectoggle" aria-expanded="false"><span class="caret">▸</span> <span data-i18n="rooms.pm.title">Agent nói riêng</span> <span id="pmCount" class="seccount"></span></button></div>
+    <div id="pms"></div>
     <div class="sec" id="dmSec"><span data-i18n="rooms.dm.title">Chat riêng</span></div>
     <button type="button" class="btn sm dmnew" id="addDmBtn" data-i18n="rooms.dm.new">+ Nhắn riêng…</button>
     <div id="dms"></div>
@@ -1434,9 +1436,14 @@ const pmLabel = (r) => r.pm.map((id) => S.sessions[id]?.name || id.slice(0, 4)).
 function renderRooms() {
   syncChatTabs();
   const el = $('rooms'); el.innerHTML = '';
-  const normal = S.rooms.filter((r) => !r.dm);
+  const normal = S.rooms.filter((r) => !r.dm && !r.pm), pms = S.rooms.filter((r) => !r.dm && r.pm);
   if (!normal.length) el.innerHTML = `<div class="side-empty">${t('rooms.none')}</div>`;
-  for (const r of normal) {
+  // agent↔agent PMs live in their own collapsed folder so they don't crowd the user's rooms
+  const pmEl = $('pms'); pmEl.innerHTML = '';
+  const pmOpen = S.pmOpen || pms.some((r) => r.name === S.current);
+  $('pmSec').hidden = !pms.length; $('pmCount').textContent = pms.length ? `(${pms.length})` : '';
+  $('pmToggle').setAttribute('aria-expanded', String(pmOpen)); $('pmToggle').querySelector('.caret').textContent = pmOpen ? '▾' : '▸';
+  for (const r of [...normal, ...(pmOpen ? pms : [])]) {
     const b = document.createElement('div');
     b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
     const un = S.unread[r.name] || 0;
@@ -1444,7 +1451,7 @@ function renderRooms() {
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
     b.onkeydown = (e) => { if (e.key === 'Enter') select(r.name); };
     b.querySelector('.more').onclick = (e) => { e.stopPropagation(); roomMenu(e.currentTarget, r.name); };
-    el.append(b);
+    (r.pm ? pmEl : el).append(b);
   }
   const dmEl = $('dms');
   const dms = S.rooms.filter((r) => r.dm && !r.dmHidden);
@@ -1537,6 +1544,7 @@ $('sessions').addEventListener('click', (e) => rowClick(e));
 $('sessions').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sess')) { e.preventDefault(); rowClick(e); } });
 $('menu').addEventListener('click', (e) => rowClick(e, menuAnchor));
 S.sessOpen = (() => { try { return localStorage.getItem('bear-agent-manager:sessOpen') !== '0'; } catch { return true; } })();
+$('pmToggle').onclick = () => { S.pmOpen = !S.pmOpen; renderRooms(); };
 $('sessToggle').onclick = () => { S.sessOpen = !S.sessOpen; try { localStorage.setItem('bear-agent-manager:sessOpen', S.sessOpen ? '1' : '0'); } catch {} renderSessions(); };
 /** Hover card for a sidebar row: the details that used to change the row every few seconds (current tool, folder, account...). */
 const sessTip = document.createElement('div'); sessTip.id = 'sesstip'; sessTip.hidden = true; document.body.append(sessTip);
