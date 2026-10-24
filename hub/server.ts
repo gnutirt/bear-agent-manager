@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureToken, HOME } from '../shared/config.ts';
 import { archiveInWorker, type ArchiveArgs, type ArchiveResult } from './archive.ts';
 import { mentionedFile, viewMentioned, revealFile } from './pathview.ts';
-import { applyPatch, loadProviders, publicProvider, saveProviders, type Provider } from './providers.ts';
+import { applyPatch, loadProviders, priceFor, publicProvider, saveProviders, type Provider, type ProviderModel } from './providers.ts';
 import { hasRates, paidProfileUsage, paidUsageForDay } from './paidusage.ts';
 import { summarize } from './tokens.ts';
 import { appAsset, withManifest } from './appshell.ts';
@@ -20,8 +20,9 @@ import { carrySessionDirs, pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
-import { probeProvider, workerBrief } from './brief.ts';
-import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, validateAgentProfiles, validateFlowTiers } from './settings.ts';
+import { listModels, probeProvider, workerBrief } from './brief.ts';
+import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, simplifiedUa, validateAgentProfiles, validateFlowTiers } from './settings.ts';
+import { initLog, log, type LogArea, type LogLevel } from './log.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { editedFiles, MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -335,6 +336,8 @@ export type HubOptions = {
   workerCap?: number;
   /** Provider key health check (GET /v1/models); null turns it off (tests). */
   probe?: ((p: Provider) => Promise<'ok' | 'bad'>) | null;
+  /** Provider model list requests; tests provide a fake and secrets never leave the hub. */
+  modelsFetch?: typeof fetch;
   /** Pre-v0.3 Intern key file that fills an empty intern key (default ~/.claude/congnhan.key). */
   legacyKeyFile?: string;
   /** Runs one archive round (default: archiveNow in a worker thread; stubbed in tests). */
@@ -839,6 +842,57 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   // ---- 'claude-api' profiles: a headless claude on a providers.json provider (free / paid / local), a room member like any other ----
   const apiState = new Map<string, { error?: string; limited?: number }>();   // profile id -> last failure / quota pause (until, ms)
+  const providerModelsCache = new Map<string, { at: number; models: ProviderModel[]; error?: string }>();
+  const providerLiveModels = new Map<string, ProviderModel[]>();
+  const providerModelsInFlight = new Map<string, Promise<{ at: number; models: ProviderModel[]; error?: string }>>();
+  const providerModelEpoch = new Map<string, number>();
+  const invalidateProviderModels = (id: string) => {
+    providerModelsCache.delete(id);
+    providerLiveModels.delete(id);
+    providerModelsInFlight.delete(id);
+    providerModelEpoch.set(id, (providerModelEpoch.get(id) ?? 0) + 1);
+  };
+  const providerModelsFor = async (provider: Provider, force = false): Promise<{ at: number; models: ProviderModel[]; error?: string }> => {
+    const cached = providerModelsCache.get(provider.id);
+    if (!force && cached && (opts.now ?? Date.now)() - cached.at < 10 * 60_000) return cached;
+    const inflight = providerModelsInFlight.get(provider.id);
+    if (inflight) return inflight;
+    const epoch = providerModelEpoch.get(provider.id) ?? 0;
+    const pending = (async () => {
+      let entry: { at: number; models: ProviderModel[]; error?: string };
+      try {
+        const models = await listModels(provider, opts.modelsFetch ?? fetch);
+        entry = { at: (opts.now ?? Date.now)(), models };
+      } catch (error) {
+        entry = {
+          at: (opts.now ?? Date.now)(),
+          models: [],
+          error: error instanceof Error ? error.message.slice(0, 160) : 'provider model list unavailable',
+        };
+      }
+      if ((providerModelEpoch.get(provider.id) ?? 0) === epoch) {
+        providerModelsCache.set(provider.id, entry);
+        if (!entry.error) providerLiveModels.set(provider.id, entry.models);
+      }
+      return entry;
+    })();
+    providerModelsInFlight.set(provider.id, pending);
+    try { return await pending; }
+    finally { if (providerModelsInFlight.get(provider.id) === pending) providerModelsInFlight.delete(provider.id); }
+  };
+  const modelPrice = (provider: Provider, model: string) => {
+    return priceFor(provider, model, providerLiveModels.get(provider.id) ?? []);
+  };
+  const modelPricing = (provider: Provider, model: string) => {
+    const price = modelPrice(provider, model);
+    if (price.inPerM === undefined || price.outPerM === undefined) return undefined;
+    return {
+      inPerM: price.inPerM,
+      outPerM: price.outPerM,
+      cacheReadPerM: price.cacheReadPerM ?? provider.pricing?.cacheReadPerM ?? price.inPerM,
+      ...(provider.pricing?.budgetUsdPerDay !== undefined ? { budgetUsdPerDay: provider.pricing.budgetUsdPerDay } : {}),
+    };
+  };
   const API_PAUSE_MS = 3_600_000;   // shortcut: the providers give no reset time, so a quota hit pauses the agent for an hour; retry clears it
   const apiProfiles = () => loadSettings(opts.dir, envCap).agents.profiles.filter((p) => p.provider === 'claude-api');
   const apiProfileOf = (s: Session) => apiProfiles().find((p) => normAgent(p.name) === normAgent(s.name));
@@ -847,13 +901,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function apiBudgetUntil(p: AgentProfile): number {
     if (!p.enabled) return 0;
     const provider = loadProviders(opts.dir, legacyKey).find((x) => x.id === p.providerId);
-    if (!provider || provider.tier !== 'paid' || !hasRates(provider.pricing)) return 0;
+    const model = p.model || provider?.models.read[0] || '';
+    if (provider && modelPrice(provider, model).priceSrc === 'none'
+      && !providerLiveModels.has(provider.id) && !providerModelsInFlight.has(provider.id)) {
+      void providerModelsFor(provider);
+    }
+    const pricing = provider ? modelPricing(provider, model) : undefined;
+    if (!provider || provider.tier !== 'paid' || !hasRates(pricing)) return 0;
     const day = vnDay(Date.now()), session = apiSessionOf(p);
     if (session && !hasTranscript(session)) attachTranscript(session);
     const files = Object.values(store.state.sessions)
       .filter((s) => normAgent(s.name) === normAgent(p.name) && s.transcript)
       .map((s) => s.transcript!);
-    const signature = `${provider.pricing.inPerM}/${provider.pricing.outPerM}/${provider.pricing.cacheReadPerM}\n`
+    const signature = `${model}/${pricing.inPerM}/${pricing.outPerM}/${pricing.cacheReadPerM}\n`
       + files.map((file) => {
         try {
           const stat = fs.statSync(file);
@@ -863,7 +923,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let cached = budgetCostCache.get(p.id);
     if (!cached || cached.day !== day || cached.signature !== signature) {
       const transcripts = files.map((file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } });
-      cached = { day, signature, cost: paidUsageForDay(transcripts, provider.pricing, day).costUsd };
+      cached = { day, signature, cost: paidUsageForDay(transcripts, pricing, day).costUsd };
       budgetCostCache.set(p.id, cached);
     }
     const spent = cached.cost;
@@ -3138,17 +3198,33 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     // ---- providers: worker endpoints + keys (keys never leave the hub) ----
     if (m === 'GET' && p === '/api/providers') return json(res, 200, withHealth(loadProviders(opts.dir, legacyKey)));
+    const providerModelsRoute = p.match(/^\/api\/providers\/([a-z0-9-]+)\/models$/);
+    if (providerModelsRoute && m === 'GET') {
+      const provider = loadProviders(opts.dir, legacyKey).find((item) => item.id === providerModelsRoute[1]);
+      if (!provider) throw new StoreError(404, `unknown provider ${providerModelsRoute[1]}`);
+      const result = await providerModelsFor(provider, url.searchParams.get('refresh') === '1');
+      const configured = [...provider.models.read, ...provider.models.edit]
+        .filter((model) => !provider.key || !model.includes(provider.key));
+      return json(res, 200, {
+        models: result.models,
+        configured,
+        source: result.error ? 'config' : 'live',
+        ...(result.error ? { error: result.error } : {}),
+      });
+    }
     // #118: what each paid claude-api profile used, read from its own transcripts (runs = user turns, tokens = message.usage).
-    // Cost is filled only from the provider's price block: no pricing, costUsd stays null instead of being guessed.
+    // Cost uses the selected model's live/table price when available, then the provider's configured rates.
     if (m === 'GET' && p === '/api/paid-usage') {
       const provs = loadProviders(opts.dir, legacyKey);
       const rows = apiProfiles().flatMap((prof) => {
         const prov = provs.find((x) => x.id === prof.providerId);
         if (!prov || prov.tier !== 'paid') return [];
+        const model = prof.model || prov.models.read[0] || '';
+        const pricing = modelPricing(prov, model);
         const texts = Object.values(store.state.sessions)
           .filter((s) => normAgent(s.name) === normAgent(prof.name) && s.transcript && fs.existsSync(s.transcript))
           .map((s) => { try { return fs.readFileSync(s.transcript!, 'utf8'); } catch { return ''; } });
-        return [{ ...paidProfileUsage(prof.name, prov.id, prof.model || prov.models.read[0] || '', texts, prov.pricing), pricing: prov.pricing ?? null }];
+        return [{ ...paidProfileUsage(prof.name, prov.id, model, texts, pricing), pricing: pricing ?? null }];
       });
       return json(res, 200, rows);
     }
@@ -3156,6 +3232,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (pv && m === 'PUT') {
       const list = applyPatch(loadProviders(opts.dir, legacyKey), pv[1], await readBody(req));
       saveProviders(opts.dir, list);
+      invalidateProviderModels(pv[1]);
       broadcast('providers', list.map(publicProvider));
       return json(res, 200, publicProvider(list.find((x) => x.id === pv[1])!));
     }
@@ -3167,12 +3244,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       list.push({ id: b.id, label: b.id, tier: 'paid', enabled: false, baseUrl: '', auth: 'api-key', key: '', models: { read: [], edit: [] } });
       const next = applyPatch(list, b.id, b);
       saveProviders(opts.dir, next);
+      invalidateProviderModels(b.id);
       return json(res, 200, publicProvider(next.find((x) => x.id === b.id)!));
     }
     if (pv && m === 'DELETE') {
       if (pv[1] === 'intern') throw new StoreError(400, 'the free provider cannot be removed');
       const list = loadProviders(opts.dir, legacyKey).filter((x) => x.id !== pv[1]);
       saveProviders(opts.dir, list);
+      invalidateProviderModels(pv[1]);
       return json(res, 200, { ok: true });
     }
     const wk = m === 'POST' && p.match(/^\/api\/workers\/(\d+)\/kill$/);

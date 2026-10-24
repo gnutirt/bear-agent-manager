@@ -6,6 +6,20 @@ import { renameRetry } from './atomic.ts';
 export type Tier = 'free' | 'paid' | 'local';   // local: an Anthropic-compatible host on this machine/LAN (e.g. Ollama); no real key needed
 /** USD per 1M tokens and a daily USD cap. Rates are optional until the owner supplies them; usage never guesses. */
 export type Pricing = { inPerM?: number; outPerM?: number; cacheReadPerM?: number; budgetUsdPerDay?: number };
+export type ProviderModel = {
+  id: string;
+  ctx?: number;
+  inPerM?: number;
+  outPerM?: number;
+  cacheReadPerM?: number;
+  free?: boolean;
+  priceSrc: 'live' | 'table' | 'provider' | 'none';
+  source?: string;
+  asOf?: string;
+};
+type ModelPriceEntry = Required<Pick<ProviderModel, 'inPerM' | 'outPerM'>> & {
+  cacheReadPerM?: number; ctx?: number; source: string; asOf: string;
+};
 export type Provider = {
   id: string; label: string; tier: Tier; enabled: boolean; baseUrl: string;
   auth: 'api-key' | 'auth-token'; key: string; models: { read: string[]; edit: string[] }; pricing?: Pricing;
@@ -13,6 +27,36 @@ export type Provider = {
 export type PublicProvider = Omit<Provider, 'key'> & { hasKey: boolean; keyHint: string };
 
 const FILE = 'providers.json';
+
+export const MODEL_PRICES: Record<string, Record<string, ModelPriceEntry>> = {
+  deepseek: {
+    'deepseek-flash': { inPerM: 0.3, outPerM: 1.2, cacheReadPerM: 0.3, source: 'https://api-docs.deepseek.com/quick_start/pricing', asOf: '2026-10-21' },
+  },
+};
+
+/** Resolve a model's live price first, then the reviewed table, then explicit provider pricing. */
+export function priceFor(provider: Provider, model: string, liveModels: readonly ProviderModel[] = []): ProviderModel {
+  const live = liveModels.find((entry) => entry.id === model);
+  const context = live?.ctx !== undefined ? { ctx: live.ctx } : {};
+  const free = live?.free === true ? { free: true } : {};
+  if (live && validAmount(live.inPerM) && validAmount(live.outPerM)) {
+    return {
+      id: model, ...context, inPerM: live.inPerM, outPerM: live.outPerM,
+      ...(validAmount(live.cacheReadPerM) ? { cacheReadPerM: live.cacheReadPerM } : {}),
+      ...free, priceSrc: 'live',
+    };
+  }
+  const table = MODEL_PRICES[provider.id]?.[model];
+  if (table) return { id: model, ...context, inPerM: table.inPerM, outPerM: table.outPerM, ...(table.cacheReadPerM !== undefined ? { cacheReadPerM: table.cacheReadPerM } : {}),
+    ...free, priceSrc: 'table', source: table.source, asOf: table.asOf };
+  if (provider.tier === 'local') return { id: model, ...context, inPerM: 0, outPerM: 0, cacheReadPerM: 0, free: true, priceSrc: 'provider' };
+  if (provider.pricing && validAmount(provider.pricing.inPerM) && validAmount(provider.pricing.outPerM)) {
+    return { id: model, ...context, inPerM: provider.pricing.inPerM, outPerM: provider.pricing.outPerM,
+      ...(provider.pricing.cacheReadPerM !== undefined ? { cacheReadPerM: provider.pricing.cacheReadPerM } : {}),
+      ...free, priceSrc: 'provider' };
+  }
+  return { id: model, ...context, ...free, priceSrc: 'none' };
+}
 
 export function defaultProviders(): Provider[] {
   return [

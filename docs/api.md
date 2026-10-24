@@ -102,6 +102,7 @@
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
 | GET | `/api/providers` |  | có |
+| GET | `/api/providers/:param/models` |  | có |
 | GET | `/api/paid-usage` |  | có |
 | PUT | `/api/providers/:param` |  | có |
 | POST | `/api/providers` | `id` | có |
