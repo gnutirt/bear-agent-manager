@@ -191,19 +191,22 @@ export async function ask(
   if (q.length > MAX_PROMPT) throw new Err(`prompt is longer than ${MAX_PROMPT} characters`);
   const tab = await findTab(cdp, site), page = await cdp.attach(tab);
   try {
+    let termsAccepted = false, lastTermRes: any = false;
     const waitForReady = async (maxMs = 15_000): Promise<boolean> => {
       const tStart = now();
       while (now() - tStart < maxMs) {
         if (site.js.botCheck && (await page.eval(site.js.botCheck))) {
           throw new WebChatError('needs-user');
         }
-        if (site.js.acceptTerms) {
+        if (site.js.acceptTerms && !termsAccepted) {
           const accepted = await page.eval(site.js.acceptTerms);
-          if (accepted === 'needs-user') throw new WebChatError('needs-user');
+          if (accepted === true) termsAccepted = true;
+          else lastTermRes = accepted;
         }
         if (await page.eval(site.js.hasInput)) return true;
         await sleep(250);
       }
+      if (lastTermRes === 'needs-user') throw new WebChatError('needs-user');
       return !!(await page.eval(site.js.hasInput));
     };
 
@@ -221,9 +224,10 @@ export async function ask(
     }
 
     // 2. Initial terms acceptance: auto-accept if box is present (only that one button).
-    if (site.js.acceptTerms) {
+    if (site.js.acceptTerms && !termsAccepted) {
       const accepted = await page.eval(site.js.acceptTerms);
-      if (accepted === 'needs-user') throw new WebChatError('needs-user');
+      if (accepted === true) termsAccepted = true;
+      else if (accepted === 'needs-user') throw new WebChatError('needs-user');
     }
 
     // Re-check bot challenge after terms

@@ -99,22 +99,43 @@ test('Muse reports Chrome and sign-in errors without posting a successful answer
 });
 
 test('Muse profile posts research metadata; saving is idempotent and Duck can cite it', async (t) => {
-  let duckRequest: { messages: Array<{ content: string }> } | undefined;
+  let duckPrompt = '';
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('Object.getOwnPropertyDescriptor')) {
+        duckPrompt = expr;
+        return true;
+      }
+      if (expr.includes('closest(\'form\')')) return true;
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      if (expr.includes('.length') && expr.startsWith('document')) return 0;
+      if (expr.includes('Stop generating')) {
+        return {
+          stop: false,
+          items: [
+            { role: 'user', text: 'question', hasCopy: false },
+            { role: 'assistant', text: 'Use pgBackRest.', hasCopy: true },
+          ],
+        };
+      }
+      return null;
+    },
+    close() {},
+  };
+  const fakeDuckCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
   const chrome = fakeChrome({ answer: 'Postgres backup strategy: use pgBackRest and WAL archiving.\nNguồn:\nhttps://docs.example.test/backup' });
   const h = await makeHub(undefined, undefined, {
     museCdp: chrome.cdp,
-    duckFetch: (async (_url: string, init: RequestInit) => {
-      duckRequest = JSON.parse(String(init.body));
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'Use pgBackRest.' } }] }), {
-        status: 200, headers: { 'content-type': 'application/json' },
-      });
-    }) as typeof fetch,
+    duckCdp: fakeDuckCdp,
   });
   t.after(async () => { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); });
 
   await h.call('/api/settings', { agents: { profiles: [
     { id: 'muse-research', provider: 'muse', name: 'MuseResearch', cwd: h.dir, enabled: false },
-    { id: 'duck-advisor', provider: 'duck', name: 'DuckAdvisor', cwd: h.dir, enabled: true, baseUrl: 'http://provider.test', experimental: true },
+    { id: 'duck-advisor', provider: 'duck', name: 'DuckAdvisor', cwd: h.dir, enabled: true },
   ] } }, { method: 'PUT' });
   await h.call('/api/copilot/profiles/muse-research', { on: true, confirm: true }, { method: 'POST' });
   const muse = await until(() => h.hub.store.members('bear-agent-manager').find((session) => session.name === 'MuseResearch'), 5000, 'Muse profile registration');
@@ -137,7 +158,7 @@ test('Muse profile posts research metadata; saving is idempotent and Duck can ci
   assert.equal((await h.call<any>('/api/memory?room=bear-agent-manager')).entries.length, 1);
 
   await h.call('/api/rooms/bear-agent-manager/messages', { text: '@DuckAdvisor What is a good Postgres backup strategy?' });
-  await until(() => duckRequest, 5000, 'Duck request with saved research');
-  assert.ok(duckRequest?.messages.some((message) => message.content.includes(`[M${saved.id} research`)));
-  assert.ok(duckRequest?.messages.some((message) => message.content.includes('https://docs.example.test/backup')));
+  await until(() => duckPrompt, 5000, 'Duck request with saved research');
+  assert.ok(duckPrompt.includes(`[M${saved.id} research`));
+  assert.ok(duckPrompt.includes('https://docs.example.test/backup'));
 });

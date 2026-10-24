@@ -22,12 +22,10 @@ test('browser defaults on; invalid port keeps the current value', () => {
   assert.deepEqual(patchSettings(d, { browser: { port: 65536 } }).browser, d.browser);
 });
 
-test('Duck2api defaults off; settings accept an executable path and a valid loopback port', () => {
+test('legacy duck settings are ignored in patch and omitted from default settings', () => {
   const d = defaultSettings();
-  assert.deepEqual(d.duck, { exePath: '', port: 18080 });
-  assert.deepEqual(patchSettings(d, { duck: { exePath: ' C:\\tools\\duck2api.exe ', port: 8089 } }).duck, { exePath: 'C:\\tools\\duck2api.exe', port: 8089 });
-  assert.deepEqual(patchSettings(d, { duck: { exePath: 'x'.repeat(501), port: 1023 } }).duck, d.duck);
-  assert.deepEqual(patchSettings(d, { workerCap: 5 }).duck, d.duck);
+  assert.equal((d as any).duck, undefined);
+  assert.equal((patchSettings(d, { duck: { exePath: 'C:\\tools\\duck2api.exe', port: 8089 } }) as any).duck, undefined);
 });
 
 test('API agents get all tools by default; the switch validates and migrates older settings', () => {
@@ -332,16 +330,12 @@ test('agents.profiles: agy keeps its model/path, drops unsupported effort, and v
   assert.equal(patchSettings(defaultSettings(), { agents: { profiles: [{ ...profile, effort: 'high' }] } }).agents.profiles[0].effort, 'high');
 });
 
-test('agents.profiles: duck requires an experimental provider before enable and validates endpoint and timeout', () => {
-  const profile = { id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: process.cwd(), enabled: false, baseUrl: 'http://127.0.0.1:18080', timeoutMs: 60_000, experimental: false };
+test('agents.profiles: duck profile ignores legacy baseUrl, experimental, timeoutMs and requires no extra fields', () => {
+  const profile = { id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: process.cwd(), enabled: true, baseUrl: 'http://127.0.0.1:18080', timeoutMs: 60_000, experimental: false, useHubDuck2api: true };
   const saved = patchSettings(defaultSettings(), { agents: { profiles: [profile] } }).agents.profiles[0];
-  assert.deepEqual(saved, { ...profile, cwd: path.resolve(profile.cwd), provider: 'duck' });
-  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true }]).length, 0);
-  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true, baseUrl: '' }])[0]?.field, 'baseUrl');
-  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: true, baseUrl: '', useHubDuck2api: true }]).length, 0);
-  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, experimental: false }])[0]?.field, 'experimental');
-  assert.equal(validateAgentProfiles([{ ...profile, baseUrl: 'file:///tmp/provider' }])[0]?.field, 'baseUrl');
-  assert.equal(validateAgentProfiles([{ ...profile, timeoutMs: 4000 }])[0]?.field, 'timeoutMs');
+  assert.deepEqual(saved, { id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: path.resolve(profile.cwd), enabled: true });
+  assert.equal(validateAgentProfiles([profile]).length, 0);
+  assert.equal(validateAgentProfiles([{ ...profile, enabled: true, baseUrl: '' }]).length, 0);
 });
 
 test('agents.profiles: copilot.autoStart migrates into the profile "copilot" once, an explicit profiles list wins', () => {

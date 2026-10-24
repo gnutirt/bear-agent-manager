@@ -1,7 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { renameRetry } from './atomic.ts';
-import { chatComplete, type ChatMsg, type ChatResult } from './chatapi.ts';
 import { isSecretText, loadHistory, saveHistory, type ChatHistory, type MemEntry, type Memory } from './memory.ts';
 import type { Message } from './routing.ts';
 import { duckAsk, WebChatError, MAX_PROMPT, type Cdp } from '../mcp/webchat-core.ts';
@@ -33,6 +29,8 @@ function dateOf(entry: MemEntry): string {
   const stamp = Number.isFinite(entry.updatedAt) ? entry.updatedAt : entry.createdAt;
   return new Date(stamp).toISOString().slice(0, 10);
 }
+
+export type ChatMsg = { role: string; content: string };
 
 export function buildMessages(o: { system: string; memories: MemEntry[]; history: ChatHistory; text: string }): ChatMsg[] {
   const messages: ChatMsg[] = [{ role: 'system', content: o.system }];
@@ -109,18 +107,6 @@ export function flatten(o: {
   return `${systemPart}${memoryPart}${summaryPart}${historyPart}${questionPart}`;
 }
 
-function errorText(result: Extract<ChatResult, { ok: false }>): string {
-  switch (result.kind) {
-    case 'timeout': return 'Duck hết thời gian chờ phản hồi.';
-    case 'auth': return 'Duck không xác thực được: kiểm tra API key.';
-    case 'rate': return 'Duck bị giới hạn tần suất (HTTP 429).';
-    case 'banned': return 'Duck.ai đã chặn IP này (ERR_BN_LIMIT).';
-    case 'http': return `Duck API báo lỗi: ${result.error}.`;
-    case 'invalid': return `Duck API trả phản hồi không hợp lệ: ${result.error}.`;
-    case 'network': return `Không kết nối được Duck API: ${result.error}.`;
-  }
-}
-
 function historyLength(history: ChatHistory): number {
   return history.summary.length + history.turns.reduce((sum, turn) => sum + turn.text.length, 0);
 }
@@ -150,9 +136,7 @@ export type DuckTurnOptions = {
   agentId: string;
   project: string;
   memory: Memory;
-  profile: () => { baseUrl?: string; model: string; timeoutMs?: number; useHubDuck2api?: boolean };
-  key?: () => string;
-  fetch?: typeof fetch;
+  profile: () => { model?: string; timeoutMs?: number };
   now?: () => number;
   cdp?: Cdp;
   duckLock?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -214,107 +198,47 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
       if (o.ensureBrowser) {
         await o.ensureBrowser();
       }
+      if (!o.cdp) {
+        return { ok: false, text: '', error: 'Chrome của BAM chưa sẵn sàng cho Duck', kind: 'webchat' };
+      }
       const profile = o.profile();
       const history = loadHistory(o.home, o.agentId, room);
       const memories = o.memory.relevant(text, { room, project: o.project });
 
-      if (o.cdp) {
-        const prompt = flatten({ system: DUCK_SYSTEM, memories, history, text });
-        let answer = '';
-        try {
-          const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));
-          const runAsk = () => duckAsk(o.cdp!, prompt, { timeoutS, model: profile.model, env: { now } });
-          const result = o.duckLock ? await o.duckLock(runAsk) : await runAsk();
-          answer = result.text.trim();
-          if (!answer) return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
-          if (result.timedOut) answer += '\n\n[hết giờ]';
-        } catch (err: any) {
-          if (err instanceof WebChatError && err.message.includes('needs-user')) {
-            return {
-              ok: false,
-              text: '',
-              error: 'trình duyệt ẩn BAM gặp kiểm tra bot ở duck.ai; Duck dừng',
-              kind: 'needs-user',
-            };
-          }
-          return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${err.message || err}`, kind: 'webchat' };
+      const prompt = flatten({ system: DUCK_SYSTEM, memories, history, text });
+      let answer = '';
+      try {
+        const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));
+        const runAsk = () => duckAsk(o.cdp!, prompt, { timeoutS, model: profile.model, env: { now } });
+        const result = o.duckLock ? await o.duckLock(runAsk) : await runAsk();
+        answer = result.text.trim();
+        if (!answer) return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
+        if (result.timedOut) answer += '\n\n[hết giờ]';
+      } catch (err: any) {
+        if (err instanceof WebChatError && err.message.includes('needs-user')) {
+          return {
+            ok: false,
+            text: '',
+            error: 'trình duyệt ẩn BAM gặp kiểm tra bot ở duck.ai; Duck dừng',
+            kind: 'needs-user',
+          };
         }
-
-        history.turns.push(
-          { role: 'user', text, at: now() },
-          { role: 'assistant', text: answer, at: now() },
-        );
-        summarizeOldest(history);
-        try {
-          saveHistory(o.home, o.agentId, room, history);
-        } catch (error) {
-          answer += `\n\n⚠️ không lưu được bộ nhớ: ${(error as Error).message}`;
-        }
-        return { ok: true, text: answer, error: '' };
+        return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${err.message || err}`, kind: 'webchat' };
       }
 
-      const key = o.key?.() || undefined;
-      const response = await chatComplete({
-        baseUrl: profile.baseUrl ?? '',
-        key,
-        model: profile.model,
-        timeoutMs: profile.timeoutMs ?? 60_000,
-        fetch: o.fetch,
-        messages: buildMessages({ system: DUCK_SYSTEM, memories, history, text }),
-      });
-      if (!response.ok) return { ok: false, text: '', error: errorText(response), kind: response.kind };
       history.turns.push(
         { role: 'user', text, at: now() },
-        { role: 'assistant', text: response.text, at: now() },
+        { role: 'assistant', text: answer, at: now() },
       );
       summarizeOldest(history);
-      let answer = response.text;
       try {
         saveHistory(o.home, o.agentId, room, history);
       } catch (error) {
         answer += `\n\n⚠️ không lưu được bộ nhớ: ${(error as Error).message}`;
       }
-      return { ok: true, text: answer, error: '', usage: response.usage };
+      return { ok: true, text: answer, error: '' };
     } catch (error) {
       return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${(error as Error).message}`, kind: 'memory' };
     }
   };
 }
-
-const KEY_FILE = 'agent-keys.json';
-const KEY_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
-
-export function loadAgentKeys(home: string): Record<string, string> {
-  const file = path.join(home, KEY_FILE);
-  let raw: string;
-  try { raw = fs.readFileSync(file, 'utf8'); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw error;
-  }
-  const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('agent-keys.json must contain an object');
-  const keys: Record<string, string> = {};
-  for (const [id, key] of Object.entries(value)) {
-    if (KEY_ID.test(id) && typeof key === 'string') keys[id] = key;
-  }
-  return keys;
-}
-
-export function saveAgentKey(home: string, id: string, value: string | null): void {
-  if (!KEY_ID.test(id)) throw new Error('agent profile id is invalid');
-  if (value !== null && (typeof value !== 'string' || value.length > 4096)) throw new Error('key must be a string up to 4096 characters or null');
-  const keys = loadAgentKeys(home);
-  const key = value?.trim();
-  if (key) keys[id] = key;
-  else delete keys[id];
-  fs.mkdirSync(home, { recursive: true });
-  const file = path.join(home, KEY_FILE), temp = `${file}.${process.pid}.${nowFilePart()}.tmp`;
-  fs.writeFileSync(temp, JSON.stringify(keys, null, 2) + '\n', { mode: 0o600 });
-  renameRetry(temp, file);
-}
-
-export function getAgentKey(home: string, id: string): string {
-  return loadAgentKeys(home)[id] ?? '';
-}
-
-function nowFilePart(): number { return Date.now(); }

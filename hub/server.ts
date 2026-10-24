@@ -59,9 +59,7 @@ import { IdeBridge, type IdeOp } from './ide.ts';
 import { BrowserError, BrowserHost, mcpServerFor, PLAYWRIGHT_MCP_VERSION } from './browser.ts';
 import { AgyAgent, findAgy, runAgyTurn, type AgyProfile, type AgyTurn } from './agy.ts';
 import { clearHistory, Memory, MemoryError, MAX_TEXT, type MemKind, type MemEntry } from './memory.ts';
-import { DuckHost } from './duckhost.ts';
-import { duckTurn, getAgentKey, loadAgentKeys, saveAgentKey } from './duck.ts';
-import { listModels } from './chatapi.ts';
+import { duckTurn } from './duck.ts';
 import { HubMember, type MemberStatus } from './member.ts';
 import { museTurn } from './muse-member.ts';
 import { chromeCdp } from '../mcp/muse.ts';
@@ -215,10 +213,6 @@ export type HubOptions = {
   mcpRun?: mcpcfg.Run;
   /** Browser lifecycle; null disables it for tests that do not exercise the feature. */
   browser?: BrowserHost | null;
-  /** Duck2api lifecycle; null disables it for tests that do not exercise the feature. */
-  duck?: DuckHost | null;
-  /** OpenAI-compatible Duck API calls (tests supply a fake fetch). */
-  duckFetch?: typeof fetch;
   /** Muse browser automation (tests provide a fake Chrome DevTools client). */
   museCdp?: Cdp;
   /** Duck browser automation (tests provide a fake Chrome DevTools client). */
@@ -292,7 +286,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const store = new Store(opts.dir, opts.now);
   const memory = new Memory(opts.dir, opts.now);
   const museCdp = opts.museCdp ?? chromeCdp();
-  const duckCdp = opts.duckCdp ?? (opts.duckFetch ? undefined : chromeCdp(`http://127.0.0.1:${loadSettings(opts.dir, envCap).browser.port}`));
+  const duckCdp = opts.duckCdp ?? chromeCdp(`http://127.0.0.1:${loadSettings(opts.dir, envCap).browser.port}`, 'duck.ai');
   let duckLockChain: Promise<unknown> = Promise.resolve();
   const duckLock = <T>(fn: () => Promise<T>): Promise<T> => {
     const p = duckLockChain.then(fn);
@@ -321,37 +315,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     cfg: () => loadSettings(opts.dir, envCap).browser,
     onCrash: () => applyBrowser(),
   });
-  let applyDuck: () => Promise<void> = async () => {};
-  const duck = opts.duck === null ? undefined : opts.duck ?? new DuckHost({
-    dir: opts.dir,
-    cfg: () => loadSettings(opts.dir, envCap).duck,
-    onCrash: () => applyDuck(),
-  });
-  let duckApplyError = '';
-  let appliedDuckCfg = '';
-  let duckApplyQueue = Promise.resolve();
-  applyDuck = (): Promise<void> => {
-    const task = duckApplyQueue.then(async () => {
-      if (!duck) return;
-      const cfg = loadSettings(opts.dir, envCap).duck;
-      const key = JSON.stringify(cfg);
-      duckApplyError = '';
-      try {
-        if (!cfg.exePath) {
-          await duck.stop();
-        } else {
-          if (appliedDuckCfg && appliedDuckCfg !== key && duck.running()) await duck.stop();
-          await duck.start();
-        }
-        appliedDuckCfg = key;
-      } catch (error) {
-        appliedDuckCfg = key;
-        duckApplyError = (error as Error).message;
-      }
-    });
-    duckApplyQueue = task.catch(() => {});
-    return task;
-  };
   let browserApplyError = '';
   let browserAgents = false;
   let appliedBrowserCfg = '';
@@ -498,15 +461,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return list.some((p) => p.provider === 'copilot') ? list : [...list, { id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: s.copilot.autoStart }];
   }
   function publicSettings() {
-    const settings = loadSettings(opts.dir, envCap), keys = loadAgentKeys(opts.dir);
-    return {
-      ...settings,
-      agents: {
-        ...settings.agents,
-        profiles: settings.agents.profiles.map((profile) =>
-          profile.provider === 'duck' ? { ...profile, hasKey: !!keys[profile.id] } : profile),
-      },
-    };
+    return loadSettings(opts.dir, envCap);
   }
   function logProfileIdChanges(before: AgentProfile[], after: AgentProfile[], source: string, rawUserAgent?: unknown): void {
     const beforeIds = before.map((profile) => profile.id), afterIds = after.map((profile) => profile.id);
@@ -648,16 +603,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             profile: () => {
               const current = copilotProfiles().find((x) => x.id === p.id) ?? p;
               return {
-                baseUrl: current.useHubDuck2api ? duck?.endpoint() ?? '' : current.baseUrl ?? '',
                 model: current.model || 'gpt-5.4-mini',
-                timeoutMs: current.timeoutMs ?? 60_000,
               };
             },
-            key: () => {
-              const current = copilotProfiles().find((x) => x.id === p.id) ?? p;
-              return current.useHubDuck2api ? duck?.key() ?? '' : getAgentKey(opts.dir, p.id);
-            },
-            fetch: opts.duckFetch,
             now: opts.now,
           }),
           now: opts.now,
@@ -698,7 +646,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function copilotStatus(id: string, status?: CopilotStatus | MemberStatus) {
     const p = copilotProfiles().find((x) => x.id === id);
     const enabled = p?.enabled ?? false;
-    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), provider: p?.provider ?? 'copilot', ...(p?.provider === 'duck' ? { hasKey: p.useHubDuck2api === true ? !!duck?.key() : !!getAgentKey(opts.dir, id) } : {}), enabled, autoStart: enabled };
+    return { ...(status ?? (p ? copilotFor(p).snapshot() : { id })), provider: p?.provider ?? 'copilot', enabled, autoStart: enabled };
   }
   const copilotAgents = () => [...copilots.values()].map((c) => c.agent);
   const copilotHolding = (sid: string) => copilotAgents().find((c) => c.hasSession(sid));
@@ -740,10 +688,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** on = true/false: save enabled and start/stop; undefined = retry (start again, which re-checks the login). */
   async function copilotToggle(res: http.ServerResponse, id: string, on: boolean | undefined, source = 'internal', userAgent?: unknown) {
     const prof = copilotProfiles().find((x) => x.id === id)!;
-    if (prof.provider === 'duck' && on === true) {
-      if (!prof.useHubDuck2api && !prof.baseUrl) throw new StoreError(400, 'choose Duck2api from the hub or configure a base URL before enabling');
-      if (prof.experimental !== true) throw new StoreError(400, 'confirm the experimental Duck provider before enabling');
-    }
     const agent = copilotFor(prof);
     const cap = loadSettings(opts.dir, envCap).agents.maxBackground;
     if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
@@ -2274,15 +2218,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         mcpVersion: PLAYWRIGHT_MCP_VERSION,
       });
     }
-    if (m === 'GET' && p === '/api/duck/host') {
-      const cfg = loadSettings(opts.dir, envCap).duck;
-      return json(res, 200, {
-        configured: !!cfg.exePath,
-        running: duck?.running() ?? false,
-        endpoint: duck?.endpoint() ?? '',
-        lastError: duckApplyError || duck?.lastError() || '',
-      });
-    }
     if (m === 'GET' && p === '/api/muse/status') {
       const busy = copilotProfiles().some((profile) =>
         profile.provider === 'muse' && copilots.get(profile.id)?.agent.snapshot().state === 'busy');
@@ -2292,28 +2227,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const busy = copilotProfiles().some((profile) =>
         profile.provider === 'duck' && copilots.get(profile.id)?.agent.snapshot().state === 'busy');
       return json(res, 200, duckCdp ? await duckStatus(duckCdp, busy) : { chrome: false, loggedIn: false, busy });
-    }
-    if (m === 'GET' && p === '/api/duck/check') {
-      const id = url.searchParams.get('id') ?? '';
-      const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
-      if (!profile) throw new StoreError(404, `unknown Duck profile ${id}`);
-      const baseUrl = profile.useHubDuck2api ? duck?.endpoint() ?? '' : profile.baseUrl ?? '';
-      if (!baseUrl) return json(res, 200, { ok: false, models: [], error: 'Choose Duck2api from the hub or configure a base URL first.' });
-      const key = profile.useHubDuck2api ? duck?.key() ?? '' : getAgentKey(opts.dir, profile.id);
-      const result = await listModels({ baseUrl, key, timeoutMs: profile.timeoutMs ?? 60_000, fetch: opts.duckFetch });
-      return json(res, 200, result);
-    }
-    const agentKeyRoute = p.match(/^\/api\/agents\/([a-z0-9-]+)\/key$/);
-    if (agentKeyRoute && m === 'PUT') {
-      const id = agentKeyRoute[1];
-      const profile = loadSettings(opts.dir, envCap).agents.profiles.find((item) => item.id === id && item.provider === 'duck');
-      if (!profile) throw new StoreError(404, `unknown Duck profile ${id}`);
-      const b = await readBody(req);
-      if (!b || typeof b !== 'object' || Array.isArray(b) || !Object.prototype.hasOwnProperty.call(b, 'key') || (b.key !== null && typeof b.key !== 'string')) {
-        throw new StoreError(400, 'key must be a string or null');
-      }
-      try { saveAgentKey(opts.dir, id, b.key); } catch (error) { throw new StoreError(400, (error as Error).message); }
-      return json(res, 200, { hasKey: !!getAgentKey(opts.dir, id) });
     }
     if (m === 'DELETE' && p === '/api/duck/history') {
       const id = url.searchParams.get('id') ?? '', room = url.searchParams.get('room') ?? '';
@@ -2891,41 +2804,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'PUT' && p === '/api/settings') {
       const patch = await readBody(req);
       const current = loadSettings(opts.dir, envCap);
-      if (typeof patch?.duck?.exePath === 'string') {
-        const requestedExePath = patch.duck.exePath.trim();
-        if (requestedExePath) {
-          if (!path.isAbsolute(requestedExePath) || /^[\\/]{2}/.test(requestedExePath)) {
-            return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
-          }
-          const exePath = path.resolve(requestedExePath);
-          if (!fs.existsSync(exePath)) return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
-          const stat = fs.statSync(exePath);
-          if (stat.isDirectory()) {
-            let executables: fs.Dirent[];
-            try {
-              executables = fs.readdirSync(exePath, { withFileTypes: true })
-                .filter((entry) => entry.isFile() && /^duck2api.*\.exe$/i.test(entry.name));
-            } catch (error) {
-              const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
-              if (code === 'EACCES' || code === 'EPERM') {
-                return json(res, 400, { error: tr('agents.duck.host.exePathFolderUnreadable') });
-              }
-              throw error;
-            }
-            const suggestedExePath = executables.length === 1 ? path.join(exePath, executables[0].name) : '';
-            const suggestion = suggestedExePath
-              ? tr('agents.duck.host.exePathSuggestion', { path: suggestedExePath })
-              : '';
-            return json(res, 400, {
-              error: tr('agents.duck.host.exePathFolder', { suggestion }),
-              ...(suggestedExePath ? { suggestedExePath } : {}),
-            });
-          }
-          if (!stat.isFile() || (process.platform === 'win32' && !/\.exe$/i.test(requestedExePath))) {
-            return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
-          }
-        }
-      }
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'flowTiers')) {
         const members = Object.fromEntries(Object.keys(store.state.rooms).map((room) => [room, store.members(room).map((member) => member.name)]));
         const flowTierErrors = validateFlowTiers(patch.flowTiers, members);
@@ -2957,8 +2835,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       saveSettings(opts.dir, next);
       logProfileIdChanges(current.agents.profiles, next.agents.profiles, 'PUT /api/settings', req.headers['user-agent']);
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
-      if (patch && (Object.prototype.hasOwnProperty.call(patch, 'duck') ||
-        (patch.agents && Object.prototype.hasOwnProperty.call(patch.agents, 'profiles')))) await applyDuck();
       void syncCopilots();
       syncApiAgents();
       autoCfg.at = 0;
@@ -3603,7 +3479,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   });
 
   void applyBrowser();
-  void applyDuck();
 
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
@@ -3805,8 +3680,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       for (const c of copilotAgents()) { try { await c.stop(); } catch (error) { console.error('[copilot] shutdown failed:', error); } }
       await browserApplyQueue.catch(() => {});
       if (browser) await browser.stop();
-      await duckApplyQueue.catch(() => {});
-      if (duck) await duck.stop();
       ideBridge.close();
       liveChat.stopAll();
       server.closeAllConnections();

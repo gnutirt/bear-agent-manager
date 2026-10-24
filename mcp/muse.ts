@@ -18,7 +18,7 @@ export const TOOLS = [
 ];
 
 /** The real debug Chrome: /json for the tabs, the page's WebSocket for fixed scripts. */
-export function chromeCdp(base = CDP_URL): Cdp {
+export function chromeCdp(base = CDP_URL, site = 'muse.ai'): Cdp {
   return {
     async tabs() { const r = await fetch(`${base}/json`, { signal: AbortSignal.timeout(3000) }); return (await r.json()) as Tab[]; },
     async open(url: string): Promise<Tab> {
@@ -27,13 +27,13 @@ export function chromeCdp(base = CDP_URL): Cdp {
     },
     async attach(tab: Tab): Promise<Page> {
       const ws = new WebSocket(tab.webSocketDebuggerUrl);
-      await new Promise<void>((res, rej) => { ws.addEventListener('open', () => res(), { once: true }); ws.addEventListener('error', () => rej(new MuseError('cannot attach to the muse.ai tab')), { once: true }); });
+      await new Promise<void>((res, rej) => { ws.addEventListener('open', () => res(), { once: true }); ws.addEventListener('error', () => rej(new MuseError(`cannot attach to the ${site} tab`)), { once: true }); });
       let id = 0;
       const pending = new Map<number, (m: any) => void>();
       ws.addEventListener('message', (e) => { const m = JSON.parse(String(e.data)); pending.get(m.id)?.(m); pending.delete(m.id); });
       return {
         eval: (expression) => new Promise((resolve, reject) => {
-          const i = ++id, timer = setTimeout(() => { pending.delete(i); reject(new MuseError('the muse.ai tab did not answer')); }, 15_000);
+          const i = ++id, timer = setTimeout(() => { pending.delete(i); reject(new MuseError(`the ${site} tab did not answer`)); }, 15_000);
           pending.set(i, (m) => { clearTimeout(timer); m.error ? reject(new MuseError(String(m.error.message))) : resolve(m.result?.result?.value); });
           ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }));
         }),

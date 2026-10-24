@@ -895,7 +895,7 @@ export const vi: Record<string, string> = {
   'sys.copilot.quota.idle': '{name} bị giới hạn quota hoặc tốc độ Copilot ({reason}), thử lại {at}. Không có tin nào đang chờ.',
   'sys.copilot.quota.switch': '{name} bị giới hạn quota hoặc tốc độ Copilot ({reason}); chuyển các tin đang chờ cho {to} xử lý tới {at}. Hãy là người duy nhất phản hồi, không đánh thức hoặc trả lời {name}:\n{messages}',
   'sys.agy.failed': '{name} (agy) không chạy được lượt này: {why}. Tin vẫn chưa đọc.',
-  'sys.duck.failed': '{name} (Duck) không trả lời được lượt này: {why}. Tin vẫn chưa đọc.',
+  'sys.duck.failed': '@you {name} (Duck) không trả lời được lượt này: {why}. Tin vẫn chưa đọc.',
   'sys.usage.near': 'Claude {account} đã đạt ngưỡng usage 5 giờ ({pct}%): tạm dừng giao tin cho agent thuộc tài khoản, hẹn đánh thức lúc {at}.',
   'sys.mention.unknown': 'Không có thành viên nào tên {names} trong phòng #{room}: chưa đánh thức ai. Kiểm tra lại tên trong danh sách thành viên.',
   'sys.wake.resume': '@{name} hết hạn mức đã qua, làm tiếp việc đang dở.',

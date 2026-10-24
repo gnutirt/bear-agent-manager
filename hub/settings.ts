@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renameRetry } from './atomic.ts';
 import type { BrowserCfg } from './browser.ts';
-import type { DuckHostCfg } from './duckhost.ts';
 
 export type SkillMode = 'force' | 'auto' | 'ban';
 export type SkillRule = { mode: SkillMode; when: 'every' | 'first' };
@@ -53,7 +52,6 @@ export type Settings = {
   openTabOnWake: boolean;   // T-W: a member that cannot be resumed in the background gets its tab opened (the user presses Enter)
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
   browser: BrowserCfg;
-  duck: DuckHostCfg;
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
 };
 
@@ -123,7 +121,7 @@ export function permFor(s: Settings, agent: string): PermRule {
 
 /** Headless agents (data, not code) - see docs/superpowers/specs/2026-10-19-headless-agent-profiles.md */
 // 'claude-api' permissions follow apiAgents.allTools; agy uses the user's Antigravity CLI login.
-export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'agy' | 'duck' | 'muse'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean; effort?: string; path?: string; baseUrl?: string; useHubDuck2api?: boolean; timeoutMs?: number; experimental?: boolean };
+export type AgentProfile = { id: string; provider: 'copilot' | 'claude-api' | 'agy' | 'duck' | 'muse'; name: string; cwd: string; home?: string; enabled: boolean; providerId?: string; model?: string; edit?: boolean; effort?: string; path?: string };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const localAbs = (v: unknown): v is string => typeof v === 'string' && path.isAbsolute(v) && !/^[\\/]{2}/.test(v);   // absolute local path, not a network share
 
@@ -167,21 +165,6 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
     if (model && !new RegExp(`^[\\w.:/-]{1,${agy ? 64 : 80}}$`).test(model)) { fail('model', `must be 1-${agy ? 64 : 80} letters, digits, _, ., :, /, or -`); unusable = true; }
     if (r.home != null && r.home !== '' && !localAbs(r.home)) fail('home', 'must be an absolute local folder, not a network share');
     if (agy && r.path != null && r.path !== '' && (typeof r.path !== 'string' || r.path.length > 500)) { fail('path', 'must be at most 500 characters'); unusable = true; }
-    let baseUrl = '';
-    if (duck && r.baseUrl != null && r.baseUrl !== '') {
-      try {
-        const url = new URL(String(r.baseUrl).trim());
-        if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.host || url.username || url.password) throw new Error();
-        baseUrl = url.toString().replace(/\/+$/, '');
-      } catch { fail('baseUrl', 'must be an absolute http or https URL without embedded credentials'); unusable = true; }
-    } else if (duck && r.baseUrl != null && typeof r.baseUrl !== 'string') {
-      fail('baseUrl', 'must be a string'); unusable = true;
-    }
-    if (duck && r.useHubDuck2api != null && typeof r.useHubDuck2api !== 'boolean') { fail('useHubDuck2api', 'must be true or false'); unusable = true; }
-    if (duck && r.timeoutMs != null && (!Number.isInteger(r.timeoutMs) || r.timeoutMs < 5000 || r.timeoutMs > 300000)) { fail('timeoutMs', 'must be an integer from 5000 to 300000'); unusable = true; }
-    if (duck && r.experimental != null && typeof r.experimental !== 'boolean') { fail('experimental', 'must be true or false'); unusable = true; }
-    if (duck && r.enabled === true && (!r.useHubDuck2api && !baseUrl)) { fail('baseUrl', 'choose Duck2api from the hub or provide a baseUrl before enabling'); unusable = true; }
-    if (duck && r.enabled === true && r.experimental !== true) { fail('experimental', 'must be true before enabling the experimental Duck provider'); unusable = true; }
     if (r.enabled != null && typeof r.enabled !== 'boolean') fail('enabled', 'must be true or false');
     if (r.edit != null && typeof r.edit !== 'boolean') fail('edit', 'must be true or false');
     if (safeId && ids.has(safeId)) { fail('id', 'must be unique'); unusable = true; }
@@ -189,11 +172,9 @@ function profilesOf(raw: unknown, cur: AgentProfile[]): ProfileResult {
     if (unusable) continue;
     ids.add(id); names.add(normAgent(name));
     const effort = agy && ['low', 'medium', 'high', 'xhigh', 'max'].includes(r.effort) ? r.effort : undefined;
-    out.push({ id, provider: agy ? 'agy' : api ? 'claude-api' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
+    out.push({ id, provider: agy ? 'agy' : api ? 'claude-api' : duck ? 'duck' : muse ? 'muse' : 'copilot', name, cwd: path.resolve(r.cwd), ...(localAbs(r.home) ? { home: path.resolve(r.home) } : {}), enabled: r.enabled === true,
       ...(model ? { model } : {}), ...(api ? { providerId, ...(r.edit === true ? { edit: true } : {}) } : {}),
-      ...(effort ? { effort } : {}), ...(agy && typeof r.path === 'string' && r.path ? { path: r.path.trim() } : {}),
-      ...(duck ? { ...(baseUrl ? { baseUrl } : {}), ...(r.useHubDuck2api === true ? { useHubDuck2api: true } : {}), ...(Number.isInteger(r.timeoutMs) ? { timeoutMs: r.timeoutMs } : {}), ...(typeof r.experimental === 'boolean' ? { experimental: r.experimental } : {}) } : {}),
-      ...(duck ? { provider: 'duck' as const } : muse ? { provider: 'muse' as const } : {}) });
+      ...(effort ? { effort } : {}), ...(agy && typeof r.path === 'string' && r.path ? { path: r.path.trim() } : {}) });
   }
   if (raw.length > 16) errors.push({ index: 16, id: '', field: 'profiles', reason: 'at most 16 profiles are allowed' });
   return { profiles: out, errors };
@@ -210,7 +191,7 @@ export function defaultSettings(envCap = 4): Settings {
   return {
     skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, apiAgents: { allTools: true }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '', monitor: { on: true, staleMin: 60, nudgeMin: 15 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
-    allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' }, browser: { enabled: true, port: 9333, chromePath: '' }, duck: { exePath: '', port: 18080 },
+    allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' }, browser: { enabled: true, port: 9333, chromePath: '' },
   };
 }
 
@@ -320,11 +301,6 @@ export function patchSettings(s: Settings, p: any): Settings {
     port: typeof browserPatch.port === 'number' && Number.isInteger(browserPatch.port) && browserPatch.port >= 1024 && browserPatch.port <= 65535 ? browserPatch.port : s.browser.port,
     chromePath: typeof browserPatch.chromePath === 'string' && browserPatch.chromePath.length <= 500 ? browserPatch.chromePath : s.browser.chromePath,
   };
-  const duckPatch = p?.duck ?? {};
-  const duck: DuckHostCfg = {
-    exePath: typeof duckPatch.exePath === 'string' && duckPatch.exePath.length <= 500 && !duckPatch.exePath.includes('\0') ? duckPatch.exePath.trim() : s.duck.exePath,
-    port: typeof duckPatch.port === 'number' && Number.isInteger(duckPatch.port) && duckPatch.port >= 1024 && duckPatch.port <= 65535 ? duckPatch.port : s.duck.port,
-  };
   const apiAgents = { allTools: bool(p?.apiAgents?.allTools, s.apiAgents?.allTools ?? true) };
   return {
     skills: {
@@ -367,7 +343,6 @@ export function patchSettings(s: Settings, p: any): Settings {
     openTabOnWake: bool(p?.openTabOnWake, s.openTabOnWake ?? false),
     updates: { check: bool(p?.updates?.check, s.updates?.check ?? true) },
     browser,
-    duck,
     autoJobs: {
       handoff: { enabled: bool(aj.handoff?.enabled, s.autoJobs.handoff.enabled), thresholdK: int(aj.handoff?.thresholdK, s.autoJobs.handoff.thresholdK, 50, 2000) },
       digest: { enabled: bool(aj.digest?.enabled, s.autoJobs.digest.enabled), minChars: int(aj.digest?.minChars, s.autoJobs.digest.minChars, 1000, 100_000) },

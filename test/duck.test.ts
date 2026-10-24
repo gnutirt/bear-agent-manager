@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildMessages, duckTurn, flatten, loadAgentKeys, memoryCommand, saveAgentKey, summarizeOldest } from '../hub/duck.ts';
+import { buildMessages, duckTurn, flatten, memoryCommand, summarizeOldest } from '../hub/duck.ts';
 import { historyFile, loadHistory, Memory, saveHistory } from '../hub/memory.ts';
 import type { Message } from '../hub/routing.ts';
 import type { Cdp, Page } from '../mcp/webchat-core.ts';
@@ -85,10 +85,33 @@ test('Duck flatten formats system, memory, summary, history, and question within
 test('Duck remember stores room/project memories, but refuses secrets without saving them', async (t) => {
   const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const memory = new Memory(home);
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('Object.getOwnPropertyDescriptor')) return true;
+      if (expr.includes('closest(\'form\')')) return true;
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      if (expr.includes('.length') && expr.startsWith('document')) return 0;
+      if (expr.includes('Stop generating')) {
+        return {
+          stop: false,
+          items: [
+            { role: 'user', text: 'question', hasCopy: false },
+            { role: 'assistant', text: 'ordinary reply', hasCopy: true },
+          ],
+        };
+      }
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
   const turn = duckTurn({
     home, agentId: 'duck-a', project: 'project-a', memory,
-    profile: () => ({ baseUrl: '', model: 'model', timeoutMs: 5000 }), key: () => '',
-    fetch: (async () => reply(completion('ordinary reply'))) as typeof fetch,
+    profile: () => ({ model: 'model', timeoutMs: 5000 }),
+    cdp: fakeCdp,
   });
   const saved = await turn('sid', 'room_a', 'hãy nhớ: repo dùng pnpm');
   assert.deepEqual(saved, { ok: true, text: 'Đã nhớ [M1].', error: '' });
@@ -121,17 +144,37 @@ test('Duck sends a single tool-free request, cites relevant memory, and persists
   const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const memory = new Memory(home);
   memory.add({ kind: 'decision', text: 'project uses pnpm', tags: [], scope: 'project', project: 'project-a', source: 'user' });
-  const requests: { url: string; body: any }[] = [];
-  const fetcher = (async (url: string, init: RequestInit) => {
-    requests.push({ url, body: JSON.parse(String(init.body)) });
-    return reply(completion(`Answer ${requests.length}`));
-  }) as typeof fetch;
-  const options = { home, agentId: 'duck-a', project: 'project-a', memory, profile: () => ({ baseUrl: 'http://provider.test/v1', model: 'coder', timeoutMs: 5000 }), key: () => 'secret-key', fetch: fetcher };
+  let askedPrompt = '';
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('Object.getOwnPropertyDescriptor')) {
+        askedPrompt = expr;
+        return true;
+      }
+      if (expr.includes('closest(\'form\')')) return true;
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      if (expr.includes('.length') && expr.startsWith('document')) return 0;
+      if (expr.includes('Stop generating')) {
+        return {
+          stop: false,
+          items: [
+            { role: 'user', text: 'question', hasCopy: false },
+            { role: 'assistant', text: 'Duck answer', hasCopy: true },
+          ],
+        };
+      }
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+  const options = { home, agentId: 'duck-a', project: 'project-a', memory, profile: () => ({ model: 'coder', timeoutMs: 5000 }), cdp: fakeCdp };
   const turn = duckTurn(options);
-  assert.deepEqual(await turn('sid', 'room_a', 'How to run project pnpm?'), { ok: true, text: 'Answer 1', error: '', usage: { in: 7, out: 4 } });
-  assert.equal(requests[0].url, 'http://provider.test/v1/chat/completions');
-  assert.deepEqual(Object.keys(requests[0].body).sort(), ['messages', 'model', 'stream']);
-  assert.ok(requests[0].body.messages.some((message: { content: string }) => message.content.includes('[M1 decision')));
+  assert.deepEqual(await turn('sid', 'room_a', 'How to run project pnpm?'), { ok: true, text: 'Duck answer', error: '' });
+  assert.ok(askedPrompt.includes('[M1 decision'));
   await Promise.all([
     turn('sid', 'room_b', 'Separate room B history'),
     turn('sid', 'room_c', 'Separate room C history'),
@@ -331,40 +374,32 @@ test('GET /api/duck/status reports status from duckCdp', async (t) => {
   assert.deepEqual(status, { chrome: true, loggedIn: true, busy: false });
 });
 
-test('Duck key API stores secrets privately and reports only hasKey; check-models uses the saved key', async (t) => {
-  const h = await makeHub(undefined, undefined, {
-    duckFetch: (async (url: string, init: RequestInit) => {
-      assert.equal(url, 'http://provider.test/v1/models');
-      assert.equal(String((init.headers as Record<string, string>).authorization).startsWith('Bearer '), true);
-      return reply({ data: [{ id: 'coder-model' }] });
-    }) as typeof fetch,
-  });
+test('Duck DELETE /api/duck/history clears history', async (t) => {
+  const h = await makeHub();
   t.after(async () => { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); });
-  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: false, baseUrl: 'http://provider.test/v1', experimental: true }] } }, { method: 'PUT' });
-  await h.call('/api/agents/duck-main/key', { key: 'api-secret-value' }, { method: 'PUT' });
-  const settings = await h.call<any>('/api/settings');
-  const serialized = JSON.stringify(settings);
-  assert.equal(settings.agents.profiles.find((profile: any) => profile.id === 'duck-main').hasKey, true);
-  assert.ok(!serialized.includes('api-secret-value'));
-  assert.equal(loadAgentKeys(h.dir)['duck-main'], 'api-secret-value');
-  assert.deepEqual(await h.call('/api/duck/check?id=duck-main'), { ok: true, models: ['coder-model'] });
-  await h.call('/api/agents/duck-main/key', { key: null }, { method: 'PUT' });
-  assert.equal((await h.call<any>('/api/settings')).agents.profiles.find((profile: any) => profile.id === 'duck-main').hasKey, false);
+  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: false }] } }, { method: 'PUT' });
   await h.call('/api/duck/history?id=duck-main&room=room_a', undefined, { method: 'DELETE' });
   await assert.rejects(h.call('/api/duck/history?id=duck-main', undefined, { method: 'DELETE' }), (error: any) => error.status === 400);
 });
 
 test('enabled Duck profile runs as a room member and leaves messages unread on a provider failure', async (t) => {
   let calls = 0;
-  const h = await makeHub(undefined, undefined, {
-    duckFetch: (async () => {
+  const failingPage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('textarea[name=user-prompt]')) return true;
       calls++;
-      return reply({ error: 'ERR_BN_LIMIT' }, 418);
-    }) as typeof fetch,
-  });
+      throw new Error('ERR_BN_LIMIT');
+    },
+    close() {},
+  };
+  const failingCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return failingPage; },
+  };
+  const h = await makeHub(undefined, undefined, { duckCdp: failingCdp });
 
   t.after(async () => { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); });
-  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: true, baseUrl: 'http://provider.test', experimental: true }] } }, { method: 'PUT' });
+  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: true }] } }, { method: 'PUT' });
   const member = await until(() => h.hub.store.members('bear-agent-manager').find((session) => session.name === 'DuckMain'), 5000, 'Duck profile registration');
   await h.call('/api/rooms/bear-agent-manager/messages', { text: '@DuckMain answer this' });
   await until(() => calls === 1, 5000, 'Duck request');
@@ -379,20 +414,40 @@ test('enabled Duck profile runs as a room member and leaves messages unread on a
 });
 
 test('an enabled Duck profile posts a successful tool-free answer as the room member', async (t) => {
-  let request: { messages: Array<{ content: string }>; model: string; stream: boolean } | undefined;
-  const h = await makeHub(undefined, undefined, {
-    duckFetch: (async (_url: string, init: RequestInit) => {
-      request = JSON.parse(String(init.body));
-      return reply(completion('Duck answer with evidence [M1].'));
-    }) as typeof fetch,
-  });
+  let askedPrompt = '';
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('Object.getOwnPropertyDescriptor')) {
+        askedPrompt = expr;
+        return true;
+      }
+      if (expr.includes('closest(\'form\')')) return true;
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      if (expr.includes('.length') && expr.startsWith('document')) return 0;
+      if (expr.includes('Stop generating')) {
+        return {
+          stop: false,
+          items: [
+            { role: 'user', text: 'question', hasCopy: false },
+            { role: 'assistant', text: 'Duck answer with evidence [M1].', hasCopy: true },
+          ],
+        };
+      }
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+  const h = await makeHub(undefined, undefined, { duckCdp: fakeCdp });
   t.after(async () => { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); });
   await h.call('/api/memory', { kind: 'context', text: 'project builds with pnpm', tags: [], scope: 'room', room: 'bear-agent-manager' });
-  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: true, baseUrl: 'http://provider.test', experimental: true }] } }, { method: 'PUT' });
+  await h.call('/api/settings', { agents: { profiles: [{ id: 'duck-main', provider: 'duck', name: 'DuckMain', cwd: h.dir, enabled: true }] } }, { method: 'PUT' });
   const member = await until(() => h.hub.store.members('bear-agent-manager').find((session) => session.name === 'DuckMain'), 5000, 'Duck profile registration');
   await h.call('/api/rooms/bear-agent-manager/messages', { text: '@DuckMain how to build pnpm?' });
   const answer = await until(() => h.hub.store.history('bear-agent-manager').find((message) => message.fromId === member.id && message.text.includes('Duck answer')), 5000, 'Duck room answer');
-  assert.ok(request?.messages.some((message) => message.content.includes('[M1 context')));
-  assert.deepEqual(Object.keys(request ?? {}).sort(), ['messages', 'model', 'stream']);
+  assert.ok(askedPrompt.includes('[M1 context'));
   assert.equal(answer.from, 'DuckMain');
 });
