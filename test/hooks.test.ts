@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeHub, until } from './helpers.ts';
-import { accountEmail, activityFor, describeRun, formatDelivery, ideFromCommand, isOneShotCommand, parseInput, readContextTokens, readTitle, runContext } from '../hooks/lib.ts';
+import { accountEmail, activityFor, describeRun, formatDelivery, ideFromCommand, isOneShotCommand, lastToolUse, parseInput, readContextTokens, readTitle, runContext } from '../hooks/lib.ts';
 import { fixedRules } from '../shared/format.ts';
 import { readCompactMark } from '../shared/transcript.ts';
 import fs from 'node:fs';
@@ -210,6 +210,43 @@ test('readContextTokens sums the last assistant turn input (fresh + cache read +
   assert.equal(readContextTokens(f), 12001, 'a turn after the compact wins');
   fs.appendFileSync(f, boundary({ trigger: 'auto', preTokens: 12001 }) + '\n');
   assert.equal(readContextTokens(f), 0, 'no postTokens: unknown');
+});
+
+test('#287 lastToolUse finds the newest tool_use block in transcript tail', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-tool-'));
+  const f = path.join(dir, 't.jsonl');
+  try {
+    assert.equal(lastToolUse(f), undefined);
+    assert.equal(lastToolUse(undefined), undefined);
+    fs.writeFileSync(f, [
+      JSON.stringify({ type: 'user', message: { content: 'hello' } }),
+      JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'thinking' }] } }),
+    ].join('\n') + '\n');
+    assert.equal(lastToolUse(f), undefined);
+
+    fs.appendFileSync(f, JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'text', text: 'reading file' },
+          { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'a.txt' } },
+        ],
+      },
+    }) + '\n');
+    assert.deepEqual(lastToolUse(f), { name: 'Read', input: { file_path: 'a.txt' } });
+
+    fs.appendFileSync(f, JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: 'docs/api.md' } },
+        ],
+      },
+    }) + '\n');
+    assert.deepEqual(lastToolUse(f), { name: 'Edit', input: { file_path: 'docs/api.md' } });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('session-start registers a resumed chat (transcript exists) right away', async () => {

@@ -4,12 +4,12 @@ import { createHash } from 'node:crypto';
 // Readers for a Claude Code transcript (.jsonl). Only the tail is read: transcripts reach many MB.
 const TAIL = 512 * 1024;
 
-function readTail(file: string | undefined): string {
+function readTail(file: string | undefined, maxLen = TAIL): string {
   if (!file) return '';
   try {
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
-    const len = Math.min(size, TAIL);
+    const len = Math.min(size, maxLen);
     const buf = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, size - len);
     fs.closeSync(fd);
@@ -119,4 +119,33 @@ export function readLastAssistantText(transcript: string | undefined): string {
     } catch { /* partial first line of the tail */ }
   }
   return '';
+}
+
+/**
+ * Last tool_use block in the transcript tail (~64KB); undefined when none found.
+ * #287: used by background api agents (which run with --bare and have no hooks) to update activity.
+ */
+export function lastToolUse(transcript: string | undefined): { name: string; input?: Record<string, unknown> } | undefined {
+  const text = readTail(transcript, 64 * 1024);
+  if (!text) return undefined;
+  const lines = text.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line || !line.includes('"tool_use"')) continue;
+    try {
+      const o = JSON.parse(line);
+      const blocks = o?.message?.content ?? o?.content;
+      if (Array.isArray(blocks)) {
+        for (let b = blocks.length - 1; b >= 0; b--) {
+          const blk = blocks[b];
+          if (blk?.type === 'tool_use' && blk.name) {
+            return { name: String(blk.name), input: (blk.input && typeof blk.input === 'object') ? blk.input : {} };
+          }
+        }
+      } else if (o?.type === 'tool_use' && o.name) {
+        return { name: String(o.name), input: (o.input && typeof o.input === 'object') ? o.input : {} };
+      }
+    } catch { /* partial line */ }
+  }
+  return undefined;
 }

@@ -36,7 +36,7 @@ import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, Updat
 import { effectiveRules, listSkills, skillReminder, type SkillInfo } from './skillmodes.ts';
 import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, fixedRules, formatDelivery, RENAMED_KEY } from '../shared/format.ts';
-import { isSavedChat, readCompactMark, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
+import { isSavedChat, lastToolUse, readCompactMark, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
 import { pidAlive, Store, StoreError, type Ide, type ProcessInfo, type Session, type Status } from './store.ts';
 import type { Message, SysMeta } from './routing.ts';
@@ -370,13 +370,15 @@ export type HubOptions = {
   moveTimeoutMs?: number;
   /** T4: timeout for waiting for background process to exit on move (default 30s; tests use shorter). */
   bgKillTimeoutMs?: number;
+  /** #287: poll interval for api agent transcript activity updates (default 10s; tests use shorter). */
+  apiActivityIntervalMs?: number;
 };
 
 const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
 const IDLE_COMPACT_EVERY_MS = 10 * 60_000;
 const API_RETRY_MS = [30_000, 2 * 60_000, 5 * 60_000];
-const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).filter(Boolean).pop()?.slice(0, 160) ?? '';
+const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.includes('unrecognized_model')).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const ideBridge = new IdeBridge();
@@ -1420,6 +1422,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     let output = '';
     let failure = '';   // why the wake did not happen; the messages stay unread
     let blockedKey = '';
+    let tick: NodeJS.Timeout | undefined;
     Promise.resolve()
       .then(async () => {
         const blocked = api ? '' : await blockedAccount(s, job);   // the owner's account usage means nothing to a provider
@@ -1437,11 +1440,21 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (compacted) store.markRules(s.id, rulesKeyFor(s));
           emitSession(store.setStatus(s.id, 'busy', tr('sys.act.reviving')));
         }
+        if (api) {
+          const updateApiActivity = () => {
+            const cur = store.session(s.id);
+            const t = lastToolUse(cur.transcript);
+            if (t) emitSession(store.setStatus(s.id, 'busy', activityFor(t.name, t.input)));
+          };
+          tick = setInterval(updateApiActivity, opts.apiActivityIntervalMs ?? 10_000);
+          tick.unref();
+        }
         const code = await Promise.resolve(runRevive({ ...job, text, idleMin: cfg.lead.idleMin, perm, onOutput: (chunk) => { output = (output + chunk).slice(-4096); } }));
         if (typeof code === 'number' && code !== 0) { const line = lastOutputLine(output); failure = `${tr('sys.wake.exit', { code })}${line ? `: ${line}` : ''}`; }
       })
       .catch((e) => { failure = String(e?.message ?? e).slice(0, 200); })
       .finally(() => {
+        if (tick) clearInterval(tick);
         const replaced = replacedByTab.delete(s.id);   // killed by tabCameUp: the tab reads the rewound messages, nothing failed
         if (failure) {
           const cur = store.session(s.id);

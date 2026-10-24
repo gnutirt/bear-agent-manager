@@ -17,8 +17,8 @@ export type HookInput = {
   transcript_path?: string;
 };
 
-import { readContextTokens, readTitle } from '../shared/transcript.ts';
-export { isSavedChat, readContextTokens, readTitle } from '../shared/transcript.ts';
+import { lastToolUse, readContextTokens, readTitle } from '../shared/transcript.ts';
+export { isSavedChat, lastToolUse, readContextTokens, readTitle } from '../shared/transcript.ts';
 
 /** Hook stdin JSON; strips a UTF-8 BOM (PowerShell 5.1 adds one when piping to native programs). */
 export function parseInput(raw: string): HookInput {

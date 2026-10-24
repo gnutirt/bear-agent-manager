@@ -535,3 +535,51 @@ test('claude-api profile with a provider that has no key stays an error and neve
     assert.equal(jobs.length, 0);
   } finally { await hub.close(); }
 });
+
+test('#287 UX: agent claude-api (--bare) ticks every 10s to read lastToolUse and update activity', async () => {
+  const jobs: any[] = [];
+  const cwd = fs.realpathSync(os.tmpdir());
+  let releaseRevive: () => void = () => {};
+  const reviveWait = new Promise<void>((r) => { releaseRevive = r; });
+  let transcriptFile = '';
+
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    autoRevive: false,
+    apiActivityIntervalMs: 50,
+    spawnAgent: async (job: any) => {
+      jobs.push(job);
+      const d = path.join(dir, '.claude', 'projects', projectSlug(cwd));
+      fs.mkdirSync(d, { recursive: true });
+      transcriptFile = path.join(d, `${job.id}.jsonl`);
+      fs.writeFileSync(transcriptFile, JSON.stringify({ type: 'user', message: { content: 'hi' } }) + '\n' + JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'ok' }] } }) + '\n');
+      return 0;
+    },
+    revive: async () => {
+      // Simulate long turn: append tool_use to transcript
+      fs.appendFileSync(transcriptFile, JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: 'docs/api.md' } }] },
+      }) + '\n');
+      await reviveWait;
+      return 0;
+    },
+  });
+
+  try {
+    fs.writeFileSync(path.join(dir, 'providers.json'), JSON.stringify([prov({ id: 'fake', tier: 'local' })]));
+    await call('/api/rooms', { name: 'bear-agent-manager' });
+    await call('/api/settings', { agents: { profiles: [prof({ cwd })] } }, { method: 'PUT' });
+    await until(() => jobs.length === 1, 5000, 'first run');
+    const sid = jobs[0].id;
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.status === 'offline', 5000, 'first run ended');
+
+    // Wake the agent in room
+    await call('/api/rooms/bear-agent-manager/messages', { text: '@Local do some work' });
+
+    // The activity poller should update session activity to 'Edit api.md'
+    await until(async () => (await call<any>('/api/sessions/' + sid)).session.activity === 'Edit api.md', 5000, 'activity updated from transcript lastToolUse');
+  } finally {
+    releaseRevive();
+    await hub.close();
+  }
+});
