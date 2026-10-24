@@ -72,6 +72,7 @@
 | Method | Path | Fields | Cần token |
 |--------|------|--------|-----------|
 | GET | `/api/accounts` |  | có |
+| GET | `/api/workspaces` |  | có |
 | POST | `/api/accounts/share` | `on`, `confirm` | có |
 | GET | `/api/autostart` |  | có |
 | POST | `/api/autostart` | `confirm`, `on` | có |
