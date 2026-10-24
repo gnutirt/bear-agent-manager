@@ -535,7 +535,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     return false;
   }
-  const profileKey = (p: AgentProfile) => JSON.stringify([p.provider, p.name, p.cwd, p.home, p.model, p.effort, p.path, p.baseUrl, p.useHubDuck2api, p.timeoutMs, p.experimental]);
+  const profileKey = (p: AgentProfile) => JSON.stringify([p.provider, p.name, p.cwd, p.home, p.model, p.effort, p.path]);
   function copilotFor(p: AgentProfile): ManagedAgent {
     const key = profileKey(p);
     const cur = copilots.get(p.id);

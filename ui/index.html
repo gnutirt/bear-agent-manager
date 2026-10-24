@@ -816,8 +816,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .setbox .note{margin:10px 0 4px}
 .setbox p.note{display:block}.setbox .pf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .cprofiles{display:grid;gap:8px;margin:10px 0}.cprofile{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.cprofile .mono{overflow-wrap:anywhere}.cprofile .pf{justify-content:flex-start}.cprofile-new{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.cprofile-new input:not([type=checkbox]){min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.cprofile-new .inline{display:flex;align-items:center;gap:7px}.cprofile-new .btn{justify-self:end}@media(max-width:600px){.cprofile-new{grid-template-columns:1fr}.cprofile-new .btn{justify-self:stretch}}
-.cprofile-new .duck-setup{grid-column:1/-1}
-.agy-install-command{min-width:0;overflow-wrap:anywhere}.duck-opt{display:grid;gap:4px;font-size:13px}.qhelp{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--line);border-radius:50%;font-size:11px;color:var(--mute);cursor:help}.agy-new{grid-template-columns:1fr}.agy-new label{display:grid;gap:4px}.agy-new select{min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.agy-new .row{display:flex;gap:8px;justify-content:flex-end}
+.agy-install-command{min-width:0;overflow-wrap:anywhere}.qhelp{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--line);border-radius:50%;font-size:11px;color:var(--mute);cursor:help}.agy-new{grid-template-columns:1fr}.agy-new label{display:grid;gap:4px}.agy-new select{min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.agy-new .row{display:flex;gap:8px;justify-content:flex-end}
 .pcard input.warn{border-color:#F5A524}.pcard input.warn::placeholder{color:#B7791F}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
@@ -3375,15 +3374,15 @@ $('view-tokens').addEventListener('click', (e) => {
 /* ---------- Cài đặt tab ---------- */
 S.settings = null; S.skills = null; S.archive = null; S.skAgent = ''; S.skQuery = ''; S.skUse = {};
 S.browserStatus = null;
-S.duckHost = undefined; S.duckChecks = {};
+S.duckStatus = undefined; S.duckStatusError = '';
 const MODES = lazy({ force: 'mode.force', auto: 'mode.auto', ban: 'mode.ban' });
 const normAgent = (n) => String(n || '').trim().toLowerCase();
 const splitList = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
 /** {a:{b:1}} from 'a.b' = 1: settings are saved one field at a time. */
 const patchAt = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
 function loadSettingsView() {
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus(), loadDuckHostStatus()]).then(([s, p, sk, ar, mc, browser, duckHost]) => {
-    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; S.duckHost = duckHost; pollMachine();
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/skills'), api('/api/archive'), api('/api/machine'), loadBrowserStatus(), loadDuckStatus()]).then(([s, p, sk, ar, mc, browser, duckStatus]) => {
+    S.settings = s; S.providers = p; S.skills = sk; S.archive = ar; S.machine = mc; S.browserStatus = browser; S.duckStatus = duckStatus; pollMachine();
     if (!S.skAgent) S.skAgent = normAgent(sk.members[0]?.name || Object.keys(s.agentSkills)[0] || '');
     S.viewErr.settings = ''; renderSettingsView(); loadSkillUse(S.skAgent);
   }, (e) => viewFail('settings', e));
@@ -3395,10 +3394,16 @@ function loadBrowserStatus() {
     lastError: `/api/browser: ${e.message}`,
   }));
 }
-function loadDuckHostStatus() {
-  return api('/api/duck/host').catch((e) => ({
-    configured: false, running: false, endpoint: '', lastError: `/api/duck/host: ${e.message}`,
-  }));
+function loadDuckStatus() {
+  return api('/api/duck/status').then((status) => {
+    S.duckStatus = status;
+    S.duckStatusError = '';
+    return status;
+  }, (error) => {
+    S.duckStatus = undefined;
+    S.duckStatusError = error.message;
+    return null;
+  });
 }
 // #234 (settings IA S1): one row per setting the UI edits. sw/num/txt/sel/swVal render from this table,
 // the search box filters by label/hint/key, and #settings/<group>/<key> deep-links to a row.
@@ -3920,7 +3925,7 @@ function loadCopilotProfiles() {
     S.copilotProfileError = '';
   }, (error) => {
     S.copilotProfileError = error.message;
-  }).then(loadMuseStatus);
+  }).then(() => Promise.all([loadMuseStatus(), loadDuckStatus()]));
 }
 function loadMuseStatus() {
   return api('/api/muse/status').then((status) => {
@@ -3979,89 +3984,6 @@ async function checkAgyProfile(button) {
     button.disabled = false;
   }
 }
-async function checkDuckProfile(id, button) {
-  const row = button?.closest('.cprofile');
-  const modelInput = row?.querySelector(`[data-duck-model="${id}"]`);
-  if (!row || !modelInput) return;
-  const status = row.querySelector(`[data-duck-check-status="${id}"]`);
-  S.duckChecks[id] = { loading: true };
-  button.disabled = true;
-  button.textContent = t('agents.duck.checking');
-  if (status) { status.className = 'small muted'; status.textContent = ''; }
-  try {
-    const result = await api(`/api/duck/check?id=${enc(id)}`);
-    const models = Array.isArray(result.models) ? result.models : [];
-    S.duckChecks[id] = { ...result, models, loading: false };
-  } catch (error) {
-    S.duckChecks[id] = { ok: false, models: [], error: error.message, loading: false };
-  }
-  const check = S.duckChecks[id];
-  if (!row.isConnected) return;
-  const datalist = row.querySelector(`#duck-models-${id}`);
-  if (datalist) datalist.replaceChildren(...check.models.map((model) => {
-    const option = document.createElement('option');
-    option.value = model;
-    return option;
-  }));
-  if (!modelInput.value && check.models.length) modelInput.value = check.models[0];
-  if (status) {
-    status.className = `small ${check.ok ? 'okt' : check.error ? 'bad' : 'muted'}`;
-    status.textContent = check.error || (check.ok ? `${check.models.length} models` : '');
-  }
-  button.disabled = false;
-  button.textContent = t('agents.duck.check');
-}
-async function saveDuckProfile(id) {
-  const row = $('view-settings').querySelector(`[data-duck-save="${id}"]`)?.closest('.cprofile');
-  const profile = (S.settings?.agents?.profiles || []).find((item) => item.id === id);
-  if (!row || !profile) return;
-  const useHubDuck2api = row.querySelector(`[data-duck-hub="${id}"]`).checked;
-  const baseUrl = row.querySelector(`[data-duck-url="${id}"]`).value.trim();
-  const model = row.querySelector(`[data-duck-model="${id}"]`).value.trim();
-  const timeoutMs = Number(row.querySelector(`[data-duck-timeout="${id}"]`).value);
-  const experimental = row.querySelector(`[data-duck-experimental="${id}"]`).checked;
-  if (!useHubDuck2api && baseUrl) {
-    try {
-      const parsed = new URL(baseUrl);
-      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error();
-    } catch { return toast(t('ac.profile.invalid')); }
-  }
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 300000 || (model && !/^[\w.:/-]{1,80}$/.test(model))) return toast(t('ac.profile.invalid'));
-  const next = { ...profile, ...(useHubDuck2api ? { useHubDuck2api: true } : {}), ...(useHubDuck2api ? {} : { baseUrl }) };
-  if (!useHubDuck2api) delete next.useHubDuck2api;
-  if (useHubDuck2api) delete next.baseUrl;
-  if (model) next.model = model; else delete next.model;
-  next.timeoutMs = timeoutMs;
-  next.experimental = experimental;
-  delete S.duckChecks[id];
-  return saveCopilotProfiles((S.settings.agents?.profiles || []).map((item) => item.id === id ? next : item));
-}
-async function saveDuckKey(id, clear = false) {
-  const input = $('view-settings').querySelector(`[data-duck-key="${id}"]`);
-  const key = clear ? null : input?.value.trim() || '';
-  if (!clear && !key) return toast(t('agents.duck.keyMissing'));
-  try {
-    const result = await api(`/api/agents/${enc(id)}/key`, { key }, 'PUT');
-    S.settings = {
-      ...S.settings,
-      agents: { ...S.settings.agents, profiles: S.settings.agents.profiles.map((profile) => profile.id === id ? { ...profile, hasKey: result.hasKey } : profile) },
-    };
-    if (input) input.value = '';
-    toast(t('settings.saved'));
-    renderSettingsView();
-  } catch (error) { toast(error.message); }
-}
-async function saveDuckHost(form) {
-  const exePath = form.elements.namedItem('exePath').value.trim();
-  const port = Number(form.elements.namedItem('port').value);
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) return toast(t('ac.profile.invalid'));
-  try {
-    S.settings = await api('/api/settings', { duck: { exePath, port } }, 'PUT');
-    S.duckHost = await loadDuckHostStatus();
-    toast(t('settings.saved'));
-    renderSettingsView();
-  } catch (error) { toast(error.message); }
-}
 /** Copilot and Agy profiles share these routes; claude-api profiles use /api/agent-profiles. */
 const profileRoute = (id) => `${(S.settings.agents?.profiles || []).find((p) => p.id === id)?.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/'}${enc(id)}`;
 async function setCopilotProfile(id, on) {
@@ -4079,21 +4001,6 @@ async function setCopilotProfile(id, on) {
     await loadCopilotProfiles();
     renderSettingsView();
   }
-}
-function duckUrlIsLoopback(value) {
-  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(value).hostname.toLowerCase()); } catch { return false; }
-}
-function duckHostBlock(st) {
-  const cfg = st.duck || { exePath: '', port: 18080 }, host = S.duckHost;
-  const status = host?.lastError ? `<p class="small bad" role="alert">${esc(t('agents.duck.host.error', { why: host.lastError }))}</p>` : host?.running
-    ? `<p class="small okt" role="status">${esc(t('agents.duck.host.running', { endpoint: host.endpoint }))}</p>`
-    : `<p class="small muted" role="status">${t('agents.duck.host.stopped')}</p>`;
-  return `<p class="small muted note">${t('agents.duck.host.note')} <a href="https://github.com/aurora-develop/Duck2api/releases" target="_blank" rel="noopener">${t('agents.duck.host.release')}</a></p>
-    <form class="cprofile-new" id="duckHostForm">
-      <input name="exePath" maxlength="500" value="${esc(cfg.exePath || '')}" placeholder="${t('agents.duck.host.exePath')}" aria-label="${t('agents.duck.host.exePath')}" spellcheck="false">
-      <input name="port" type="number" min="1024" max="65535" value="${esc(cfg.port ?? 18080)}" placeholder="${t('agents.duck.host.port')}" aria-label="${t('agents.duck.host.port')}">
-      <button class="btn primary">${t('agents.duck.host.save')}</button>
-    </form>${status}`;
 }
 function accountParts(st) {
   if (S.acct === undefined) { S.acct = null; loadAccounts(); }
@@ -4131,6 +4038,12 @@ function accountParts(st) {
     const runtime = status ? t(`ac.copilot.${status.state === 'error' ? 'error' : status.state === 'busy' ? 'busy' : status.state === 'idle' ? 'ready' : status.state === 'starting' ? 'starting' : 'off'}`) : t('ac.profile.statusUnavailable');
     const isApi = p.provider === 'claude-api', isAgy = p.provider === 'agy', isDuck = p.provider === 'duck', isMuse = p.provider === 'muse';
     const check = S.agyChecks?.[p.id], agyVerified = check?.loggedIn && check.path === (p.path || '');
+    const duckReady = !!S.duckStatus?.chrome && !!S.duckStatus.loggedIn;
+    const duckChrome = S.duckStatusError ? t('agents.duck.statusError', { error: S.duckStatusError })
+      : !S.duckStatus ? t('common.loading') : S.duckStatus.chrome ? t('agents.duck.chromeReady') : t('agents.duck.chromeMissing');
+    const duckLogin = S.duckStatusError ? t('agents.duck.statusError', { error: S.duckStatusError })
+      : !S.duckStatus ? t('common.loading') : !S.duckStatus.chrome ? t('agents.duck.chromeMissing')
+        : S.duckStatus.loggedIn ? t('agents.duck.signedIn') : t('agents.duck.signInRequired');
     const museReady = !!S.museStatus?.chrome && !!S.museStatus.loggedIn;
     const museChrome = S.museStatusError ? t('agents.muse.statusError', { error: S.museStatusError })
       : !S.museStatus ? t('common.loading') : S.museStatus.chrome ? t('agents.muse.chromeReady') : t('agents.muse.chromeMissing');
@@ -4139,27 +4052,12 @@ function accountParts(st) {
         : S.museStatus.loggedIn ? t('agents.muse.signedIn') : t('agents.muse.signInRequired');
     const login = isApi ? (status?.auth === 'ok' ? t('ac.api.auth.ok') : status?.auth === 'no' ? t('ac.api.auth.no') : t('ac.profile.authUnknown'))
       : isAgy ? agyVerified ? t('agents.agy.ok', { n: check.models?.length || 0 }) : t('ac.profile.authUnknown')
-        : isDuck ? t(p.hasKey ? 'agents.duck.keySaved' : 'agents.duck.keyMissing')
-          : isMuse ? museLogin
-          : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
+        : isDuck ? duckLogin
+        : isMuse ? museLogin
+        : status?.auth === 'ok' ? t('ac.profile.signedIn', { login: status.login || '?' }) : status?.auth === 'no' ? t('ac.profile.signInRequired') : t('ac.profile.authUnknown');
     const apiInfo = isApi ? `<div class="small">${esc(t('ac.api.info', { provider: p.providerId || '?', model: status?.model || p.model || '?' }))}${p.edit ? ` · <b>${t('ac.api.mayEdit')}</b>` : ` · ${t('ac.api.readOnly')}`}</div>${status?.limited ? `<p class="small pwarn">${esc(t('ac.api.limited', { at: fmtWhen(status.limited) }))}</p>` : ''}` : '';
     const agyInfo = isAgy ? `<div class="pf small"><span>${t('agents.agy.model')}: <b>${esc(p.model || 'gemini-4-argon-medium')}</b></span>${p.effort ? `<span>${t('agents.agy.effort')}: ${esc(p.effort)}</span>` : ''}${p.path ? `<span class="mono">${esc(p.path)}</span>` : ''}<button type="button" class="btn sm" data-agy-check data-agy-check-id="${esc(p.id)}" data-agy-path="${esc(p.path || '')}">${t('agents.agy.check')}</button><span class="small" data-agy-check-status>${agyVerified ? esc(t('agents.agy.ok', { n: check.models?.length || 0 })) : check ? esc(agyCheckMessage(check)) : ''}</span></div>` : '';
-    const duckCheck = S.duckChecks?.[p.id], duckModels = duckCheck?.models || [];
-    const duckWarning = `<p class="small pwarn" role="alert" data-duck-url-warning="${esc(p.id)}"${!p.useHubDuck2api && p.baseUrl && !duckUrlIsLoopback(p.baseUrl) ? '' : ' hidden'}>${t('agents.duck.notLocal')}</p>`;
-    const duckHostReady = !p.useHubDuck2api || S.duckHost?.running;
-    const duckReady = (!!p.useHubDuck2api || !!p.baseUrl) && p.experimental === true && duckHostReady;
-    const duckInfo = isDuck ? `<div class="setbox duck-profile">
-      <p class="small muted note">${t('agents.duck.upstream')}</p>
-      <label class="inline"><input type="checkbox" data-duck-hub="${esc(p.id)}"${p.useHubDuck2api ? ' checked' : ''}>${t('agents.duck.useHub')}</label>
-      <label class="setrow"><span><b>${t('agents.duck.baseUrl')}</b></span><input class="txtin" data-duck-url="${esc(p.id)}" value="${esc(p.baseUrl || '')}" placeholder="https://api.example.com/v1" spellcheck="false"></label>
-      ${duckWarning}
-      <label class="setrow"><span><b>${t('agents.duck.model')}</b></span><input class="txtin" data-duck-model="${esc(p.id)}" list="duck-models-${esc(p.id)}" value="${esc(p.model || duckModels[0] || '')}" maxlength="80" spellcheck="false"><datalist id="duck-models-${esc(p.id)}">${duckModels.map((model) => `<option value="${esc(model)}"></option>`).join('')}</datalist></label>
-      <label class="setrow"><span><b>${t('agents.duck.timeout')}</b></span><input class="txtin" data-duck-timeout="${esc(p.id)}" type="number" min="5000" max="300000" step="1000" value="${esc(p.timeoutMs ?? 60000)}"></label>
-      <label class="inline"><input type="checkbox" data-duck-experimental="${esc(p.id)}"${p.experimental ? ' checked' : ''}>${t('agents.duck.experimental')}</label>
-      <div class="row"><button type="button" class="btn sm" data-duck-save="${esc(p.id)}">${t('common.save')}</button><button type="button" class="btn sm" data-duck-check="${esc(p.id)}"${duckCheck?.loading ? ' disabled' : ''}>${duckCheck?.loading ? t('agents.duck.checking') : t('agents.duck.check')}</button><span class="small ${duckCheck?.ok ? 'okt' : duckCheck?.error ? 'bad' : 'muted'}" data-duck-check-status="${esc(p.id)}">${esc(duckCheck?.error || (duckCheck?.ok ? `${duckModels.length} models` : ''))}</span></div>
-      <div class="pf small"><b>${t('agents.duck.key')}: ${esc(login)}</b><input type="password" data-duck-key="${esc(p.id)}" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"><button type="button" class="btn sm" data-duck-key-save="${esc(p.id)}">${t('agents.duck.keySave')}</button><button type="button" class="btn sm" data-duck-key-clear="${esc(p.id)}"${p.hasKey ? '' : ' disabled'}>${t('agents.duck.keyClear')}</button></div>
-      <div class="pf small"><label>${t('agents.duck.historyRoom')} <select data-duck-history-room="${esc(p.id)}">${(S.rooms || []).filter((room) => !room.dm).map((room) => `<option value="${esc(room.name)}"${room.name === S.current ? ' selected' : ''}>${esc(room.name)}</option>`).join('')}</select></label><button type="button" class="btn sm" data-duck-history-clear="${esc(p.id)}">${t('agents.duck.historyClear')}</button></div>
-    </div>` : '';
+    const duckInfo = isDuck ? `<div class="pf small"><span>${t('agents.duck.chrome')}: <b>${esc(duckChrome)}</b></span><span>${t('ac.profile.login')}: <b>${esc(duckLogin)}</b></span>${S.duckStatus?.busy ? `<span>${t('agents.duck.busy')}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-duck-status-refresh>${t('agents.duck.refresh')}</button><button type="button" class="btn sm" data-duck-history-clear="${esc(p.id)}">${t('agents.duck.historyClear')}</button></div>` : '';
     const museInfo = isMuse ? `<div class="pf small"><span>${t('agents.muse.chrome')}: <b>${esc(museChrome)}</b></span><span>${t('ac.profile.login')}: <b>${esc(museLogin)}</b></span>${S.museStatus?.busy ? `<span>${t('agents.muse.busy')}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-muse-status-refresh>${t('agents.muse.refresh')}</button></div>` : '';
     const toggleDisabled = isAgy && !p.enabled && !agyVerified || isDuck && !p.enabled && !duckReady || isMuse && !p.enabled && !museReady ? ' disabled' : '';
     return `<article class="cprofile"><div class="pf"><b>${esc(p.name)}</b><span class="small muted">${esc(p.id)}</span>${isApi ? `<span class="lic">claude-api</span>` : isAgy ? `<span class="lic">${t('agents.agy.title')}</span>` : isDuck ? `<span class="lic">${t('agents.duck.title')}</span>` : isMuse ? `<span class="lic">${t('agents.muse.title')}</span>` : ''}<span style="flex:1"></span><label class="inline"><input type="checkbox" data-profile-enabled="${esc(p.id)}"${p.enabled ? ' checked' : ''}${toggleDisabled}>${t(p.enabled ? 'ac.profile.enabled' : 'ac.profile.disabled')}</label><button type="button" class="btn sm" data-profile-remove="${esc(p.id)}">${t('ac.profile.remove')}</button></div>
@@ -4179,7 +4077,6 @@ function accountParts(st) {
   const srvRows = srvList === undefined ? `<p class="small muted">${t('mcps.loading')}</p>` : srvList.length ? `<div class="cprofiles">${srvList.map((s) => `<article class="cprofile"><div class="pf"><b>${esc(s.name)}</b><span class="small muted mono">${esc(s.target ?? (s.view ? [s.view.command, ...(s.view.args || []), s.view.url, ...Object.keys(s.view.env || {}).map((k) => k + '=***'), ...Object.keys(s.view.headers || {}).map((k) => k + ': ***')].filter(Boolean).join(' ') : ''))}</span>${s.status ? `<span class="small ${/Connected/.test(s.status) ? 'okt' : 'muted'}">${esc(s.status)}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn sm" data-mcps-del="${esc(s.name)}">${t('common.delete')}</button></div></article>`).join('')}</div>` : `<p class="small muted">${t('mcps.empty')}</p>`;
   // #235 (S2): one function, four homes — accounts (group 3), agents (group 2), MCP (group 5), autostart (group 6).
   return {
-    duck: `<h3>${t('agents.duck.host.title')}</h3>${duckHostBlock(st)}`,
     accounts: `<h2>${t('ac.accounts')}</h2><div class="setbox"><p class="small muted note">${t('ac.accounts.note')}</p><div class="agrid">${cards}</div></div>
     <h2>${t('sw.title')}</h2><div class="setbox"><p class="small muted note">${t('sw.note')}</p>${switchBlock(st)}</div>
     <h2>${t('ac.share')}</h2><div class="setbox"><p class="small muted note">${t('ac.share.note')}</p>${multi ? `<div class="pf"><b class="${A.shared ? 'okt' : ''}">${A.shared ? t('ac.share.on') : t('ac.share.off')}</b><button type="button" class="btn" id="shareToggle">${A.shared ? t('ac.share.turnOff') : t('ac.share.turnOn')}</button></div>` : ''}${planHtml}</div>`,
@@ -4214,9 +4111,9 @@ function openAgentDialog() {
   S.agentDialog = { loading: true, kind: '', error: '', room: currentRoom?.dm ? S.taskRoom : (currentRoom?.name || S.taskRoom) };
   zoomBack = null; closeMenu(); zoom.hidden = false;
   zoom.innerHTML = `<div class="zbox agent-spawn" data-agent-dialog role="dialog" aria-modal="true"><p class="small muted">${t('agent.spawn.loading')}</p></div>`;
-  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts'), loadDuckHostStatus(), api('/api/copilot').catch(() => null), loadMuseStatus()]).then(([settings, providers, statuses, accounts, duckHost, copilot]) => {
+  Promise.all([api('/api/settings'), api('/api/providers'), api('/api/agent-profiles'), api('/api/accounts'), loadDuckStatus(), api('/api/copilot').catch(() => null), loadMuseStatus()]).then(([settings, providers, statuses, accounts, duckStatus, copilot]) => {
     if (!S.agentDialog) return;
-    S.settings = settings; S.providers = providers; S.acct = accounts; S.duckHost = duckHost; if (copilot) S.copilot = copilot;
+    S.settings = settings; S.providers = providers; S.acct = accounts; S.duckStatus = duckStatus; if (copilot) S.copilot = copilot;
     S.agentProfiles = Object.fromEntries(statuses.map((status) => [status.id, status])); S.copilotProfiles = S.agentProfiles;
     S.agentDialog.loading = false; renderAgentDialog();
   }, (e) => {
@@ -4302,24 +4199,16 @@ function renderAgentDialog() {
       <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary" disabled>${t('agent.spawn.start')}</button></div>
     </form>`;
   } else if (!state.loading && state.kind === 'duck') {
+    const ready = !!S.duckStatus?.chrome && !!S.duckStatus.loggedIn;
+    const status = S.duckStatusError ? t('agents.duck.statusError', { error: S.duckStatusError })
+      : !S.duckStatus ? t('common.loading') : !S.duckStatus.chrome ? t('agents.duck.chromeMissing')
+        : S.duckStatus.loggedIn ? t('agents.duck.signedIn') : t('agents.duck.signInRequired');
     content = profiles.length >= 16 ? `<p class="small muted">${t('ac.profile.limit')}</p><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button>` : `<form class="cprofile-new" data-agent-duck>
-      <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
+      <input name="name" required maxlength="40" pattern="[\\w.-]{1,40}" value="${profiles.some((p) => p.name.toLowerCase() === 'duck') ? '' : 'Duck'}" placeholder="${t('ac.profile.name')}" aria-label="${t('ac.profile.name')}">
       <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
-      ${S.duckHost?.running ? '' : `<div class="small pwarn duck-setup"><p>${t('agent.spawn.needDuck')}</p><ol>
-        <li>${t('agent.spawn.duckStep1')} <a href="https://github.com/aurora-develop/Duck2api/releases" target="_blank" rel="noopener">${t('agents.duck.host.release')}</a></li>
-        <li>${t('agent.spawn.duckStep2')} <button type="button" class="btn sm" data-agent-goto="accounts">${t('agent.spawn.openAccounts')}</button></li>
-        <li>${t('agent.spawn.duckStep3')}</li>
-      </ol></div>`}
-      <label class="inline"><input name="useHubDuck2api" type="checkbox"${S.duckHost?.running ? ' checked' : ''}>${t('agents.duck.useHub')}</label>
-      <label class="inline"><input name="experimental" type="checkbox" required>${t('agents.duck.experimental')}</label>
-      <div data-duck-custom-source><label class="duck-opt">${duckOpt('agents.duck.baseUrl', 'agents.duck.hint.baseUrl')}<input name="baseUrl" type="url" placeholder="https://api.example.com/v1" aria-label="${t('agents.duck.baseUrl')}" spellcheck="false"></label></div>
-      <label class="duck-opt">${duckOpt('agents.duck.model', 'agents.duck.hint.model')}<input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('common.default')}" aria-label="${t('agents.duck.model')}" spellcheck="false"></label>
-      <label class="duck-opt">${duckOpt('agents.duck.timeout', 'agents.duck.hint.timeout')}<input name="timeoutMs" type="number" min="5000" max="300000" step="1000" value="60000" aria-label="${t('agents.duck.timeout')}"></label>
-      <div data-duck-custom-source><label class="duck-opt">${duckOpt('agents.duck.key', 'agents.duck.hint.key')}<input name="key" type="password" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"></label></div>
-      <p class="small muted note">${t('agents.duck.upstream')}</p>
-      <p class="small pwarn" role="alert" data-duck-new-warning hidden>${t('agents.duck.notLocal')}</p>
-      ${S.duckHost?.lastError ? `<p class="small bad" role="alert" data-duck-host-status>${esc(t('agents.duck.host.error', { why: S.duckHost.lastError }))}</p>` : S.duckHost?.running ? `<p class="small muted" role="status" data-duck-host-status>${esc(t('agents.duck.host.running', { endpoint: S.duckHost.endpoint }))}</p>` : ''}
-      <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
+      <p class="small muted">${t('agent.spawn.duckNote')}</p>
+      <p class="small ${ready ? 'okt' : 'pwarn'}" role="status" data-agent-duck-status>${esc(status)}</p>
+      <div class="row"><button type="button" class="btn sm" data-agent-duck-refresh>${t('agents.duck.refresh')}</button><span style="flex:1"></span><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary" type="submit"${ready ? '' : ' disabled'}>${t('agent.spawn.start')}</button></div>
     </form>`;
   } else if (!state.loading && state.kind === 'muse') {
     const ready = !!S.museStatus?.chrome && !!S.museStatus.loggedIn;
@@ -4357,6 +4246,23 @@ function renderAgentDialog() {
     const submit = zoom.querySelector('[data-agent-muse] button[type="submit"]');
     if (submit) submit.disabled = !ready;
     museRefresh.disabled = false;
+  });
+  const duckRefresh = zoom.querySelector('[data-agent-duck-refresh]');
+  if (duckRefresh) duckRefresh.addEventListener('click', async () => {
+    duckRefresh.disabled = true;
+    await loadDuckStatus();
+    const ready = !!S.duckStatus?.chrome && !!S.duckStatus.loggedIn;
+    const status = S.duckStatusError ? t('agents.duck.statusError', { error: S.duckStatusError })
+      : !S.duckStatus ? t('common.loading') : !S.duckStatus.chrome ? t('agents.duck.chromeMissing')
+        : S.duckStatus.loggedIn ? t('agents.duck.signedIn') : t('agents.duck.signInRequired');
+    const statusEl = zoom.querySelector('[data-agent-duck-status]');
+    if (statusEl) {
+      statusEl.textContent = status;
+      statusEl.className = `small ${ready ? 'okt' : 'pwarn'}`;
+    }
+    const submit = zoom.querySelector('[data-agent-duck] button[type="submit"]');
+    if (submit) submit.disabled = !ready;
+    duckRefresh.disabled = false;
   });
   const confirm = zoom.querySelector('[data-agent-confirm]');
   if (confirm) confirm.addEventListener('click', () => createAgent({ ...state.body, confirm: true }, true));
@@ -4432,37 +4338,13 @@ function renderAgentDialog() {
     });
   }
   const duckForm = zoom.querySelector('[data-agent-duck]');
-  if (duckForm) {
-    const url = duckForm.elements.namedItem('baseUrl'), warning = duckForm.querySelector('[data-duck-new-warning]');
-    const useHub = duckForm.elements.namedItem('useHubDuck2api');
-    const syncDuckSourceFields = () => duckForm.querySelectorAll('[data-duck-custom-source]').forEach((field) => { field.hidden = useHub.checked; });
-    useHub.addEventListener('change', syncDuckSourceFields);
-    syncDuckSourceFields();
-    url.addEventListener('input', () => { warning.hidden = !url.value.trim() || duckUrlIsLoopback(url.value.trim()); });
-    duckForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
-      const name = get('name'), cwd = get('cwd'), baseUrl = get('baseUrl'), model = get('model'), key = get('key');
-      const useHubDuck2api = f.elements.namedItem('useHubDuck2api').checked, experimental = f.elements.namedItem('experimental').checked;
-      const timeoutMs = Number(get('timeoutMs'));
-      if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) ||
-          (!useHubDuck2api && !baseUrl) || (useHubDuck2api && !S.duckHost?.running) ||
-          !experimental || !Number.isInteger(timeoutMs) || timeoutMs < 5000 || timeoutMs > 300000) {
-        return showAgentDialogError(!experimental ? t('agents.duck.experimentalRequired') : useHubDuck2api && !S.duckHost?.running ? t('agents.duck.sourceRequired') : t('ac.profile.invalid'));
-      }
-      try {
-        if (!useHubDuck2api) {
-          const parsed = new URL(baseUrl);
-          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error();
-        }
-      } catch { return showAgentDialogError(t('ac.profile.invalid')); }
-      submitAgentProfile({
-        id: newProfileId(name, profiles), provider: 'duck', name, cwd,
-        ...(useHubDuck2api ? { useHubDuck2api: true } : { baseUrl }),
-        ...(model ? { model } : {}), timeoutMs, experimental, ...(key ? { key } : {}),
-      });
-    });
-  }
+  if (duckForm) duckForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = duckForm.elements.namedItem('name').value.trim();
+    const cwd = duckForm.elements.namedItem('cwd').value.trim();
+    if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd)) return showAgentDialogError(t('ac.profile.invalid'));
+    submitAgentProfile({ id: newProfileId(name, profiles), provider: 'duck', name, cwd });
+  });
   const museForm = zoom.querySelector('[data-agent-muse]');
   if (museForm) museForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -4480,16 +4362,12 @@ function newProfileId(name, profiles) {
   for (let n = 2; profiles.some((p) => p.id.toLowerCase() === id); n++) id = `${base}-${n}`;
   return id;
 }
-// label + "(optional)" + a "?" whose hover/focus title explains the field
-const duckOpt = (label, hint) => `<span>${t(label)} <span class="muted">${t('common.optional')}</span> <span class="qhelp" tabindex="0" title="${esc(t(hint))}" aria-label="${esc(t(hint))}">?</span></span>`;
 async function submitAgentProfile(profile) {
   const current = S.settings?.agents?.profiles || [];
   if (current.length >= 16) return showAgentDialogError(t('ac.profile.limit'));
   if (current.some((p) => p.id.toLowerCase() === profile.id.toLowerCase() || p.name.toLowerCase() === profile.name.toLowerCase())) return showAgentDialogError(t('ac.profile.duplicate'));
   try {
-    const { key, ...settingsProfile } = profile;
-    S.settings = await api('/api/settings', { agents: { profiles: [...current, { ...settingsProfile, enabled: false }] } }, 'PUT');
-    if (settingsProfile.provider === 'duck' && key) await api(`/api/agents/${enc(settingsProfile.id)}/key`, { key }, 'PUT');
+    S.settings = await api('/api/settings', { agents: { profiles: [...current, { ...profile, enabled: false }] } }, 'PUT');
     const endpoint = profile.provider === 'claude-api' ? '/api/agent-profiles/' : '/api/copilot/profiles/';
     await api(`${endpoint}${enc(profile.id)}`, { on: true, confirm: true });
     await refreshAgentMetadata();
@@ -4672,8 +4550,7 @@ function renderSettingsView() {
     ${account.copilot}
     <h2>${t('prov.workerTitle')}</h2>
     <div class="pgrid">${S.providers.map(providerCard).join('')}</div>
-    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>
-    ${account.duck}`,
+    <form class="addprov" id="addProv"><input name="pid" placeholder="${t('prov.add.id')}" pattern="[a-z0-9-]{2,32}" required aria-label="${t('prov.add.idAria')}"><input name="baseUrl" placeholder="Base URL" aria-label="Base URL"><select name="tier" aria-label="${t('prov.add.tier')}"><option value="free">free</option><option value="paid">${t('tier.paid')}</option></select><button class="btn">${I.plus} ${t('prov.add')}</button></form>`,
     rooms: `<h2>${t('sub.lead')}</h2><div class="setbox">
       ${swVal('autoLead', st.autoLead === 'terminal', 'terminal', 'off')}
     </div>
@@ -4797,12 +4674,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       form.elements.namedItem('setRoomCwd').disabled = !room?.cwd;
       return;
     }
-    const duckHub = e.target.closest('[data-duck-hub]');
-    if (duckHub) {
-      const warning = sv.querySelector(`[data-duck-url-warning="${duckHub.dataset.duckHub}"]`), url = sv.querySelector(`[data-duck-url="${duckHub.dataset.duckHub}"]`)?.value.trim();
-      if (warning) warning.hidden = duckHub.checked || !url || duckUrlIsLoopback(url);
-      return;
-    }
     const profileToggle = e.target.closest('[data-profile-enabled]');
     if (profileToggle) {
       const id = profileToggle.dataset.profileEnabled;
@@ -4820,12 +4691,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.matches('[data-when]')) return saveRule(e.target.dataset.when, { mode: 'force', when: e.target.value });
   });
   sv.addEventListener('input', (e) => {
-    const duckUrl = e.target.closest('[data-duck-url]');
-    if (duckUrl) {
-      const warning = sv.querySelector(`[data-duck-url-warning="${duckUrl.dataset.duckUrl}"]`);
-      if (warning) warning.hidden = !duckUrl.value.trim() || duckUrlIsLoopback(duckUrl.value.trim());
-      return;
-    }
     if (e.target.id === 'setSearch') { S.setQuery = e.target.value; return applySettingsFilter(); }
     const id = e.target.id; if (id !== 'skQuery' && id !== 'cmpQuery') return;
     if (id === 'cmpQuery') S.cmpQuery = e.target.value; else S.skQuery = e.target.value;
@@ -4835,7 +4700,6 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
   sv.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
-    if (f.id === 'duckHostForm') return saveDuckHost(f);
     if (f.dataset.prov) return saveProvider(f);
     if (f.matches("#addProv")) api("/api/providers", { id: f.pid.value.trim(), baseUrl: f.baseUrl.value.trim(), tier: f.tier.value }).then(() => { toast(t('prov.added')); loadSettingsView(); }, (err) => toast(err.message));
   });
@@ -4944,19 +4808,11 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
       const id = profileRetry.dataset.profileRetry, agy = (S.settings.agents?.profiles || []).find((profile) => profile.id === id)?.provider === 'agy';
       return api(`${profileRoute(id)}/retry`, {}).then(async () => { await loadCopilotProfiles(); toast(t(agy ? 'agents.agy.retryDone' : 'ac.profile.retryDone')); renderSettingsView(); }, async (err) => { toast(err.message); await loadCopilotProfiles(); renderSettingsView(); });
     }
-    const duckSave = e.target.closest('[data-duck-save]');
-    if (duckSave) return saveDuckProfile(duckSave.dataset.duckSave);
-    const duckCheck = e.target.closest('[data-duck-check]');
-    if (duckCheck) return checkDuckProfile(duckCheck.dataset.duckCheck, duckCheck);
-    const duckKeySave = e.target.closest('[data-duck-key-save]');
-    if (duckKeySave) return saveDuckKey(duckKeySave.dataset.duckKeySave);
-    const duckKeyClear = e.target.closest('[data-duck-key-clear]');
-    if (duckKeyClear) return armed(duckKeyClear, t('common.pressAgainDelete'), () => saveDuckKey(duckKeyClear.dataset.duckKeyClear, true));
+    if (e.target.closest('[data-duck-status-refresh]')) return loadDuckStatus().then(renderSettingsView);
     const duckHistoryClear = e.target.closest('[data-duck-history-clear]');
     if (duckHistoryClear) {
-      const id = duckHistoryClear.dataset.duckHistoryClear, roomInput = sv.querySelector(`[data-duck-history-room="${id}"]`), roomName = roomInput?.value;
-      if (!roomName) return toast(t('agents.duck.historyRoom'));
-      return armed(duckHistoryClear, t('common.pressAgainDelete'), () => api(`/api/duck/history?id=${enc(id)}&room=${enc(roomName)}`, undefined, 'DELETE').then(() => toast(t('agents.duck.historyCleared')), (error) => toast(error.message)));
+      const id = duckHistoryClear.dataset.duckHistoryClear;
+      return armed(duckHistoryClear, t('common.pressAgainDelete'), () => api(`/api/duck/history?id=${enc(id)}`, undefined, 'DELETE').then(() => toast(t('agents.duck.historyCleared')), (error) => toast(error.message)));
     }
     if (e.target.closest('[data-profile-cancel]')) { S.copilotProfileAsk = null; return renderSettingsView(); }
     const profileConfirm = e.target.closest('[data-profile-confirm]');

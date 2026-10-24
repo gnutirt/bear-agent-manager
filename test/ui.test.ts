@@ -381,38 +381,29 @@ test('Settings memory view loads, edits, deletes and clears BAM-owned entries wi
   } finally { await hub.close(); }
 });
 
-test('Duck and Muse profiles share memory, expose explicit Muse saves and keep Duck keys write-only', async () => {
+test('Duck and Muse profiles share memory, expose explicit Muse saves and use Chrome status', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
     for (const source of [
-      'data-agent-kind="duck"', 'data-agent-duck', "api('/api/duck/host')", '/api/duck/check?id=',
-      '/api/agents/${enc(id)}/key', '/api/duck/history?id=', 'type="password"',
-      'data-duck-save', 'data-duck-check', 'data-duck-history-clear',
+      'data-agent-kind="duck"', 'data-agent-duck', "api('/api/duck/status')", '/api/duck/history?id=',
+      'data-duck-status-refresh', 'data-duck-history-clear',
       'data-memory-add', 'data-memory-save', 'data-agent-kind="muse"', 'data-agent-muse', 'data-muse-save="${m.id}"',
       "api('/api/muse/status')", "api('/api/memory/from-message', { room, id })", 'data-muse-status-refresh',
     ]) assert.ok(html.includes(source), `Duck/memory UI is missing ${source}`);
-    assert.ok(!html.includes('value="${esc(p.key)}"'), 'saved Duck keys must never be rendered back');
     const start = html.indexOf('const duckInfo = isDuck');
     const end = html.indexOf('const toggleDisabled', start);
     assert.ok(start >= 0 && end > start);
     assert.ok(!html.slice(start, end).includes('/api/browser'), 'Duck settings do not add a browser setting');
-    const check = html.slice(html.indexOf('async function checkDuckProfile'), html.indexOf('async function saveDuckProfile'));
-    assert.ok(check.includes('if (!modelInput.value && check.models.length)'), 'checking models preserves a typed model and only fills an empty field');
-    assert.ok(!check.includes('renderSettingsView()'), 'checking models must not re-render away unsaved profile edits');
+    const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
     for (const key of [
-      'agent.spawn.duck', 'agent.spawn.duckNote', 'agents.duck.title', 'agents.duck.upstream',
+      'agent.spawn.duck', 'agent.spawn.duckNote', 'agents.duck.title',
       'agent.spawn.muse', 'agent.spawn.museNote', 'agents.muse.title', 'agents.muse.save', 'agents.muse.saved',
-      'agents.duck.notLocal', 'agents.duck.useHub', 'agents.duck.baseUrl', 'agents.duck.model',
-      'agents.duck.timeout', 'agents.duck.experimental', 'agents.duck.key', 'agents.duck.keySaved',
-      'agents.duck.keyMissing', 'agents.duck.keyPlaceholder', 'agents.duck.keySave', 'agents.duck.keyClear',
-      'agents.duck.check', 'agents.duck.checking', 'agents.duck.host.title', 'agents.duck.host.note',
-      'agents.duck.host.exePath', 'agents.duck.host.port', 'agents.duck.host.save', 'agents.duck.host.release',
-      'agents.duck.host.running', 'agents.duck.host.stopped', 'agents.duck.host.exePathFolder',
-      'agents.duck.host.exePathInvalid', 'agents.duck.host.exePathFolderUnreadable',
-      'agents.duck.host.exePathSuggestion', 'agents.duck.host.error', 'agents.duck.historyRoom',
-      'agents.duck.historyClear', 'agents.duck.historyCleared', 'agents.duck.sourceRequired',
-      'agents.duck.experimentalRequired', 'agents.duck.enabled', 'agents.duck.disabled',
+      'agents.duck.chrome', 'agents.duck.chromeReady', 'agents.duck.chromeMissing',
+      'agents.duck.signedIn', 'agents.duck.signInRequired', 'agents.duck.statusError',
+      'agents.duck.busy', 'agents.duck.refresh',
+      'agents.duck.historyClear', 'agents.duck.historyCleared',
+      'agents.duck.enabled', 'agents.duck.disabled',
       'agents.duck.confirmOn', 'agents.duck.confirmOff',
     ]) {
       assert.ok(en[key], `missing English translation ${key}`);
@@ -522,7 +513,7 @@ test('#238 one + Agent dialog offers all six kinds, including Muse, and missing 
       'data-agent-kind="muse"',
       'data-agent-folder', 'data-agent-api', 'data-agent-copilot', 'data-agent-agy', 'data-agent-duck', 'data-agent-muse',
       'data-agent-muse-refresh', 'provider: \'muse\'', '/api/muse/status',
-      "data-agent-goto=\"accounts\"", "agent.spawn.needAccount", "agent.spawn.needProvider", "agent.spawn.needCopilot", "agent.spawn.needDuck", "agent.spawn.openAccounts",
+      "data-agent-goto=\"accounts\"", "agent.spawn.needAccount", "agent.spawn.needProvider", "agent.spawn.needCopilot", "agent.spawn.openAccounts",
       "if (e.target.closest('[data-open-agent-dialog]')) return openAgentDialog();",
       "zoom.querySelectorAll('[data-agent-goto]')",
       'function newProfileId(name, profiles)',
@@ -540,30 +531,24 @@ test('#238 one + Agent dialog offers all six kinds, including Muse, and missing 
       assert.ok(dict['agent.spawn.muse']);
       assert.ok(dict['agent.spawn.museNote']);
       assert.ok(dict['ac.copilot'].includes('Antigravity'));
-      for (const k of ['agent.spawn.runBy', 'agent.spawn.needAccount', 'agent.spawn.needProvider', 'agent.spawn.needCopilot', 'agent.spawn.needDuck', 'agent.spawn.openAccounts']) assert.ok(dict[k], `missing ${k}`);
+      for (const k of ['agent.spawn.runBy', 'agent.spawn.needAccount', 'agent.spawn.needProvider', 'agent.spawn.needCopilot', 'agent.spawn.openAccounts']) assert.ok(dict[k], `missing ${k}`);
     }
   } finally { await hub.close(); }
 });
 
-test('#253 Duck + Agent explains setup and hides custom URL/key when using hub Duck2api', async () => {
+test('#253 Duck + Agent mirrors Muse with Chrome status and refresh', async () => {
   const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
   for (const source of [
-    "t('agent.spawn.duckStep1')",
-    "href=\"https://github.com/aurora-develop/Duck2api/releases\" target=\"_blank\" rel=\"noopener\"",
-    "t('agents.duck.host.release')",
-    "t('agent.spawn.duckStep2')",
-    "data-agent-goto=\"accounts\"",
-    "t('agent.spawn.duckStep3')",
-    'class="small pwarn duck-setup"',
-    '.duck-setup{grid-column:1/-1}',
-    "S.duckHost?.running ? `<p class=\"small muted\" role=\"status\" data-duck-host-status>",
-    "t('agents.duck.host.error', { why: S.duckHost.lastError })",
-    "field.hidden = useHub.checked",
-    "duckForm.querySelectorAll('[data-duck-custom-source]')",
-  ]) assert.ok(html.includes(source), `missing Duck setup wiring: ${source}`);
+    'data-agent-duck',
+    'data-agent-duck-status',
+    'data-agent-duck-refresh',
+    'loadDuckStatus',
+    "api('/api/duck/status')",
+    "provider: 'duck'",
+  ]) assert.ok(html.includes(source), `missing Duck Chrome wiring: ${source}`);
   const { vi, en } = await Promise.all([import('../shared/i18n/vi.ts'), import('../shared/i18n/en.ts')]).then(([a, b]) => ({ vi: a.vi, en: b.en }));
   for (const dict of [vi, en]) {
-    for (const key of ['agent.spawn.duckStep1', 'agent.spawn.duckStep2', 'agent.spawn.duckStep3']) {
+    for (const key of ['agent.spawn.duck', 'agent.spawn.duckNote', 'agents.duck.chrome', 'agents.duck.chromeReady', 'agents.duck.chromeMissing', 'agents.duck.signedIn', 'agents.duck.signInRequired']) {
       assert.ok(dict[key], `missing translation ${key}`);
     }
   }
