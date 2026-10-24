@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import {
   isDuckUrl,
   duckAsk,
@@ -15,14 +16,14 @@ import {
 const u = (text = 'q'): Item => ({ role: 'user', text, hasCopy: false });
 const a = (text: string, hasCopy = true): Item => ({ role: 'assistant', text, hasCopy });
 
-test('isDuckUrl: recognizes duck.ai and duckduckgo.com with ia=chat, rejects others', () => {
+test('isDuckUrl: recognizes duck.ai and subdomains only, rejects duckduckgo.com and others', () => {
   assert.equal(isDuckUrl('https://duck.ai/chat'), true);
   assert.equal(isDuckUrl('https://duck.ai/'), true);
   assert.equal(isDuckUrl('https://app.duck.ai/chat?chatID=123'), true);
-  assert.equal(isDuckUrl('https://duckduckgo.com/?q=DuckDuckGo+AI+Chat&ia=chat'), true);
-  assert.equal(isDuckUrl('https://duckduckgo.com/?ia=chat'), true);
 
   // Rejected URLs
+  assert.equal(isDuckUrl('https://duckduckgo.com/?q=DuckDuckGo+AI+Chat&ia=chat'), false, 'duckduckgo.com with ia=chat no longer accepted');
+  assert.equal(isDuckUrl('https://duckduckgo.com/?ia=chat'), false, 'duckduckgo.com no longer accepted');
   assert.equal(isDuckUrl('https://duckduckgo.com/?q=hello'), false, 'no ia=chat');
   assert.equal(isDuckUrl('https://evil.com/duck.ai'), false, 'path match only');
   assert.equal(isDuckUrl('https://duck.ai.evil.com/'), false, 'subdomain spoofing');
@@ -36,11 +37,12 @@ function fakeDuckChrome(opts: {
   answer?: string[];
   botChallenge?: boolean;
   termsModal?: boolean;
+  termsModalMissingAgree?: boolean;
   streamForever?: boolean;
 } = {}) {
   const sent: string[] = [], attached: string[] = [];
   const clickedTerms: number[] = [];
-  let termsAccepted = !opts.termsModal;
+  let termsAccepted = !opts.termsModal && !opts.termsModalMissingAgree;
   const tab = (url: string): Tab => ({ type: 'page', url, webSocketDebuggerUrl: `ws://x/${url}` });
   const tabs = opts.tabs ?? [tab('https://google.com/'), tab('https://duck.ai/chat')];
   let polls = 0, items: Item[] = [u('old'), a('old answer')];
@@ -59,6 +61,9 @@ function fakeDuckChrome(opts: {
           }
           // 2. Terms agreement
           if (expr.includes('DUCKAI_ONBOARDING_AGREE')) {
+            if (opts.termsModalMissingAgree) {
+              return 'needs-user';
+            }
             if (!termsAccepted) {
               termsAccepted = true;
               clickedTerms.push(Date.now());
@@ -141,6 +146,102 @@ test('duckAsk: auto-accepts terms modal once when present, then sends prompt', a
   assert.equal(r.text, 'agreed answer');
   assert.equal(c.clickedTerms.length, 1, 'terms button clicked exactly once');
   assert.ok(c.sent.some((s) => s.includes('closest(\'form\')')), 'proceeded to send prompt after terms');
+});
+
+test('duckAsk: terms modal present without DUCKAI_ONBOARDING_AGREE throws needs-user', async () => {
+  const c = fakeDuckChrome({ termsModalMissingAgree: true });
+  await assert.rejects(
+    duckAsk(c.cdp, 'Hello terms', 60, fast),
+    (e: any) => e instanceof WebChatError && e.message.includes('needs-user')
+  );
+  assert.ok(!c.sent.some((s) => s.includes('closest(\'form\')')), 'never sends prompt when terms cannot be accepted');
+});
+
+test('duckAsk: answer containing "unusual traffic" is returned normally without triggering needs-user', async () => {
+  const c = fakeDuckChrome({ answer: ['We detected unusual traffic on your router, please check.'] });
+  const r = await duckAsk(c.cdp, 'Tell me about unusual traffic', 60, fast);
+  assert.equal(r.text, 'We detected unusual traffic on your router, please check.');
+  assert.equal(r.timedOut, false);
+});
+
+test('DUCK_BOT_CHECK: strips user and assistant messages so conversation text does not trigger false positive', () => {
+  // 1. When assistant response contains "unusual traffic", clone strips it and returns false
+  const mockElements: Array<{ tag: string; selector: string; text: string }> = [
+    { tag: 'div', selector: '[data-activeresponse]', text: 'Unusual traffic detected in logs' },
+    { tag: 'div', selector: '[data-testid=user-message]', text: 'Verify you are human prompt' },
+    { tag: 'textarea', selector: 'textarea', text: 'prompt' },
+  ];
+  let stripped = false;
+  const ctx = {
+    document: {
+      querySelector: () => null,
+      body: {
+        cloneNode: () => ({
+          querySelectorAll: (sel: string) => {
+            if (sel.includes('user-message')) {
+              stripped = true;
+              return mockElements.map(() => ({ remove: () => {} }));
+            }
+            return [];
+          },
+          innerText: 'Duck.ai normal header and chrome',
+        }),
+      },
+    },
+  };
+  const res = vm.runInNewContext(DUCK.js.botCheck!, ctx);
+  assert.equal(res, false, 'botCheck ignores keywords inside user or assistant messages');
+  assert.equal(stripped, true, 'clone stripped messages');
+
+  // 2. Real bot challenge outside messages triggers true
+  const challengeCtx = {
+    document: {
+      querySelector: () => null,
+      body: {
+        cloneNode: () => ({
+          querySelectorAll: () => [],
+          innerText: 'Cloudflare security verification: unusual traffic from your IP network',
+        }),
+      },
+    },
+  };
+  const challengeRes = vm.runInNewContext(DUCK.js.botCheck!, challengeCtx);
+  assert.equal(challengeRes, true, 'botCheck detects challenge text outside messages');
+});
+
+test('DUCK_ACCEPT_TERMS: clicks DUCKAI_ONBOARDING_AGREE and returns needs-user when modal lacks button', () => {
+  // Case A: button present
+  let clicked = false;
+  const ctxWithBtn = {
+    document: {
+      querySelector: (sel: string) => {
+        if (sel === 'button[data-testid="DUCKAI_ONBOARDING_AGREE"]') {
+          return { disabled: false, click: () => { clicked = true; } };
+        }
+        return null;
+      },
+    },
+  };
+  const resA = vm.runInNewContext(DUCK.js.acceptTerms!, ctxWithBtn);
+  assert.equal(resA, true);
+  assert.equal(clicked, true);
+
+  // Case B: modal present but button is missing
+  const ctxModalNoBtn = {
+    document: {
+      querySelector: (sel: string) => {
+        if (sel.includes('privacy-terms') || sel.includes('onboardingModal')) return {};
+        return null;
+      },
+    },
+  };
+  const resB = vm.runInNewContext(DUCK.js.acceptTerms!, ctxModalNoBtn);
+  assert.equal(resB, 'needs-user', 'returns needs-user when terms modal is present without agree button');
+
+  // Case C: no modal
+  const ctxNoModal = { document: { querySelector: () => null } };
+  const resC = vm.runInNewContext(DUCK.js.acceptTerms!, ctxNoModal);
+  assert.equal(resC, false);
 });
 
 test('duckAsk: model selection evaluates on page when model option is passed', async () => {

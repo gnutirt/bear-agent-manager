@@ -44,16 +44,11 @@ export function isMuseUrl(u: string): boolean {
 }
 export const isLoginUrl = (u: string) => /\/(accounts\/)?(login|signin)\b/i.test(u) || /instagram\.com|facebook\.com/i.test(u);
 
-/** Duck.ai (or DuckDuckGo chat): parsed host, duck.ai or duckduckgo.com with ia=chat. */
+/** Duck.ai (or Duck subdomains): parsed host, duck.ai or *.duck.ai only. */
 export function isDuckUrl(u: string): boolean {
   try {
-    const url = new URL(u);
-    const host = url.hostname.toLowerCase();
-    if (host === 'duck.ai' || host.endsWith('.duck.ai')) return true;
-    if (host === 'duckduckgo.com' || host.endsWith('.duckduckgo.com')) {
-      return url.searchParams.get('ia') === 'chat';
-    }
-    return false;
+    const host = new URL(u).hostname.toLowerCase();
+    return host === 'duck.ai' || host.endsWith('.duck.ai');
   } catch {
     return false;
   }
@@ -108,8 +103,9 @@ const duckSetPrompt = (p: string) =>
 const DUCK_CLICK = `(()=>{const t=document.querySelector('textarea[name=user-prompt]');const b=t?t.closest('form')?.querySelector('button[type=submit]'):null;if(!b||b.disabled)return false;b.click();return true})()`;
 const DUCK_SNAP = `(()=>{const stopBtn=document.querySelector('button[aria-label="Stop generating"]');const stop=!!(stopBtn&&!stopBtn.disabled);const els=[...document.querySelectorAll('[data-testid=user-message],[data-activeresponse]')];const items=els.map(el=>{if(el.matches('[data-testid=user-message]')){return{role:'user',text:el.innerText.trim(),hasCopy:false};}const hasCopy=!!el.querySelector('[data-copyairesponse]');const parts=[...el.children].filter(c=>{if(c.tagName==='H3')return false;if(c.matches('[id^=heading-]')||c.querySelector('[id^=heading-]'))return false;if(c.matches('[data-message-actions]')||c.querySelector('[data-message-actions]'))return false;return true;});const text=parts.map(c=>c.innerText.trim()).filter(Boolean).join('\\n\\n').trim();return{role:'assistant',text,hasCopy};});return{stop,items};})()`;
 const DUCK_HAS_INPUT = `!!document.querySelector('textarea[name=user-prompt]')`;
-const DUCK_BOT_CHECK = `(()=>{const text=(document.body?document.body.innerText:'').toLowerCase();if(text.includes('verify you are human')||text.includes('unusual traffic')||text.includes('checking your browser')||text.includes('security verification')||text.includes('challenge-running'))return true;if(document.querySelector('iframe[src*="challenge"],iframe[src*="turnstile"],iframe[src*="captcha"],#cf-wrapper,.cf-turnstile,#challenge-stage'))return true;return false;})()`;
-const DUCK_ACCEPT_TERMS = `(()=>{const b=document.querySelector('button[data-testid="DUCKAI_ONBOARDING_AGREE"]')||[...document.querySelectorAll('button')].find(b=>/agree and continue|i agree/i.test(b.innerText||''));if(b&&!b.disabled){b.click();return true;}return false;})()`;
+const DUCK_BOT_CHECK = `(()=>{if(document.querySelector('iframe[src*="challenge"],iframe[src*="turnstile"],iframe[src*="captcha"],#cf-wrapper,.cf-turnstile,#challenge-stage'))return true;if(!document.body)return false;const clone=document.body.cloneNode(true);clone.querySelectorAll('[data-testid=user-message],[data-activeresponse],textarea').forEach(e=>e.remove());const text=(clone.innerText||'').toLowerCase();if(text.includes('verify you are human')||text.includes('unusual traffic')||text.includes('checking your browser')||text.includes('security verification')||text.includes('challenge-running'))return true;return false;})()`;
+const DUCK_ACCEPT_TERMS = `(()=>{const b=document.querySelector('button[data-testid="DUCKAI_ONBOARDING_AGREE"]');if(b&&!b.disabled){b.click();return true;}const hasModal=!!(document.querySelector('a[href*="privacy-terms"],[class*="onboardingModal"],[data-testid*="onboarding"]')||document.querySelector('[role="dialog"]'));if(hasModal)return 'needs-user';return false;})()`;
+// shortcut: menu render async thì bỏ qua và dùng model mặc định.
 const duckSelectModel = (m: string) => `(()=>{const name=${JSON.stringify(m)}.toLowerCase().trim();if(!name)return true;const btn=document.querySelector('[data-testid=model-picker-button]');if(!btn)return false;btn.click();const rows=[...document.querySelectorAll('[role=menuitemradio]')];const target=rows.find(r=>{const tid=(r.getAttribute('data-testid')||'').toLowerCase();const txt=(r.innerText||'').toLowerCase();return tid.includes(name)||txt.includes(name);});if(target){target.click();return true;}btn.click();return false;})()`;
 
 export const DUCK: Site = {
@@ -193,6 +189,7 @@ export async function ask(
     // 2. Initial terms acceptance: auto-accept if box is present (only that one button).
     if (site.js.acceptTerms) {
       const accepted = await page.eval(site.js.acceptTerms);
+      if (accepted === 'needs-user') throw new WebChatError('needs-user');
       if (accepted) await sleep(300);
     }
 
@@ -203,8 +200,10 @@ export async function ask(
 
     // 3. Ensure input box is available
     if (!(await page.eval(site.js.hasInput))) {
-      if (site.js.acceptTerms && (await page.eval(site.js.acceptTerms))) {
-        await sleep(300);
+      if (site.js.acceptTerms) {
+        const accepted = await page.eval(site.js.acceptTerms);
+        if (accepted === 'needs-user') throw new WebChatError('needs-user');
+        if (accepted) await sleep(300);
       }
       if (!(await page.eval(site.js.hasInput))) throw new Err(site.errors.notSignedIn);
     }
