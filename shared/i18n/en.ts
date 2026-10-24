@@ -367,6 +367,7 @@ export const en: Record<string, string> = {
   'members.chatDm.hide': 'Hide private chat (keeps history, can reopen)',
   'members.chatDm.hidden': 'Hidden. Reopen via the 💬 button next to the agent, or "+ New private chat…".',
   'rooms.pm.title': 'Agent-to-agent chats',
+  'agent.search': 'Find agent…',
   'rooms.dm.title': 'Private chats',
   'rooms.dm.new': '+ New private chat…',
   'rooms.dm.none': 'No private chats yet.',

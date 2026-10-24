@@ -204,6 +204,7 @@ input,textarea{font:inherit;color:inherit}
 .new-room.open{display:flex;gap:6px}
 .new-room input{flex:1;min-width:0;background:var(--side-2);border:1px solid var(--side-line);border-radius:8px;padding:6px 10px;color:var(--side-strong)}
 .dmnew{display:flex;width:calc(100% - 16px);justify-content:center;margin:0 8px 6px}
+.side-search{display:block;width:calc(100% - 16px);margin:0 8px 6px;font:inherit;font-size:13px;color:inherit;background:transparent;border:1px solid var(--side-mute);border-radius:6px;padding:3px 8px}.side-search[hidden],.side-scroll [data-q][hidden]{display:none}
 .sess{display:flex;gap:10px;padding:7px 8px;border-radius:8px;align-items:flex-start}
 .sess:hover{background:var(--side-2)}
 .sess .who{flex:1;min-width:0}
@@ -930,8 +931,10 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
     <div id="pms"></div>
     <div class="sec" id="dmSec"><span data-i18n="rooms.dm.title">Chat riêng</span></div>
     <button type="button" class="btn sm dmnew" id="addDmBtn" data-i18n="rooms.dm.new">+ Nhắn riêng…</button>
+    <input type="search" class="side-search" data-agent-search="#dms" autocomplete="off" placeholder="Tìm agent…" aria-label="Tìm agent" data-i18n-ph="agent.search" data-i18n-aria="agent.search">
     <div id="dms"></div>
     <div class="sec"><button type="button" id="sessToggle" class="sectoggle" aria-expanded="true"><span class="caret">▾</span> <span data-i18n="sessions.title">Agent đang chạy</span> <span id="sessCount" class="seccount"></span></button> <select id="repoFilter" class="repo-filter" aria-label="Lọc theo repo" data-i18n-aria="sessions.filter"><option value="">Mọi repo</option></select></div>
+    <input type="search" class="side-search" id="sessSearch" data-agent-search="#sessions" autocomplete="off" placeholder="Tìm agent…" aria-label="Tìm agent" data-i18n-ph="agent.search" data-i18n-aria="agent.search">
     <div id="sessions"></div>
     <div class="sec">Worker <span class="cap" id="wkCap" title="Đang chạy / trần toàn máy" data-i18n-title="workers.cap.tip">0/4</span></div>
     <div id="workers"></div>
@@ -1459,7 +1462,7 @@ function renderRooms() {
   for (const r of dms) {
     const name = S.sessions[r.dm]?.name || r.dm;
     const b = document.createElement('div');
-    b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0;
+    b.className = 'room' + (r.name === S.current ? ' active' : ''); b.tabIndex = 0; b.dataset.q = name;
     const un = S.unread[r.name] || 0;
     b.innerHTML = `<span class="hash">@</span><span class="rname">${esc(name)}</span>${un ? `<span class="badge">${un}</span>` : ''}<button class="more" aria-label="${t('rooms.options')}" title="${t('rooms.options')}">${I.dots}</button>`;
     b.onclick = (e) => { if (!e.target.closest('.more')) { select(r.name); document.body.classList.remove('side-open'); } };
@@ -1478,14 +1481,19 @@ function renderRooms() {
     };
     dmEl.append(b);
   }
+  searchAgents(document.querySelector('[data-agent-search="#dms"]'));
 }
+/** Quick agent search above a list: hides the list's [data-q] items that do not contain the typed text. */
+function agentHit(q, s) { return !q.trim() || s.toLowerCase().includes(q.trim().toLowerCase()); }
+function searchAgents(inp) { document.querySelectorAll(`${inp.dataset.agentSearch} [data-q]`).forEach((x) => { x.hidden = !agentHit(inp.value, x.dataset.q); }); }
+document.addEventListener('input', (e) => { const i = e.target.closest?.('[data-agent-search]'); if (!i) return; if (i.id === 'agentSearch') S.agentSearch = i.value; searchAgents(i); });
 
 /** A chat the hub runs in the background (no tab open, claude -p): marked so it is not mistaken for a real tab. Needs `bg` from the hub session (headless pid alive, no tab). */
 const bgTag = (s) => (s.dup ? `<span class="bgtag" title="${t('sessions.dup.tip')}">${t('sessions.dup')}</span>` : '') + bgTagOnly(s);   // #177: the chat is open in two tabs
 const bgTagOnly = (s) => s.bg && !s.tab && s.status !== 'offline' ? `<span class="bgtag" title="${t('sessions.bg.tip')}">${t('sessions.bg')}</span>` : '';
 function sessionRow(s) {
   const inRoom = S.current && room(S.current)?.members.includes(s.id);
-  const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id;
+  const d = document.createElement('div'); d.className = 'sess'; d.dataset.sid = s.id; d.dataset.q = `${s.name} ${repo(s.cwd) || ''}`;
   const rooms = s.rooms.length ? ' · ' + s.rooms.map((r) => '#' + r).join(' ') : '';
   const nameHtml = S.renaming === s.id
     ? `<input value="${esc(s.name)}" aria-label="${t('sessions.newName')}" maxlength="32">`
@@ -1576,9 +1584,10 @@ function renderSessions() {
   const all = Object.values(S.sessions).filter((s) => !S.repo || repo(s.cwd) === S.repo).sort((a, b) => a.name.localeCompare(b.name));
   const live = all.filter((s) => s.status !== 'offline'), off = all.filter((s) => s.status === 'offline');
   const tg = $('sessToggle'); tg.setAttribute('aria-expanded', String(S.sessOpen)); tg.querySelector('.caret').textContent = S.sessOpen ? '▾' : '▸'; $('sessCount').textContent = live.length ? `(${live.length})` : '';
-  el.hidden = !S.sessOpen;
+  el.hidden = $('sessSearch').hidden = !S.sessOpen;
   if (!live.length) el.innerHTML = `<div class="side-empty">${t('sessions.empty')}</div>`;
   for (const s of live) el.append(sessionRow(s));
+  searchAgents($('sessSearch'));
   if (off.length) {
     const tb = document.createElement('button'); tb.className = 'toggle-off';
     tb.textContent = `${t('sessions.offline', { n: off.length })} ›`; tb.setAttribute('aria-haspopup', 'menu');
@@ -4552,8 +4561,10 @@ function agentTableBlock(st) {
   const all = agentCatalog(), kinds = [...new Set(all.map((a) => a.kind))], f = S.agentFilter || 'all';
   const rows = all.filter((a) => f === 'all' || a.kind === f);
   const head = [t('agent.col.name'), t('agent.col.kind'), t('agent.col.runs'), t('agent.col.model'), t('agent.col.tier'), t('agent.col.status'), t('common.on'), ''];
-  const body = rows.map((a) => `<tr><td><b>${esc(a.name)}</b>${a.profile ? ` <span class="lic">${esc(a.key)}</span>` : ''}<div class="small muted mono">${esc(a.cwd || '')}</div></td><td class="kind">${AGENT_KIND_SHORT[a.kind]}</td><td class="small">${esc(a.runWith)}</td><td class="small mono">${esc(agentModel(a) || t('common.default'))}</td><td class="small">${esc(agentTier(a))}</td><td class="small">${esc(agentState(a))}</td><td>${a.profile ? `<input type="checkbox" class="switch" data-agent-enabled="${esc(a.key)}"${a.enabled ? ' checked' : ''} aria-label="${esc(t('common.on'))}">` : `<span class="small muted">—</span>`}</td><td><button type="button" class="btn sm" data-agent-open="${esc(a.key)}">${t('agent.settings')}</button></td></tr>`).join('');
-  const filter = `<select id="agentKindFilter" aria-label="${t('agent.col.kind')}">${[['all', t('agent.filter.all')], ...kinds.map((k) => [k, AGENT_KIND_SHORT[k]])].map(([v, l]) => `<option value="${esc(v)}"${v === f ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><button type="button" class="btn primary" data-open-agent-dialog>${t('agent.spawn.add')}</button><span class="small muted">${rows.length}/${all.length}</span>`;
+  const q = S.agentSearch || '';
+  const hay = (a) => `${a.name} ${a.key} ${a.cwd || ''} ${a.runWith}`;
+  const body = rows.map((a) => `<tr data-q="${esc(hay(a))}"${agentHit(q, hay(a)) ? '' : ' hidden'}><td><b>${esc(a.name)}</b>${a.profile ? ` <span class="lic">${esc(a.key)}</span>` : ''}<div class="small muted mono">${esc(a.cwd || '')}</div></td><td class="kind">${AGENT_KIND_SHORT[a.kind]}</td><td class="small">${esc(a.runWith)}</td><td class="small mono">${esc(agentModel(a) || t('common.default'))}</td><td class="small">${esc(agentTier(a))}</td><td class="small">${esc(agentState(a))}</td><td>${a.profile ? `<input type="checkbox" class="switch" data-agent-enabled="${esc(a.key)}"${a.enabled ? ' checked' : ''} aria-label="${esc(t('common.on'))}">` : `<span class="small muted">—</span>`}</td><td><button type="button" class="btn sm" data-agent-open="${esc(a.key)}">${t('agent.settings')}</button></td></tr>`).join('');
+  const filter = `<input type="search" id="agentSearch" data-agent-search=".agent-tbl" value="${esc(q)}" autocomplete="off" placeholder="${esc(t('agent.search'))}" aria-label="${esc(t('agent.search'))}"><select id="agentKindFilter" aria-label="${t('agent.col.kind')}">${[['all', t('agent.filter.all')], ...kinds.map((k) => [k, AGENT_KIND_SHORT[k]])].map(([v, l]) => `<option value="${esc(v)}"${v === f ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><button type="button" class="btn primary" data-open-agent-dialog>${t('agent.spawn.add')}</button><span class="small muted">${rows.length}/${all.length}</span>`;
   return `<h2>${t('agent.table.title')}</h2><div class="setbox"><div class="pf">${filter}</div>${rows.length ? table(head, body, 'agent-tbl') : `<p class="small muted">${t('agent.none')}</p>`}</div>`;
 }
 async function saveAgentTier(a, tier, room = S.current) {
