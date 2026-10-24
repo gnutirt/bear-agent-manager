@@ -47,64 +47,76 @@ export function buildMessages(o: { system: string; memories: MemEntry[]; history
   return messages;
 }
 
+function isSysTurn(text: string): boolean {
+  const t = text.trim();
+  return /sys\.|\[Hệ thống\]|^~|\[settings\]/i.test(t) ||
+    /không đánh thức được|không trả lời được lượt này|could not answer this turn/i.test(t);
+}
+
 export function flatten(o: {
   system?: string;
   memories?: MemEntry[];
   history?: ChatHistory;
   text: string;
 }): string {
-  const systemText = (o.system ?? DUCK_SYSTEM).trim();
-  const systemPart = `[Hệ thống]\n${systemText}`;
+  const query = o.text.trim();
+  const isVi = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(query);
 
-  let memoryPart = '';
+  const intro = isVi
+    ? 'Mình đang làm việc trong nhóm phát triển phần mềm, cần bạn góp ý.'
+    : 'I am working with a software development team and would like your advice.';
+  const contextLabel = isVi ? 'Bối cảnh ngắn:' : 'Brief context:';
+  const questionLabel = isVi ? 'Câu hỏi:' : 'Question:';
+
+  const contextParts: string[] = [];
+
   if (o.memories && o.memories.length) {
     const lines = o.memories.map((entry) => {
       const urls = entry.kind === 'research' ? entry.urls?.join(', ') : undefined;
       return `[M${entry.id} ${entry.kind} · ${entry.source} · ${dateOf(entry)}${urls ? ` · ${urls}` : ''}] ${entry.text}`;
     });
-    memoryPart = `\n\n[Bộ nhớ]\n${lines.join('\n')}`;
+    contextParts.push(lines.join('\n'));
   }
 
-  let summaryPart = '';
-  if (o.history && o.history.summary.trim()) {
-    summaryPart = `\n\n[Tóm tắt]\n${o.history.summary.trim()}`;
+  if (o.history && o.history.summary.trim() && !isSysTurn(o.history.summary)) {
+    contextParts.push(o.history.summary.trim());
   }
 
-  const query = o.text.trim();
-  const questionPart = `\n\n[Câu hỏi]\n${query}`;
-
-  const baseWithoutHistory = `${systemPart}${memoryPart}${summaryPart}${questionPart}`;
-  if (baseWithoutHistory.length > MAX_PROMPT) {
-    let trimmed = `${systemPart}${memoryPart}${questionPart}`;
-    if (trimmed.length > MAX_PROMPT) {
-      trimmed = `${systemPart}${questionPart}`;
-    }
-    if (trimmed.length > MAX_PROMPT) {
-      const head = `${systemPart}\n\n[Câu hỏi]\n`;
-      const available = Math.max(0, MAX_PROMPT - head.length);
-      const clipped = query.length > available ? `${query.slice(0, Math.max(0, available - 1))}…` : query;
-      return `${head}${clipped}`;
-    }
-    return trimmed;
+  const rawTurns = o.history?.turns ?? [];
+  const validTurns = rawTurns.filter((t) => !isSysTurn(t.text)).slice(-5);
+  if (validTurns.length) {
+    const turnLines = validTurns.map((t) => {
+      const roleName = t.role === 'user' ? (isVi ? 'Người dùng' : 'User') : 'Duck';
+      return `${roleName}: ${t.text}`;
+    });
+    contextParts.push(turnLines.join('\n'));
   }
 
-  const turns = o.history?.turns ?? [];
-  const turnLines: string[] = [];
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const t = turns[i];
-    const roleName = t.role === 'user' ? 'Người dùng' : 'Duck';
-    const line = `${roleName}: ${t.text}`;
-    const candidateLines = [line, ...turnLines];
-    const candidateHistory = `\n\n[Lịch sử]\n${candidateLines.join('\n')}`;
-    if (`${systemPart}${memoryPart}${summaryPart}${candidateHistory}${questionPart}`.length <= MAX_PROMPT) {
-      turnLines.unshift(line);
-    } else {
-      break;
-    }
+  const questionPart = `${questionLabel}\n${query}`;
+
+  if (`${intro}\n\n${questionPart}`.length > MAX_PROMPT) {
+    const head = `${intro}\n\n${questionLabel}\n`;
+    const available = Math.max(0, MAX_PROMPT - head.length);
+    const clipped = query.length > available ? `${query.slice(0, Math.max(0, available - 1))}…` : query;
+    return `${head}${clipped}`;
   }
 
-  const historyPart = turnLines.length ? `\n\n[Lịch sử]\n${turnLines.join('\n')}` : '';
-  return `${systemPart}${memoryPart}${summaryPart}${historyPart}${questionPart}`;
+  if (!contextParts.length) {
+    return `${intro}\n\n${questionPart}`;
+  }
+
+  let contextBody = contextParts.join('\n\n');
+  let result = `${intro}\n\n${contextLabel}\n${contextBody}\n\n${questionPart}`;
+  if (result.length <= MAX_PROMPT) return result;
+
+  while (contextParts.length && result.length > MAX_PROMPT) {
+    contextParts.shift();
+    contextBody = contextParts.join('\n\n');
+    result = contextParts.length
+      ? `${intro}\n\n${contextLabel}\n${contextBody}\n\n${questionPart}`
+      : `${intro}\n\n${questionPart}`;
+  }
+  return result;
 }
 
 function historyLength(history: ChatHistory): number {
@@ -205,7 +217,7 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
       const history = loadHistory(o.home, o.agentId, room);
       const memories = o.memory.relevant(text, { room, project: o.project });
 
-      const prompt = flatten({ system: DUCK_SYSTEM, memories, history, text });
+      const prompt = flatten({ memories, history, text });
       let answer = '';
       try {
         const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));

@@ -42,30 +42,43 @@ test('Duck builds system, cited memories, summary, turns and new text in the req
   ]);
 });
 
-test('Duck flatten formats system, memory, summary, history, and question within MAX_PROMPT', () => {
-  const prompt = flatten({
-    system: 'Custom system',
+test('Duck flatten formats natural advice request, places question at end, and omits system tags and hub notices', () => {
+  const promptVi = flatten({
     memories: [{
       id: 5, kind: 'research', text: 'memory detail', tags: [], scope: 'room', room: 'room_a', source: 'muse',
       createdAt: 1, updatedAt: 2, urls: ['https://example.com'],
     }],
     history: {
-      summary: 'Brief context',
+      summary: 'Bối cảnh dự án ngắn gọn',
       turns: [
-        { role: 'user', text: 'turn 1 question', at: 1 },
-        { role: 'assistant', text: 'turn 1 answer', at: 2 },
+        { role: 'user', text: 'turn 0 sys.agent.failed message', at: 0 },
+        { role: 'user', text: 'turn 1 Không đánh thức được agent', at: 1 },
+        { role: 'user', text: 'turn 2 câu hỏi trước đó', at: 2 },
+        { role: 'assistant', text: 'turn 2 câu trả lời trước đó', at: 3 },
       ],
     },
-    text: 'current question',
+    text: 'Dự án này nên cấu hình backup thế nào?',
   });
-  assert.ok(prompt.includes('[Hệ thống]\nCustom system'));
-  assert.ok(prompt.includes('[Bộ nhớ]\n[M5'));
-  assert.ok(prompt.includes('[Tóm tắt]\nBrief context'));
-  assert.ok(prompt.includes('[Lịch sử]\nNgười dùng: turn 1 question\nDuck: turn 1 answer'));
-  assert.ok(prompt.includes('[Câu hỏi]\ncurrent question'));
-  assert.ok(prompt.length <= 8000);
+  assert.ok(promptVi.startsWith('Mình đang làm việc trong nhóm phát triển phần mềm, cần bạn góp ý.'));
+  assert.ok(promptVi.includes('Bối cảnh ngắn:'));
+  assert.ok(promptVi.includes('[M5 research'));
+  assert.ok(promptVi.includes('Bối cảnh dự án ngắn gọn'));
+  assert.ok(promptVi.includes('Người dùng: turn 2 câu hỏi trước đó\nDuck: turn 2 câu trả lời trước đó'));
+  assert.ok(promptVi.endsWith('Câu hỏi:\nDự án này nên cấu hình backup thế nào?'));
+  assert.ok(!promptVi.includes('[Hệ thống]'));
+  assert.ok(!promptVi.includes('sys.'));
+  assert.ok(!promptVi.includes('Không đánh thức được'));
+  assert.ok(promptVi.length <= 8000);
 
-  // Over budget: cuts oldest turns first
+  // English question uses English intro and labels
+  const promptEn = flatten({
+    text: 'What is the recommended database backup strategy?',
+  });
+  assert.ok(promptEn.startsWith('I am working with a software development team and would like your advice.'));
+  assert.ok(promptEn.endsWith('Question:\nWhat is the recommended database backup strategy?'));
+  assert.ok(!promptEn.includes('[Hệ thống]'));
+
+  // Over budget: cuts oldest context and keeps question intact at the end
   const longTurns = Array.from({ length: 20 }, (_, i) => ({
     role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
     text: `turn ${i} content `.repeat(50),
@@ -73,13 +86,12 @@ test('Duck flatten formats system, memory, summary, history, and question within
   }));
   const trimmed = flatten({
     history: { summary: 'Summary', turns: longTurns },
-    text: 'my question',
+    text: 'Cần giải pháp gì cho caching?',
   });
   assert.ok(trimmed.length <= 8000);
-  assert.ok(trimmed.includes('[Câu hỏi]\nmy question'));
-  // Most recent turns are kept, older ones dropped
+  assert.ok(trimmed.endsWith('Câu hỏi:\nCần giải pháp gì cho caching?'));
+  assert.ok(!trimmed.includes('[Hệ thống]'));
   assert.ok(trimmed.includes('turn 19 content'));
-  assert.ok(!trimmed.includes('turn 0 content'));
 });
 
 test('Duck remember stores room/project memories, but refuses secrets without saving them', async (t) => {

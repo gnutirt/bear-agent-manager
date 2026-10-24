@@ -62,3 +62,11 @@ test('paused room: agent messages wake nobody, user messages still wake', () => 
   assert.equal(wakes(msg({ fromId: 's-fw', mentions: ['web'] }), web, true), false);
   assert.equal(wakes(msg({ mentions: ['web'] }), web, true), true);
 });
+
+test('Duck member is never woken by @all or untagged user message, only by direct mention', () => {
+  const duck = { id: 's-duck', name: 'duck-ga', kind: 'duck' };
+  assert.equal(wakes(msg({}), duck, false), false, 'untagged user message does not wake duck');
+  assert.equal(wakes(msg({ mentions: ['all'] }), duck, false), false, 'user @all does not wake duck');
+  assert.equal(wakes(msg({ mentions: ['duck-ga'] }), duck, false), true, 'user @duck-ga wakes duck');
+  assert.equal(wakes(msg({ fromId: 's-fw', mentions: ['duck-ga'] }), duck, false), true, 'agent @duck-ga wakes duck');
+});

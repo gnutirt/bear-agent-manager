@@ -35,9 +35,12 @@ export function parseMentions(text: string): string[] {
   return out;
 }
 
-export function wakes(msg: Message, member: { id: string; name: string }, roomPaused: boolean): boolean {
+export function wakes(msg: Message, member: { id: string; name: string; kind?: string }, roomPaused: boolean): boolean {
   if (msg.fromId === member.id) return false;
   const name = member.name.toLowerCase();
+  if (member.kind === 'duck') {
+    return msg.mentions.includes(name);
+  }
   const all = msg.mentions.includes('all');
   if (msg.fromId === null) return msg.mentions.length === 0 || all || msg.mentions.includes(name);
   if (roomPaused) return false;

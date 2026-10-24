@@ -176,6 +176,16 @@ export class HubMember<K extends string = string> {
       const batch = pending.messages;
       const upTo = batch[batch.length - 1].id;
       const room = batch[batch.length - 1].room;
+      if (this.opts.kind === 'duck') {
+        const myName = this.opts.name.toLowerCase();
+        const hasMention = batch.some((m) => m.mentions.includes(myName));
+        if (!hasMention) {
+          this.opts.store.consume(id, upTo);
+          this.opts.store.setStatus(id, 'idle');
+          this.setStatus({ state: 'idle', error: undefined });
+          return;
+        }
+      }
       const prompt = this.opts.format(id, batch);
       this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
       this.setStatus({ state: 'busy', error: undefined });

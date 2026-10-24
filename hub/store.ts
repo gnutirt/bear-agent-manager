@@ -10,6 +10,7 @@ export type Session = {
   name: string;
   userNamed: boolean;
   cwd: string;
+  kind?: string;
   rooms: Record<string, number>; // room -> last message id before joining
   status: Status;
   activity: string;
@@ -449,7 +450,7 @@ export class Store {
     let s = this.state.sessions[this.resolve(input.id)];
     let aliased = false;
     if (!s) {
-      s = { id: input.id, name: '', userNamed: false, cwd: input.cwd ?? '', rooms: {}, status: 'idle', activity: '', lastSeen: t, cursor: this.lastId() };
+      s = { id: input.id, name: '', userNamed: false, cwd: input.cwd ?? '', rooms: {}, status: 'idle', activity: '', lastSeen: t, cursor: this.lastId(), ...(input.source ? { kind: input.source } : {}) };
       if (input.source === 'clear' || input.source === 'resume') {
         // A clear/resume continues a chat that is gone; it must never take over a chat that still lives (see continuedFrom).
         const prev = this.continuedFrom(input, live, t);
