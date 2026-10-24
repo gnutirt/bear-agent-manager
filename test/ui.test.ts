@@ -410,6 +410,41 @@ test('settings tab: worker switches, auto jobs, per-agent skill rules, providers
   } finally { await hub.close(); }
 });
 
+test('settings account sections render safe loading placeholders on every sub and refresh after accounts load', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0]?.[1] || '';
+    const accountPartsSrc = script.slice(script.indexOf('function accountParts(st) {'), script.indexOf('\nfunction refreshAgentMetadata()'));
+    assert.ok(accountPartsSrc.startsWith('function accountParts(st) {') && accountPartsSrc.endsWith('}'), 'accountParts source is present');
+    const accountParts = new Function('S', 'loadAccounts', 't', `${accountPartsSrc}; return accountParts;`)(
+      { acct: null }, () => {}, (key: string) => key === 'hc.loading' ? 'Loading…' : key,
+    ) as (st: unknown) => Record<string, string>;
+    const parts = accountParts({});
+    for (const sub of ['accounts', 'copilot', 'agents', 'mcp', 'auto']) {
+      assert.equal(typeof parts[sub], 'string', `${sub} section must always have a string`);
+      assert.doesNotMatch(parts[sub], /undefined/);
+    }
+    assert.match(parts.accounts, /Loading/);
+
+    const loadAccountsSrc = script.slice(script.indexOf('function loadAccounts(refresh = false) {'), script.indexOf('\nconst SWM ='));
+    assert.ok(loadAccountsSrc.startsWith('function loadAccounts(refresh = false) {') && loadAccountsSrc.endsWith('}'), 'loadAccounts source is present');
+    const buildLoadAccounts = new Function(
+      'S', 'api', 'loadCopilotProfiles', 'renderSettingsView', 'loadMcpServers',
+      `${loadAccountsSrc}; return () => loadAccounts();`,
+    );
+    for (const sub of ['overview', 'agent', 'accounts', 'rooms', 'tools', 'system']) {
+      let renders = 0;
+      const S = { tab: 'settings', setSub: sub };
+      const api = () => Promise.resolve({});
+      const loadAccounts = buildLoadAccounts(S, api, () => Promise.resolve(), () => { renders++; }, () => {});
+      loadAccounts();
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(renders, 1, `settings should refresh after accounts load on ${sub}`);
+    }
+  } finally { await hub.close(); }
+});
+
 test('Settings memory view loads, edits, deletes and clears BAM-owned entries with translated labels', async () => {
   const { hub } = await makeHub();
   try {

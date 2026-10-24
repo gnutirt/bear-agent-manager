@@ -4214,7 +4214,7 @@ function loadMuseStatus() {
 }
 let accountLogoutAsk = '';
 function loadAccounts(refresh = false) {
-  Promise.all([api(`/api/accounts${refresh ? '?refresh=1' : ''}`).catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView(); loadMcpServers(); });
+  Promise.all([api(`/api/accounts${refresh ? '?refresh=1' : ''}`).catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings') renderSettingsView(); loadMcpServers(); });
 }
 const SWM = lazy({ off: 'sw.mode.off', ask: 'sw.mode.ask', auto: 'sw.mode.auto' });
 const SWH = lazy({ off: 'sw.mode.hint.off', ask: 'sw.mode.hint.ask', auto: 'sw.mode.hint.auto' });
@@ -4280,7 +4280,10 @@ async function setCopilotProfile(id, on) {
 function accountParts(st) {
   if (S.acct === undefined) { S.acct = null; loadAccounts(); }
   const A = S.acct;
-  if (!A) return `<h2>${t('ac.accounts')}</h2><p class="small muted">${t('hc.loading')}</p>`;
+  if (!A) {
+    const loading = `<p class="small muted">${t('hc.loading')}</p>`;
+    return { accounts: loading, copilot: '', agents: loading, mcp: loading, auto: '' };
+  }
   const usage = (dir) => (S.cu?.accounts || []).find((u) => (u.configDirs || []).some((d) => sameDir(d, dir)));
   const cards = A.accounts.map((a, i) => {
     const u = usage(a.dir), p = a.projects;
