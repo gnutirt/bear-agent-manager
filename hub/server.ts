@@ -28,7 +28,7 @@ import { DATA_SUBS, dataInfo, openFolder, browseFolder } from './datadir.ts';
 import { isHubText, scrubSecrets, typedText } from './mirror.ts';
 import { isLoopback, isSecretFile, localStatus, localSummary, readSessionFile } from './localai.ts';
 import { readOverrides, setOverride } from './skillhide.ts';
-import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, staleTasks, taskKpi, unblockReady, updateTask, type Task } from './tasks.ts';
+import { addTask, deleteTask, importTodo, isWaiting, listTasks, openTasksText, setTaskOwner, staleTasks, taskKpi, unblockReady, updateTask, type Task } from './tasks.ts';
 import { roomDays, searchRoom } from './roomsearch.ts';
 import { AttachError, checkMessageTotal, collectBody, contentInfo, MAX_FILE_BYTES, moveRoomToTrash, requireAttachments, resolveAttachment, saveAttachment, type Attachment } from './attachments.ts';
 import { applyUpdate, CHECK_EVERY_MS, gitState, pluginCopies, readPackage, UpdateChecker, versionInfo } from './version.ts';
@@ -3176,14 +3176,32 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           if (!mem) throw new StoreError(400, `${o} is not a member of #${room}`);
           return mem.name;
         };
+        const parseOwnerInput = (raw: unknown) => {
+          const s = String(raw ?? '').trim();
+          const tm = s.match(/^tier:([1-9])$/i);
+          if (tm) {
+            const pool = Number(tm[1]);
+            const cfg = loadSettings(opts.dir, envCap);
+            const tiers = cfg.flowTiers?.[room] ?? {};
+            const hasMember = store.members(room).some((m) => tiers[normAgent(m.name)] === pool);
+            if (!hasMember) throw new StoreError(400, `no member of #${room} is assigned to tier ${pool}`);
+            return { owner: '', pool };
+          }
+          return { owner: memberName(raw), pool: null };
+        };
         // Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated)
         const assign = (t: Task) => assignTask(room, t, who?.id ?? null);
         if (!sub) {
           if (!isLead) throw new StoreError(403, 'only the room lead adds tasks');
-          const owner = memberName(b.owner);
-          const t = addTask(opts.dir, room, { ...b, owner });
+          let owner = '', pool: number | undefined;
+          if (b.owner !== undefined && String(b.owner).trim()) {
+            const parsed = parseOwnerInput(b.owner);
+            owner = parsed.owner;
+            if (parsed.pool) pool = parsed.pool;
+          }
+          const t = addTask(opts.dir, room, { ...b, owner, ...(pool ? { pool } : {}) });
           emitTasks();
-          if (t.owner && !isWaiting(t, listTasks(opts.dir, room))) assign(t);
+          if ((t.owner || t.pool) && !isWaiting(t, listTasks(opts.dir, room))) assign(t);
           return json(res, 200, t);
         }
         if (sub === 'import') {
@@ -3205,7 +3223,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           // A deleted dependency counts as done (tasks.ts pending()); without this, its dependents would stay blocked
           // for good: nothing else moves a task to todo except another task finishing.
           const freed = unblockReady(opts.dir, room);
-          if (freed.length) for (const t of freed) if (t.owner) assign(t);
+          if (freed.length) for (const t of freed) if (t.owner || t.pool) assign(t);
           emitTasks();
           return json(res, 200, { ok: true, unblocked: freed.map((t) => t.id) });
         }
@@ -3216,7 +3234,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const touches = Object.keys(b).filter((k) => !['sessionId', 'status', 'note', 'commit'].includes(k) && b[k] !== undefined);
           if (!mine || touches.length) throw new StoreError(403, mine ? 'only the room lead changes the title, owner or details' : `task #${id} is not yours`);
         }
-        const patch = { ...b, ...(b.owner !== undefined ? { owner: memberName(b.owner) } : {}) };
+        let ownerPatch: { owner?: string; pool?: number | null } = {};
+        if (b.owner !== undefined) {
+          if (String(b.owner).trim()) {
+            const parsed = parseOwnerInput(b.owner);
+            ownerPatch = parsed.pool ? { owner: '', pool: parsed.pool } : { owner: parsed.owner, pool: null };
+          } else {
+            ownerPatch = { owner: '', pool: null };
+          }
+        }
+        const patch = { ...b, ...ownerPatch };
         const { task, before } = updateTask(opts.dir, room, id, patch);
         // Editing the `after` list can make this task (or a task that waited for it) ready; nothing else moves
         // blocked → todo except a dependency finishing or being deleted, so a shortened list would stay blocked.
@@ -3246,8 +3273,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           } catch { /* room gone */ }
           afterTaskDone(room, task);
         }
-        if (freed.length) for (const t of freed) if (t.owner) assign(t);
-        if (!selfFreed && task.owner && task.owner !== before.owner && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
+        if (freed.length) for (const t of freed) if (t.owner || t.pool) assign(t);
+        if (!selfFreed && (task.owner !== before.owner || task.pool !== before.pool) && (task.owner || task.pool) && task.status !== 'done' && !isWaiting(task, listTasks(opts.dir, room))) assign(task);
         if ((task.status === 'done' || task.status === 'blocked') && before.status !== task.status) {
           void compactTaskOwner(room, task, task.status === 'done' && !!task.commit).catch(() => {});
         }
@@ -3480,8 +3507,103 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   void applyBrowser();
 
+  const TIER_COOLDOWN_MS = 30 * 60_000;
+  const tierEmptyNotified = new Set<string>();
+
+  const allProfiles = () => [...apiProfiles(), ...copilotProfiles()];
+
+  const isCandidateEligible = (mem: Session, room: string, now: number): boolean => {
+    const prof = allProfiles().find((p) => normAgent(p.name) === normAgent(mem.name));
+    if (prof && prof.enabled === false) return false;
+    const canWake = !!prof && prof.enabled !== false;
+    if (mem.ended || mem.status === 'offline') {
+      if (!canWake) return false;
+    }
+    if (prof) {
+      if ((apiState.get(prof.id)?.limited ?? 0) > now) return false;
+      if (apiBudgetUntil(prof) > 0) return false;
+    }
+    if (accountUsageBlocked(mem)) return false;
+    const hasRecentError = store.messages.some((m) =>
+      m.room === room &&
+      (m.kind === 'system' || !!m.sys) &&
+      normAgent(m.sys?.agent ?? '') === normAgent(mem.name) &&
+      (m.sys?.level === 'error' || m.sys?.level === 'warn') &&
+      now - m.ts < TIER_COOLDOWN_MS
+    );
+    if (hasRecentError) return false;
+    return true;
+  };
+
+  const pickTierOwner = (room: string, tier: number, now = store.now()): string | undefined => {
+    const cfg = loadSettings(opts.dir, envCap);
+    const tiers = cfg.flowTiers?.[room] ?? {};
+    const candidates = store.members(room).filter((m) => tiers[normAgent(m.name)] === tier);
+    if (!candidates.length) return undefined;
+
+    const eligible = candidates.filter((mem) => isCandidateEligible(mem, room, now));
+    if (!eligible.length) return undefined;
+
+    const allTasks = listTasks(opts.dir, room);
+    const scored = eligible.map((mem) => {
+      const isOnline = ['idle', 'busy', 'waiting'].includes(mem.status) && !mem.ended;
+      const onlineRank = isOnline ? 0 : 1;
+      const activeTasks = allTasks.filter(
+        (t) => (t.owner ?? '').toLowerCase() === mem.name.toLowerCase() && (t.status === 'todo' || t.status === 'doing')
+      ).length;
+      const pooledTasks = allTasks.filter(
+        (t) => t.pool === tier && (t.owner ?? '').toLowerCase() === mem.name.toLowerCase() && typeof t.assignedAt === 'number'
+      );
+      const lastAssigned = pooledTasks.length ? Math.max(...pooledTasks.map((t) => t.assignedAt!)) : 0;
+      return { mem, onlineRank, activeTasks, lastAssigned };
+    });
+
+    scored.sort((a, b) => {
+      if (a.onlineRank !== b.onlineRank) return a.onlineRank - b.onlineRank;
+      if (a.activeTasks !== b.activeTasks) return a.activeTasks - b.activeTasks;
+      if (a.lastAssigned !== b.lastAssigned) return a.lastAssigned - b.lastAssigned;
+      return a.mem.name.localeCompare(b.mem.name);
+    });
+
+    return scored[0].mem.name;
+  };
+
+  const notifyTierEmptyOnce = (room: string, t: Task) => {
+    const key = `${room}|${t.id}`;
+    if (tierEmptyNotified.has(key)) return;
+    tierEmptyNotified.add(key);
+    const leadId = store.state.rooms[room]?.lead;
+    const lead = leadId ? store.state.sessions[leadId] : undefined;
+    if (!lead?.name) return;
+    const text = tr('sys.task.tierEmpty', { id: t.id, n: t.pool ?? '', title: t.title, lead: lead.name });
+    const r = store.post(room, null, text, undefined, undefined, undefined, undefined, { type: 'task', level: 'warn' });
+    broadcast('msg', r.message);
+    for (const id of r.message.wake) deliver(store.resolve(id));
+    emitRoom(room);
+  };
+
   // Q1-Q3: tasks that run themselves. Assigning sends the owner ONE short message about this task only (the rest of the chat is not repeated).
   const assignTask = (room: string, t: Task, fromId: string | null) => {
+    const now = store.now();
+    if (t.pool) {
+      const curOwnerMem = t.owner ? store.members(room).find((m) => normAgent(m.name) === normAgent(t.owner!)) : undefined;
+      const ownerOk = curOwnerMem && isCandidateEligible(curOwnerMem, room, now) && (loadSettings(opts.dir, envCap).flowTiers?.[room]?.[normAgent(curOwnerMem.name)] === t.pool);
+      if (!t.owner || !ownerOk) {
+        const picked = pickTierOwner(room, t.pool, now);
+        if (picked) {
+          t = setTaskOwner(opts.dir, room, t.id, picked, now);
+          tierEmptyNotified.delete(`${room}|${t.id}`);
+          emitTaskList(room);
+        } else {
+          if (t.owner) {
+            t = updateTask(opts.dir, room, t.id, { owner: '', pool: t.pool }).task;
+            emitTaskList(room);
+          }
+          notifyTierEmptyOnce(room, t);
+          return;
+        }
+      }
+    }
     const profile = apiProfiles().find((p) => p.name.toLowerCase() === (t.owner ?? '').toLowerCase());
     if (profile && apiBudgetUntil(profile)) {
       if (t.status === 'doing') {
@@ -3502,7 +3624,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     try {
       const released = unblockReady(opts.dir, room);
       if (released.length) emitTaskList(room);
-      for (const t of released) if (t.owner) assignTask(room, t, null);
+      for (const t of released) if (t.owner || t.pool) assignTask(room, t, null);
       emitRoom(room);
     } catch { /* room gone */ }
   };
@@ -3513,7 +3635,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const room of Object.keys(store.state.rooms)) {
       let all: Task[];
       try { all = listTasks(opts.dir, room); } catch { continue; }
-      if (!all.some((t) => t.status === 'todo' && t.owner)) continue;
+      if (!all.some((t) => t.status === 'todo' && (t.owner || t.pool))) continue;
       for (const mem of store.members(room)) {
         if (mem.status !== 'idle') continue;
         const mine = all.filter((t) => (t.owner ?? '').toLowerCase() === mem.name.toLowerCase());
@@ -3528,6 +3650,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           const { task } = updateTask(opts.dir, room, next.id, { status: 'doing' });
           emitTaskList(room);
           assignTask(room, task, null);
+        } catch { /* room or task gone */ }
+      }
+      for (const t of all) {
+        if (t.status !== 'todo' || !t.pool) continue;
+        if (t.owner) {
+          const curOwnerMem = store.members(room).find((m) => normAgent(m.name) === normAgent(t.owner!));
+          if (curOwnerMem && isCandidateEligible(curOwnerMem, room, now)) continue;
+        }
+        const candidate = pickTierOwner(room, t.pool, now);
+        if (!candidate) {
+          const key = `${room}|pool|${t.id}`;
+          if (now - (lastAutoNext.get(key) ?? 0) < AUTO_NEXT_COOLDOWN_MS) continue;
+          lastAutoNext.set(key, now);
+          notifyTierEmptyOnce(room, t);
+          continue;
+        }
+        try {
+          assignTask(room, t, null);
         } catch { /* room or task gone */ }
       }
     }
