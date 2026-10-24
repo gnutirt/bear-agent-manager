@@ -3,7 +3,7 @@ import type { Message } from '../hub/routing.ts';
 import type { AgentComms } from '../hub/settings.ts';
 import type { NoteLite } from '../shared/format.ts';
 import { api, ApiError, ensureHub, hubUp, sleep } from '../shared/client.ts';
-import { formatDelivery, isOneShotCommand, parentCommandLine, readInput, register, runContext } from './lib.ts';
+import { formatDelivery, hookLog, isOneShotCommand, parentCommandLine, readInput, register, runContext } from './lib.ts';
 
 // Must stay below the hook's 604800 s timeout in hooks.json.
 // A background wake (hub/revive.ts) sets BEAR_AGENT_IDLE_MIN: every Stop starts a new waiter, so this is "idle minutes after the last turn".
@@ -53,7 +53,7 @@ if (!known) {
 }
 // (Re)register on every start/stop: refreshes the chat title, the editor badge and the config dir,
 // so a chat opened in VS Code and then Antigravity stays one session with one name.
-await register(input, { ide }).catch(() => {});
+await register(input, { ide }).catch((error) => hookLog('warn', 'waiter register failed', { error: String(error) }));
 
 const afterLimit = input.hook_event_name === 'StopFailure';
 if (input.hook_event_name === 'Stop' || afterLimit) {
@@ -67,7 +67,7 @@ while (Date.now() - started < LIFETIME_MS) {
     r = await api(`/api/sessions/${id}/wait?timeout=${left}${process.env.BEAR_AGENT_HEADLESS === '1' ? '&headless=1' : ''}${afterLimit ? '&afterLimit=1' : ''}&pid=${process.ppid}`, { timeoutMs: 65_000 });
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
-      await register(input, { ide }).catch(() => {});
+      await register(input, { ide }).catch(() => {});   // the hub forgot this chat; retried every second, so no log line per try
       await sleep(1000);
     } else {
       await sleep(10_000);

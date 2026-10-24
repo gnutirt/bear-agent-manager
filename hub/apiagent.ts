@@ -4,6 +4,7 @@ import type { AgentProfile } from './settings.ts';
 import type { Provider } from './providers.ts';
 import type { Perm } from './revive.ts';
 import { isSecretFile } from './localai.ts';
+import { log } from './log.ts';
 
 // 'claude-api' profiles (docs/superpowers/specs/2026-10-20-four-levels-sync-install.md, a): a headless claude that talks to a
 // providers.json provider instead of the owner's account. Pure helpers; hub/server.ts starts, wakes and stops the process.
@@ -65,9 +66,15 @@ export const compactEnv = (base: Record<string, string | undefined> = process.en
 /** Environment of the claude process: the provider's endpoint and credential, never the owner's account. The key stays in this object (never logged). */
 export function apiEnv(p: AgentProfile, prov: Provider, base: Record<string, string | undefined> = process.env): Record<string, string> {
   const model = p.model || prov.models.read[0] || '';
-  if (!model) throw new Error(`provider ${prov.id} has no model: set one on the profile or in providers.json`);
+  if (!model) {
+    log('error', 'provider', 'provider has no model', { agent: p.name, data: { provider: prov.id, profile: p.id } });
+    throw new Error(`provider ${prov.id} has no model: set one on the profile or in providers.json`);
+  }
   const cred = prov.tier === 'local' && !prov.key ? 'ollama' : prov.key;
-  if (!cred) throw new Error(`provider ${prov.id} has no key`);
+  if (!cred) {
+    log('error', 'provider', 'provider has no key', { agent: p.name, data: { provider: prov.id, profile: p.id } });
+    throw new Error(`provider ${prov.id} has no key`);
+  }
   const env: Record<string, string> = { ...compactEnv(base), ANTHROPIC_BASE_URL: prov.baseUrl, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     ANTHROPIC_MODEL: model, ANTHROPIC_DEFAULT_HAIKU_MODEL: model, ANTHROPIC_DEFAULT_SONNET_MODEL: model, ANTHROPIC_DEFAULT_OPUS_MODEL: model };
   if (prov.auth === 'auth-token') { env.ANTHROPIC_AUTH_TOKEN = cred; env.ANTHROPIC_API_KEY = ''; }

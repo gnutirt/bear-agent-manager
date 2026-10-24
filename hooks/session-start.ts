@@ -1,5 +1,5 @@
 import { api, ensureHub } from '../shared/client.ts';
-import { accountEmail, describeRun, isSavedChat, parentCommandLine, readInput, register, runContext } from './lib.ts';
+import { accountEmail, describeRun, hookLog, isSavedChat, parentCommandLine, readInput, register, runContext } from './lib.ts';
 
 // Starts the hub if needed, registers a resumed chat (its transcript already exists, so it is a
 // real chat and not a background helper) and reminds a known member of its rooms. A brand-new tab
@@ -10,7 +10,7 @@ try {
   if (await ensureHub()) {
     const ctx = runContext(process.env, parentCommandLine);
     process.stdout.write(describeRun(ctx, process.env.CLAUDE_CONFIG_DIR, accountEmail(process.env.CLAUDE_CONFIG_DIR)) + '\n');
-    if (isSavedChat(input.transcript_path)) await register(input, { ide: ctx.ide }).catch(() => {});
+    if (isSavedChat(input.transcript_path)) await register(input, { ide: ctx.ide }).catch((error) => hookLog('warn', 'SessionStart register failed', { error: String(error) }));
     try {
       const { session } = await api<{ session: { name: string; rooms: string[] } }>(`/api/sessions/${encodeURIComponent(input.session_id)}`);
       if (session.rooms.length) {
@@ -28,7 +28,8 @@ try {
     const rules = await api<{ text: string }>(`/api/rules?${q}`, { timeoutMs: 1500 }).catch(() => ({ text: '' }));
     if (rules.text) process.stdout.write(rules.text + '\n');
   }
-} catch {
-  // unknown session or hub down: fail open, never break the session
+} catch (error) {
+  // unknown session or hub down: fail open, never break the session — but leave a line in the hook log (#283)
+  await hookLog('warn', 'SessionStart hook failed', { error: error instanceof Error ? error.message : String(error) });
 }
 process.exit(0);

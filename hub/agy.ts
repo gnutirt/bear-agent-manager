@@ -10,6 +10,7 @@ import type { Store } from './store.ts';
 import type { Message } from './routing.ts';
 import { permFor, type Settings } from './settings.ts';
 import { HubMember, type MemberStatus } from './member.ts';
+import { log } from './log.ts';
 
 export type FindAgyOpts = {
   exists?: (p: string) => boolean;
@@ -234,9 +235,13 @@ export class AgyAgent extends HubMember<'agy'> {
       failureKey: 'sys.agy.failed',
       startError: (message) => `${profile.name} (agy) could not start: ${message}`,
       now: opts.now,
-      turn: async (sid, _room, text) => {
+      turn: async (sid, room, text) => {
         const found = findAgy(profile.path ?? '');
-        if (!found.exe) return { ok: false, text: '', error: `agy was not found (looked in: ${found.tried.join(', ') || 'no paths'})` };
+        if (!found.exe) {
+          const error = `agy was not found (looked in: ${found.tried.join(', ') || 'no paths'})`;
+          log('error', 'agy', 'agy binary not found', { agent: profile.name, sid, room, data: { error } });
+          return { ok: false, text: '', error };
+        }
         const session = opts.store.state.sessions[sid];
         let conversation = session?.agyConversation;
         const rule = permFor(opts.settings(), profile.name);
@@ -248,6 +253,7 @@ export class AgyAgent extends HubMember<'agy'> {
         });
         let turn = await (opts.run ?? runAgyTurn)(found.exe, args(), profile.cwd, text);
         if (!turn.ok && conversation && staleConversation(turn.error)) {
+          log('warn', 'agy', 'stale conversation, retrying without it', { agent: profile.name, sid, room, data: { error: turn.error } });
           conversation = undefined;
           if (session) { delete session.agyConversation; opts.store.save(); }
           turn = await (opts.run ?? runAgyTurn)(found.exe, args(), profile.cwd, text);
@@ -257,7 +263,11 @@ export class AgyAgent extends HubMember<'agy'> {
           session.agyConversation = turn.conversation;
           opts.store.save();
         }
-        if (!turn.ok || !turn.response.trim()) return { ok: false, text: '', error: turn.error || 'agy returned an empty response' };
+        if (!turn.ok || !turn.response.trim()) {
+          const error = turn.error || 'agy returned an empty response';
+          log('warn', 'agy', 'turn failed', { agent: profile.name, sid, room, data: { error, code: turn.code, empty: !turn.response.trim() } });
+          return { ok: false, text: '', error };
+        }
         return { ok: true, text: turn.response, error: '', usage: turn.usage };
       },
     });

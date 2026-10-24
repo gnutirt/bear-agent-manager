@@ -8,6 +8,8 @@ import { permFor, resolveWorkspace, type PermRule, type Settings } from './setti
 import type { Message } from './routing.ts';
 import type { McpServer } from './mcpconfig.ts';
 import { renameRetry } from './atomic.ts';
+import { log } from './log.ts';
+import { redact } from '../shared/redact.ts';
 
 const ROOM = 'bear-agent-manager';
 const LEGACY_ROOM = 'copilot';
@@ -153,11 +155,10 @@ function splitMessage(text: string, limit = 7800): string[] {
 export const isMonthlyQuotaError = (message: string): boolean => /exceeded your (monthly )?quota/i.test(message);
 export const nextMonthStart = (now = Date.now()): number => { const d = new Date(now); return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(); };
 
+// #283 (log T3): one redaction net for the whole hub (shared/redact.ts) instead of the GitHub/Bearer-only copy that
+// used to live here: an SDK error can carry a provider key or a token in a header, not just a gh token.
 function safeError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message
-    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/gi, '[redacted]')
-    .replace(/(authorization\s*:\s*bearer\s+)\S+/gi, '$1[redacted]');
+  return redact(error instanceof Error ? error.message : String(error));
 }
 
 export class CopilotAgent {
@@ -268,6 +269,7 @@ export class CopilotAgent {
         } catch (stopError) { console.error('[copilot] runtime cleanup failed:', safeError(stopError)); }
       }
       const message = safeError(error);
+      log('error', 'copilot', 'could not start', { agent: this.name, ...(this.identity ? { sid: this.identity.hubId } : {}), room: ROOM, data: { error: message, auth: error instanceof CopilotAuthError } });
       this.setStatus({ state: 'error', ...(error instanceof CopilotAuthError ? { auth: 'no' as const } : {}), error: message });
       if (this.identity && this.opts.store.state.sessions[this.identity.hubId]) this.opts.store.markEnded(this.identity.hubId);
       this.opts.onChange(this.snapshot());
@@ -468,6 +470,7 @@ export class CopilotAgent {
     if (isMonthlyQuotaError(message)) {
       // Same path as the SDK quota event (failover or a single "kept queued" notice), instead of one error line per message.
       const id = this.identity?.hubId;
+      log('warn', 'copilot', 'monthly quota reached', { agent: this.name, ...(id ? { sid: id } : {}), room: ROOM, data: { error: message } });
       void this.markQuotaLimited({ retryAt: nextMonthStart(), reason: 'monthly quota' })
         .then((upTo) => { if (id && upTo) this.opts.store.consume(id, upTo); });
       return;
@@ -477,6 +480,7 @@ export class CopilotAgent {
       this.opts.store.setStatus(this.identity.hubId, 'idle', 'Copilot needs attention');
       this.opts.onChange(this.snapshot());
     }
+    log('error', 'copilot', 'turn failed', { agent: this.name, ...(this.identity ? { sid: this.identity.hubId } : {}), room: ROOM, data: { error: message } });
     this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not complete the message: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
     console.error('[copilot] agent turn failed:', message);
   }
@@ -535,6 +539,7 @@ export class CopilotAgent {
       .then(() => this.opts.onQuota?.(limit) ?? false)
       .catch((error) => {
         const message = safeError(error);
+        log('error', 'copilot', 'quota handoff failed', { agent: this.name, room: ROOM, data: { error: message } });
         this.opts.onMessage(ROOM, this.opts.store.postSystem(ROOM, `${this.name} could not hand off quota-limited messages: ${message}`, undefined, { type: 'error', level: 'error', agent: this.name }));
         console.error('[copilot] quota handoff failed:', message);
         return false;

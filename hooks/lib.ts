@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { api, ApiError } from '../shared/client.ts';
+import { HOME } from '../shared/config.ts';
+import { redact, redactValue } from '../shared/redact.ts';
 
 export type HookInput = {
   session_id: string;
@@ -43,6 +45,42 @@ export function register(input: HookInput, extra: { ide?: string; title?: string
       ctx: readContextTokens(input.transcript_path) || undefined,
     },
   });
+}
+
+export type HookLogOptions = {
+  /** Where logs/ lives; defaults to the hub home. Tests pass a temp dir so a real home is never written. */
+  home?: string;
+  /** Poster; defaults to the hub API. Tests pass a failing one to exercise the fallback. */
+  post?: (p: string, init?: { body?: unknown; timeoutMs?: number }) => Promise<unknown>;
+};
+
+const FALLBACK_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * #283 (log T3): a hook never breaks the editor, but it no longer fails silently either. The line goes to the hub
+ * (`POST /api/log`, which rate limits hooks and redacts); when the hub is down it is appended to
+ * logs/hook-fallback.log, rotated at 2 MB and redacted with the same net. Returns which path was taken so a test can
+ * tell them apart; every real caller ignores the result.
+ */
+export async function hookLog(level: 'warn' | 'error', msg: string, data?: unknown, opts: HookLogOptions = {}): Promise<'hub' | 'fallback'> {
+  try {
+    await (opts.post ?? api)('/api/log', { body: { level, msg, data }, timeoutMs: 500 });
+    return 'hub';
+  } catch (error) {
+    try {
+      const dir = path.join(opts.home ?? HOME, 'logs');
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, 'hook-fallback.log');
+      try { if (fs.statSync(file).size > FALLBACK_MAX_BYTES) fs.renameSync(file, `${file}.1`); } catch { /* no file yet */ }
+      const entry = {
+        ts: new Date().toISOString(), level, area: 'hook', msg: redact(msg).slice(0, 500),
+        ...(data === undefined ? {} : { data: redactValue(data) }),
+        why: redact(error instanceof Error ? error.message : String(error)),
+      };
+      fs.appendFileSync(file, JSON.stringify(entry).slice(0, 5000) + '\n');
+    } catch { /* the hook must never fail because logging failed */ }
+    return 'fallback';
+  }
 }
 
 /** Runs fn; if the hub doesn't know this session yet, registers it and retries once. */

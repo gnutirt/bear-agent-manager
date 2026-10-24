@@ -1,6 +1,6 @@
 // Compat shim: sessions started before hooks.json switched to "http" hooks still call this script.
 import { api } from '../shared/client.ts';
-import { activityFor, readInput, withSession } from './lib.ts';
+import { activityFor, hookLog, readInput, withSession } from './lib.ts';
 
 try {
   const status = process.argv[2];
@@ -11,7 +11,8 @@ try {
     : status === 'busy' ? 'thinking' : '';
   await withSession(input, () =>
     api(`/api/sessions/${encodeURIComponent(input.session_id)}/status`, { body: { status, activity }, timeoutMs: 1500 }));
-} catch {
-  // fail open
+} catch (error) {
+  // fail open, but leave a line in the hook log (#283)
+  await hookLog('warn', 'status hook failed', { error: error instanceof Error ? error.message : String(error) });
 }
 process.exit(0);

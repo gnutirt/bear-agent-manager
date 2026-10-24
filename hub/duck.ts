@@ -1,6 +1,7 @@
 import { isSecretText, loadHistory, saveHistory, type ChatHistory, type MemEntry, type Memory } from './memory.ts';
 import type { Message } from './routing.ts';
 import { duckAsk, WebChatError, MAX_PROMPT, type Cdp } from '../mcp/webchat-core.ts';
+import { log } from './log.ts';
 
 export const DUCK_SYSTEM = `Bạn là Duck, trợ lý trò chuyện và tư vấn trong phòng. Bạn không thể hành động, chạy lệnh, dùng công cụ, truy cập tệp hay thay đổi hệ thống.
 Khi dùng một dòng bộ nhớ, hãy dẫn mã [M<id>] cùng nguồn, ngày; với nghiên cứu hãy nêu URL. Không có bằng chứng thì nói rõ đó là ý kiến hoặc suy luận.
@@ -211,6 +212,7 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
         await o.ensureBrowser();
       }
       if (!o.cdp) {
+        log('warn', 'duck', 'browser is not ready', { agent: o.agentId, sid, room, data: { kind: 'webchat' } });
         return { ok: false, text: '', error: 'Chrome của BAM chưa sẵn sàng cho Duck', kind: 'webchat' };
       }
       const profile = o.profile();
@@ -224,18 +226,20 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
         const runAsk = () => duckAsk(o.cdp!, prompt, { timeoutS, model: profile.model, env: { now } });
         const result = o.duckLock ? await o.duckLock(runAsk) : await runAsk();
         answer = result.text.trim();
-        if (!answer) return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
+        if (!answer) {
+          log('warn', 'duck', 'empty answer', { agent: o.agentId, sid, room, data: { kind: 'empty' } });
+          return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
+        }
         if (result.timedOut) answer += '\n\n[hết giờ]';
       } catch (err: any) {
         if (err instanceof WebChatError && err.message.includes('needs-user')) {
-          return {
-            ok: false,
-            text: '',
-            error: 'trình duyệt ẩn BAM gặp kiểm tra bot ở duck.ai; Duck dừng',
-            kind: 'needs-user',
-          };
+          const error = 'trình duyệt ẩn BAM gặp kiểm tra bot ở duck.ai; Duck dừng';
+          log('error', 'duck', 'bot check, Duck stops', { agent: o.agentId, sid, room, data: { kind: 'needs-user', error } });
+          return { ok: false, text: '', error, kind: 'needs-user' };
         }
-        return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${err.message || err}`, kind: 'webchat' };
+        const error = `Duck không xử lý được lượt này: ${err.message || err}`;
+        log('error', 'duck', 'turn failed', { agent: o.agentId, sid, room, data: { kind: 'webchat', error } });
+        return { ok: false, text: '', error, kind: 'webchat' };
       }
 
       history.turns.push(
@@ -250,7 +254,9 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
       }
       return { ok: true, text: answer, error: '' };
     } catch (error) {
-      return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${(error as Error).message}`, kind: 'memory' };
+      const message = `Duck không xử lý được lượt này: ${(error as Error).message}`;
+      log('error', 'duck', 'turn failed', { agent: o.agentId, sid, room, data: { kind: 'memory', error: message } });
+      return { ok: false, text: '', error: message, kind: 'memory' };
     }
   };
 }

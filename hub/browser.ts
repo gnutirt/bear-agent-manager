@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { McpServer } from './mcpconfig.ts';
 import { killTree } from './workers.ts';
+import { log } from './log.ts';
 
 export const PLAYWRIGHT_MCP_VERSION = '0.0.83'; // Published 2026-09-28, more than 14 days before the 2026-10-23 pin.
 export function mcpServerFor(endpoint: string, platform: NodeJS.Platform = process.platform, hubPort?: number): McpServer {
@@ -176,6 +177,7 @@ export class BrowserHost {
       if (pid === undefined || !proc || !this.managedProcess(proc, cfg, profileDir)) {
         const e = new BrowserError(409, `cổng ${cfg.port} đang bận`);
         this.error = e.message;
+        log('warn', 'browser', 'debug port is held by another process', { data: { port: cfg.port, error: e.message } });
         throw e;
       }
       orphanPid = pid;
@@ -185,6 +187,7 @@ export class BrowserHost {
     if (!found.exe) {
       const e = new BrowserError(404, `Không tìm thấy Chrome. Đã thử: ${found.tried.join(', ') || '(không có đường dẫn phù hợp)'}`);
       this.error = e.message;
+      log('error', 'browser', 'Chrome not found', { data: { error: e.message } });
       throw e;
     }
 
@@ -196,6 +199,7 @@ export class BrowserHost {
       if (await this.available()) {
         const e = new BrowserError(409, `cổng ${cfg.port} vẫn đang bận sau khi đóng Chrome cũ`);
         this.error = e.message;
+        log('warn', 'browser', 'debug port still busy after closing the old Chrome', { data: { port: cfg.port, error: e.message } });
         throw e;
       }
     }
@@ -207,6 +211,7 @@ export class BrowserHost {
     } catch (cause) {
       const e = new BrowserError(502, `Không khởi động được Chrome: ${(cause as Error).message}`);
       this.error = e.message;
+      log('error', 'browser', 'could not spawn Chrome', { data: { error: e.message } });
       throw e;
     }
     this.child = child;
@@ -237,6 +242,7 @@ export class BrowserHost {
         this.assertActive();
         this.readyChild = child;
         this.error = '';
+        log('info', 'browser', 'Chrome is ready', { data: { endpoint: this.endpoint(), pid: child.pid } });
         return { endpoint: this.endpoint() };
       }
       if (child.exitCode !== null || this.child !== child) break;
@@ -251,6 +257,7 @@ export class BrowserHost {
     const detail = spawnError ? `: ${spawnError}` : '';
     const e = new BrowserError(502, `Chrome không phản hồi trên ${this.endpoint()} trong 10 giây${detail}`);
     this.error = e.message;
+    log('error', 'browser', 'Chrome did not answer in 10 seconds', { data: { endpoint: this.endpoint(), error: e.message } });
     throw e;
   }
 
@@ -262,6 +269,7 @@ export class BrowserHost {
     if (child && child.exitCode === null) await this.kill(child);
     if (typeof child?.pid === 'number') this.clearPid(child.pid);
     this.error = '';
+    if (child) log('info', 'browser', 'Chrome stopped', { data: { pid: child.pid } });
   }
 
   private restartAfterCrash(): void {
@@ -269,11 +277,13 @@ export class BrowserHost {
     this.crashTimes = this.crashTimes.filter((at) => now - at < 10 * 60_000);
     if (this.crashTimes.length >= 3) {
       this.error = 'Chrome đã thoát 4 lần trong 10 phút; dừng tự khởi động lại';
+      log('error', 'browser', 'Chrome keeps crashing, auto restart stopped', { data: { exits: this.crashTimes.length + 1 } });
       return;
     }
     this.crashTimes.push(now);
+    log('warn', 'browser', 'Chrome exited, restarting', { data: { exits: this.crashTimes.length } });
     const restart = this.opts.onCrash ? this.opts.onCrash() : this.start();
-    void restart.catch((e) => { this.error = (e as Error).message; });
+    void restart.catch((e) => { this.error = (e as Error).message; log('error', 'browser', 'restart failed', { data: { error: this.error } }); });
   }
 
   private assertActive(): void {

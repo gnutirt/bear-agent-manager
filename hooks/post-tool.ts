@@ -2,7 +2,7 @@
 import type { Message } from '../hub/routing.ts';
 import type { AgentComms } from '../hub/settings.ts';
 import { api } from '../shared/client.ts';
-import { formatDelivery, readInput, withSession } from './lib.ts';
+import { formatDelivery, hookLog, readInput, withSession } from './lib.ts';
 
 try {
   const input = await readInput();
@@ -13,7 +13,8 @@ try {
       hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: formatDelivery(p.messages, {}, [], input.session_id, p.agentComms) },
     }));
   }
-} catch {
-  // fail open
+} catch (error) {
+  // fail open, but leave a line in the hook log (#283)
+  await hookLog('warn', 'PostToolUse hook failed', { error: error instanceof Error ? error.message : String(error) });
 }
 process.exit(0);
