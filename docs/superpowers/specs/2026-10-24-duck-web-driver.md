@@ -50,6 +50,7 @@ type Site = { name: string; isUrl(u: string): boolean; isLogin?(u: string): bool
 
 ### 3.2 Chrome nào
 Driver nhận `Cdp`. Hub tạo **một** `Cdp` trỏ vào Chrome của hub, cổng `settings.browser.port` (lấy từ `BrowserHost`, hiện là 9333), dùng cho Duck. **User chốt 24/10: Duck chỉ chạy trong trình duyệt ẩn của BAM** (BrowserHost, `--headless=new`, hub/browser.ts), không bao giờ dùng Chrome thường của user.
+- BrowserHost chưa chạy thì hub khởi động nó trước lượt Duck; không bao giờ fallback sang :9222 hay Chrome có cửa sổ. Headless nên bot check chỉ báo `needs-user` và dừng.
 - Muse: user chốt 24/10 là KHÔNG đụng, vì Muse cần đăng nhập. Muse giữ nguyên :9222; W6 bị huỷ.
 - Server MCP `mcp/muse.ts` (dùng từ tab) có thể giữ :9222 làm mặc định, hoặc đọc cùng cổng đó.
 
@@ -93,7 +94,7 @@ UI:
 | W5 | UI "+ Agent › Duck" như Muse + gỡ phần Duck2api trong Cài đặt + i18n | ui/index.html, shared/i18n/*, test/ui.test.ts | ui.test xanh; frontend chụp 1440/390 |
 | W6 | ❌ huỷ (user 24/10): Muse không đụng | hub/server.ts, mcp/muse.ts | Muse trả lời qua :9333 |
 
-Thứ tự: W1 → W2 → W3 → W4 → W5. W6 làm sau khi lead quyết. Audit: core-improve audit W1–W4, frontend audit W5.
+Thứ tự: W1 → W2 → W3 → W4 → W5 (W6 huỷ). W1 chỉ tách driver, Muse chạy y hệt. Audit: core-improve audit W1–W4, frontend audit W5.
 
 ## 6. Ngoài phạm vi
 - Lịch sử chat trên duck.ai (local của trang): không đọc, không đồng bộ.
