@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { makeHub } from './helpers.ts';
 import { holderOf } from '../hub/server.ts';
+import { t } from '../shared/i18n.ts';
 
 test('T4 move validation: rejects invalid target, returns noop when already at destination', async () => {
   const { hub, dir, call } = await makeHub();
@@ -226,7 +227,7 @@ test('T4 move: từ tab sang nền: quá hạn thì huỷ', async () => {
 
     const history = hub.store.history('r-timeout');
     assert.ok(
-      history.some((m) => /quá hạn|timed out/i.test(m.text)),
+      history.some((m) => m.text === t('vi', 'sys.move.timeout', { name: 'worker-m5', ide: 'vscode' })),
       'timeout notice must be posted in room',
     );
   } finally {
@@ -259,7 +260,7 @@ test('T4 move audit (1): bg chưa chết sau 30s timeout → 409 bgStuck, moving
 
     await assert.rejects(
       call('/api/sessions/m-stuck/move', { to: 'vscode' }),
-      (err: any) => err.status === 409 && /Không dừng được tiến trình nền|Could not stop background process/i.test(err.message),
+      (err: any) => err.status === 409 && err.message === t('vi', 'sys.move.bgStuck', { name: 'worker-stuck' }),
     );
 
     const s = hub.store.session('m-stuck');
@@ -269,7 +270,7 @@ test('T4 move audit (1): bg chưa chết sau 30s timeout → 409 bgStuck, moving
 
     const history = hub.store.history('r-stuck');
     assert.ok(
-      history.some((m) => /Không dừng được tiến trình nền|Could not stop background process/i.test(m.text)),
+      history.some((m) => m.text === t('vi', 'sys.move.bgStuck', { name: 'worker-stuck' })),
       'bgStuck error message must be broadcast to room',
     );
   } finally {
@@ -393,7 +394,7 @@ test('T4 move audit (4): xét kết quả revive: nếu revive false/thất bạ
     assert.equal(res.ok, true);
 
     const history = hub.store.history('r-revive-fail');
-    const failMsg = history.find((m) => /chưa khởi động lại được|could not resume it yet/i.test(m.text));
+    const failMsg = history.find((m) => m.text === t('vi', 'sys.move.reviveFailed', { name: 'worker-fail' }));
     assert.ok(failMsg, 'reviveFailed message must be broadcast to room');
     assert.equal(failMsg.sys?.level, 'warn');
   } finally {
@@ -431,7 +432,11 @@ test('T4 move audit (5): lastIdeAccount chọn tiến trình có p.at lớn nh�
     assert.equal(res.ok, true);
 
     const history = hub.store.history('r-mismatch');
-    const warnMsg = history.find((m) => /gần nhất chạy tài khoản|was last running on account/i.test(m.text));
+    const warnMsg = history.find((m) => m.text === t('vi', 'sys.move.ideAccountMismatch', {
+      ide: 'vscode',
+      ideAccount: path.basename(accNew),
+      targetAccount: path.basename(accOld),
+    }));
     assert.ok(warnMsg, 'ideAccountMismatch warning must be broadcast when latest at differs');
     assert.ok(warnMsg.text.includes(path.basename(accNew)), 'must refer to latest account .claude-new');
   } finally {
