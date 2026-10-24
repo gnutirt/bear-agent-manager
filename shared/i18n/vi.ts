@@ -1024,6 +1024,8 @@ export const vi: Record<string, string> = {
   'sys.task.away.offline': 'offline',
   'sys.task.away.limited': 'hết hạn mức',
   'sys.task.away.absent': 'không còn trong phòng',
+  'sys.task.reassigned': 'Việc #{id} đã chuyển từ @{old} sang @{to}.',
+  'sys.task.unassigned': 'Việc #{id} của @{old} đã chuyển về hàng đợi tự chia.',
   'sys.task.tierEmpty': '⏳ @{lead} việc #{id}: chưa có ai ở tầng {n} rảnh để nhận ({title}). Hub sẽ thử lại.',
   'task.pool': 'tự chia T{n}',
   'task.poolNone': 'chưa có ai rảnh',

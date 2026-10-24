@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { makeHub } from './helpers.ts';
 import { listTasks, setTaskOwner, addTask } from '../hub/tasks.ts';
 
@@ -208,3 +210,77 @@ test('#266 T2 tier-auto-assign: named owner clears pool, non-lead tier:5 is 403,
     assert.equal(updated.pool, undefined);
   } finally { await hub.close(); }
 });
+
+test('#273 audit fix: Claude offline with transcript is wakeable and can be picked', async () => {
+  const { hub, dir, call } = await makeHub();
+  try {
+    await call('/api/sessions/register', { id: 'l1', cwd: 'C:/lead' });
+    await call('/api/sessions/l1/rename', { name: 'boss' });
+    await call('/api/sessions/register', { id: 'c1', cwd: 'C:/claude' });
+    await call('/api/sessions/c1/rename', { name: 'claude-bot' });
+    await call('/api/rooms/r/join', { sessionId: 'l1' });
+    await call('/api/rooms/r/join', { sessionId: 'c1' });
+    await call('/api/rooms/r/lead', { sessionId: 'l1' });
+    await call('/api/settings', { flowTiers: { r: { 'claude-bot': 5 } } }, { method: 'PUT' });
+
+    // Set transcript and mark offline
+    const tf = path.join(dir, 'transcript.jsonl');
+    fs.writeFileSync(tf, '{"type":"init"}\n');
+    hub.store.state.sessions['c1'].transcript = tf;
+    hub.store.state.sessions['c1'].status = 'offline';
+
+    // Even though offline, claude-bot has a transcript so canWake=true and can be picked
+    const t = await call<any>('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Claude task', owner: 'tier:5' });
+    const saved = listTasks(dir, 'r').find((x) => x.id === t.id);
+    assert.equal(saved?.owner, 'claude-bot');
+  } finally { await hub.close(); }
+});
+
+test('#273 audit fix: ended/offline owner is not replaced immediately; reassign posts notice', async () => {
+  const { hub, dir, call } = await makeHub(50);
+  try {
+    await call('/api/sessions/register', { id: 'l1', cwd: 'C:/lead' });
+    await call('/api/sessions/l1/rename', { name: 'boss' });
+    for (const name of ['worker1', 'worker2']) {
+      await call('/api/sessions/register', { id: name, cwd: `C:/${name}` });
+      await call(`/api/sessions/${name}/rename`, { name });
+      await call('/api/rooms/r/join', { sessionId: name });
+      const tf = path.join(dir, `${name}.jsonl`);
+      fs.writeFileSync(tf, '{"type":"init"}\n');
+      hub.store.state.sessions[name].transcript = tf;
+    }
+    await call('/api/rooms/r/join', { sessionId: 'l1' });
+    await call('/api/rooms/r/lead', { sessionId: 'l1' });
+    await call('/api/settings', { flowTiers: { r: { worker1: 5, worker2: 5 } } }, { method: 'PUT' });
+
+    // Set worker1 to busy so autoNextTasks doesn't advance it from todo to doing
+    hub.store.state.sessions['worker1'].status = 'busy';
+
+    // Task is picked by worker1
+    const t = await call<any>('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Pooled task', owner: 'tier:5' });
+    assert.equal(listTasks(dir, 'r').find((x) => x.id === t.id)?.owner, 'worker1');
+    assert.equal(listTasks(dir, 'r').find((x) => x.id === t.id)?.status, 'todo');
+
+    // worker1 goes ended right after being assigned
+    hub.store.state.sessions['worker1'].ended = true;
+
+    // Trigger tick/check: since worker1 has transcript (canWake) and < 10 min, owner is kept
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(listTasks(dir, 'r').find((x) => x.id === t.id)?.owner, 'worker1');
+
+    // When worker1 has an error posted (real failure), autoNextTasks tick reassigns to worker2 and posts notice
+    hub.store.postSystem('r', 'Fatal error', undefined, { type: 'error', level: 'error', agent: 'worker1' });
+    let reassigned: any;
+    for (let i = 0; i < 50; i++) {
+      reassigned = listTasks(dir, 'r').find((x) => x.id === t.id);
+      if (reassigned?.owner === 'worker2') break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(reassigned?.owner, 'worker2');
+
+    const msgs = await call<any[]>('/api/rooms/r/messages?limit=5');
+    const notice = msgs.find((m) => m.sys?.agent === 'worker1' && m.text.includes('đã chuyển từ @worker1 sang @worker2'));
+    assert.ok(notice, 'reassign notice not posted');
+  } finally { await hub.close(); }
+});
+

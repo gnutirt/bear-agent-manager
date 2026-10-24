@@ -3512,10 +3512,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   const allProfiles = () => [...apiProfiles(), ...copilotProfiles()];
 
+  const hasRecentError = (name: string, room: string, now: number): boolean => {
+    const msgs = store.messages;
+    const target = normAgent(name);
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (now - m.ts >= TIER_COOLDOWN_MS) break;
+      if (m.room === room && normAgent(m.sys?.agent ?? '') === target && m.sys?.level === 'error') {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const isCandidateEligible = (mem: Session, room: string, now: number): boolean => {
     const prof = allProfiles().find((p) => normAgent(p.name) === normAgent(mem.name));
     if (prof && prof.enabled === false) return false;
-    const canWake = !!prof && prof.enabled !== false;
+    const canWake = prof ? prof.enabled !== false : hasTranscript(mem);
     if (mem.ended || mem.status === 'offline') {
       if (!canWake) return false;
     }
@@ -3524,15 +3537,28 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (apiBudgetUntil(prof) > 0) return false;
     }
     if (accountUsageBlocked(mem)) return false;
-    const hasRecentError = store.messages.some((m) =>
-      m.room === room &&
-      (m.kind === 'system' || !!m.sys) &&
-      normAgent(m.sys?.agent ?? '') === normAgent(mem.name) &&
-      (m.sys?.level === 'error') &&
-      now - m.ts < TIER_COOLDOWN_MS
-    );
-    if (hasRecentError) return false;
+    if (hasRecentError(mem.name, room, now)) return false;
     return true;
+  };
+
+  const ownerNeedsReassign = (t: Task, mem: Session, room: string, now: number): boolean => {
+    const cfg = loadSettings(opts.dir, envCap);
+    if (cfg.flowTiers?.[room]?.[normAgent(mem.name)] !== t.pool) return true;
+    const prof = allProfiles().find((p) => normAgent(p.name) === normAgent(mem.name));
+    if (prof && prof.enabled === false) return true;
+    if (prof) {
+      if ((apiState.get(prof.id)?.limited ?? 0) > now) return true;
+      if (apiBudgetUntil(prof) > 0) return true;
+    }
+    if (accountUsageBlocked(mem)) return true;
+    if (hasRecentError(mem.name, room, now)) return true;
+    const canWake = prof ? prof.enabled !== false : hasTranscript(mem);
+    if (mem.ended || mem.status === 'offline') {
+      if (!canWake) return true;
+      const assigned = t.assignedAt ?? t.updatedAt ?? t.createdAt;
+      if (now - assigned >= AUTO_NEXT_COOLDOWN_MS) return true;
+    }
+    return false;
   };
 
   const pickTierOwner = (room: string, tier: number, now = store.now()): string | undefined => {
@@ -3587,17 +3613,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const now = store.now();
     if (t.pool) {
       const curOwnerMem = t.owner ? store.members(room).find((m) => normAgent(m.name) === normAgent(t.owner!)) : undefined;
-      const ownerOk = curOwnerMem && isCandidateEligible(curOwnerMem, room, now) && (loadSettings(opts.dir, envCap).flowTiers?.[room]?.[normAgent(curOwnerMem.name)] === t.pool);
-      if (!t.owner || !ownerOk) {
+      const needs = !t.owner || !curOwnerMem || ownerNeedsReassign(t, curOwnerMem, room, now);
+      if (needs) {
+        const oldOwner = t.owner;
         const picked = pickTierOwner(room, t.pool, now);
         if (picked) {
           t = setTaskOwner(opts.dir, room, t.id, picked, now);
           tierEmptyNotified.delete(`${room}|${t.id}`);
           emitTaskList(room);
+          if (oldOwner && normAgent(oldOwner) !== normAgent(picked)) {
+            try { broadcast('msg', postSys(room, tr('sys.task.reassigned', { id: t.id, old: oldOwner, to: picked }), undefined, { type: 'task', level: 'info', agent: oldOwner })); } catch { /* room gone */ }
+          }
         } else {
           if (t.owner) {
+            const removed = t.owner;
             t = updateTask(opts.dir, room, t.id, { owner: '', pool: t.pool }).task;
             emitTaskList(room);
+            try { broadcast('msg', postSys(room, tr('sys.task.unassigned', { id: t.id, old: removed }), undefined, { type: 'task', level: 'info', agent: removed })); } catch { /* room gone */ }
           }
           notifyTierEmptyOnce(room, t);
           return;
@@ -3656,7 +3688,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (t.status !== 'todo' || !t.pool) continue;
         if (t.owner) {
           const curOwnerMem = store.members(room).find((m) => normAgent(m.name) === normAgent(t.owner!));
-          if (curOwnerMem && isCandidateEligible(curOwnerMem, room, now)) continue;
+          if (curOwnerMem && !ownerNeedsReassign(t, curOwnerMem, room, now)) continue;
         }
         const candidate = pickTierOwner(room, t.pool, now);
         if (!candidate) {

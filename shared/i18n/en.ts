@@ -1024,6 +1024,8 @@ export const en: Record<string, string> = {
   'sys.task.away.offline': 'offline',
   'sys.task.away.limited': 'out of usage',
   'sys.task.away.absent': 'no longer in the room',
+  'sys.task.reassigned': 'Task #{id} reassigned from @{old} to @{to}.',
+  'sys.task.unassigned': 'Task #{id} of @{old} moved back to pool queue.',
   'sys.task.tierEmpty': '⏳ @{lead} task #{id}: no one in tier {n} is free to take it ({title}). The hub will try again.',
   'task.pool': 'pool T{n}',
   'task.poolNone': 'no one free',
