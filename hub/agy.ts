@@ -102,6 +102,7 @@ export function parseAgyLine(line: string): AgyEvent {
 export type AgyTurn = { ok: boolean; response: string; error: string; conversation: string; usage: { in: number; out: number }; code: number | null };
 
 export const AGY_TURN_TIMEOUT_MS = 10 * 60_000;   // a turn that prints nothing for ten minutes is a stuck turn, not a slow one
+export const AGY_TURN_MAX_MS = 60 * 60_000;       // hard cap even while it keeps printing
 const STDERR_KEEP = 2048;
 
 /**
@@ -115,17 +116,18 @@ export function runAgyTurn(
   args: string[],
   cwd: string,
   text: string,
-  opts: { timeoutMs?: number; spawn?: typeof nodeSpawn } = {},
+  opts: { timeoutMs?: number; maxMs?: number; spawn?: typeof nodeSpawn } = {},
 ): Promise<AgyTurn> {
-  const timeoutMs = opts.timeoutMs ?? AGY_TURN_TIMEOUT_MS;
+  const timeoutMs = opts.timeoutMs ?? AGY_TURN_TIMEOUT_MS, maxMs = opts.maxMs ?? AGY_TURN_MAX_MS;
   return new Promise((resolve) => {
     let settled = false, conversation = '', result: Extract<AgyEvent, { kind: 'result' }> | null = null, err = '';
     let child: ChildProcess | undefined;
-    let timer: NodeJS.Timeout | undefined;
+    let timer: NodeJS.Timeout | undefined, cap: NodeJS.Timeout | undefined;
     const finish = (t: AgyTurn): void => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      if (cap) clearTimeout(cap);
       resolve(t);
     };
     const fail = (error: string, code: number | null = null): void =>
@@ -137,20 +139,29 @@ export function runAgyTurn(
       fail(String((e as Error)?.message ?? e));
       return;
     }
-    timer = setTimeout(() => {
+    const kill = (why: string): void => {
       const pid = child?.pid;
       try {
         if (opts.spawn) child?.kill();            // an injected child in tests has no real tree to walk
         else if (pid) void killTree(pid);
       } catch { /* already gone */ }
-      fail(`agy turn timeout after ${timeoutMs}ms`);
-    }, timeoutMs);   // holds the loop on purpose: a turn nobody ends must still be ended by this
+      fail(why);
+    };
+    // idle timeout: re-armed on every stdout line / stderr chunk, so a long but busy coding turn is not killed
+    const arm = (): void => {
+      if (settled) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => kill(`agy turn timeout: no output for ${timeoutMs}ms`), timeoutMs);   // holds the loop on purpose: a turn nobody ends must still be ended by this
+    };
+    arm();
+    cap = setTimeout(() => kill(`agy turn exceeded ${maxMs}ms`), maxMs);
     child.on('error', (e) => fail(String((e as Error)?.message ?? e)));
     child.stderr?.setEncoding('utf8');
-    child.stderr?.on('data', (chunk: string) => { if (err.length < STDERR_KEEP) err = (err + chunk).slice(0, STDERR_KEEP); });
+    child.stderr?.on('data', (chunk: string) => { arm(); if (err.length < STDERR_KEEP) err = (err + chunk).slice(0, STDERR_KEEP); });
     if (child.stdout) {
       const rl = readline.createInterface({ input: child.stdout });
       rl.on('line', (line: string) => {
+        arm();   // step updates count as activity even though parseAgyLine skips them
         const ev = parseAgyLine(line);
         if (!ev) return;
         if (ev.kind === 'init') { if (ev.conversation) conversation = ev.conversation; return; }
@@ -241,11 +252,12 @@ export class AgyAgent extends HubMember<'agy'> {
           if (session) { delete session.agyConversation; opts.store.save(); }
           turn = await (opts.run ?? runAgyTurn)(found.exe, args(), profile.cwd, text);
         }
-        if (!turn.ok || !turn.response.trim()) return { ok: false, text: '', error: turn.error || 'agy returned an empty response' };
-        if (session && turn.conversation) {
+        // kept even after a failed/timed-out turn, so the retry remembers the work it already left in the tree
+        if (session && turn.conversation && !(!turn.ok && staleConversation(turn.error))) {
           session.agyConversation = turn.conversation;
           opts.store.save();
         }
+        if (!turn.ok || !turn.response.trim()) return { ok: false, text: '', error: turn.error || 'agy returned an empty response' };
         return { ok: true, text: turn.response, error: '', usage: turn.usage };
       },
     });

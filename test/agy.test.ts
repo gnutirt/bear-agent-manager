@@ -142,6 +142,26 @@ test('#207 runAgyTurn: a spawn error is a failed turn, not a crash', async () =>
   assert.match(turn.error, /ENOENT/);
 });
 
+test('#264 runAgyTurn: the timeout is idle, a turn that keeps printing outlives it; the hard cap still ends it', async () => {
+  const { calls, spawn } = fakeSpawn((call) => {
+    let n = 0;
+    const tick = setInterval(() => {
+      say(call.child, { type: 'step', n: n++ });   // a step line parseAgyLine ignores still counts as activity
+      if (n === 8) { clearInterval(tick); say(call.child, result({ conversation_id: 'c-9', status: 'SUCCESS', response: 'DONE' })); setTimeout(() => call.child.emit('exit', 0), 0); }
+    }, 20);
+  });
+  const turn = await runAgyTurn('agy', [], os.tmpdir(), 'long job', { spawn, timeoutMs: 60 });   // 8×20ms > 60ms total
+  assert.equal(turn.ok, true, turn.error);
+  assert.equal(turn.response, 'DONE');
+  assert.equal(calls[0].child.killed, false);
+
+  const busy = fakeSpawn((call) => { setInterval(() => say(call.child, { type: 'step' }), 10).unref(); });
+  const capped = await runAgyTurn('agy', [], os.tmpdir(), 'endless', { spawn: busy.spawn, timeoutMs: 60, maxMs: 120 });
+  assert.equal(capped.ok, false);
+  assert.match(capped.error, /exceeded/);
+  assert.equal(busy.calls[0].child.killed, true);
+});
+
 // Opt-in: it spends the user's Google quota, so the suite never runs it unless someone asks (AGY_LIVE=1).
 const liveExe = process.env.AGY_LIVE === '1' ? findAgy('').exe : null;
 test('#207 live agy turn (AGY_LIVE=1)', { skip: !liveExe && 'set AGY_LIVE=1 to run a real agy turn' }, async () => {
