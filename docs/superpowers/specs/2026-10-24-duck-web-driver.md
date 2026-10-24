@@ -46,7 +46,7 @@ type Site = { name: string; isUrl(u: string): boolean; isLogin?(u: string): bool
 ```
 - `MUSE` chứa đúng các script và câu báo lỗi hiện có. `muse-core.ts` chỉ còn re-export `museAsk = ask(MUSE, …)` và `museStatus`, để `mcp/muse.ts`, `hub/muse-member.ts` và test hiện tại không phải sửa.
 - `DUCK` dùng các selector ở §2. `isUrl` so host đã parse: `duck.ai` hoặc `duckduckgo.com` có `ia=chat`, không dùng `includes` trên chuỗi.
-- Thêm một bước kiểm chống bot cho DUCK. Nếu trang có challenge/captcha (iframe hoặc chữ "verify you are human" / "unusual traffic") hoặc hộp điều khoản thì ném `WebChatError('needs-user', …)`: dừng ngay, không click gì thêm.
+- Thêm một bước kiểm chống bot cho DUCK. Nếu trang có challenge/captcha (iframe hoặc chữ "verify you are human" / "unusual traffic") thì ném `WebChatError('needs-user', …)`: dừng ngay, không click gì thêm. **Hộp điều khoản lần đầu của duck.ai thì driver tự bấm đồng ý** (user cho phép 24/10, note [91]), chỉ đúng nút đồng ý của hộp đó; selector đo trong W2.
 
 ### 3.2 Chrome nào
 Driver nhận `Cdp`. Hub tạo **một** `Cdp` trỏ vào Chrome của hub, cổng `settings.browser.port` (lấy từ `BrowserHost`, hiện là 9333), rồi dùng chung cho Duck và Muse.
@@ -58,7 +58,7 @@ Driver nhận `Cdp`. Hub tạo **một** `Cdp` trỏ vào Chrome của hub, cổ
 - `buildMessages()` → `flatten()`: ghép thành **một** prompt dạng chữ `[Hệ thống]…[Bộ nhớ]…[Tóm tắt]…[Lịch sử]…[Câu hỏi]`, tối đa `MAX_PROMPT` 8000 ký tự. Khi quá dài thì cắt các lượt cũ nhất trước. Câu hỏi không bao giờ bị cắt; nếu riêng câu hỏi đã quá dài thì cắt câu hỏi như `museTurn`.
 - **Mỗi lượt mở một chat mới** (`newChatUrl`), vì lịch sử hub đã có trong prompt. Như vậy không lẫn phòng và không phụ thuộc chat cũ của duck.ai.
 - `summarizeOldest()` **bỏ lượt gọi API**. Lịch sử dài thì giữ N lượt gần nhất (theo tổng 12 000 ký tự như hiện nay), phần cũ chỉ để lại ghi chú "(đã bỏ bớt lượt cũ)". Gọi web chat thêm một lượt chỉ để tóm tắt vừa chậm vừa dễ bị chặn.
-- Lỗi `needs-user` → post tin system `@you` một lần: "Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý (điều khoản/kiểm tra bot)". Profile chuyển trạng thái lỗi, không retry.
+- Lỗi `needs-user` → post tin system `@you` một lần: "Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý kiểm tra bot". Profile chuyển trạng thái lỗi, không retry.
 - `usage` bỏ (web không trả token).
 
 ### 3.4 Gỡ Duck2api
@@ -76,7 +76,7 @@ UI:
 - Bỏ: 3 bước Duck2api, Nâng cao, ô key, "dùng Duck2api của hub", khoá i18n `agents.duck.host.*`.
 
 ## 4. Ràng buộc
-- Gặp CAPTCHA / kiểm tra bot / hộp điều khoản thì **dừng và báo user**. Không click, không tự vượt.
+- Gặp CAPTCHA / kiểm tra bot thì **dừng và báo user**. Không click, không tự vượt. Riêng hộp điều khoản lần đầu của duck.ai: tự bấm đồng ý (note [91]).
 - Chỉ dùng profile Chrome của hub, không đọc cookie hay storage. Script là chuỗi cố định; prompt đi vào dưới dạng JSON string, như Muse.
 - Chỉ nói chuyện với tab có host đúng của site. Không đụng tab khác.
 - Mỗi Chrome chỉ chạy một lượt web chat một lúc, Duck và Muse xếp chung hàng nếu dùng chung Chrome, vì mỗi site có tab riêng nhưng cùng tiến trình.
@@ -87,11 +87,11 @@ UI:
 | # | Việc | File | Xong khi |
 |---|---|---|---|
 | W1 | Tách `mcp/webchat-core.ts` (driver + `Site`), `MUSE` y hệt hiện tại; `muse-core.ts` re-export | mcp/webchat-core.ts, mcp/muse-core.ts | test muse hiện có xanh nguyên, không sửa test |
-| W2 | `DUCK` site theo §2 + kiểm bot/điều khoản (`needs-user`) + chọn model ở chat mới (đo menu `model-picker-button` trước, nếu không ổn định thì bỏ, dùng model mặc định) | mcp/webchat-core.ts, test/webchat.test.ts | test với Cdp giả: gửi, stream (`activeresponse=false`→`true`), xong khi có copy, needs-user không click |
+| W2 | `DUCK` site theo §2 + kiểm bot (`needs-user`) + tự bấm đồng ý hộp điều khoản lần đầu + chọn model ở chat mới (đo menu `model-picker-button` trước, nếu không ổn định thì bỏ, dùng model mặc định) | mcp/webchat-core.ts, test/webchat.test.ts | test với Cdp giả: gửi, stream (`activeresponse=false`→`true`), xong khi có copy, needs-user không click; hộp điều khoản được bấm đúng 1 nút |
 | W3 | Hub: một `Cdp` theo `settings.browser.port`; `duckTurn` dùng driver: `flatten()`, chat mới mỗi lượt, bỏ `summarizeOldest` qua API; `GET /api/duck/status` | hub/duck.ts, hub/server.ts, test/duck.test.ts | test duck: nhớ/quên/xoá giữ nguyên; prompt ≤ 8000 và có câu hỏi; lỗi needs-user báo @you 1 lần |
 | W4 | Gỡ Duck2api: duckhost, settings.duck, field profile, route, applyDuck, kiểm exePath #255 | hub/duckhost.ts (xoá), hub/settings.ts, hub/server.ts, tests | full `npm test` xanh; settings cũ có `duck.exePath`/`baseUrl` vẫn load |
 | W5 | UI "+ Agent › Duck" như Muse + gỡ phần Duck2api trong Cài đặt + i18n | ui/index.html, shared/i18n/*, test/ui.test.ts | ui.test xanh; frontend chụp 1440/390 |
-| W6 | ❓ (tuỳ lead) Muse dùng Chrome của hub (:9333) | hub/server.ts, mcp/muse.ts | Muse trả lời qua :9333 |
+| W6 | ✅ lead duyệt 24/10: Muse dùng Chrome của hub (:9333) | hub/server.ts, mcp/muse.ts | Muse trả lời qua :9333 |
 
 Thứ tự: W1 → W2 → W3 → W4 → W5. W6 làm sau khi lead quyết. Audit: core-improve audit W1–W4, frontend audit W5.
 
