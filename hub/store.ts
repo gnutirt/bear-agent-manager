@@ -43,6 +43,7 @@ export type Session = {
   afterLimitDelivered?: { fromCursor: number; at: number; fallbackStarted?: boolean; fallbackNotified?: boolean }; // afterLimit waiter handoff pending proof of a new turn; expiry requeues it and falls back to background recovery (#134)
   deafSince?: number;            // when the room was told this chat stopped reading: one notice per deaf stretch, cleared when the chat is seen alive again
   topics?: string[];             // topics this session follows besides 'chung' (set by sending, being @-ed or room_topics)
+  moving?: boolean;              // #278: move in progress (locked from wakes/revive/compact)
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
   rulesKey?: string;             // #200/#202: which context already got the fixed rules (agentComms | lead rooms | compaction mark)

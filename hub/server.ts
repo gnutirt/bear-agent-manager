@@ -133,7 +133,7 @@ const spawnOsin: SpawnWorker = (a) => new Promise((resolve) => execFile('powersh
   { maxBuffer: 16 << 20, windowsHide: true },
   (err, stdout) => resolve({ code: err ? Number((err as { code?: unknown }).code) || 1 : 0, stdout: String(stdout) })));
 
-export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean; dup?: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
+export type PublicSession = { id: string; name: string; cwd: string; rooms: string[]; status: Status; activity: string; lastSeen: number; ide: string; cursor: number; title: string; ctx: number; configDir: string; limited?: Session['limited']; bg: boolean; tab: boolean; dup?: boolean; moving?: boolean };   // bg: a background claude (hub wake) is alive; tab: a claude with a tab/terminal is alive
 export type Hub = { url: string; port: number; token: string; store: Store; waiting(id: string): boolean; close(): Promise<void> };   // waiting: a long-poll waiter is registered for the session (tests wait for it instead of sleeping)
 type Waiter = { res: http.ServerResponse; timer: NodeJS.Timeout; headless?: boolean; afterLimit?: boolean; pid?: number };   // headless: the waiter of a background wake, not of a tab   // afterLimit: built by the StopFailure hook, so it is waiting on the turn that died on the usage limit
 
@@ -143,7 +143,7 @@ export function liveKinds(pids: Session['pids'], alive: (pid: number) => boolean
   return { bg: live.some((x) => x.headless), tab: live.some((x) => !x.headless) };
 }
 export function publicSession(s: Session): PublicSession {
-  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '', ...(s.limited ? { limited: s.limited } : {}), ...(tabCount(s.pids) > 1 ? { dup: true } : {}) };
+  return { ...liveKinds(s.pids), id: s.id, name: s.name, cwd: s.cwd, rooms: Object.keys(s.rooms), status: s.status, activity: s.activity, lastSeen: s.lastSeen, ide: s.ide ?? '', cursor: s.cursor, title: s.title ?? '', ctx: s.ctx ?? 0, configDir: s.configDir ?? '', ...(s.limited ? { limited: s.limited } : {}), ...(tabCount(s.pids) > 1 ? { dup: true } : {}), ...(s.moving ? { moving: true } : {}) };
 }
 /** #177: claudes with a tab or terminal alive on one chat; two means the chat is open twice (VS Code: "still open somewhere else"). */
 export const tabCount = (pids: Session['pids'], alive: (pid: number) => boolean = pidAlive) => (pids ?? []).filter((x) => !x.headless && alive(x.pid)).length;
@@ -366,6 +366,10 @@ export type HubOptions = {
   runClaudeCli?: Run;   // tests: no real `claude plugin update`
   pluginUpdateEveryMs?: number | null;   // tests: null = never check by itself
   localFetch?: typeof fetch;   // tests: a fake Ollama   // tests stub it so no file manager opens
+  /** T4: timeout for waiting for tab to close on move (default 10 min; tests use shorter). */
+  moveTimeoutMs?: number;
+  /** T4: timeout for waiting for background process to exit on move (default 30s; tests use shorter). */
+  bgKillTimeoutMs?: number;
 };
 
 const WORKER_POLL_MS = 5000;
@@ -415,6 +419,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     for (const r of sse) r.write(chunk);
   };
   const emitSession = (s: Session) => { broadcast('session', publicSession(s)); autoCheckSession(s); };
+
+  for (const s of Object.values(store.state.sessions)) {
+    if (s.moving) {
+      s.moving = false;
+      store.save();
+    }
+  }
 
   // ---- workers (worker / osin runs): process scan + status log ----
   const listProcs = opts.listProcs ?? listProcesses;
@@ -562,6 +573,14 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const workerPoller = setInterval(() => { if (sse.size) refreshWorkers().catch(() => {}); }, WORKER_POLL_MS);
   workerPoller.unref();
   const emitRoom = (room: string) => broadcast('room', store.roomInfo(room));
+  const tellSessionRooms = (s: Session, text: string, level: 'info' | 'warn' | 'error' = 'info') => {
+    for (const r of Object.keys(s.rooms)) {
+      try {
+        broadcast('msg', postSys(r, text, undefined, { type: 'wake', level, agent: s.name }));
+        emitRoom(r);
+      } catch { /* room gone */ }
+    }
+  };
   // Hub-run room members share lifecycle/status routes; Copilot profiles keep their legacy default.
   type ManagedAgent = CopilotAgent | HubMember;
   const copilots = new Map<string, { agent: ManagedAgent; key: string }>();
@@ -1192,6 +1211,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
   function deliver(sid: string, directUser = false) {
     const st = store.session(sid);
+    if (st.moving) return;
     const api = apiProfileOf(st);
     if (api && apiBudgetUntil(api)) return;
     const cop = copilotHolding(st.id);
@@ -1347,6 +1367,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
+    if (s.moving) return false;
     const profile = apiProfileOf(s);
     if (profile) attachTranscript(s);
     if (!profile && accountUsageBlocked(s) && !usage) return false;
@@ -3210,7 +3231,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, store.roomInfo(b.name));
     }
 
-    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|git|open-tab|files|file|diff|commit|room-commit|console|live(?:\/send|\/stop)?))?$/);
+    let mm = p.match(/^\/api\/sessions\/([^/]+)(?:\/(status|rename|wait|pending|ide|revive|forget|model|terminate|compact|switch|move|git|open-tab|files|file|diff|commit|room-commit|console|live(?:\/send|\/stop)?))?$/);
     if (mm) {
       const id = decodeURIComponent(mm[1]);
       const action = mm[2];
@@ -3250,6 +3271,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'revive') {
         const s = store.session(id);
+        if (s.moving) return json(res, 409, { error: `${s.name} is currently moving` });
         const holder = sessionHolder(s);
         if (holder.count > 0) return json(res, 409, { error: sessionHolderError(s, holder) });
         if (!hasTranscript(s)) return json(res, 409, { error: `${s.name} has no saved conversation to resume` });
@@ -3257,6 +3279,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'open-tab') {
         const s = store.session(id);
+        if (s.moving) return json(res, 409, { error: `${s.name} is currently moving` });
         // #158: in an editor tab a provider agent runs on the owner's Claude account, without its lean flags or pathGuard
         if (apiProfileOf(s)) return json(res, 409, { error: `${s.name} runs on its provider in the background; mention it instead of opening a tab` });
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
@@ -3298,6 +3321,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (m === 'POST' && action === 'switch') {
         // D2 "Switch now": resume this agent on another Claude account of the machine (chats must be shared).
         const b = await readBody(req), s = store.session(id);
+        if (s.moving) throw new StoreError(409, `${s.name} is currently moving`);
         const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
         const to = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.to ?? '')).toLowerCase());
         if (!to) throw new StoreError(400, 'to must be a Claude config dir of this machine');
@@ -3308,6 +3332,150 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (tabOpen && (b.confirm !== true || b.continueInBam !== true)) return json(res, 409, { error: tr('sys.switch.tabConfirm'), confirm: true, tabOpen: true });
         if (!await switchSession(s, to, tr('sys.switch.byUser'), b.continueInBam === true)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s.name, pids: claudePids(s).join(', ') }) });
         return json(res, 200, { ok: true, configDir: to });
+      }
+      if (m === 'POST' && action === 'move') {
+        const b = await readBody(req);
+        const to = String(b.to ?? '').toLowerCase();
+        if (to !== 'vscode' && to !== 'antigravity' && to !== 'bam') {
+          throw new StoreError(400, "to must be 'vscode', 'antigravity', or 'bam'");
+        }
+        const s = store.session(id);
+        if (s.moving) throw new StoreError(409, `${s.name} is currently moving`);
+
+        const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+        let targetAccount = s.configDir || primary;
+        if (b.account) {
+          const matched = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase());
+          if (!matched) throw new StoreError(400, tr('ac.auth.unknownAccount'));
+          targetAccount = matched;
+        }
+
+        const currentAccount = s.configDir || primary;
+        const changingAccount = path.resolve(targetAccount).toLowerCase() !== path.resolve(currentAccount).toLowerCase();
+
+        if (changingAccount) {
+          if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
+          const authSt = await accountAuthStatus(targetAccount);
+          if (authSt.loggedIn !== true) {
+            throw new StoreError(409, tr('sys.move.notLoggedIn', { account: path.basename(targetAccount) }));
+          }
+        }
+
+        const holder = sessionHolder(s);
+        // Step 1: holder check. If target matches current holder and same account, no-op
+        if (holder.where === to && !changingAccount) {
+          return json(res, 200, { ok: true, noop: true });
+        }
+
+        // Account mismatch warning for IDE destinations
+        if (to === 'vscode' || to === 'antigravity') {
+          let lastIdeAccount: string | undefined;
+          for (const sess of Object.values(store.state.sessions)) {
+            for (const p of sess.pids ?? []) {
+              if (p.ide === to && p.configDir) {
+                lastIdeAccount = p.configDir;
+                break;
+              }
+            }
+            if (lastIdeAccount) break;
+          }
+          if (lastIdeAccount && path.resolve(lastIdeAccount).toLowerCase() !== path.resolve(targetAccount).toLowerCase()) {
+            tellSessionRooms(s, tr('sys.move.ideAccountMismatch', {
+              ide: to,
+              ideAccount: path.basename(lastIdeAccount),
+              targetAccount: path.basename(targetAccount),
+            }), 'warn');
+          }
+        }
+
+        // Lock session as moving
+        s.moving = true;
+        store.save();
+        emitSession(s);
+
+        const executeDestination = (sess: Session) => {
+          if (changingAccount) {
+            carrySessionDirs(currentAccount, targetAccount, sess.id);
+            sess.configDir = targetAccount;
+            sess.limited = undefined;
+          }
+          if (to === 'bam') {
+            sess.ended = true;
+            sess.moving = false;
+            store.save();
+            emitSession(sess);
+            revive(sess.id);
+            tellSessionRooms(sess, tr('sys.move.doneBam', {
+              name: sess.name,
+              account: path.basename(sess.configDir || primary),
+            }));
+          } else {
+            sess.ide = to as Ide;
+            sess.moving = false;
+            store.save();
+            emitSession(sess);
+            tabOpened.delete(sess.id);
+            openTab(sess);
+            tellSessionRooms(sess, tr('sys.move.doneIde', {
+              name: sess.name,
+              ide: to,
+            }));
+          }
+        };
+
+        // Step 2: if running in background, stop background
+        if (holder.where === 'bam') {
+          tellSessionRooms(s, tr('sys.move.stoppingBg', { name: s.name, to }));
+          endBackground(s.id);
+          liveChat.stop(s.id);
+          const bgTimeout = opts.bgKillTimeoutMs ?? 30_000;
+          const bgStart = Date.now();
+          while (Date.now() - bgStart < bgTimeout) {
+            const bgLiving = (store.session(s.id).pids ?? []).filter((p) => p.headless && isAlive(p.pid));
+            if (!bgLiving.length && !isBackground(s.id)) break;
+            await sleep(100);
+          }
+          executeDestination(store.session(s.id));
+          return json(res, 200, { ok: true, done: true });
+        }
+
+        // Step 3: if running in a tab, wait for tab to close (SessionEnd or pids dead)
+        if (holder.where !== 'none') {
+          tellSessionRooms(s, tr('sys.move.closeTab', { ide: holder.where, name: s.name }));
+          const moveTimeout = opts.moveTimeoutMs ?? (10 * 60_000);
+          (async () => {
+            const start = Date.now();
+            let closed = false;
+            while (Date.now() - start < moveTimeout) {
+              const cur = store.session(s.id);
+              const tabActive = (cur.pids ?? []).some((p) => !p.headless && isAlive(p.pid));
+              if (!tabActive || cur.ended) {
+                closed = true;
+                break;
+              }
+              await sleep(100);
+            }
+            const cur = store.session(s.id);
+            if (!closed) {
+              cur.moving = false;
+              store.save();
+              emitSession(cur);
+              tellSessionRooms(cur, tr('sys.move.timeout', { name: cur.name, ide: holder.where }), 'warn');
+              return;
+            }
+            executeDestination(cur);
+          })().catch(() => {
+            const cur = store.session(s.id);
+            cur.moving = false;
+            store.save();
+            emitSession(cur);
+          });
+          return json(res, 200, { ok: true, moving: true, waitingForTabClose: true });
+        }
+
+        // holder.where === 'none': offline / no active process
+        executeDestination(store.session(s.id));
+        return json(res, 200, { ok: true, done: true });
       }
       if (m === 'POST' && action === 'terminate') {
         const b = await readBody(req);
@@ -3321,6 +3489,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // Run /compact on the saved chat of a closed session in the background, then optionally wake it.
         const b = await readBody(req);
         const s = store.session(id);
+        if (s.moving) throw new StoreError(409, `${s.name} is currently moving`);
         const holder = sessionHolder(s);
         if (holder.where === 'bam') throw new StoreError(409, sessionHolderError(s, holder));
         const dirty = await dirtyUnlessForced(s, b.force === true);
@@ -3354,6 +3523,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       // S2: a chat inside BAM = one live stream-json claude for this session (events arrive as SSE 'live'; GET returns the recent ones)
       if (action === 'live' || action === 'live/send' || action === 'live/stop') {
         const s = store.session(id);
+        if (s.moving) throw new StoreError(409, `${s.name} is currently moving`);
         if (m === 'GET' && action === 'live') return json(res, 200, { running: liveChat.has(s.id), events: liveChat.events(s.id) });
         if (m !== 'POST') return json(res, 405, { error: 'method not allowed' });
         if (action === 'live/stop') return json(res, 200, { stopped: liveChat.stop(s.id) });
