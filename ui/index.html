@@ -2720,16 +2720,20 @@ function flowTierLayout(nodes, tiers) {
   }));
   return { TX, tierCount, W: Math.max(760, TX[tierCount - 1] + 184), H, rows, pos, assigned };
 }
-function flowNodes(roomInfo, messages) {
+function flowNodes(roomInfo, messages, live = false) {
   const map = new Map([['you', { id: 'you', name: t('flow.user'), role: t('flow.role.user'), session: null }]]);
+  // a stopped profile agent stays in room.members (stop() never leaves), so hide it here
+  const off = new Set((S.settings?.agents?.profiles || []).filter((p) => p.enabled === false).map((p) => normAgent(p.name)));
   const add = (id, fallback = '') => {
     if (!id || map.has(id)) return;
     const session = S.sessions[id];
+    if (session && off.has(normAgent(session.name))) return;
     map.set(id, { id, name: session?.name || fallback || id.slice(0, 12), role: id === roomInfo?.lead ? t('flow.role.lead') : t('flow.role.agent'), session });
   };
   for (const id of roomInfo?.members || []) add(id);
   add(roomInfo?.lead);
-  for (const m of messages) { if (m.fromId) add(m.fromId, m.from); for (const id of m.wake || []) add(id); }
+  // live view = current members only (a kicked agent disappears at once); replay also shows who spoke in that window
+  if (!live) for (const m of messages) { if (m.fromId) add(m.fromId, m.from); for (const id of m.wake || []) add(id); }
   const nodes = [...map.values()];
   flowColorOrder = new Map(nodes.map((n, i) => [n.id, i]));
   return nodes;
@@ -2835,7 +2839,7 @@ function renderFlow() {
   const now = flowNow(), live = S.flowReplayAt === null, cursor = (S.flowReplayAt ?? now) / 1000;
   const dmMsgs = flowDms(r).flatMap((d) => (S.flowMessages[d.name] || []).map((m) => ({ ...m, wake: m.fromId ? ['you'] : [d.dm] })));
   const roomInfo = room(r), messages = [...(S.flowMessages[r] || []), ...dmMsgs].filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
-  const nodes = flowNodes(roomInfo, messages), tiers = S.settings?.flowTiers?.[r] || {}, L = flowTierLayout(nodes, tiers), events = flowEvents(messages, nodes);
+  const nodes = flowNodes(roomInfo, messages, live), tiers = S.settings?.flowTiers?.[r] || {}, L = flowTierLayout(nodes, tiers), events = flowEvents(messages, nodes);
   S.flowPos = L.pos; S.flowLayout = L;
   const related = new Set();
   if (S.flowSelected) for (const e of events) if (e[0] <= cursor && e[0] > cursor - 90 && (e[1] === S.flowSelected || e[2] === S.flowSelected)) { related.add(e[1]); related.add(e[2]); }

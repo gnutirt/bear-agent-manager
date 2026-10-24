@@ -1165,3 +1165,13 @@ test('#252 Flow: a profile agent with no tier starts at the bottom tier, and mem
   ]) assert.ok(html.includes(s), `missing #252 Flow wiring: ${s}`);
   assert.ok(!html.includes('|| Math.floor(tierCount / 2) + 1));'), 'the tier default ignores profile agents again');
 });
+
+test('#259 Flow live view: only current members (kick/add shows at once), stopped profile agents hidden', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const s of [
+    'function flowNodes(roomInfo, messages, live = false) {',
+    'if (session && off.has(normAgent(session.name))) return;',
+    'if (!live) for (const m of messages)',
+    'flowNodes(roomInfo, messages, live)',
+  ]) assert.ok(html.includes(s), `missing #259 Flow wiring: ${s}`);
+});
