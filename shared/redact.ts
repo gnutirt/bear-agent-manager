@@ -2,8 +2,23 @@
 // The patterns follow docs/superpowers/specs/2026-10-24-bam-logging.md L3. They are a net, not a proof: secrets are
 // never put in log data in the first place (no config/login file contents), the net only catches what slips through.
 
-/** Key names whose value is a credential: used for objects in `log()` data and for key/value pairs in free text. */
-export const SECRET_KEY = /^(?:key|token|access[_-]?token|api[_-]?key|apikey|secret|password|passwd|authorization|oauth|bearer|cookie|credential|private[_-]?key)$/i;
+/**
+ * Key names whose value is a credential. Matched by name *suffix* so the names the hub really uses are covered:
+ * ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, x-api-key, x-room-token, refreshToken, clientSecret (#291).
+ * A word that merely contains "key" (monkey) is not a secret, so `key` needs a separator or camel-case start before it.
+ */
+export const SECRET_KEY = /(?:token|api[_-]?key|(?:^|[_.-])key|secret|passw(?:or)?d|authorization|oauth|bearer|cookie|credentials?|private[_-]?key)$/i;
+
+/**
+ * A credential-ish name inside free text: optional ALL_CAPS_ / dash prefixes, then the keyword (#291).
+ * Longer keywords come first so `access_token` is not read as the bare `token`.
+ */
+const KEY_NAME = String.raw`(?:[A-Za-z0-9]+[_-])*(?:access[_-]?token|api[_-]?key|apikey|token|secret|passw(?:or)?d|authorization|oauth|key)`;
+
+const JSON_QUOTED = new RegExp(String.raw`("${KEY_NAME}"\s*:\s*)"[^"]*"`, 'gi');
+const JSON_SINGLE = new RegExp(String.raw`('${KEY_NAME}'\s*:\s*)'[^']*'`, 'gi');
+const KV_QUOTED = new RegExp(String.raw`\b(${KEY_NAME})\b(\s*[:=]\s*)(?:"[^"]*"|'[^']*')`, 'gi');
+const KV_BARE = new RegExp(String.raw`\b(${KEY_NAME})\b(\s*[:=]\s*)([A-Za-z0-9_\-./+=]{8,})`, 'gi');
 
 // Value that looks like a credential on its own, wherever it appears.
 const VALUE_PATTERNS: [RegExp, string][] = [
@@ -22,14 +37,17 @@ const VALUE_PATTERNS: [RegExp, string][] = [
   // The hub's own room token, in headers or in a query string
   [/(x-room-token\s*[:=]\s*)[^\s,;"']+/gi, '$1[redacted]'],
   [/([?&](?:token|key|api[_-]?key|apikey|access_token)=)[^&\s"'#]+/gi, '$1[redacted]'],
-  // JSON / JS objects: "token": "…" or 'apiKey': '…' (quoted value, any content)
-  [/("(?:key|token|access[_-]?token|api[_-]?key|apikey|secret|password|passwd|authorization|oauth)"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"'],
-  [/('(?:key|token|access[_-]?token|api[_-]?key|apikey|secret|password|passwd|authorization|oauth)'\s*:\s*)'[^']*'/gi, "$1'[redacted]'"],
+  // A CLI flag and its value: --token VALUE (the form #174 leaked), --api-key VALUE, --password VALUE (#291)
+  [/(--[a-z-]*(?:token|key|secret|password)\s+)([^\s"'-][^\s"']*)/gi, '$1[redacted]'],
+  // JSON / JS objects: "token": "…", "x-api-key": "…" or 'apiKey': '…' (quoted value, any content)
+  [JSON_QUOTED, '$1"[redacted]"'],
+  [JSON_SINGLE, "$1'[redacted]'"],
   // key=value / key: value with a quoted value, or an unquoted word long enough to be a credential
-  [/\b(key|token|access[_-]?token|api[_-]?key|apikey|secret|password|passwd|authorization|oauth)\b(\s*[:=]\s*)(?:"[^"]*"|'[^']*')/gi, '$1$2"[redacted]"'],
-  [/\b(key|token|access[_-]?token|api[_-]?key|apikey|secret|password|passwd|authorization|oauth)\b(\s*[:=]\s*)([A-Za-z0-9_\-./+=]{8,})/gi, '$1$2[redacted]'],
-  // A long base64/hex run after = or : (raw secrets with no known prefix, e.g. the old --token VALUE of #174)
-  [/([=:]\s*)(?:[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{40,}={0,2})(?![\w])/g, '$1[redacted]'],
+  [KV_QUOTED, '$1$2"[redacted]"'],
+  [KV_BARE, '$1$2[redacted]'],
+  // A long base64-ish run after = or : (raw secrets with no known prefix, e.g. the old --token VALUE of #174).
+  // Pure hex is left alone: a 40-character git sha in a commit line is not a secret (#291).
+  [/([=:]\s*)(?=[A-Za-z0-9+/_-]{40,}={0,2}(?![\w]))(?=[A-Za-z0-9+/_-]*[g-zG-Z+/_-])[A-Za-z0-9+/_-]{40,}={0,2}/g, '$1[redacted]'],
 ];
 
 /** Hides tokens, keys and passwords in free text. Ordinary prose is returned unchanged. */

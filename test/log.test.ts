@@ -22,7 +22,7 @@ test('#281 redact hides the secrets in L3 and leaves ordinary text alone', () =>
     '{"token":"s3cr3t","keep":"postgres"}',
     '{apiKey: "abc123def456"}',
     'token=abcdefgh12345678',
-    'hash = 0123456789abcdef0123456789abcdef01234567',
+    'blob = AbCdEf0123456789+/ghijklmnopqrstuvwxyzABCDEF',
   ];
   for (const text of hidden) assert.match(redact(text), /\[redacted\]/, text);
   assert.equal(redact('the agent finished the task at 10:02'), 'the agent finished the task at 10:02');
@@ -30,6 +30,42 @@ test('#281 redact hides the secrets in L3 and leaves ordinary text alone', () =>
   const nested = redactValue({ a: { b: { token: 'xyz', note: 'Bearer abcdefghijkl' } } }) as any;
   assert.equal(nested.a.b.token, '[redacted]', 'a token nested deep in data is hidden');
   assert.equal(nested.a.b.note, 'Bearer [redacted]');
+});
+
+test('#291 redact covers the env/header names the hub uses, CLI flags, and keeps a git sha', () => {
+  // The 9 cases from the audit of ^042498a: the hub writes exactly these names in apiEnv (apiagent.ts) and probe (brief.ts).
+  const cases = [
+    ['ANTHROPIC_AUTH_TOKEN=abcd1234efgh5678', 'abcd1234efgh5678'],
+    ['ANTHROPIC_API_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0', 'eyJhbGciOiJIUzI1NiIs'],
+    ['refresh_token=r3fr3sh-value-1234', 'r3fr3sh-value-1234'],
+    ['"x-api-key":"abcdef1234567890"', 'abcdef1234567890'],
+    ['--token abcdef1234567890', 'abcdef1234567890'],
+    ['--password hunter2hunter2', 'hunter2hunter2'],
+    ['CLAUDE_CODE_OAUTH_TOKEN=oauth-1234-abcd', 'oauth-1234-abcd'],
+    ['x-room-token: deadbeefdeadbeefdeadbeef', 'deadbeefdeadbeefdeadbeef'],
+  ];
+  for (const [text, secret] of cases) {
+    const out = redact(text);
+    assert.match(out, /\[redacted\]/, text);
+    assert.ok(!out.includes(secret), `${text} → ${out}`);
+  }
+  // A 40-hex git sha appears in commit lines and must survive (the old pattern hid it).
+  assert.equal(redact('commit: 0123456789abcdef0123456789abcdef01234567'), 'commit: 0123456789abcdef0123456789abcdef01234567');
+  // Object keys: env/headers of an api job, camelCase secret names; ordinary keys stay readable.
+  const data = redactValue({
+    env: { ANTHROPIC_AUTH_TOKEN: 'a', CLAUDE_CODE_OAUTH_TOKEN: 'b' },
+    headers: { 'x-api-key': 'c', 'x-room-token': 'd' },
+    refreshToken: 'e',
+    clientSecret: 'f',
+    monkey: 'not a secret',
+    keyCount: 3,
+  }) as any;
+  assert.deepEqual(data.env, { ANTHROPIC_AUTH_TOKEN: '[redacted]', CLAUDE_CODE_OAUTH_TOKEN: '[redacted]' });
+  assert.deepEqual(data.headers, { 'x-api-key': '[redacted]', 'x-room-token': '[redacted]' });
+  assert.equal(data.refreshToken, '[redacted]');
+  assert.equal(data.clientSecret, '[redacted]');
+  assert.equal(data.monkey, 'not a secret');
+  assert.equal(data.keyCount, 3, 'a key that only starts with "key" is not a credential');
 });
 
 test('#281 log writes one JSON line per entry with level, area, agent and redacted data', (t) => {
