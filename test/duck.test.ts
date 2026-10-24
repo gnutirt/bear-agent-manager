@@ -218,7 +218,7 @@ test('Duck driver: duckTurn calls duckAsk via Cdp, flattens prompt, and saves hi
   assert.equal(history.turns[1].text, 'Duck web answer');
 });
 
-test('Duck driver: needs-user bot challenge notifies @you once and returns error without retry', async (t) => {
+test('Duck driver: needs-user bot challenge returns error without retry for failedTurn to notify', async (t) => {
   const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const memory = new Memory(home);
   const fakePage: Page = {
@@ -233,7 +233,6 @@ test('Duck driver: needs-user bot challenge notifies @you once and returns error
     async attach() { return fakePage; },
   };
 
-  let notifiedRoom = '';
   const turn = duckTurn({
     home,
     agentId: 'duck-a',
@@ -241,14 +240,76 @@ test('Duck driver: needs-user bot challenge notifies @you once and returns error
     memory,
     cdp: fakeCdp,
     profile: () => ({ model: 'gpt-5.4-mini' }),
-    onNeedsUser: (room) => { notifiedRoom = room; },
   });
 
   const res = await turn('sid', 'room_test', 'question during challenge');
   assert.equal(res.ok, false);
   assert.equal(res.kind, 'needs-user');
-  assert.equal(notifiedRoom, 'room_test');
-  assert.match(res.error, /Duck cần bạn mở duck\.ai trong Chrome của hub và tự xử lý kiểm tra bot/);
+  assert.match(res.error, /trình duyệt ẩn BAM gặp kiểm tra bot ở duck\.ai; Duck dừng/);
+});
+
+test('Duck driver: duckLock serializes concurrent turns across profiles', async (t) => {
+  const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const memory = new Memory(home);
+  const order: string[] = [];
+  let chain: Promise<unknown> = Promise.resolve();
+  const duckLock = <T>(fn: () => Promise<T>): Promise<T> => {
+    const p = chain.then(fn);
+    chain = p.catch(() => {});
+    return p;
+  };
+
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('textarea[name=user-prompt]') && expr.startsWith('!!')) return true;
+      if (expr.includes('Stop generating')) {
+        return { stop: false, items: [{ role: 'assistant', text: 'duck response', hasCopy: true }] };
+      }
+      return 1;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+
+  const turn1 = duckTurn({
+    home,
+    agentId: 'duck-1',
+    project: 'project-1',
+    memory,
+    cdp: fakeCdp,
+    duckLock: async (fn) => duckLock(async () => {
+      order.push('p1-start');
+      await new Promise((r) => setTimeout(r, 20));
+      order.push('p1-end');
+      return fn();
+    }),
+    profile: () => ({ model: 'gpt-5.4-mini' }),
+  });
+
+  const turn2 = duckTurn({
+    home,
+    agentId: 'duck-2',
+    project: 'project-2',
+    memory,
+    cdp: fakeCdp,
+    duckLock: async (fn) => duckLock(async () => {
+      order.push('p2-start');
+      await new Promise((r) => setTimeout(r, 10));
+      order.push('p2-end');
+      return fn();
+    }),
+    profile: () => ({ model: 'gpt-5.4-mini' }),
+  });
+
+  await Promise.all([
+    turn1('s1', 'r1', 'q1'),
+    turn2('s2', 'r2', 'q2'),
+  ]);
+
+  assert.deepEqual(order, ['p1-start', 'p1-end', 'p2-start', 'p2-end']);
 });
 
 test('GET /api/duck/status reports status from duckCdp', async (t) => {

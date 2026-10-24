@@ -21,6 +21,10 @@ export const TOOLS = [
 export function chromeCdp(base = CDP_URL): Cdp {
   return {
     async tabs() { const r = await fetch(`${base}/json`, { signal: AbortSignal.timeout(3000) }); return (await r.json()) as Tab[]; },
+    async open(url: string): Promise<Tab> {
+      const r = await fetch(`${base}/json/new?${url}`, { method: 'PUT', signal: AbortSignal.timeout(5000) });
+      return (await r.json()) as Tab;
+    },
     async attach(tab: Tab): Promise<Page> {
       const ws = new WebSocket(tab.webSocketDebuggerUrl);
       await new Promise<void>((res, rej) => { ws.addEventListener('open', () => res(), { once: true }); ws.addEventListener('error', () => rej(new MuseError('cannot attach to the muse.ai tab')), { once: true }); });

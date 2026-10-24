@@ -6,7 +6,11 @@ export type Snap = { stop: boolean; items: Item[] };
 export type Tab = { type: string; url: string; webSocketDebuggerUrl: string };
 /** One page of the debug Chrome: runs a fixed script and returns its value. */
 export type Page = { eval(expression: string): Promise<any>; close(): void };
-export type Cdp = { tabs(): Promise<Tab[]>; attach(tab: Tab): Promise<Page> };
+export type Cdp = {
+  tabs(): Promise<Tab[]>;
+  attach(tab: Tab): Promise<Page>;
+  open?(url: string): Promise<Tab>;
+};
 
 export class WebChatError extends Error {}
 export class MuseError extends WebChatError {}
@@ -144,6 +148,12 @@ export async function findTab(cdp: Cdp, site: Site): Promise<Tab> {
   if (site.isLogin && tabs.some((t) => t.type === 'page' && site.isLogin!(t.url))) {
     throw new Err(site.errors.notSignedIn);
   }
+  if (site.newChatUrl && cdp.open) {
+    try {
+      const opened = await cdp.open(site.newChatUrl);
+      if (opened) return opened;
+    } catch { /* let it throw noTab below */ }
+  }
   throw new Err(site.errors.noTab);
 }
 
@@ -181,10 +191,28 @@ export async function ask(
   if (q.length > MAX_PROMPT) throw new Err(`prompt is longer than ${MAX_PROMPT} characters`);
   const tab = await findTab(cdp, site), page = await cdp.attach(tab);
   try {
+    const waitForReady = async (maxMs = 15_000): Promise<boolean> => {
+      const tStart = now();
+      while (now() - tStart < maxMs) {
+        if (site.js.botCheck && (await page.eval(site.js.botCheck))) {
+          throw new WebChatError('needs-user');
+        }
+        if (site.js.acceptTerms) {
+          const accepted = await page.eval(site.js.acceptTerms);
+          if (accepted === 'needs-user') throw new WebChatError('needs-user');
+        }
+        if (await page.eval(site.js.hasInput)) return true;
+        await sleep(250);
+      }
+      return !!(await page.eval(site.js.hasInput));
+    };
+
     // 0. Navigate to new chat page if site defines newChatUrl
     if (site.newChatUrl) {
-      await page.eval(`(()=>{if(window.location.href!==${JSON.stringify(site.newChatUrl)}||document.querySelectorAll('[data-testid=user-message],[data-activeresponse]').length>0){window.location.href=${JSON.stringify(site.newChatUrl)};}})()`);
-      await sleep(300);
+      const navigated = await page.eval(`(()=>{if(window.location.href!==${JSON.stringify(site.newChatUrl)}||document.querySelectorAll('[data-testid=user-message],[data-activeresponse]').length>0){window.location.href=${JSON.stringify(site.newChatUrl)};return true;}return false;})()`);
+      if (navigated) {
+        await waitForReady(15_000);
+      }
     }
 
     // 1. Bot challenge check: if present, throw immediately without clicking anything.
@@ -196,7 +224,6 @@ export async function ask(
     if (site.js.acceptTerms) {
       const accepted = await page.eval(site.js.acceptTerms);
       if (accepted === 'needs-user') throw new WebChatError('needs-user');
-      if (accepted) await sleep(300);
     }
 
     // Re-check bot challenge after terms
@@ -204,13 +231,9 @@ export async function ask(
       throw new WebChatError('needs-user');
     }
 
-    // 3. Ensure input box is available
+    // 3. Ensure input box is available (poll up to 15s if not yet ready)
     if (!(await page.eval(site.js.hasInput))) {
-      if (site.js.acceptTerms) {
-        const accepted = await page.eval(site.js.acceptTerms);
-        if (accepted === 'needs-user') throw new WebChatError('needs-user');
-        if (accepted) await sleep(300);
-      }
+      await waitForReady(15_000);
       if (!(await page.eval(site.js.hasInput))) throw new Err(site.errors.notSignedIn);
     }
 

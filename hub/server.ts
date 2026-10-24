@@ -293,6 +293,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const memory = new Memory(opts.dir, opts.now);
   const museCdp = opts.museCdp ?? chromeCdp();
   const duckCdp = opts.duckCdp ?? (opts.duckFetch ? undefined : chromeCdp(`http://127.0.0.1:${loadSettings(opts.dir, envCap).browser.port}`));
+  let duckLockChain: Promise<unknown> = Promise.resolve();
+  const duckLock = <T>(fn: () => Promise<T>): Promise<T> => {
+    const p = duckLockChain.then(fn);
+    duckLockChain = p.catch(() => {});
+    return p;
+  };
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
@@ -633,13 +639,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             project: p.cwd,
             memory,
             cdp: duckCdp,
+            duckLock,
             ensureBrowser: async () => {
               if (browser && !browser.running()) {
                 await browser.start();
               }
-            },
-            onNeedsUser: (room) => {
-              store.postSystem(room, '@you: Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý kiểm tra bot', undefined, { type: 'error', level: 'error', agent: p.name });
             },
             profile: () => {
               const current = copilotProfiles().find((x) => x.id === p.id) ?? p;

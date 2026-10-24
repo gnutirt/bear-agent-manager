@@ -39,16 +39,24 @@ function fakeDuckChrome(opts: {
   termsModal?: boolean;
   termsModalMissingAgree?: boolean;
   streamForever?: boolean;
+  inputDelayChecks?: number;
 } = {}) {
-  const sent: string[] = [], attached: string[] = [];
+  const sent: string[] = [], attached: string[] = [], opened: string[] = [];
   const clickedTerms: number[] = [];
   let termsAccepted = !opts.termsModal && !opts.termsModalMissingAgree;
+  let inputChecks = 0;
   const tab = (url: string): Tab => ({ type: 'page', url, webSocketDebuggerUrl: `ws://x/${url}` });
   const tabs = opts.tabs ?? [tab('https://google.com/'), tab('https://duck.ai/chat')];
   let polls = 0, items: Item[] = [u('old'), a('old answer')];
 
   const cdp: Cdp = {
     async tabs() { if (tabs === 'down') throw new Error('ECONNREFUSED'); return tabs; },
+    async open(url: string) {
+      opened.push(url);
+      const newTab = tab(url);
+      if (Array.isArray(tabs)) tabs.push(newTab);
+      return newTab;
+    },
     async attach(t) {
       attached.push(t.url);
       const page: Page = {
@@ -78,6 +86,10 @@ function fakeDuckChrome(opts: {
           }
           // 3. Has input
           if (expr.includes('textarea[name=user-prompt]') && expr.startsWith('!!')) {
+            if (opts.inputDelayChecks !== undefined && inputChecks < opts.inputDelayChecks) {
+              inputChecks++;
+              return false;
+            }
             return termsAccepted;
           }
           // 4. Model selection
@@ -117,7 +129,7 @@ function fakeDuckChrome(opts: {
       return page;
     },
   };
-  return { cdp, sent, attached, clickedTerms };
+  return { cdp, sent, attached, clickedTerms, opened };
 }
 
 const fast = { sleep: async () => {}, now: (() => { let t = 0; return () => (t += 700); })() };
@@ -263,12 +275,32 @@ test('duckAsk: model selection evaluates on page when model option is passed', a
 test('duckAsk: clear errors for Chrome down, no duck tab, empty or oversized prompt', async () => {
   await assert.rejects(duckAsk(fakeDuckChrome({ tabs: 'down' }).cdp, 'hi', 5, fast), /Chrome debug is not running/);
   const t = (url: string): Tab => ({ type: 'page', url, webSocketDebuggerUrl: 'ws://x' });
-  await assert.rejects(duckAsk(fakeDuckChrome({ tabs: [t('https://google.com/')] }).cdp, 'hi', 5, fast), /No duck\.ai tab/);
+  const cdpWithoutOpen: Cdp = {
+    async tabs() { return [t('https://google.com/')]; },
+    async attach() { throw new Error('should not attach'); },
+  };
+  await assert.rejects(duckAsk(cdpWithoutOpen, 'hi', 5, fast), /No duck\.ai tab/);
 
   const c = fakeDuckChrome();
   await assert.rejects(duckAsk(c.cdp, '   ', 5, fast), /prompt is empty/);
   await assert.rejects(duckAsk(c.cdp, 'x'.repeat(8001), 5, fast), /longer than 8000/);
   assert.deepEqual(c.attached, [], 'rejected prompt never touches Chrome');
+});
+
+test('duckAsk: opens duck tab via cdp.open when no duck.ai tab exists initially', async () => {
+  const t = (url: string): Tab => ({ type: 'page', url, webSocketDebuggerUrl: `ws://x/${url}` });
+  const c = fakeDuckChrome({ tabs: [t('https://google.com/')], answer: ['fresh opened tab answer'] });
+  const r = await duckAsk(c.cdp, 'Hello after open', 60, fast);
+  assert.equal(r.text, 'fresh opened tab answer');
+  assert.deepEqual(c.opened, ['https://duck.ai/chat'], 'opened duck.ai tab');
+  assert.ok(c.attached.includes('https://duck.ai/chat'), 'attached to opened tab');
+});
+
+test('duckAsk: delayed input availability (simulating 600ms load) resolves via polling without throwing notSignedIn', async () => {
+  // inputDelayChecks: 3 means hasInput returns false for first 3 checks, then true
+  const c = fakeDuckChrome({ inputDelayChecks: 3, answer: ['delayed answer'] });
+  const r = await duckAsk(c.cdp, 'Hello delayed', 60, fast);
+  assert.equal(r.text, 'delayed answer');
 });
 
 test('duckAsk: a timeout returns what Duck had written so far', async () => {

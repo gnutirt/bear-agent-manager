@@ -155,8 +155,8 @@ export type DuckTurnOptions = {
   fetch?: typeof fetch;
   now?: () => number;
   cdp?: Cdp;
+  duckLock?: <T>(fn: () => Promise<T>) => Promise<T>;
   ensureBrowser?: () => Promise<void>;
-  onNeedsUser?: (room: string) => void;
 };
 
 export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: string, batch?: Message[]) => Promise<DuckTurnResult> {
@@ -223,17 +223,17 @@ export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: 
         let answer = '';
         try {
           const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));
-          const result = await duckAsk(o.cdp, prompt, { timeoutS, model: profile.model, env: { now } });
+          const runAsk = () => duckAsk(o.cdp!, prompt, { timeoutS, model: profile.model, env: { now } });
+          const result = o.duckLock ? await o.duckLock(runAsk) : await runAsk();
           answer = result.text.trim();
           if (!answer) return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
           if (result.timedOut) answer += '\n\n[hết giờ]';
         } catch (err: any) {
           if (err instanceof WebChatError && err.message.includes('needs-user')) {
-            o.onNeedsUser?.(room);
             return {
               ok: false,
               text: '',
-              error: '@you: Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý kiểm tra bot',
+              error: 'trình duyệt ẩn BAM gặp kiểm tra bot ở duck.ai; Duck dừng',
               kind: 'needs-user',
             };
           }
