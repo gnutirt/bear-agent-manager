@@ -69,4 +69,7 @@ test('Duck member is never woken by @all or untagged user message, only by direc
   assert.equal(wakes(msg({ mentions: ['all'] }), duck, false), false, 'user @all does not wake duck');
   assert.equal(wakes(msg({ mentions: ['duck-ga'] }), duck, false), true, 'user @duck-ga wakes duck');
   assert.equal(wakes(msg({ fromId: 's-fw', mentions: ['duck-ga'] }), duck, false), true, 'agent @duck-ga wakes duck');
+  // #293b: a private chat is addressed at the duck; the shared-room mention rule does not apply there.
+  assert.equal(wakes(msg({ room: 'dm-s-duck' }), duck, false), true, 'untagged user message in the duck own DM wakes it');
+  assert.equal(wakes(msg({ room: 'dm-s-duck', fromId: 's-duck' }), duck, false), false, 'the duck own DM answers wake nobody');
 });

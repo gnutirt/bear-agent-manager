@@ -191,7 +191,8 @@ export class HubMember<K extends string = string> {
         const upToRoom = batch[batch.length - 1].id;
         if (this.opts.kind === 'duck') {
           const myName = this.opts.name.toLowerCase();
-          const hasMention = batch.some((m) => m.mentions.includes(myName));
+          // #293b: the mention rule is per room — the duck's own private chat is addressed at it, so a DM needs no @.
+          const hasMention = room.startsWith('dm-') || batch.some((m) => m.mentions.includes(myName));
           if (!hasMention) {
             this.opts.store.consumeIn(id, room, upToRoom);
             continue;
