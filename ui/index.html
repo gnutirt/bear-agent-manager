@@ -3989,6 +3989,7 @@ function loadMuseStatus() {
     return null;
   });
 }
+let accountLogoutAsk = '';
 function loadAccounts(refresh = false) {
   Promise.all([api(`/api/accounts${refresh ? '?refresh=1' : ''}`).catch(() => null), api('/api/autostart').catch(() => null), api('/api/copilot').catch(() => null), loadCopilotProfiles(), api('/api/mcp/connections').catch(() => [])]).then(([a, au, cp, , mcp]) => { S.acct = a || { accounts: [], shared: false }; S.auto = au; S.copilot = cp; S.mcpConnections = mcp; if (S.tab === 'settings' && S.setSub === 'accounts') renderSettingsView(); loadMcpServers(); });
 }
@@ -4070,7 +4071,8 @@ function accountParts(st) {
       ${a.error ? `<div class="small muted">${t('ac.auth.statusError')}</div>` : ''}
       ${lim ? `<div class="small">${lim}</div>` : u?.usageError ? `<div class="small bad">${t('ac.expired')}</div>` : ''}
       <div class="small muted">${p.link ? t('ac.chats.linked', { target: esc(p.target) }) : p.exists ? t('ac.chats.own') : t('ac.chats.none')}</div>
-      <div class="row"><button type="button" class="btn sm" data-account-refresh="${esc(a.dir)}">${t('ac.auth.refresh')}</button><button type="button" class="btn sm" data-account-login="${esc(a.dir)}">${t('ac.auth.login')}</button>${a.loggedIn ? `<button type="button" class="btn sm" data-account-logout="${esc(a.dir)}">${t('ac.auth.logout')}</button>` : ''}</div></div>`;
+      <div class="row"><button type="button" class="btn sm" data-account-refresh="${esc(a.dir)}">${t('ac.auth.refresh')}</button><button type="button" class="btn sm" data-account-login="${esc(a.dir)}">${t('ac.auth.login')}</button>${a.loggedIn ? `<button type="button" class="btn sm" data-account-logout="${esc(a.dir)}">${t('ac.auth.logout')}</button>` : ''}</div>
+      ${accountLogoutAsk === a.dir ? `<div class="aplan"><p class="small">${t('ac.auth.logoutConfirm')}</p><div class="row"><button type="button" class="btn sm" id="accountLogoutCancel">${t('ac.cancel')}</button><button type="button" class="btn sm" data-account-logout-confirm="${esc(a.dir)}">${t('ac.auth.logoutConfirmButton')}</button></div></div>` : ''}</div>`;
   }).join('');
   const multi = A.accounts.filter((a) => a.exists).length > 1;
   const plan = S.sharePlan;
@@ -4854,16 +4856,16 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     const swm = e.target.closest('[data-swmode]'); if (swm) return api('/api/settings', { accountSwitch: { mode: swm.dataset.swmode } }, 'PUT').then((s) => { S.settings = s; toast(t('settings.saved')); renderSettingsView(); }, (err) => toast(err.message));
     if (e.target.closest('#shareToggle')) { const on = !S.acct.shared; return api('/api/accounts/share', { on }).then((d) => { S.sharePlan = { on, plan: d.plan || [] }; renderSettingsView(); }, (err) => toast(err.message)); }
     if (e.target.closest('#shareCancel')) { S.sharePlan = null; return renderSettingsView(); }
-    if (e.target.closest('#shareConfirm')) { const sp = S.sharePlan; return api('/api/accounts/share', { on: sp.on, confirm: true }).then((d) => { S.acct = { accounts: d.accounts, primary: d.primary, shared: d.shared }; S.sharePlan = null; toast(t('ac.share.done')); renderSettingsView(); }, (err) => { sp.error = err.message; renderSettingsView(); }); }
+    if (e.target.closest('#shareConfirm')) { const sp = S.sharePlan; return api('/api/accounts/share', { on: sp.on, confirm: true }).then((d) => { S.acct = { accounts: d.accounts, primary: d.primary, shared: d.shared }; S.sharePlan = null; toast(t('ac.share.done')); loadAccounts(); renderSettingsView(); }, (err) => { sp.error = err.message; renderSettingsView(); }); }
     const accountRefresh = e.target.closest('[data-account-refresh]');
     if (accountRefresh) return loadAccounts(true);
     const accountLogin = e.target.closest('[data-account-login]');
     if (accountLogin) return api('/api/accounts/login', { dir: accountLogin.dataset.accountLogin }).then(() => { toast(t('ac.auth.loginStarted')); loadAccounts(); }, (err) => toast(err.message));
     const accountLogout = e.target.closest('[data-account-logout]');
-    if (accountLogout) {
-      if (!window.confirm(t('ac.auth.logoutConfirm'))) return;
-      return api('/api/accounts/logout', { dir: accountLogout.dataset.accountLogout, confirm: true }).then(() => { toast(t('ac.auth.logoutStarted')); loadAccounts(); }, (err) => toast(err.message));
-    }
+    if (accountLogout) { accountLogoutAsk = accountLogout.dataset.accountLogout; return renderSettingsView(); }
+    if (e.target.closest('#accountLogoutCancel')) { accountLogoutAsk = ''; return renderSettingsView(); }
+    const accountLogoutConfirm = e.target.closest('[data-account-logout-confirm]');
+    if (accountLogoutConfirm) return api('/api/accounts/logout', { dir: accountLogoutConfirm.dataset.accountLogoutConfirm, confirm: true }).then(() => { accountLogoutAsk = ''; toast(t('ac.auth.logoutStarted')); loadAccounts(); }, (err) => toast(err.message));
     if (e.target.closest('#agentCancel')) { S.agentAsk = null; return renderSettingsView(); }
     if (e.target.closest('#agentConfirm')) { const ask = S.agentAsk; return createAgent(ask.needConfirm ? { ...ask.body, confirm: true } : ask.body); }
     const cb = e.target.closest('#cwdBrowse');

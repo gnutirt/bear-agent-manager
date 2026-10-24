@@ -14,7 +14,8 @@ import { hasRates, paidProfileUsage, paidUsageForDay } from './paidusage.ts';
 import { summarize } from './tokens.ts';
 import { appAsset, withManifest } from './appshell.ts';
 import { probeDir, runWorker } from './slowdir.ts';
-import { applyShare, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare } from './accounts.ts';
+import { applyShare, authCommandEnv, claudeAuthStatus, listAccounts as listConfigAccounts, looksLikeClaudeDir, planShare, publicAuthStatus } from './accounts.ts';
+import { buildWorkspaces } from './workspaces.ts';
 import { carrySessionDirs, pickAccount } from './accountswitch.ts';
 import { spawnAgent, type AgentJob } from './agents.ts';
 import { autostartState, setAutostart } from './autostart.ts';
@@ -47,6 +48,7 @@ import * as mcpcfg from './mcpconfig.ts';
 import { apiEnv, apiPerm, claudeCliModel, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
 import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
+import { log } from './log.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
 import { countBackgroundWith, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
@@ -72,6 +74,9 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI_FILE = path.join(ROOT, 'ui', 'index.html');
 const MAX_BODY = 64 * 1024;
 const MAX_IDE_BODY = 6 * 1024 * 1024 + 16 * 1024;
+// #283 (log T3): a hook log line is small; a fixed one-second window accepts 30 of them, so a looping hook cannot flood the log.
+const MAX_LOG_BODY = 16 * 1024;
+const HOOK_LOG_PER_SECOND = 30;
 const OFFICE_ASSETS: Record<string, { file: string; type: string }> = {
   '/office.css': { file: path.join(ROOT, 'ui', 'office.css'), type: 'text/css; charset=utf-8' },
   '/office.js': { file: path.join(ROOT, 'ui', 'office.js'), type: 'text/javascript; charset=utf-8' },
@@ -348,6 +353,10 @@ export type HubOptions = {
   applyUpdate?: typeof applyUpdate;
   /** Home whose ~/.claude(.json) holds the default login (tests use a fake one). */
   usageHome?: string;
+  /** Claude auth status command result (tests inject a safe fake). */
+  authStatus?: (configDir: string) => Promise<unknown> | unknown;
+  /** Opens the separate account auth console (tests inject a fake). */
+  accountSpawn?: typeof spawn;
   /** Opens a claude-cli:// link (T19 room lead terminal); stubbed in tests. */
   openUrl?: (url: string) => void;
   /** Tests: stands in for launching the file manager on "reveal". */
@@ -1834,6 +1843,59 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
 
   // ---- Claude Pro usage (T10a): read only, cached 5 min, polled every 15 min while an account is logged in ----
   const usageHome = opts.usageHome ?? os.homedir();
+  const accountAuthCache = new Map<string, { at: number; status: Promise<ReturnType<typeof publicAuthStatus>> }>();
+  const accountAuthStatus = async (dir: string, force = false) => {
+    const key = path.resolve(dir).toLowerCase(), now = (opts.now ?? Date.now)();
+    const cached = accountAuthCache.get(key);
+    if (!force && cached && now - cached.at < 60_000) return cached.status;
+    const entry: { at: number; status: Promise<ReturnType<typeof publicAuthStatus>> } = {
+      at: now,
+      status: Promise.resolve({ loggedIn: null }),
+    };
+    entry.status = (async () => {
+      try {
+        const status = publicAuthStatus(opts.authStatus ? await opts.authStatus(dir) : await claudeAuthStatus(dir));
+        if (status.loggedIn === null) status.error = 'invalid or unavailable status';
+        return status;
+      } catch {
+        return { loggedIn: null, error: 'could not read authentication status' };
+      }
+    })();
+    accountAuthCache.set(key, entry);
+    void entry.status.then(() => {
+      if (accountAuthCache.get(key) === entry) entry.at = (opts.now ?? Date.now)();
+    });
+    return entry.status;
+  };
+  const accountSnapshot = async (force = false) => {
+    const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+    const listed = listConfigAccounts(dirs, primary);
+    const accounts = await Promise.all(listed.accounts.map(async (account) => ({
+      ...account,
+      ...await accountAuthStatus(account.dir, force),
+    })));
+    return { ...listed, accounts };
+  };
+  const accountConfigDir = (value: unknown): string | undefined => typeof value === 'string'
+    ? listConfigAccounts(machineAccountDirs(), path.join(usageHome, '.claude')).accounts
+      .map((account) => account.dir)
+      .find((dir) => path.resolve(dir).toLowerCase() === path.resolve(value).toLowerCase())
+    : undefined;
+  const openAccountAuthConsole = async (configDir: string, action: 'login' | 'logout') => {
+    if (process.platform !== 'win32') throw new StoreError(501, tr('ac.auth.consoleUnsupported'));
+    const child = (opts.accountSpawn ?? spawn)('cmd.exe', ['/d', '/s', '/c', `start "" cmd.exe /k claude auth ${action}`], {
+      env: authCommandEnv(configDir),
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+    child.unref();
+    await new Promise<void>((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', () => reject(new StoreError(500, tr('ac.auth.consoleFailed'))));
+    });
+    accountAuthCache.delete(path.resolve(configDir).toLowerCase());
+  };
   const usageDirs = () => [...new Set([path.join(usageHome, '.claude'), ...Object.values(store.state.sessions).map((s) => s.configDir).filter(Boolean) as string[]])];
   const usage = opts.usageFetch === null ? null : new UsageReader(usageHome, opts.usageFetch ?? fetch);
   if (usage) usage.lang = lang;
@@ -2238,6 +2300,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }, 10 * 60_000);
   roomChatSweeper.unref();
 
+  // #283: window state of POST /api/log, per hub instance (a fresh hub starts with an empty window).
+  let hookLogWindowStart = 0;
+  let hookLogCount = 0;
+
   async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? '/', 'http://hub');
     const p = url.pathname;
@@ -2294,6 +2360,26 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const given = req.headers['x-room-token'] ?? url.searchParams.get('token');
     if (ideEndpoint && req.headers['x-room-token'] !== token) return json(res, 401, { error: 'bad or missing token' });
     if (given !== token) return json(res, 401, { error: 'bad or missing token' });
+
+    // #283 (log T3): a hook reports a failure here. The first 30 lines of each second are accepted, the rest get 429
+    // (a hook that loops must not fill the log); a hook may only write area 'hook', never a hub/turn line.
+    if (m === 'POST' && p === '/api/log') {
+      const now = Date.now();
+      if (now - hookLogWindowStart >= 1000) { hookLogWindowStart = now; hookLogCount = 0; }
+      if (++hookLogCount > HOOK_LOG_PER_SECOND) {
+        res.setHeader('retry-after', '1');
+        return json(res, 429, { error: 'too many log lines, retry in a second' });
+      }
+      const body = await readBody(req, MAX_LOG_BODY);
+      const level = body?.level === 'warn' || body?.level === 'error' || body?.level === 'debug' ? body.level : 'info';
+      const entry = log(level, 'hook', typeof body?.msg === 'string' ? body.msg : '', {
+        ...(typeof body?.agent === 'string' ? { agent: body.agent } : {}),
+        ...(typeof body?.sid === 'string' ? { sid: body.sid } : {}),
+        ...(typeof body?.room === 'string' ? { room: body.room } : {}),
+        ...(body?.data === undefined ? {} : { data: body.data }),
+      });
+      return json(res, 200, { ok: true, ...(entry ? { ts: entry.ts } : {}) });
+    }
 
     if (m === 'GET' && p === '/api/agy/check') {
       const agyPath = url.searchParams.get('path') ?? '';
@@ -2731,7 +2817,50 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     // ---- accounts (D1): the Claude config dirs of this machine and whether they share their chats ----
     const accountDirs = machineAccountDirs;
-    if (m === 'GET' && p === '/api/accounts') return json(res, 200, listConfigAccounts(accountDirs(), path.join(usageHome, '.claude')));
+    if (m === 'GET' && p === '/api/accounts') return json(res, 200, await accountSnapshot(url.searchParams.get('refresh') === '1'));
+    if (m === 'POST' && /^\/api\/accounts\/(login|logout|new)$/.test(p)) {
+      const action = p.slice('/api/accounts/'.length) as 'login' | 'logout' | 'new';
+      const body = await readBody(req);
+      if (action === 'new') {
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        if (!/^[a-z0-9-]{1,32}$/.test(name)) throw new StoreError(400, tr('ac.auth.nameInvalid'));
+        if (process.platform !== 'win32') throw new StoreError(501, tr('ac.auth.consoleUnsupported'));
+        const dir = path.join(usageHome, `.claude-${name}`);
+        try { fs.lstatSync(dir); throw new StoreError(409, tr('ac.auth.exists')); }
+        catch (error) {
+          if (error instanceof StoreError) throw error;
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        const primary = path.join(usageHome, '.claude');
+        const shareProjects = listConfigAccounts(machineAccountDirs(), primary).shared;
+        fs.mkdirSync(dir);
+        try {
+          if (shareProjects) {
+            const plan = planShare([primary, dir], primary, true);
+            applyShare(plan, primary);
+          }
+          await openAccountAuthConsole(dir, 'login');
+          return json(res, 200, { done: true, dir });
+        } catch (error) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          if (error instanceof StoreError) throw error;
+          throw new StoreError(500, tr('ac.auth.shareFailed', { reason: error instanceof Error ? error.message : String(error) }));
+        }
+      }
+      const dir = accountConfigDir(body.dir);
+      if (!dir) throw new StoreError(400, tr('ac.auth.unknownAccount'));
+      if (action === 'logout' && body.confirm !== true) return json(res, 200, { done: false, confirm: true });
+      await openAccountAuthConsole(dir, action);
+      return json(res, 200, { done: true });
+    }
+    // T3 (#274): chats grouped by their folder (junctions resolved, case-insensitive on Windows). Transcripts are
+    // counted, never opened. T1/T2 will also pass emailOf and holderOf here once those land.
+    if (m === 'GET' && p === '/api/workspaces') {
+      return json(res, 200, buildWorkspaces({
+        sessions: Object.values(store.state.sessions),
+        configDirs: [...new Set([path.join(usageHome, '.claude'), ...accountDirs()])],
+      }));
+    }
     if (m === 'POST' && p === '/api/accounts/share') {
       // Without confirm: only the plan. With it: refused while any claude runs (it may be writing in projects/).
       const b = await readBody(req), primary = path.join(usageHome, '.claude');
@@ -2741,7 +2870,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       if (running.length) return json(res, 409, { error: tr('sys.accounts.busy', { n: running.length }), running: running.map((pr) => pr.pid), plan });
       try { applyShare(plan, primary); } catch (e) { return json(res, 500, { error: (e as Error).message, plan }); }
       console.log(`[accounts] chats ${b.on !== false ? 'shared' : 'unshared'}: ${plan.map((a) => `${a.do} ${a.path ?? a.from}`).join('; ')}`);
-      return json(res, 200, { plan, done: true, ...listConfigAccounts(accountDirs(), primary) });
+      return json(res, 200, { plan, done: true, ...await accountSnapshot(true) });
     }
     // D3: start the hub at sign-in (off by default; on/off only with confirm from the UI)
     if (m === 'GET' && p === '/api/autostart') return json(res, 200, autostartState(opts.startupDir));

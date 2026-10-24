@@ -1240,6 +1240,7 @@ export const vi: Record<string, string> = {
   'ac.auth.new': 'Thêm tài khoản và đăng nhập',
   'ac.auth.loginStarted': 'Đã mở cửa sổ đăng nhập Claude. Hoàn tất ở đó rồi kiểm tra lại trạng thái.',
   'ac.auth.logoutConfirm': 'Mở cửa sổ đăng xuất Claude cho tài khoản này?',
+  'ac.auth.logoutConfirmButton': 'Mở cửa sổ đăng xuất',
   'ac.auth.logoutStarted': 'Đã mở cửa sổ đăng xuất Claude.',
   'ac.auth.nameInvalid': 'Tên tài khoản chỉ gồm 1–32 chữ thường, số hoặc dấu gạch ngang.',
   'ac.auth.exists': 'Thư mục tài khoản Claude này đã tồn tại.',

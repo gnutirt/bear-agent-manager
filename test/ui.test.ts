@@ -33,6 +33,32 @@ test('UI inline script compiles and the workers panel is wired (list, live updat
   } finally { await hub.close(); }
 });
 
+test('accounts UI exposes Claude auth status, refresh, login, logout confirmation and account creation', async () => {
+  const { hub } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const source of [
+      'data-account-refresh="${esc(a.dir)}"',
+      'data-account-login="${esc(a.dir)}"',
+      'data-account-logout="${esc(a.dir)}"',
+      'data-account-logout-confirm="${esc(a.dir)}"',
+      'id="accountNew"',
+      "api(`/api/accounts${refresh ? '?refresh=1' : ''}`)",
+      "api('/api/accounts/login'",
+      "api('/api/accounts/logout'",
+      "api('/api/accounts/new'",
+      'ac.auth.statusError',
+    ]) assert.ok(html.includes(source), `missing account auth UI wiring: ${source}`);
+    assert.ok(!/\bprompt\(|\balert\(|\bconfirm\(/.test(html), 'account actions use an inline confirmation, not browser dialogs');
+    for (const key of [
+      'ac.auth.statusError', 'ac.auth.refresh', 'ac.auth.login', 'ac.auth.logout',
+      'ac.auth.newPlaceholder', 'ac.auth.new', 'ac.auth.loginStarted', 'ac.auth.logoutConfirm',
+      'ac.auth.logoutConfirmButton', 'ac.auth.logoutStarted', 'ac.auth.nameInvalid', 'ac.auth.exists',
+      'ac.auth.unknownAccount', 'ac.auth.consoleUnsupported', 'ac.auth.consoleFailed', 'ac.auth.shareFailed',
+    ]) assert.ok(key in en && key in vi, `missing account auth translation ${key}`);
+  } finally { await hub.close(); }
+});
+
 test('chat links open a reusable isolated popup, while modifier clicks and VS Code use the default target', async () => {
   const { hub } = await makeHub();
   try {
@@ -1195,5 +1221,3 @@ test('#272 Tasks tab: auto-assign tier option in owner select and pool badge on 
     assert.ok(k in en, `en missing ${k}`);
   }
 });
-
-

@@ -1,16 +1,82 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 
 // D1 (docs/superpowers/specs/2026-10-19-ide-independence-design.md): the Claude accounts of this machine (one config dir
 // each, e.g. ~/.claude for VS Code and ~/.claude-antigravity for Antigravity) and whether they share their chats: the
 // second account's projects/ is a junction to the first one's, so a repo has one chat whatever the editor.
-// Login files are never read, copied or printed: only whether they exist.
+// Credentials are never read, copied or printed.
 
 export type Account = {
-  dir: string; label: string; exists: boolean; loggedIn: boolean;
+  dir: string; label: string; exists: boolean; loggedIn: boolean | null;
   projects: { exists: boolean; link: boolean; target: string };
 };
+export type ClaudeAuthStatus = {
+  loggedIn: boolean | null;
+  authMethod?: string;
+  email?: string;
+  subscriptionType?: string;
+  orgName?: string;
+  error?: string;
+};
 export type ShareAction = { do: 'rename' | 'link' | 'unlink'; from?: string; to?: string; path?: string };
+type AuthStatusExec = (
+  command: string,
+  args: string[],
+  options: { env: NodeJS.ProcessEnv; timeout: number; windowsHide: boolean; maxBuffer: number },
+  callback: (error: (Error & { killed?: boolean }) | null, stdout: string) => void,
+) => void;
+
+const AUTH_ENV_KEYS = new Set(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+export function authCommandEnv(configDir: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && !AUTH_ENV_KEYS.has(key.toUpperCase())) env[key] = value;
+  }
+  env.CLAUDE_CONFIG_DIR = configDir;
+  return env;
+}
+
+const authString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 200) : undefined;
+
+/** Copy only documented, non-secret fields from Claude CLI output. */
+export function publicAuthStatus(value: unknown): ClaudeAuthStatus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { loggedIn: null, error: 'invalid response' };
+  const raw = value as Record<string, unknown>;
+  return {
+    loggedIn: typeof raw.loggedIn === 'boolean' ? raw.loggedIn : null,
+    ...(authString(raw.authMethod) ? { authMethod: authString(raw.authMethod) } : {}),
+    ...(authString(raw.email) ? { email: authString(raw.email) } : {}),
+    ...(authString(raw.subscriptionType) ? { subscriptionType: authString(raw.subscriptionType) } : {}),
+    ...(authString(raw.orgName) ? { orgName: authString(raw.orgName) } : {}),
+  };
+}
+
+/** Runs the read-only auth status command; stdout/stderr are never logged or returned raw. */
+export function claudeAuthStatus(configDir: string, run: AuthStatusExec = (command, args, options, callback) => {
+  execFile(command, args, options, callback);
+}): Promise<ClaudeAuthStatus> {
+  return new Promise((resolve) => {
+    const command = process.platform === 'win32' ? 'cmd.exe' : 'claude';
+    const args = process.platform === 'win32'
+      ? ['/d', '/s', '/c', 'claude auth status --json']
+      : ['auth', 'status', '--json'];
+    run(command, args, {
+      env: authCommandEnv(configDir),
+      timeout: 10_000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    }, (error, stdout) => {
+      if (error && (error.killed || !stdout)) {
+        resolve({ loggedIn: null, error: error.killed ? 'timed out' : 'could not run claude auth status' });
+        return;
+      }
+      try { resolve(publicAuthStatus(JSON.parse(stdout))); }
+      catch { resolve({ loggedIn: null, error: 'invalid response from claude auth status' }); }
+    });
+  });
+}
 
 const real = (p: string) => { try { return fs.realpathSync.native(p); } catch { return ''; } };
 const same = (a: string, b: string) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -32,7 +98,7 @@ export function describeAccount(dir: string): Account {
   const link = isLink(proj);
   return {
     dir, label: path.basename(dir).replace(/^\./, '') || dir, exists: fs.existsSync(dir),
-    loggedIn: fs.existsSync(path.join(dir, '.credentials.json')),   // existence only
+    loggedIn: null,
     projects: { exists: fs.existsSync(proj), link, target: link ? real(proj) : '' },
   };
 }

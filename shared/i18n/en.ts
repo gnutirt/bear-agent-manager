@@ -1240,6 +1240,7 @@ export const en: Record<string, string> = {
   'ac.auth.new': 'Add account & sign in',
   'ac.auth.loginStarted': 'Claude sign-in console opened. Finish there, then check status again.',
   'ac.auth.logoutConfirm': 'Open a Claude sign-out console for this account?',
+  'ac.auth.logoutConfirmButton': 'Open sign-out console',
   'ac.auth.logoutStarted': 'Claude sign-out console opened.',
   'ac.auth.nameInvalid': 'Use 1–32 lowercase letters, numbers, or hyphens for the account name.',
   'ac.auth.exists': 'That Claude account folder already exists.',
