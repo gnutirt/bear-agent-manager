@@ -542,7 +542,9 @@ header .spacer{flex:1}
 #menu .mem .macts{display:flex;gap:6px;flex:none}
 #menu .item.mem{flex-wrap:wrap}
 #menu .mcard .mhd{cursor:pointer;border-radius:10px}#menu .mcard .mhd::after{content:'›';margin-left:auto;color:var(--mute);font-size:12px}
-#menu .mcard .mbody[hidden]{display:none}
+#menu .mcard .mbody[hidden]{display:none}#menu .item.mem.mcard[hidden]{display:none}
+#menu .msearch{display:block;width:100%;margin:6px 0 2px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:transparent;color:inherit}
+#menu .mcard .mout{margin-left:auto;flex:none;padding:2px 6px}#menu .mcard .mhd:has(.mout)::after{margin-left:6px}
 #menu .mcard.open{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,transparent);box-shadow:0 0 0 1px var(--accent)}
 #menu .item.mem.mcard{display:block;border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin:8px 0;background:color-mix(in srgb,var(--text) 2%,transparent)}
 #menu .mcard .mhd{display:flex;align-items:center;gap:12px}
@@ -1424,13 +1426,14 @@ function agentKindBadge(s) {
 }
 function membersMenu(anchor) {
   const ms = members(S.current);
-  openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length ? ms.map((s) => `
-    <div class="item mem mcard ${s.status}">
-      <div class="mhd" data-mpop="${esc(s.id)}" tabindex="0" role="button" aria-haspopup="dialog">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${agentKindBadge(s)}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span></div>
+  openMenu(anchor, `<div class="mhead"><b>${t('members.title')}</b><span>#${esc(S.current)} · ${ms.length}</span></div>` + (ms.length > 1 ? `<input type="search" class="msearch" data-agent-search="#menu" autocomplete="off" placeholder="${esc(t('agent.search'))}" aria-label="${esc(t('agent.search'))}">` : '') + (ms.length ? ms.map((s) => `
+    <div class="item mem mcard ${s.status}" data-q="${esc(s.name)}">
+      <div class="mhd" data-mpop="${esc(s.id)}" tabindex="0" role="button" aria-haspopup="dialog">${avatar(s.id, s.status, 'sm')}<span class="mi"><span class="mn"><b data-name="${esc(s.name)}">${esc(s.name)}</b>${isLead(s.id) ? STAR : ''}${s.ide ? `<span class="ide ${s.ide}">${IDE[s.ide]}</span>` : ''}${agentKindBadge(s)}${ctxBadge(s)}</span><small><span class="st st-${s.status}">${LABEL[s.status]}</span>${s.activity && s.status === 'busy' ? ' ' + esc(s.activity) : ''}</small></span><button type="button" class="btn sm mout" data-out="${esc(s.id)}" title="${t('members.out')}" aria-label="${t('members.outAria', { name: esc(s.name) })}">${I.out}</button></div>
     </div>`).join('')
     : `<div class="label">${t('members.none')}</div>`) + `<div class="mfoot"><button class="btn sm" data-openlead title="${t('members.openLeadTip')}">${t('members.openLead')}</button></div>`, (m) => {
     m.querySelector('[data-openlead]').onclick = () => api(`/api/rooms/${enc(S.current)}/open-lead`, {}).then(() => { closeMenu(); toast(t('members.openedLead')); }, (e) => toast(e.message));
-    m.querySelectorAll('[data-mpop]').forEach((h) => { h.onclick = (e) => { if (!e.target.closest('[data-name]')) memberPopup(h.dataset.mpop); }; h.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); memberPopup(h.dataset.mpop); } }; });
+    m.querySelectorAll('[data-out]').forEach((b) => b.onclick = () => api(`/api/rooms/${enc(S.current)}/leave`, { sessionId: b.dataset.out }).then(() => { b.closest('.mcard').remove(); toast(t('members.removed')); }, (e) => toast(e.message)));
+    m.querySelectorAll('[data-mpop]').forEach((h) => { h.onclick = (e) => { if (!e.target.closest('[data-name],[data-out]')) memberPopup(h.dataset.mpop); }; h.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); memberPopup(h.dataset.mpop); } }; });
   });
 }
 
