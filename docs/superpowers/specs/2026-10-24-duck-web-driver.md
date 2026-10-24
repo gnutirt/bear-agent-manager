@@ -49,8 +49,8 @@ type Site = { name: string; isUrl(u: string): boolean; isLogin?(u: string): bool
 - Thêm một bước kiểm chống bot cho DUCK. Nếu trang có challenge/captcha (iframe hoặc chữ "verify you are human" / "unusual traffic") thì ném `WebChatError('needs-user', …)`: dừng ngay, không click gì thêm. **Hộp điều khoản lần đầu của duck.ai thì driver tự bấm đồng ý** (user cho phép 24/10, note [91]), chỉ đúng nút đồng ý của hộp đó; selector đo trong W2.
 
 ### 3.2 Chrome nào
-Driver nhận `Cdp`. Hub tạo **một** `Cdp` trỏ vào Chrome của hub, cổng `settings.browser.port` (lấy từ `BrowserHost`, hiện là 9333), rồi dùng chung cho Duck và Muse.
-- ❓ Lead quyết: có chuyển Muse sang :9333 luôn không. Hiện :9222 không chạy nên Muse trong hub đang hỏng. Chuyển thì user phải đăng nhập muse.ai một lần trong Chrome của hub.
+Driver nhận `Cdp`. Hub tạo **một** `Cdp` trỏ vào Chrome của hub, cổng `settings.browser.port` (lấy từ `BrowserHost`, hiện là 9333), dùng cho Duck. **User chốt 24/10: Duck chỉ chạy trong trình duyệt ẩn của BAM** (BrowserHost, `--headless=new`, hub/browser.ts), không bao giờ dùng Chrome thường của user.
+- Muse: user chốt 24/10 là KHÔNG đụng, vì Muse cần đăng nhập. Muse giữ nguyên :9222; W6 bị huỷ.
 - Server MCP `mcp/muse.ts` (dùng từ tab) có thể giữ :9222 làm mặc định, hoặc đọc cùng cổng đó.
 
 ### 3.3 Duck dùng driver
@@ -91,7 +91,7 @@ UI:
 | W3 | Hub: một `Cdp` theo `settings.browser.port`; `duckTurn` dùng driver: `flatten()`, chat mới mỗi lượt, bỏ `summarizeOldest` qua API; `GET /api/duck/status` | hub/duck.ts, hub/server.ts, test/duck.test.ts | test duck: nhớ/quên/xoá giữ nguyên; prompt ≤ 8000 và có câu hỏi; lỗi needs-user báo @you 1 lần |
 | W4 | Gỡ Duck2api: duckhost, settings.duck, field profile, route, applyDuck, kiểm exePath #255 | hub/duckhost.ts (xoá), hub/settings.ts, hub/server.ts, tests | full `npm test` xanh; settings cũ có `duck.exePath`/`baseUrl` vẫn load |
 | W5 | UI "+ Agent › Duck" như Muse + gỡ phần Duck2api trong Cài đặt + i18n | ui/index.html, shared/i18n/*, test/ui.test.ts | ui.test xanh; frontend chụp 1440/390 |
-| W6 | ✅ lead duyệt 24/10: Muse dùng Chrome của hub (:9333) | hub/server.ts, mcp/muse.ts | Muse trả lời qua :9333 |
+| W6 | ❌ huỷ (user 24/10): Muse không đụng | hub/server.ts, mcp/muse.ts | Muse trả lời qua :9333 |
 
 Thứ tự: W1 → W2 → W3 → W4 → W5. W6 làm sau khi lead quyết. Audit: core-improve audit W1–W4, frontend audit W5.
 
