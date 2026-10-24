@@ -814,7 +814,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .setbox p.note{display:block}.setbox .pf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .cprofiles{display:grid;gap:8px;margin:10px 0}.cprofile{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}.cprofile .mono{overflow-wrap:anywhere}.cprofile .pf{justify-content:flex-start}.cprofile-new{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.cprofile-new input:not([type=checkbox]){min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.cprofile-new .inline{display:flex;align-items:center;gap:7px}.cprofile-new .btn{justify-self:end}@media(max-width:600px){.cprofile-new{grid-template-columns:1fr}.cprofile-new .btn{justify-self:stretch}}
 .cprofile-new .duck-setup{grid-column:1/-1}
-.agy-install-command{min-width:0;overflow-wrap:anywhere}.agy-new{grid-template-columns:1fr}.agy-new label{display:grid;gap:4px}.agy-new select{min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.agy-new .row{display:flex;gap:8px;justify-content:flex-end}
+.agy-install-command{min-width:0;overflow-wrap:anywhere}.duck-opt{display:grid;gap:4px;font-size:13px}.qhelp{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--line);border-radius:50%;font-size:11px;color:var(--mute);cursor:help}.agy-new{grid-template-columns:1fr}.agy-new label{display:grid;gap:4px}.agy-new select{min-width:0;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}.agy-new .row{display:flex;gap:8px;justify-content:flex-end}
 .pcard input.warn{border-color:#F5A524}.pcard input.warn::placeholder{color:#B7791F}
 .skfind{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
 .skfind .search{flex:1;margin:0}
@@ -4294,12 +4294,12 @@ function renderAgentDialog() {
         <li>${t('agent.spawn.duckStep2')} <button type="button" class="btn sm" data-agent-goto="accounts">${t('agent.spawn.openAccounts')}</button></li>
         <li>${t('agent.spawn.duckStep3')}</li>
       </ol></div>`}
-      <label class="inline"><input name="useHubDuck2api" type="checkbox">${t('agents.duck.useHub')}</label>
-      <div data-duck-custom-source><input name="baseUrl" type="url" placeholder="https://api.example.com/v1" aria-label="${t('agents.duck.baseUrl')}" spellcheck="false"></div>
-      <input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('agents.duck.model')}" aria-label="${t('agents.duck.model')}" spellcheck="false">
-      <input name="timeoutMs" type="number" min="5000" max="300000" step="1000" value="60000" aria-label="${t('agents.duck.timeout')}">
+      <label class="inline"><input name="useHubDuck2api" type="checkbox"${S.duckHost?.running ? ' checked' : ''}>${t('agents.duck.useHub')}</label>
       <label class="inline"><input name="experimental" type="checkbox" required>${t('agents.duck.experimental')}</label>
-      <div data-duck-custom-source><input name="key" type="password" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"></div>
+      <div data-duck-custom-source><label class="duck-opt">${duckOpt('agents.duck.baseUrl', 'agents.duck.hint.baseUrl')}<input name="baseUrl" type="url" placeholder="https://api.example.com/v1" aria-label="${t('agents.duck.baseUrl')}" spellcheck="false"></label></div>
+      <label class="duck-opt">${duckOpt('agents.duck.model', 'agents.duck.hint.model')}<input name="model" maxlength="80" pattern="[\\w.:/-]{0,80}" placeholder="${t('common.default')}" aria-label="${t('agents.duck.model')}" spellcheck="false"></label>
+      <label class="duck-opt">${duckOpt('agents.duck.timeout', 'agents.duck.hint.timeout')}<input name="timeoutMs" type="number" min="5000" max="300000" step="1000" value="60000" aria-label="${t('agents.duck.timeout')}"></label>
+      <div data-duck-custom-source><label class="duck-opt">${duckOpt('agents.duck.key', 'agents.duck.hint.key')}<input name="key" type="password" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"></label></div>
       <p class="small muted note">${t('agents.duck.upstream')}</p>
       <p class="small pwarn" role="alert" data-duck-new-warning hidden>${t('agents.duck.notLocal')}</p>
       ${S.duckHost?.lastError ? `<p class="small bad" role="alert" data-duck-host-status>${esc(S.duckHost.lastError)}</p>` : S.duckHost?.running ? `<p class="small muted" role="status" data-duck-host-status>${esc(t('agents.duck.host.running', { endpoint: S.duckHost.endpoint }))}</p>` : ''}
@@ -4464,6 +4464,8 @@ function newProfileId(name, profiles) {
   for (let n = 2; profiles.some((p) => p.id.toLowerCase() === id); n++) id = `${base}-${n}`;
   return id;
 }
+// label + "(optional)" + a "?" whose hover/focus title explains the field
+const duckOpt = (label, hint) => `<span>${t(label)} <span class="muted">${t('common.optional')}</span> <span class="qhelp" tabindex="0" title="${esc(t(hint))}" aria-label="${esc(t(hint))}">?</span></span>`;
 async function submitAgentProfile(profile) {
   const current = S.settings?.agents?.profiles || [];
   if (current.length >= 16) return showAgentDialogError(t('ac.profile.limit'));
