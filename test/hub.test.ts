@@ -348,7 +348,7 @@ test('revive: a provider-only stale model is omitted and failures use this run o
   console.warn = (...args: unknown[]) => { warnings.push(args.join(' ')); };
   const h = await makeHub(undefined, (job: any) => {
     jobs.push(job);
-    job.onOutput?.('session-specific unrecognized_model\n');
+    job.onOutput?.('session-specific unrecognized_model\nsession-specific provider error\n');
     return 1;
   });
   try {
@@ -367,9 +367,9 @@ test('revive: a provider-only stale model is omitted and failures use this run o
     assert.equal(pending.wake, true);
     assert.equal(pending.messages[0].text, '@fw please resume');
     const messages = await h.call<any[]>('/api/rooms/proj/messages?after=0');
-    const failure = messages.find((m) => m.kind === 'system' && /unrecognized_model/.test(m.text));
+    const failure = messages.find((m) => m.kind === 'system' && /session-specific provider error/.test(m.text));
     assert.ok(failure);
-    assert.doesNotMatch(failure.text, /unrelated provider error/);
+    assert.doesNotMatch(failure.text, /unrecognized_model|unrelated provider error/);
   } finally { console.warn = warn; await h.hub.close(); }
 });
 
