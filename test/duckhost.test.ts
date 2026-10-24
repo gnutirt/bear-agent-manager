@@ -230,6 +230,8 @@ test('crashes trigger at most three restarts in ten minutes and rotate the auth 
 });
 
 test('GET /api/duck/host reports status without exposing the key', async () => {
+  const dir = temp(), exe = path.join(dir, 'duck2api.exe');
+  fs.writeFileSync(exe, '');
   let running = false, started = 0;
   const duck = {
     start: async () => { started++; running = true; return { endpoint: 'http://127.0.0.1:8080' }; },
@@ -241,12 +243,60 @@ test('GET /api/duck/host reports status without exposing the key', async () => {
   };
   const { hub, call } = await makeHub(undefined, undefined, { duck });
   try {
-    await call('/api/settings', { duck: { exePath: 'C:/tools/duck2api.exe', port: 8080 } }, { method: 'PUT' });
+    await call('/api/settings', { duck: { exePath: exe, port: 8080 } }, { method: 'PUT' });
     assert.equal(started, 1);
     const status = await call('/api/duck/host');
     assert.deepEqual(status, { configured: true, running: true, endpoint: 'http://127.0.0.1:8080', lastError: '' });
     assert.ok(!JSON.stringify(status).includes('must-not-leak'));
   } finally {
     await hub.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('PUT /api/settings rejects Duck2api directories and suggests their only executable', async () => {
+  const { hub, call } = await makeHub();
+  const dir = temp();
+  const bundle = path.join(dir, 'duck2api-2.1.7-windows-amd64');
+  const exe = path.join(bundle, 'duck2api.exe');
+  fs.mkdirSync(bundle);
+  fs.writeFileSync(exe, '');
+  try {
+    const send = (exePath: string) => fetch(`${hub.url}/api/settings`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-room-token': hub.token },
+      body: JSON.stringify({ duck: { exePath } }),
+    });
+    const onlyExe = await send(bundle);
+    assert.equal(onlyExe.status, 400);
+    const onlyExeError = await onlyExe.json() as any;
+    assert.match(onlyExeError.error, /không phải thư mục/);
+    assert.ok(onlyExeError.error.includes(exe));
+    assert.equal(onlyExeError.suggestedExePath, exe);
+    assert.equal((await call<any>('/api/settings')).duck.exePath, '');
+
+    const textFile = path.join(dir, 'not-duck.exe.txt');
+    fs.writeFileSync(textFile, '');
+    const invalidPaths = [
+      ...(process.platform === 'win32' ? [textFile] : []),
+      path.join(dir, 'missing.exe'),
+      'relative\\duck2api.exe',
+      '\\\\example.invalid\\share\\duck2api.exe',
+    ];
+    for (const exePath of invalidPaths) {
+      const invalid = await send(exePath);
+      assert.equal(invalid.status, 400, `${exePath} must be rejected`);
+      assert.equal((await invalid.json() as any).error, 'Hãy nhập đường dẫn tuyệt đối tới một file chạy được có thật trên máy này.');
+    }
+
+    fs.writeFileSync(path.join(bundle, 'duck2api-extra.exe'), '');
+    const multipleExes = await send(bundle);
+    assert.equal(multipleExes.status, 400);
+    const multipleError = await multipleExes.json() as any;
+    assert.match(multipleError.error, /không phải thư mục/);
+    assert.equal('suggestedExePath' in multipleError, false, 'only a single matching executable gets a suggestion');
+  } finally {
+    await hub.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

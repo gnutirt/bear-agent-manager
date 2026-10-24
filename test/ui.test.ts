@@ -408,7 +408,9 @@ test('Duck and Muse profiles share memory, expose explicit Muse saves and keep D
       'agents.duck.keyMissing', 'agents.duck.keyPlaceholder', 'agents.duck.keySave', 'agents.duck.keyClear',
       'agents.duck.check', 'agents.duck.checking', 'agents.duck.host.title', 'agents.duck.host.note',
       'agents.duck.host.exePath', 'agents.duck.host.port', 'agents.duck.host.save', 'agents.duck.host.release',
-      'agents.duck.host.running', 'agents.duck.host.stopped', 'agents.duck.historyRoom',
+      'agents.duck.host.running', 'agents.duck.host.stopped', 'agents.duck.host.exePathFolder',
+      'agents.duck.host.exePathInvalid', 'agents.duck.host.exePathFolderUnreadable',
+      'agents.duck.host.exePathSuggestion', 'agents.duck.host.error', 'agents.duck.historyRoom',
       'agents.duck.historyClear', 'agents.duck.historyCleared', 'agents.duck.sourceRequired',
       'agents.duck.experimentalRequired', 'agents.duck.enabled', 'agents.duck.disabled',
       'agents.duck.confirmOn', 'agents.duck.confirmOff',
@@ -555,6 +557,7 @@ test('#253 Duck + Agent explains setup and hides custom URL/key when using hub D
     'class="small pwarn duck-setup"',
     '.duck-setup{grid-column:1/-1}',
     "S.duckHost?.running ? `<p class=\"small muted\" role=\"status\" data-duck-host-status>",
+    "t('agents.duck.host.error', { why: S.duckHost.lastError })",
     "field.hidden = useHub.checked",
     "duckForm.querySelectorAll('[data-duck-custom-source]')",
   ]) assert.ok(html.includes(source), `missing Duck setup wiring: ${source}`);

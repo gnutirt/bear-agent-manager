@@ -2869,6 +2869,41 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (m === 'PUT' && p === '/api/settings') {
       const patch = await readBody(req);
       const current = loadSettings(opts.dir, envCap);
+      if (typeof patch?.duck?.exePath === 'string') {
+        const requestedExePath = patch.duck.exePath.trim();
+        if (requestedExePath) {
+          if (!path.isAbsolute(requestedExePath) || /^[\\/]{2}/.test(requestedExePath)) {
+            return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
+          }
+          const exePath = path.resolve(requestedExePath);
+          if (!fs.existsSync(exePath)) return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
+          const stat = fs.statSync(exePath);
+          if (stat.isDirectory()) {
+            let executables: fs.Dirent[];
+            try {
+              executables = fs.readdirSync(exePath, { withFileTypes: true })
+                .filter((entry) => entry.isFile() && /^duck2api.*\.exe$/i.test(entry.name));
+            } catch (error) {
+              const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+              if (code === 'EACCES' || code === 'EPERM') {
+                return json(res, 400, { error: tr('agents.duck.host.exePathFolderUnreadable') });
+              }
+              throw error;
+            }
+            const suggestedExePath = executables.length === 1 ? path.join(exePath, executables[0].name) : '';
+            const suggestion = suggestedExePath
+              ? tr('agents.duck.host.exePathSuggestion', { path: suggestedExePath })
+              : '';
+            return json(res, 400, {
+              error: tr('agents.duck.host.exePathFolder', { suggestion }),
+              ...(suggestedExePath ? { suggestedExePath } : {}),
+            });
+          }
+          if (!stat.isFile() || (process.platform === 'win32' && !/\.exe$/i.test(requestedExePath))) {
+            return json(res, 400, { error: tr('agents.duck.host.exePathInvalid') });
+          }
+        }
+      }
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'flowTiers')) {
         const members = Object.fromEntries(Object.keys(store.state.rooms).map((room) => [room, store.members(room).map((member) => member.name)]));
         const flowTierErrors = validateFlowTiers(patch.flowTiers, members);

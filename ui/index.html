@@ -4069,7 +4069,7 @@ function duckUrlIsLoopback(value) {
 }
 function duckHostBlock(st) {
   const cfg = st.duck || { exePath: '', port: 18080 }, host = S.duckHost;
-  const status = host?.lastError ? `<p class="small bad" role="alert">${esc(host.lastError)}</p>` : host?.running
+  const status = host?.lastError ? `<p class="small bad" role="alert">${esc(t('agents.duck.host.error', { why: host.lastError }))}</p>` : host?.running
     ? `<p class="small okt" role="status">${esc(t('agents.duck.host.running', { endpoint: host.endpoint }))}</p>`
     : `<p class="small muted" role="status">${t('agents.duck.host.stopped')}</p>`;
   return `<p class="small muted note">${t('agents.duck.host.note')} <a href="https://github.com/aurora-develop/Duck2api/releases" target="_blank" rel="noopener">${t('agents.duck.host.release')}</a></p>
@@ -4302,7 +4302,7 @@ function renderAgentDialog() {
       <div data-duck-custom-source><label class="duck-opt">${duckOpt('agents.duck.key', 'agents.duck.hint.key')}<input name="key" type="password" autocomplete="off" placeholder="${t('agents.duck.keyPlaceholder')}" aria-label="${t('agents.duck.key')}"></label></div>
       <p class="small muted note">${t('agents.duck.upstream')}</p>
       <p class="small pwarn" role="alert" data-duck-new-warning hidden>${t('agents.duck.notLocal')}</p>
-      ${S.duckHost?.lastError ? `<p class="small bad" role="alert" data-duck-host-status>${esc(S.duckHost.lastError)}</p>` : S.duckHost?.running ? `<p class="small muted" role="status" data-duck-host-status>${esc(t('agents.duck.host.running', { endpoint: S.duckHost.endpoint }))}</p>` : ''}
+      ${S.duckHost?.lastError ? `<p class="small bad" role="alert" data-duck-host-status>${esc(t('agents.duck.host.error', { why: S.duckHost.lastError }))}</p>` : S.duckHost?.running ? `<p class="small muted" role="status" data-duck-host-status>${esc(t('agents.duck.host.running', { endpoint: S.duckHost.endpoint }))}</p>` : ''}
       <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary">${t('agent.spawn.start')}</button></div>
     </form>`;
   } else if (!state.loading && state.kind === 'muse') {
