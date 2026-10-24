@@ -49,7 +49,6 @@ import * as mcpcfg from './mcpconfig.ts';
 import { apiEnv, apiPerm, claudeCliModel, findTranscript, isQuotaError, leanArgs, leanMcpConfig, pathGuard, remoteCanEdit } from './apiagent.ts';
 import { listDir, readFileView, gitView } from './files.ts';
 import { writeFileSafe, commitPaths, Conflict } from './filewrite.ts';
-import { log } from './log.ts';
 import { LiveChat, type LiveSpawn } from './livechat.ts';
 import { PermissionBroker } from './permissions.ts';
 import { countBackgroundWith, isBackground, spawnCompact, spawnRevive, stopRevive, type CompactJob, type ReviveJob } from './revive.ts';
