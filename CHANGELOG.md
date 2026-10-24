@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.0 - 2026-10-24
+
 - Add: Claude account management in BAM (#275–#278, #292, #300): inspect sign-in status per config directory, open isolated login/logout consoles, create accounts, view the account and session holder for each workspace, and safely move a session between BAM, an IDE tab and another account. Moves lock the session, wait for the old process to exit, skip compaction while moving and report when a move cannot safely continue. Needs hub restart.
 - Add: one structured hub log in `logs/`, with rotation, retention and shared secret redaction (#281, #291). Wake/revive, agent turns, compaction, settings, guard, IDE and provider activity now have structured log events; raw process output is stored per run under `logs/runs/`, and hooks retain a redacted fallback log when the hub is unavailable. Needs hub restart.
 - Add: authenticated log APIs and a live Log tab (#282–#285, #299): filter and inspect JSONL entries, follow new events, and download filtered entries as JSONL or text; raw run output can also be downloaded. Run-log reads are restricted to validated run-log filenames and redacted.
