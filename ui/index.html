@@ -4477,6 +4477,7 @@ function openAgentSettings(key) {
 function paintAgentSettings() {
   const a = agentCatalog().find((x) => x.key === S.agentOpen);
   if (!a) { S.agentOpen = undefined; zoom.hidden = true; zoom.innerHTML = ''; return; }
+  const isWebChat = a.kind === 'duck' || a.kind === 'muse';
   const st = S.settings || {}, rule = st.permissions?.perAgent?.[a.key] || { mode: null, allow: [], deny: [] };
   const ac = st.agentCompact?.[a.key] || { mode: 'auto' }, tools = st.reviveTools?.[a.key] || [], skills = Object.keys(st.agentSkills?.[a.key] || {}).length;
   const room = a.session?.room || S.current, tier = st.flowTiers?.[room]?.[a.key] || '';
@@ -4489,13 +4490,13 @@ function paintAgentSettings() {
       <label class="setrow"><span><b>${t('agent.model')}</b></span><input class="txtin" id="agentModelInput" list="modelList" value="${esc(agentModel(a))}" placeholder="${t('common.default')}" spellcheck="false"></label>
       <label class="setrow"><span><b>${t('agent.tier')}</b><small>${esc(room)}</small></span><select id="agentTier">${tierOpts}</select></label>
     </section>
-    <section class="mblk"><h4>${t('perm.title')}</h4>${permRadios(rule.mode, a.key, true)}${permLists(a.key, rule)}<p class="small muted">${t('perm.list.hint')}</p></section>
+    ${isWebChat ? '' : `<section class="mblk"><h4>${t('perm.title')}</h4>${permRadios(rule.mode, a.key, true)}${permLists(a.key, rule)}<p class="small muted">${t('perm.list.hint')}</p></section>
     <section class="mblk"><h4>${t('agent.blk.context')}</h4><div data-cagent="${esc(a.key)}"><label class="setrow"><span><b>${t('compact.col.mode')}</b></span><select data-cmode>${modeOpts}</select></label>
       <label class="setrow"><span><b>${t('compact.col.pct')}</b></span><input type="number" class="numin" data-cpct min="10" max="85" value="${ac.pct ?? ''}" placeholder="${t('common.default')}"></label>
       <label class="setrow"><span><b>${t('compact.col.wake')}</b></span><input type="checkbox" class="switch" data-cwake${ac.wakeCompact ? ' checked' : ''}></label>
-      <label class="setrow"><span><b>${t('compact.col.tools')}</b></span><input type="text" class="txtin" data-rtools value="${esc(tools.join(', '))}" placeholder="${t('worker.readOnly')}" spellcheck="false"></label></div></section>
+      <label class="setrow"><span><b>${t('compact.col.tools')}</b></span><input type="text" class="txtin" data-rtools value="${esc(tools.join(', '))}" placeholder="${t('worker.readOnly')}" spellcheck="false"></label></div></section>`}
     <section class="mblk"><h4>${t('members.blk.skill')}</h4><div class="mrow"><button type="button" class="btn sm" data-agent-skill>${t('agent.skill.count', { n: skills })}</button></div></section>
-    <section class="mblk"><h4>${t('agent.mcp')}</h4><div class="mrow"><button type="button" class="btn sm" data-agent-mcp${a.profile?.provider === 'claude-api' ? '' : ' disabled'}>${t('mcps.title')}</button><span class="small muted">${t('agent.browser')}</span></div></section>
+    ${isWebChat ? '' : `<section class="mblk"><h4>${t('agent.mcp')}</h4><div class="mrow"><button type="button" class="btn sm" data-agent-mcp${a.profile?.provider === 'claude-api' ? '' : ' disabled'}>${t('mcps.title')}</button><span class="small muted">${t('agent.browser')}</span></div></section>`}
     <section class="mblk"><h4>${t('agent.blk.activity')}</h4><p class="small muted">${esc(status)}${a.session?.ide ? ` · ${esc(a.session.ide)}` : ''}</p></section></div>`;
   const box = zoom.querySelector('.agent-settings');
   if (!box) return;

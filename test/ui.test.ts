@@ -1160,3 +1160,24 @@ test('#259 Flow live view: only current members (kick/add shows at once), stoppe
     'flowNodes(roomInfo, messages, live)',
   ]) assert.ok(html.includes(s), `missing #259 Flow wiring: ${s}`);
 });
+
+test('#271 Agent drawer: hides Claude-only blocks (permissions, context/compact, tools, MCP) for duck and muse', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  const script = scripts[0];
+  const paint = script.slice(script.indexOf('function paintAgentSettings()'), script.indexOf('function renderSettingsView()'));
+
+  // isWebChat predicate
+  assert.ok(paint.includes("const isWebChat = a.kind === 'duck' || a.kind === 'muse';"), 'isWebChat flag missing in paintAgentSettings');
+
+  // Verify the Claude-only blocks are guarded by isWebChat
+  assert.ok(paint.includes("${isWebChat ? '' : `<section class=\"mblk\"><h4>${t('perm.title')}</h4>"), 'permissions block not hidden for webchat');
+  assert.ok(paint.includes("${isWebChat ? '' : `<section class=\"mblk\"><h4>${t('agent.mcp')}</h4>"), 'mcp block not hidden for webchat');
+  assert.ok(paint.includes("${t('agent.blk.context')}</h4><div data-cagent="), 'context block missing');
+
+  // Basic, Skill, and Activity blocks remain unconditional
+  assert.ok(paint.includes("<section class=\"mblk\"><h4>${t('agent.blk.basic')}</h4>"), 'basic block missing');
+  assert.ok(paint.includes("<section class=\"mblk\"><h4>${t('members.blk.skill')}</h4>"), 'skill block missing');
+  assert.ok(paint.includes("<section class=\"mblk\"><h4>${t('agent.blk.activity')}</h4>"), 'activity block missing');
+});
+
