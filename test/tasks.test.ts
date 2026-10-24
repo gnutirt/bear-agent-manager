@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addTask, importTodo, listTasks, openTasksText, staleTasks, taskKpi, updateTask } from '../hub/tasks.ts';
+import { addTask, importTodo, listTasks, openTasksText, setTaskOwner, staleTasks, taskKpi, updateTask } from '../hub/tasks.ts';
 import { compactContext } from '../hub/compact.ts';
 import { callTool, type Api } from '../mcp/tools.ts';
 import { makeHub, until } from './helpers.ts';
@@ -37,6 +37,28 @@ test('tasks file: ids grow, fields are validated, filters, import skips done lin
   assert.ok(!listTasks(home, 'r').some((t) => t.id === 1));
   assert.match(fs.readFileSync(path.join(home, 'rooms', 'r', 'tasks-archive.jsonl'), 'utf8'), /Fix the thing/);
   assert.equal(addTask(home, 'r', { title: 'Sixth' }).id, 6);   // ids never reused
+});
+
+test('#265 T1: pool is a tier 1..9, null clears it, a lead-named owner clears it, the hub pick keeps it', () => {
+  const home = tmp();
+  const a = addTask(home, 'r', { title: 'Tier job', pool: 5 });
+  assert.equal(a.pool, 5); assert.equal(a.owner, undefined);
+  for (const bad of [0, 10, 2.5, 'five']) assert.throws(() => addTask(home, 'r', { title: 'x', pool: bad }), /pool must be a tier 1\.\.9/, String(bad));
+  assert.throws(() => updateTask(home, 'r', a.id, { pool: 11 }), /pool must be a tier 1\.\.9/);
+  assert.equal(updateTask(home, 'r', a.id, { pool: '9' }).task.pool, 9);
+  assert.equal(updateTask(home, 'r', a.id, { pool: null }).task.pool, undefined);   // null clears it
+  assert.equal(updateTask(home, 'r', a.id, { pool: '' }).task.pool, undefined);     // so does an empty value
+  // the hub's pick keeps the pool and stamps assignedAt; a named owner (lead) clears both
+  updateTask(home, 'r', a.id, { pool: 5 });
+  const picked = setTaskOwner(home, 'r', a.id, 'coder', 1000);
+  assert.deepEqual([picked.owner, picked.pool, picked.assignedAt], ['coder', 5, 1000]);
+  const named = updateTask(home, 'r', a.id, { owner: 'other' }).task;
+  assert.deepEqual([named.owner, named.pool, named.assignedAt], ['other', undefined, undefined]);
+  // the hub may also send the pool back in the same update to keep it
+  updateTask(home, 'r', a.id, { pool: 7 });
+  const kept = updateTask(home, 'r', a.id, { owner: 'coder', pool: 7, assignedAt: 2000 }).task;
+  assert.deepEqual([kept.owner, kept.pool, kept.assignedAt], ['coder', 7, 2000]);
+  assert.deepEqual(listTasks(home, 'r').map((t) => [t.id, t.owner, t.pool]), [[a.id, 'coder', 7]]);
 });
 
 test('compactContext puts the open tasks first', () => {

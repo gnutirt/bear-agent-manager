@@ -8,6 +8,10 @@ export const STATUSES = ['todo', 'doing', 'blocked', 'done'] as const;
 export type TaskStatus = (typeof STATUSES)[number];
 export type Task = {
   id: number; title: string; detail?: string; doneWhen?: string; fromMsg?: number; owner?: string;
+  /** #265: tier (1..9) the hub assigns from; owner stays empty until the hub picks a live member of that tier */
+  pool?: number;
+  /** #265: when the hub last picked an owner for a pooled task (round-robin tie-break; never a lead-named owner) */
+  assignedAt?: number;
   /** ids this task waits for: while one is not done the task is blocked; the hub moves it to todo when all are done */
   after?: number[];
   status: TaskStatus; createdAt: number; updatedAt: number; doneAt?: number; commit?: string; note?: string;
@@ -57,7 +61,7 @@ export function listTasks(home: string, room: string, q: { status?: string; owne
   return read(home, room).tasks.filter((t) => (!statuses.length || statuses.includes(t.status)) && (!owner || (t.owner ?? '').toLowerCase() === owner));
 }
 
-export type TaskInput = { title?: unknown; detail?: unknown; doneWhen?: unknown; fromMsg?: unknown; owner?: unknown; status?: unknown; note?: unknown; commit?: unknown; after?: unknown };
+export type TaskInput = { title?: unknown; detail?: unknown; doneWhen?: unknown; fromMsg?: unknown; owner?: unknown; status?: unknown; note?: unknown; commit?: unknown; after?: unknown; pool?: unknown; assignedAt?: unknown };
 
 /** Ids from an array or a "1, 2" string: positive integers, unique, not the task itself, at most 20. */
 function parseAfter(v: unknown, self: number): number[] {
@@ -82,7 +86,22 @@ function apply(t: Task, b: TaskInput, fresh: boolean): void {
   if (b.owner !== undefined) {
     const o = clip(b.owner, 32);
     if (o && !/^[A-Za-z0-9_-]+$/.test(o)) throw new StoreError(400, 'owner must be an agent name');
-    if (o) t.owner = o; else delete t.owner;
+    // #265: a lead naming a person stops the auto-assignment. The hub's own pick for a pooled task must send `pool`
+    // back in the same call (or use setTaskOwner below), otherwise the pool would be cleared here.
+    if (o) { t.owner = o; if (b.pool === undefined) { delete t.pool; delete t.assignedAt; } }
+    else delete t.owner;
+  }
+  if (b.pool !== undefined) {
+    if (b.pool === null || String(b.pool).trim() === '') { delete t.pool; delete t.assignedAt; }
+    else {
+      const n = Number(String(b.pool).trim());
+      if (!Number.isInteger(n) || n < 1 || n > 9) throw new StoreError(400, 'pool must be a tier 1..9');
+      t.pool = n;
+    }
+  }
+  if (b.assignedAt !== undefined) {
+    const a = Number(b.assignedAt);
+    if (Number.isInteger(a) && a > 0) t.assignedAt = a; else delete t.assignedAt;
   }
   if (b.commit !== undefined) {
     const c = clip(b.commit, 40);
@@ -135,6 +154,22 @@ export function updateTask(home: string, room: string, id: number, b: TaskInput)
   t.updatedAt = Date.now();
   write(home, room, f);
   return { task: t, before };
+}
+
+/**
+ * #265: the hub picked `owner` for a pooled task. Sets owner + assignedAt and KEEPS `pool`, so the hub can pick again
+ * if that owner later goes offline. A lead naming a person goes through updateTask({ owner }) instead, which clears it.
+ */
+export function setTaskOwner(home: string, room: string, id: number, owner: string, now = Date.now()): Task {
+  const f = read(home, room), t = f.tasks.find((x) => x.id === id);
+  if (!t) throw new StoreError(404, `task #${id} not found`);
+  const o = clip(owner, 32);
+  if (!o || !/^[A-Za-z0-9_-]+$/.test(o)) throw new StoreError(400, 'owner must be an agent name');
+  t.owner = o;
+  t.assignedAt = now;
+  t.updatedAt = now;
+  write(home, room, f);
+  return t;
 }
 
 export function deleteTask(home: string, room: string, id: number): void {
