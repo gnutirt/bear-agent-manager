@@ -181,6 +181,12 @@ export async function ask(
   if (q.length > MAX_PROMPT) throw new Err(`prompt is longer than ${MAX_PROMPT} characters`);
   const tab = await findTab(cdp, site), page = await cdp.attach(tab);
   try {
+    // 0. Navigate to new chat page if site defines newChatUrl
+    if (site.newChatUrl) {
+      await page.eval(`(()=>{if(window.location.href!==${JSON.stringify(site.newChatUrl)}||document.querySelectorAll('[data-testid=user-message],[data-activeresponse]').length>0){window.location.href=${JSON.stringify(site.newChatUrl)};}})()`);
+      await sleep(300);
+    }
+
     // 1. Bot challenge check: if present, throw immediately without clicking anything.
     if (site.js.botCheck && (await page.eval(site.js.botCheck))) {
       throw new WebChatError('needs-user');

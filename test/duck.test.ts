@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildMessages, duckTurn, loadAgentKeys, memoryCommand, saveAgentKey } from '../hub/duck.ts';
+import { buildMessages, duckTurn, flatten, loadAgentKeys, memoryCommand, saveAgentKey, summarizeOldest } from '../hub/duck.ts';
 import { historyFile, loadHistory, Memory, saveHistory } from '../hub/memory.ts';
 import type { Message } from '../hub/routing.ts';
+import type { Cdp, Page } from '../mcp/webchat-core.ts';
 import { makeHub, until } from './helpers.ts';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'duck-test-'));
@@ -39,6 +40,46 @@ test('Duck builds system, cited memories, summary, turns and new text in the req
     { role: 'assistant', content: 'old answer' },
     { role: 'user', content: 'new question' },
   ]);
+});
+
+test('Duck flatten formats system, memory, summary, history, and question within MAX_PROMPT', () => {
+  const prompt = flatten({
+    system: 'Custom system',
+    memories: [{
+      id: 5, kind: 'research', text: 'memory detail', tags: [], scope: 'room', room: 'room_a', source: 'muse',
+      createdAt: 1, updatedAt: 2, urls: ['https://example.com'],
+    }],
+    history: {
+      summary: 'Brief context',
+      turns: [
+        { role: 'user', text: 'turn 1 question', at: 1 },
+        { role: 'assistant', text: 'turn 1 answer', at: 2 },
+      ],
+    },
+    text: 'current question',
+  });
+  assert.ok(prompt.includes('[Hệ thống]\nCustom system'));
+  assert.ok(prompt.includes('[Bộ nhớ]\n[M5'));
+  assert.ok(prompt.includes('[Tóm tắt]\nBrief context'));
+  assert.ok(prompt.includes('[Lịch sử]\nNgười dùng: turn 1 question\nDuck: turn 1 answer'));
+  assert.ok(prompt.includes('[Câu hỏi]\ncurrent question'));
+  assert.ok(prompt.length <= 8000);
+
+  // Over budget: cuts oldest turns first
+  const longTurns = Array.from({ length: 20 }, (_, i) => ({
+    role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+    text: `turn ${i} content `.repeat(50),
+    at: i,
+  }));
+  const trimmed = flatten({
+    history: { summary: 'Summary', turns: longTurns },
+    text: 'my question',
+  });
+  assert.ok(trimmed.length <= 8000);
+  assert.ok(trimmed.includes('[Câu hỏi]\nmy question'));
+  // Most recent turns are kept, older ones dropped
+  assert.ok(trimmed.includes('turn 19 content'));
+  assert.ok(!trimmed.includes('turn 0 content'));
 });
 
 test('Duck remember stores room/project memories, but refuses secrets without saving them', async (t) => {
@@ -104,53 +145,129 @@ test('Duck sends a single tool-free request, cites relevant memory, and persists
   assert.notEqual(historyFile(home, 'duck-a', 'room_a'), historyFile(home, 'duck-a', 'room_b'));
 });
 
-test('Duck summarizes history over 12000 characters and retains the newest half', async (t) => {
-  const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
-  const memory = new Memory(home);
-  const history = { summary: '', turns: [
-    { role: 'user' as const, text: 'old '.repeat(1800), at: 1 },
-    { role: 'assistant' as const, text: 'old answer '.repeat(1200), at: 2 },
-    { role: 'user' as const, text: 'recent question', at: 3 },
-    { role: 'assistant' as const, text: 'recent answer', at: 4 },
-  ] };
-  const calls: any[] = [];
-  const fetcher = (async (_url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body));
-    calls.push(body);
-    return reply(completion(calls.length === 1 ? 'New answer' : 'Short summary'));
-  }) as typeof fetch;
-  const turn = duckTurn({ home, agentId: 'duck-a', project: 'p', memory, profile: () => ({ baseUrl: 'http://provider.test', model: 'm', timeoutMs: 5000 }), key: () => '', fetch: fetcher });
-  const { saveHistory } = await import('../hub/memory.ts');
-  saveHistory(home, 'duck-a', 'room_a', history);
-  await turn('sid', 'room_a', 'new message');
-  const result = loadHistory(home, 'duck-a', 'room_a');
-  assert.equal(calls.length, 2);
-  assert.match(calls[1].messages[0].content, /Tóm tắt/);
-  assert.equal(result.summary, 'Short summary');
-  assert.ok(result.turns.every((item) => item.text.length < 100));
-  assert.equal(result.turns.length, 3);
+test('Duck summarizes history over 12000 characters and retains the newest half without calling API', () => {
+  const history = {
+    summary: 'Initial summary',
+    turns: [
+      { role: 'user' as const, text: 'old question '.repeat(800), at: 1 },
+      { role: 'assistant' as const, text: 'old answer '.repeat(800), at: 2 },
+      { role: 'user' as const, text: 'recent question', at: 3 },
+      { role: 'assistant' as const, text: 'recent answer', at: 4 },
+    ],
+  };
+  summarizeOldest(history);
+  assert.equal(history.turns.length, 2);
+  assert.equal(history.turns[0].text, 'recent question');
+  assert.equal(history.turns[1].text, 'recent answer');
+  assert.match(history.summary, /Initial summary/);
+  assert.match(history.summary, /\(đã bỏ bớt lượt cũ\)/);
 });
 
-test('Duck drops old turns with a warning when history summarization fails', async (t) => {
+test('Duck driver: duckTurn calls duckAsk via Cdp, flattens prompt, and saves history without usage tokens', async (t) => {
   const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const memory = new Memory(home);
-  saveHistory(home, 'duck-a', 'room_a', { summary: '', turns: [
-    { role: 'user', text: 'old question '.repeat(800), at: 1 },
-    { role: 'assistant', text: 'old answer '.repeat(800), at: 2 },
-    { role: 'user', text: 'keep this question', at: 3 },
-    { role: 'assistant', text: 'keep this answer', at: 4 },
-  ] });
-  let calls = 0;
-  const fetcher = (async () => {
-    calls++;
-    return calls === 1 ? reply(completion('answer')) : reply('provider failure', 500);
-  }) as typeof fetch;
-  const turn = duckTurn({ home, agentId: 'duck-a', project: 'p', memory, profile: () => ({ baseUrl: 'http://provider.test', model: 'm', timeoutMs: 5000 }), key: () => '', fetch: fetcher });
-  await turn('sid', 'room_a', 'new message');
-  const result = loadHistory(home, 'duck-a', 'room_a');
-  assert.equal(calls, 2);
-  assert.match(result.summary, /không tóm tắt được/);
-  assert.ok(result.turns.every((item) => item.text.length < 100));
+  let askedPrompt = '';
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('Object.getOwnPropertyDescriptor')) {
+        askedPrompt = expr;
+        return true;
+      }
+      if (expr.includes('closest(\'form\')')) return true;
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      if (expr.includes('.length') && expr.startsWith('document')) return 0;
+      if (expr.includes('Stop generating')) {
+        return {
+          stop: false,
+          items: [
+            { role: 'user', text: 'question', hasCopy: false },
+            { role: 'assistant', text: 'Duck web answer', hasCopy: true },
+          ],
+        };
+      }
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+
+  let browserStarted = false;
+  const turn = duckTurn({
+    home,
+    agentId: 'duck-a',
+    project: 'project-a',
+    memory,
+    cdp: fakeCdp,
+    profile: () => ({ model: 'gpt-5.4-mini' }),
+    ensureBrowser: async () => { browserStarted = true; },
+  });
+
+  const res = await turn('sid', 'room_a', 'Tell me about duck web');
+  assert.equal(browserStarted, true, 'browser started before turn');
+  assert.equal(res.ok, true);
+  assert.equal(res.text, 'Duck web answer');
+  assert.equal(res.usage, undefined, 'no usage returned for webchat');
+  assert.ok(askedPrompt.includes('Tell me about duck web'));
+
+  const history = loadHistory(home, 'duck-a', 'room_a');
+  assert.equal(history.turns.length, 2);
+  assert.equal(history.turns[0].text, 'Tell me about duck web');
+  assert.equal(history.turns[1].text, 'Duck web answer');
+});
+
+test('Duck driver: needs-user bot challenge notifies @you once and returns error without retry', async (t) => {
+  const home = temp(); t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const memory = new Memory(home);
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('verify you are human')) return true; // bot challenge!
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+
+  let notifiedRoom = '';
+  const turn = duckTurn({
+    home,
+    agentId: 'duck-a',
+    project: 'project-a',
+    memory,
+    cdp: fakeCdp,
+    profile: () => ({ model: 'gpt-5.4-mini' }),
+    onNeedsUser: (room) => { notifiedRoom = room; },
+  });
+
+  const res = await turn('sid', 'room_test', 'question during challenge');
+  assert.equal(res.ok, false);
+  assert.equal(res.kind, 'needs-user');
+  assert.equal(notifiedRoom, 'room_test');
+  assert.match(res.error, /Duck cần bạn mở duck\.ai trong Chrome của hub và tự xử lý kiểm tra bot/);
+});
+
+test('GET /api/duck/status reports status from duckCdp', async (t) => {
+  const fakePage: Page = {
+    async eval(expr: string) {
+      if (expr.includes('textarea[name=user-prompt]')) return true;
+      return null;
+    },
+    close() {},
+  };
+  const fakeCdp: Cdp = {
+    async tabs() { return [{ type: 'page', url: 'https://duck.ai/chat', webSocketDebuggerUrl: 'ws://fake' }]; },
+    async attach() { return fakePage; },
+  };
+  const h = await makeHub(undefined, undefined, { duckCdp: fakeCdp });
+  t.after(async () => { await h.hub.close(); fs.rmSync(h.dir, { recursive: true, force: true }); });
+
+  const status = await h.call<any>('/api/duck/status');
+  assert.deepEqual(status, { chrome: true, loggedIn: true, busy: false });
 });
 
 test('Duck key API stores secrets privately and reports only hasKey; check-models uses the saved key', async (t) => {

@@ -4,6 +4,7 @@ import { renameRetry } from './atomic.ts';
 import { chatComplete, type ChatMsg, type ChatResult } from './chatapi.ts';
 import { isSecretText, loadHistory, saveHistory, type ChatHistory, type MemEntry, type Memory } from './memory.ts';
 import type { Message } from './routing.ts';
+import { duckAsk, WebChatError, MAX_PROMPT, type Cdp } from '../mcp/webchat-core.ts';
 
 export const DUCK_SYSTEM = `Bạn là Duck, trợ lý trò chuyện và tư vấn trong phòng. Bạn không thể hành động, chạy lệnh, dùng công cụ, truy cập tệp hay thay đổi hệ thống.
 Khi dùng một dòng bộ nhớ, hãy dẫn mã [M<id>] cùng nguồn, ngày; với nghiên cứu hãy nêu URL. Không có bằng chứng thì nói rõ đó là ý kiến hoặc suy luận.
@@ -48,6 +49,66 @@ export function buildMessages(o: { system: string; memories: MemEntry[]; history
   return messages;
 }
 
+export function flatten(o: {
+  system?: string;
+  memories?: MemEntry[];
+  history?: ChatHistory;
+  text: string;
+}): string {
+  const systemText = (o.system ?? DUCK_SYSTEM).trim();
+  const systemPart = `[Hệ thống]\n${systemText}`;
+
+  let memoryPart = '';
+  if (o.memories && o.memories.length) {
+    const lines = o.memories.map((entry) => {
+      const urls = entry.kind === 'research' ? entry.urls?.join(', ') : undefined;
+      return `[M${entry.id} ${entry.kind} · ${entry.source} · ${dateOf(entry)}${urls ? ` · ${urls}` : ''}] ${entry.text}`;
+    });
+    memoryPart = `\n\n[Bộ nhớ]\n${lines.join('\n')}`;
+  }
+
+  let summaryPart = '';
+  if (o.history && o.history.summary.trim()) {
+    summaryPart = `\n\n[Tóm tắt]\n${o.history.summary.trim()}`;
+  }
+
+  const query = o.text.trim();
+  const questionPart = `\n\n[Câu hỏi]\n${query}`;
+
+  const baseWithoutHistory = `${systemPart}${memoryPart}${summaryPart}${questionPart}`;
+  if (baseWithoutHistory.length > MAX_PROMPT) {
+    let trimmed = `${systemPart}${memoryPart}${questionPart}`;
+    if (trimmed.length > MAX_PROMPT) {
+      trimmed = `${systemPart}${questionPart}`;
+    }
+    if (trimmed.length > MAX_PROMPT) {
+      const head = `${systemPart}\n\n[Câu hỏi]\n`;
+      const available = Math.max(0, MAX_PROMPT - head.length);
+      const clipped = query.length > available ? `${query.slice(0, Math.max(0, available - 1))}…` : query;
+      return `${head}${clipped}`;
+    }
+    return trimmed;
+  }
+
+  const turns = o.history?.turns ?? [];
+  const turnLines: string[] = [];
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const t = turns[i];
+    const roleName = t.role === 'user' ? 'Người dùng' : 'Duck';
+    const line = `${roleName}: ${t.text}`;
+    const candidateLines = [line, ...turnLines];
+    const candidateHistory = `\n\n[Lịch sử]\n${candidateLines.join('\n')}`;
+    if (`${systemPart}${memoryPart}${summaryPart}${candidateHistory}${questionPart}`.length <= MAX_PROMPT) {
+      turnLines.unshift(line);
+    } else {
+      break;
+    }
+  }
+
+  const historyPart = turnLines.length ? `\n\n[Lịch sử]\n${turnLines.join('\n')}` : '';
+  return `${systemPart}${memoryPart}${summaryPart}${historyPart}${questionPart}`;
+}
+
 function errorText(result: Extract<ChatResult, { ok: false }>): string {
   switch (result.kind) {
     case 'timeout': return 'Duck hết thời gian chờ phản hồi.';
@@ -64,37 +125,15 @@ function historyLength(history: ChatHistory): number {
   return history.summary.length + history.turns.reduce((sum, turn) => sum + turn.text.length, 0);
 }
 
-async function summarizeOldest(o: {
-  history: ChatHistory;
-  model: string;
-  baseUrl: string;
-  key?: string;
-  timeoutMs: number;
-  fetch?: typeof fetch;
-}): Promise<void> {
-  if (historyLength(o.history) <= 12_000 || o.history.turns.length < 2) return;
-  const split = Math.max(1, Math.floor(o.history.turns.length / 2));
-  const old = o.history.turns.slice(0, split);
-  const recent = o.history.turns.slice(split);
-  const result = await chatComplete({
-    baseUrl: o.baseUrl,
-    key: o.key,
-    model: o.model,
-    timeoutMs: o.timeoutMs,
-    fetch: o.fetch,
-    messages: [
-      { role: 'system', content: 'Tóm tắt ngắn gọn các lượt cũ thành bối cảnh dùng lại trong hội thoại. Tối đa 2000 ký tự; không thêm dữ kiện.' },
-      ...(o.history.summary ? [{ role: 'system' as const, content: `Tóm tắt trước đó:\n${o.history.summary}` }] : []),
-      ...old.map((turn) => ({ role: turn.role, content: turn.text })),
-    ],
-  });
-  o.history.turns = recent;
-  if (result.ok && result.text.trim()) {
-    o.history.summary = result.text.trim().slice(0, 2000);
-    return;
-  }
-  const note = '(không tóm tắt được, đã bỏ bớt lượt cũ)';
-  o.history.summary = `${o.history.summary ? `${o.history.summary}\n` : ''}${note}`.slice(-2000);
+export function summarizeOldest(
+  input: ChatHistory | { history: ChatHistory; [key: string]: any }
+): void {
+  const history = 'turns' in input ? input : input.history;
+  if (historyLength(history) <= 12_000 || history.turns.length < 2) return;
+  const split = Math.max(1, Math.floor(history.turns.length / 2));
+  history.turns = history.turns.slice(split);
+  const note = '(đã bỏ bớt lượt cũ)';
+  history.summary = `${history.summary ? `${history.summary}\n` : ''}${note}`.slice(-2000);
 }
 
 const deleteConfirmation = (text: string): { all: boolean; ids: number[] } | null => {
@@ -106,16 +145,21 @@ const deleteConfirmation = (text: string): { all: boolean; ids: number[] } | nul
   return ids.length ? { all: false, ids } : null;
 };
 
-export function duckTurn(o: {
+export type DuckTurnOptions = {
   home: string;
   agentId: string;
   project: string;
   memory: Memory;
-  profile: () => { baseUrl: string; model: string; timeoutMs: number };
-  key: () => string;
+  profile: () => { baseUrl?: string; model: string; timeoutMs?: number; useHubDuck2api?: boolean };
+  key?: () => string;
   fetch?: typeof fetch;
   now?: () => number;
-}): (sid: string, room: string, text: string, batch?: Message[]) => Promise<DuckTurnResult> {
+  cdp?: Cdp;
+  ensureBrowser?: () => Promise<void>;
+  onNeedsUser?: (room: string) => void;
+};
+
+export function duckTurn(o: DuckTurnOptions): (sid: string, room: string, text: string, batch?: Message[]) => Promise<DuckTurnResult> {
   const pendingForget = new Map<string, number[]>();
   const now = o.now ?? Date.now;
   return async (sid, room, rawText, batch?: Message[]) => {
@@ -167,15 +211,54 @@ export function duckTurn(o: {
     }
 
     try {
+      if (o.ensureBrowser) {
+        await o.ensureBrowser();
+      }
       const profile = o.profile();
-      const key = o.key() || undefined;
       const history = loadHistory(o.home, o.agentId, room);
       const memories = o.memory.relevant(text, { room, project: o.project });
+
+      if (o.cdp) {
+        const prompt = flatten({ system: DUCK_SYSTEM, memories, history, text });
+        let answer = '';
+        try {
+          const timeoutS = Math.max(5, Math.min(Math.round((profile.timeoutMs ?? 60_000) / 1000), 900));
+          const result = await duckAsk(o.cdp, prompt, { timeoutS, model: profile.model, env: { now } });
+          answer = result.text.trim();
+          if (!answer) return { ok: false, text: '', error: 'Duck không có câu trả lời.', kind: 'empty' };
+          if (result.timedOut) answer += '\n\n[hết giờ]';
+        } catch (err: any) {
+          if (err instanceof WebChatError && err.message.includes('needs-user')) {
+            o.onNeedsUser?.(room);
+            return {
+              ok: false,
+              text: '',
+              error: '@you: Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý kiểm tra bot',
+              kind: 'needs-user',
+            };
+          }
+          return { ok: false, text: '', error: `Duck không xử lý được lượt này: ${err.message || err}`, kind: 'webchat' };
+        }
+
+        history.turns.push(
+          { role: 'user', text, at: now() },
+          { role: 'assistant', text: answer, at: now() },
+        );
+        summarizeOldest(history);
+        try {
+          saveHistory(o.home, o.agentId, room, history);
+        } catch (error) {
+          answer += `\n\n⚠️ không lưu được bộ nhớ: ${(error as Error).message}`;
+        }
+        return { ok: true, text: answer, error: '' };
+      }
+
+      const key = o.key?.() || undefined;
       const response = await chatComplete({
-        baseUrl: profile.baseUrl,
+        baseUrl: profile.baseUrl ?? '',
         key,
         model: profile.model,
-        timeoutMs: profile.timeoutMs,
+        timeoutMs: profile.timeoutMs ?? 60_000,
         fetch: o.fetch,
         messages: buildMessages({ system: DUCK_SYSTEM, memories, history, text }),
       });
@@ -184,7 +267,7 @@ export function duckTurn(o: {
         { role: 'user', text, at: now() },
         { role: 'assistant', text: response.text, at: now() },
       );
-      await summarizeOldest({ history, baseUrl: profile.baseUrl, key, model: profile.model, timeoutMs: profile.timeoutMs, fetch: o.fetch });
+      summarizeOldest(history);
       let answer = response.text;
       try {
         saveHistory(o.home, o.agentId, room, history);

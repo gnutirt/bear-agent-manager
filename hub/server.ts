@@ -66,6 +66,7 @@ import { HubMember, type MemberStatus } from './member.ts';
 import { museTurn } from './muse-member.ts';
 import { chromeCdp } from '../mcp/muse.ts';
 import { museStatus, type Cdp } from '../mcp/muse-core.ts';
+import { duckStatus } from '../mcp/webchat-core.ts';
 
 export type { ReviveJob };
 
@@ -220,6 +221,8 @@ export type HubOptions = {
   duckFetch?: typeof fetch;
   /** Muse browser automation (tests provide a fake Chrome DevTools client). */
   museCdp?: Cdp;
+  /** Duck browser automation (tests provide a fake Chrome DevTools client). */
+  duckCdp?: Cdp;
   kill?: (pid: number) => Promise<void>;
   /** Whether a pid is alive; a test fakes a kill that takes a few hundred ms to land (default pidAlive). */
   isAlive?: (pid: number) => boolean;
@@ -283,11 +286,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     return cliModel;
   };
   const batchMs = opts.batchMs ?? Number(process.env.BEAR_AGENT_BATCH_MS ?? 3000);
+  const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
   // First run on this machine: no settings.json and no room when the hub started (the "new machine" page shows itself once)
   const startedFresh = !fs.existsSync(path.join(opts.dir, 'settings.json')) && !fs.existsSync(path.join(opts.dir, 'state.json'));
   const store = new Store(opts.dir, opts.now);
   const memory = new Memory(opts.dir, opts.now);
   const museCdp = opts.museCdp ?? chromeCdp();
+  const duckCdp = opts.duckCdp ?? (opts.duckFetch ? undefined : chromeCdp(`http://127.0.0.1:${loadSettings(opts.dir, envCap).browser.port}`));
   const token = ensureToken(opts.dir);
   const waiters = new Map<string, Waiter>();
   const sse = new Set<http.ServerResponse>();
@@ -304,7 +309,6 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const listProcs = opts.listProcs ?? listProcesses;
   const killProc = opts.kill ?? killTree;
   const isAlive = opts.isAlive ?? pidAlive;
-  const envCap = Number(process.env.BEAR_AGENT_WORKER_CAP ?? 4);
   let applyBrowser: () => Promise<void> = async () => {};
   const browser = opts.browser === null ? undefined : opts.browser ?? new BrowserHost({
     dir: opts.dir,
@@ -628,6 +632,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             agentId: p.id,
             project: p.cwd,
             memory,
+            cdp: duckCdp,
+            ensureBrowser: async () => {
+              if (browser && !browser.running()) {
+                await browser.start();
+              }
+            },
+            onNeedsUser: (room) => {
+              store.postSystem(room, '@you: Duck cần bạn mở duck.ai trong Chrome của hub và tự xử lý kiểm tra bot', undefined, { type: 'error', level: 'error', agent: p.name });
+            },
             profile: () => {
               const current = copilotProfiles().find((x) => x.id === p.id) ?? p;
               return {
@@ -2270,6 +2283,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const busy = copilotProfiles().some((profile) =>
         profile.provider === 'muse' && copilots.get(profile.id)?.agent.snapshot().state === 'busy');
       return json(res, 200, await museStatus(museCdp, busy));
+    }
+    if (m === 'GET' && p === '/api/duck/status') {
+      const busy = copilotProfiles().some((profile) =>
+        profile.provider === 'duck' && copilots.get(profile.id)?.agent.snapshot().state === 'busy');
+      return json(res, 200, duckCdp ? await duckStatus(duckCdp, busy) : { chrome: false, loggedIn: false, busy });
     }
     if (m === 'GET' && p === '/api/duck/check') {
       const id = url.searchParams.get('id') ?? '';

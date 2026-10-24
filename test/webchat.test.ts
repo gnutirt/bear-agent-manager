@@ -55,6 +55,11 @@ function fakeDuckChrome(opts: {
         close() {},
         async eval(expr: string) {
           sent.push(expr);
+          // 0. New chat navigation
+          if (expr.includes('window.location.href')) {
+            items = [];
+            return true;
+          }
           // 1. Bot check
           if (expr.includes('verify you are human')) {
             return !!opts.botChallenge;
@@ -127,6 +132,7 @@ test('duckAsk: sends the prompt as data, waits for stream to finish, returns ans
   const set = c.sent.find((s) => s.includes('Object.getOwnPropertyDescriptor'))!;
   assert.ok(set.includes(JSON.stringify('Hello Duck, how are you?')), 'prompt is sent as JSON string');
   assert.ok(c.sent.some((s) => s.includes('closest(\'form\')')), 'submit button was clicked');
+  assert.ok(c.sent.some((s) => s.includes('window.location.href')), 'navigated to newChatUrl');
 });
 
 test('duckAsk: bot challenge stops immediately, throws needs-user, clicks nothing', async () => {

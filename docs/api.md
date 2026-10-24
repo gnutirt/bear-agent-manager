@@ -13,6 +13,7 @@
 | GET | `/api/browser` |  | có |
 | GET | `/api/duck/host` |  | có |
 | GET | `/api/muse/status` |  | có |
+| GET | `/api/duck/status` |  | có |
 | GET | `/api/duck/check` |  | có |
 | PUT | `/api/agents/:param/key` | `key` | có |
 | DELETE | `/api/duck/history` |  | có |
