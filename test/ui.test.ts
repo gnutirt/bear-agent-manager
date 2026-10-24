@@ -1120,3 +1120,20 @@ test('Office #215: labels avoid the floating HUD, dock and panel, sit beside the
   assert.ok(/@media\(max-width:760px\)\{[\s\S]*\.office \.tag \.nm\{max-width:min\(72vw,230px\)\}/.test(css), 'a phone caps the name pill width');
   assert.ok(/\.office \.tag \.chip\{max-width:72vw[^}]*text-overflow:ellipsis/.test(css), 'a long state chip is capped on a phone too');
 });
+
+test('#252 Flow: a profile agent with no tier starts at the bottom tier, and member DMs draw you↔agent edges', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const s of [
+    // (2) the default tier: bottom for a hub-run profile, middle for a tab agent
+    "const profiles = new Set((S.settings?.agents?.profiles || []).map((p) => normAgent(p.name)));",
+    'const def = profiles.has(normAgent(n.name)) ? tierCount : Math.floor(tierCount / 2) + 1;',
+    '|| def));',
+    // (4) the DMs of the room's members are loaded, merged as you↔agent edges and redrawn live
+    'const flowDms = (r) => S.rooms.filter((x) => x.dm && room(r)?.members?.includes(x.dm));',
+    'api(`/api/rooms/${enc(d.name)}/messages?limit=100`)',
+    "map((m) => ({ ...m, wake: m.fromId ? ['you'] : [d.dm] }))",
+    'messages = [...(S.flowMessages[r] || []), ...dmMsgs]',
+    'else if (S.flowRoom && flowDms(S.flowRoom).some((d) => d.name === m.room)) queueFlow();',
+  ]) assert.ok(html.includes(s), `missing #252 Flow wiring: ${s}`);
+  assert.ok(!html.includes('|| Math.floor(tierCount / 2) + 1));'), 'the tier default ignores profile agents again');
+});

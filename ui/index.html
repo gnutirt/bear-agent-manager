@@ -2034,6 +2034,7 @@ function connect() {
     const flowList = S.flowMessages[m.room];
     if (flowList && !flowList.some((x) => x.id === m.id)) flowList.push(m);
     if (m.room === S.flowRoom) { flowPulse(m); queueFlow(); if (S.tab === 'flow') announce(`${messageName(m)}: ${plain(m.text, 160)}`); }
+    else if (S.flowRoom && flowDms(S.flowRoom).some((d) => d.name === m.room)) queueFlow();   // #252: a DM of a member is a you↔agent edge
     const list = S.messages[m.room];
     if (list && S.around !== m.room && !list.some((x) => x.id === m.id)) { list.push(m); noteTopic(m); }   // while an old part of the room is shown, new messages wait for "back to latest"
     if (m.sys?.type === 'relay' && m.fromId) ensureDm(m.fromId);
@@ -2635,12 +2636,22 @@ function flowRoomName() {
     || (S.taskRoom && normal.some((x) => x.name === S.taskRoom) ? S.taskRoom : null)
     || normal[0]?.name || null;
 }
+/** #252: the DM rooms of the flow room's members; their messages are drawn as you↔agent edges on the room's graph. */
+const flowDms = (r) => S.rooms.filter((x) => x.dm && room(r)?.members?.includes(x.dm));
 function loadFlow() {
   const r = flowRoomName();
   if (!r) return renderFlow();
   S.flowRoom = r; S.flowMessages[r] ||= []; renderFlow();
   if (!S.settings && !S.flowSettingsPromise) {
     S.flowSettingsPromise = api('/api/settings').then((settings) => { S.settings = settings; }, (e) => { S.flowErr = e.message; }).finally(() => { S.flowSettingsPromise = null; renderFlow(); });
+  }
+  for (const d of flowDms(r)) if (!S.flowLoaded.has(d.name)) {
+    S.flowLoaded.add(d.name); S.flowMessages[d.name] ||= [];
+    api(`/api/rooms/${enc(d.name)}/messages?limit=100`).then((messages) => {
+      const live = S.flowMessages[d.name] || [], loaded = Array.isArray(messages) ? messages : [];
+      S.flowMessages[d.name] = [...loaded, ...live.filter((m) => !loaded.some((x) => x.id === m.id))];
+      queueFlow();
+    }, () => S.flowLoaded.delete(d.name));
   }
   if (S.flowLoaded.has(r) || S.flowLoading === r) return;
   S.flowLoading = r; S.flowErr = '';
@@ -2674,8 +2685,11 @@ function flowTierLayout(nodes, tiers) {
   const tierCount = Math.max(5, ...Object.values(tiers || {}).filter((n) => Number.isInteger(n) && n >= 1 && n <= 9));
   const TX = Array.from({ length: tierCount }, (_, i) => 8 + i * 184);
   const rows = Array.from({ length: tierCount }, () => []), assigned = new Map();
+  // #252: a hub-run profile agent (copilot/agy/duck/muse/api) with no tier yet starts at the bottom tier; a tab agent stays in the middle
+  const profiles = new Set((S.settings?.agents?.profiles || []).map((p) => normAgent(p.name)));
   for (const n of nodes) {
-    const t = n.id === 'you' ? 1 : Math.max(1, Math.min(tierCount, Number(tiers?.[n.name.trim().toLowerCase()]) || Math.floor(tierCount / 2) + 1));
+    const def = profiles.has(normAgent(n.name)) ? tierCount : Math.floor(tierCount / 2) + 1;
+    const t = n.id === 'you' ? 1 : Math.max(1, Math.min(tierCount, Number(tiers?.[n.name.trim().toLowerCase()]) || def));
     n.tier = t - 1; rows[t - 1].push(n); assigned.set(n.id, t);
   }
   rows.forEach((list) => list.sort((a, b) => Number(b.session?.status === 'busy') - Number(a.session?.status === 'busy') || a.name.localeCompare(b.name)));
@@ -2801,7 +2815,8 @@ function renderFlow() {
   if (!r) { el.innerHTML = `<div class="flow"><p class="flow-empty">${t('flow.noRooms')}</p></div>`; S.flowKey = ''; return; }
   S.flowRoom = r;
   const now = flowNow(), live = S.flowReplayAt === null, cursor = (S.flowReplayAt ?? now) / 1000;
-  const roomInfo = room(r), messages = (S.flowMessages[r] || []).filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
+  const dmMsgs = flowDms(r).flatMap((d) => (S.flowMessages[d.name] || []).map((m) => ({ ...m, wake: m.fromId ? ['you'] : [d.dm] })));
+  const roomInfo = room(r), messages = [...(S.flowMessages[r] || []), ...dmMsgs].filter((m) => m.ts / 1000 <= cursor && m.ts / 1000 >= cursor - 300 && m.kind !== 'system' && m.kind !== 'mirror');
   const nodes = flowNodes(roomInfo, messages), tiers = S.settings?.flowTiers?.[r] || {}, L = flowTierLayout(nodes, tiers), events = flowEvents(messages, nodes);
   S.flowPos = L.pos; S.flowLayout = L;
   const related = new Set();
