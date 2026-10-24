@@ -37,7 +37,7 @@ import { dueJobs, jobKey, jobPrompt, type AutoJob } from './autojobs.ts';
 import { activityFor, fixedRules, formatDelivery, RENAMED_KEY } from '../shared/format.ts';
 import { isSavedChat, readCompactMark, readLastAssistantText, readContextTokens, readModel, readTitle } from '../shared/transcript.ts';
 import { compactContext, compactDecision, kTokens, wantsWakeCompact } from './compact.ts';
-import { pidAlive, Store, StoreError, type Session, type Status } from './store.ts';
+import { pidAlive, Store, StoreError, type Ide, type ProcessInfo, type Session, type Status } from './store.ts';
 import type { Message, SysMeta } from './routing.ts';
 import { clearPrompt, leadLink, leadPrompt, openUrl, PENDING_MS, sameDir, tabLink } from './lead.ts';
 import { endedOnLimit, limitErrorMarker, accountKey, blockedUntil, planWakes, quotaResetFromTranscript } from './wake.ts';
@@ -142,6 +142,108 @@ export function publicSession(s: Session): PublicSession {
 }
 /** #177: claudes with a tab or terminal alive on one chat; two means the chat is open twice (VS Code: "still open somewhere else"). */
 export const tabCount = (pids: Session['pids'], alive: (pid: number) => boolean = pidAlive) => (pids ?? []).filter((x) => !x.headless && alive(x.pid)).length;
+
+export type HolderWhere = 'vscode' | 'antigravity' | 'cursor' | 'cli' | 'bam' | 'none';
+export type Holder = {
+  where: HolderWhere;
+  account: string;
+  pid?: number;
+  count: number;
+};
+
+function expandHome(p: string, home = os.homedir()): string {
+  if (!p) return '';
+  if (p === '~') return home;
+  if (p.startsWith('~/') || p.startsWith('~\\')) return path.join(home, p.slice(2));
+  return p;
+}
+
+function readJsonFile(p: string): any {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return undefined; }
+}
+
+export function accountEmail(cfg: string | undefined, home = os.homedir()): string {
+  if (!cfg) cfg = path.join(home, '.claude');
+  const full = expandHome(cfg, home);
+  const isDefault = path.resolve(full).toLowerCase() === path.resolve(home, '.claude').toLowerCase();
+  const files = isDefault
+    ? [path.join(home, '.claude.json'), path.join(full, '.claude.json')]
+    : [path.join(full, '.claude.json'), path.join(home, '.claude.json')];
+  for (const f of files) {
+    const e = readJsonFile(f)?.oauthAccount?.emailAddress;
+    if (e) return String(e);
+  }
+  return '';
+}
+
+export function formatHolderWhere(where: HolderWhere): string {
+  switch (where) {
+    case 'vscode': return 'tab VS Code';
+    case 'antigravity': return 'tab Antigravity';
+    case 'cursor': return 'tab Cursor';
+    case 'cli': return 'terminal';
+    case 'bam': return 'nền BAM';
+    default: return 'none';
+  }
+}
+
+export function holderErrorMessage(s: Session, h: Holder, home = os.homedir()): string {
+  const whereStr = formatHolderWhere(h.where);
+  const email = accountEmail(h.account, home);
+  const acctStr = email || (h.account ? path.basename(h.account) : '') || 'mặc định';
+  return `${s.name} đang chạy ở ${whereStr} (tài khoản ${acctStr})`;
+}
+
+export function holderOf(
+  s: Session,
+  aliveOrOpts: ((pid: number) => boolean) | { alive?: (pid: number) => boolean; reviving?: boolean; waiting?: boolean; liveChat?: boolean } = pidAlive,
+  extra?: { reviving?: boolean; waiting?: boolean; liveChat?: boolean }
+): Holder {
+  const alive = typeof aliveOrOpts === 'function' ? aliveOrOpts : (aliveOrOpts?.alive ?? pidAlive);
+  const opts = typeof aliveOrOpts === 'object' ? aliveOrOpts : (extra ?? {});
+
+  const pids = s.pids ?? [];
+  const living = pids.filter((p) => alive(p.pid));
+  if (s.pid && !pids.some((p) => p.pid === s.pid) && alive(s.pid)) {
+    living.push({ pid: s.pid, headless: false, ide: s.ide, configDir: s.configDir, at: s.lastSeen });
+  }
+
+  const seenPids = new Set<number>();
+  const uniqLiving: ProcessInfo[] = [];
+  for (const p of living) {
+    if (!seenPids.has(p.pid)) {
+      seenPids.add(p.pid);
+      uniqLiving.push(p);
+    }
+  }
+
+  const bgActive = uniqLiving.some((p) => p.headless);
+  const tabActive = uniqLiving.some((p) => !p.headless);
+
+  const extraBg = (opts.reviving || opts.liveChat) && !bgActive ? 1 : 0;
+  const extraTab = opts.waiting && !tabActive ? 1 : 0;
+  const count = uniqLiving.length + extraBg + extraTab;
+
+  if (count === 0) {
+    return { where: 'none', account: s.configDir ?? '', pid: undefined, count: 0 };
+  }
+
+  const tab = uniqLiving.find((p) => !p.headless) ?? (extraTab ? { pid: undefined, headless: false, ide: s.ide || 'vscode', configDir: s.configDir, at: Date.now() } : undefined);
+  const chosen = tab ?? uniqLiving[0] ?? { pid: undefined, headless: true, ide: undefined, configDir: s.configDir, at: Date.now() };
+
+  let where: HolderWhere;
+  if (chosen.headless) {
+    where = 'bam';
+  } else {
+    const ide = chosen.ide || s.ide || 'cli';
+    where = (['vscode', 'antigravity', 'cursor', 'cli'].includes(ide) ? ide : 'vscode') as HolderWhere;
+  }
+
+  const account = chosen.configDir ?? s.configDir ?? '';
+  const pid = chosen.pid;
+
+  return { where, account, pid, count };
+}
 
 function json(res: http.ServerResponse, code: number, data: unknown): void {
   if (res.writableEnded || res.destroyed) return;
@@ -1175,8 +1277,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   } });
   // `claude --resume` needs the saved conversation; helpers and unknown sessions have none.
   const hasTranscript = (s: Session) => !!s.transcript && fs.existsSync(s.transcript);
+  const sessionHolder = (s: Session) => holderOf(s, isAlive, {
+    reviving: reviving.has(s.id),
+    waiting: waiters.has(s.id),
+    liveChat: liveChat.has(s.id),
+  });
+  const sessionHolderError = (s: Session, h: Holder) => holderErrorMessage(s, h, opts.usageHome ?? os.homedir());
   /** B4: a live claude with a tab or terminal (any editor) holds the chat; the hub starts or opens nothing next to it. */
-  const tabHolds = (s: Session) => liveKinds(s.pids, isAlive).tab;
+  const tabHolds = (s: Session) => {
+    const h = sessionHolder(s);
+    return h.where !== 'none' && h.where !== 'bam';
+  };
   const tabOpened = new Map<string, number>();   // session -> last time the hub opened its tab
   const dupTold = new Set<string>();   // #177: sessions already told they are open in two tabs
   /** T-W: opens the tab of an offline member; the user presses Enter once. */
@@ -1192,7 +1303,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Only when Settings say so, only for a member nobody can resume in the background, at most every 10 minutes. */
   function autoOpenTab(sid: string) {
     const s = store.session(sid);
-    if (!loadSettings(opts.dir, envCap).openTabOnWake || apiProfileOf(s) || waiters.has(s.id) || tabHolds(s) || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
+    if (!loadSettings(opts.dir, envCap).openTabOnWake || apiProfileOf(s) || sessionHolder(s).count > 0 || Date.now() - (tabOpened.get(s.id) ?? 0) < 10 * 60_000) return;
     openTab(s);
   }
   /** T18c: role for the compact.thresholds fallback — lead of any room it's in, else member (has an IDE), else background (hub-created, no IDE). */
@@ -1233,8 +1344,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // A claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing this transcript; a
     // second `claude --resume` on the same session would give the JSONL two writers. The alias check matters: a turn
     // started before a clear/resume lives under the old id, and looking only at the new one started a twin agent.
-    if (reviving.has(s.id) || waiters.has(s.id) || bgRunning(s.id) || !hasTranscript(s)) return false;
-    if (tabHolds(s)) return false;   // B4: a claude of an editor (this one or the other) still holds the chat: a second one would write the same JSONL
+    const holder = sessionHolder(s);
+    if (holder.count > 0 || bgRunning(s.id) || !hasTranscript(s)) return false;
     // #246(c): the same cap the routes use for spawning applies to a wake. Queue it (true: it will run) rather than refuse:
     // the caller must not mark the chat ended or fall back to a tab, and the pending messages stay unread until it starts.
     if (countBackgroundWith(reviving) >= loadSettings(opts.dir, envCap).agents.maxBackground) { enqueueWake(s.id); return true; }
@@ -1363,21 +1474,22 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!cfg.compact.onTaskDone || !s || !hasTranscript(s) || liveChat.has(s.id)) return;
     const ctx = readContextTokens(s.transcript);
     if (!committedDone && (!cfg.compact.thresholds.enabled || !ctx || ctx < cfg.compact.thresholds[wakeRole(s)])) return;
-    if (committedDone && s.ide && (tabHolds(s) || waiters.has(s.id))) {
+    const holder = sessionHolder(s);
+    if (committedDone && s.ide && holder.count > 0) {
       try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ }
       return;
     }
-    if (reviving.has(s.id)) {
+    if (holder.where === 'bam') {
       if (!committedDone) compactAfter.set(s.id, [room, task]);
       return;
     }
-    if (waiters.has(s.id) || (!s.ended && s.status !== 'offline')) {
+    if (holder.count > 0 || (!s.ended && s.status !== 'offline')) {
       // an open tab is never killed for this (see the compact route): the person types /compact there
       if (!committedDone && s.ide) { try { broadcast('msg', postSys(room, tr('sys.compact.taskTab', { name: s.name, id: task.id, size: kTokens(ctx) }))); emitRoom(room); } catch { /* room gone */ } }
       return;
     }
     if (await dirtyUnlessForced(s, false).catch(() => true)) return;   // uncommitted own files: the owner commits first
-    if (reviving.has(s.id) || waiters.has(s.id)) return;   // woke while git ran
+    if (sessionHolder(s).count > 0) return;   // woke while git ran
     const api = apiProfileOf(s);
     let apiRun: ReturnType<typeof apiJob> | undefined;
     if (api) { try { apiRun = apiJob(api, cfg, s.id); } catch { return; } }
@@ -1394,7 +1506,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cfg = loadSettings(opts.dir, envCap);
     if (!cfg.compact.thresholds.enabled) return;
     for (const s of Object.values(store.state.sessions)) {
-      if (s.status !== 'offline' || !s.ended || !hasTranscript(s) || isConn(s.id) || tabHolds(s) || copilotHolding(s.id)) continue;
+      if (s.status !== 'offline' || !s.ended || !hasTranscript(s) || isConn(s.id) || sessionHolder(s).count > 0 || copilotHolding(s.id)) continue;
       const ctx = readContextTokens(s.transcript);
       if (!ctx || ctx <= cfg.compact.thresholds[wakeRole(s)]) continue;
       const api = apiProfileOf(s);
@@ -1406,7 +1518,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           continue;
         }
       }
-      if (isConn(s.id) || tabHolds(s)) continue;
+      if (isConn(s.id) || sessionHolder(s).count > 0) continue;
       reviving.add(s.id);
       void compactSaved(s, 0, apiRun).catch((error) => {
         console.error(`[compact] idle compact failed for ${s.id}:`, error);
@@ -2925,7 +3037,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       let s = store.register({ id: String(b.id ?? ''), cwd: String(b.cwd ?? ''), name: b.name, source: b.source, configDir: b.configDir !== undefined ? String(b.configDir) : undefined, transcript: b.transcript ? String(b.transcript) : undefined, ctx: Number(b.ctx) || undefined, pid: Number(b.pid) || undefined },
         (x) => waiters.has(x) || reviving.has(x) || bgRunning(x) || liveChat.has(x) || copilotAgents().some((c) => c.isRunning(x)));
       if (Number.isInteger(b.pid) && b.pid > 0) {
-        s.pids = [...(s.pids ?? []).filter((x) => x.pid !== b.pid && pidAlive(x.pid)), { pid: b.pid, headless: b.headless === true, at: Date.now() }].slice(-4);
+        const reqIde = b.ide ? (String(b.ide) as Ide) : undefined;
+        const procIde = reqIde || (b.headless === true ? undefined : (s.ide || undefined));
+        const procConfigDir = b.configDir !== undefined ? String(b.configDir) : (s.configDir || '');
+        s.pids = [
+          ...(s.pids ?? []).filter((x) => x.pid !== b.pid && isAlive(x.pid)),
+          {
+            pid: b.pid,
+            headless: b.headless === true,
+            ...(procIde ? { ide: procIde } : {}),
+            ...(procConfigDir ? { configDir: procConfigDir } : {}),
+            at: Date.now(),
+          },
+        ].slice(-4);
         store.save();
       }
       // #177: a second tab on the same chat: say it once (the hub never kills an editor's claude; the user closes one)
@@ -2989,9 +3113,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       if (m === 'POST' && action === 'revive') {
         const s = store.session(id);
-        if (waiters.has(s.id)) return json(res, 409, { error: `${s.name} is running; mention it instead` });
+        const holder = sessionHolder(s);
+        if (holder.count > 0) return json(res, 409, { error: sessionHolderError(s, holder) });
         if (!hasTranscript(s)) return json(res, 409, { error: `${s.name} has no saved conversation to resume` });
-        if (tabHolds(s)) return json(res, 409, { error: tr('sys.tab.holds', { name: s.name }) });
         return json(res, 200, { started: revive(s.id) });
       }
       if (m === 'POST' && action === 'open-tab') {
@@ -3001,7 +3125,8 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A tab the hub itself already reported deaf (C3: pid alive, no waiter, an @ stuck >10min) looks "online" by
         // status alone but cannot be reached by a mention; let the user's own "Mở lại" button through for it.
         const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
-        if ((waiters.has(s.id) || tabHolds(s) || (s.status !== 'offline' && !s.ended)) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
+        const holder = sessionHolder(s);
+        if (holder.count > 0 && !hasReportedPendingMessage) return json(res, 409, { error: sessionHolderError(s, holder) });
         if (Date.now() - (tabOpened.get(s.id) ?? 0) < 2 * 60_000) return json(res, 409, { error: `a tab of ${s.name} was opened less than 2 minutes ago: press Enter in it` });
         endBackground(s.id);   // never two claude processes on one session
         openTab(s);
@@ -3039,8 +3164,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const to = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.to ?? '')).toLowerCase());
         if (!to) throw new StoreError(400, 'to must be a Claude config dir of this machine');
         if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
-        if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
-        const tabOpen = tabHolds(s);
+        const holder = sessionHolder(s);
+        if (holder.where === 'bam') throw new StoreError(409, sessionHolderError(s, holder));
+        const tabOpen = holder.where !== 'none' && holder.where !== 'bam';
         if (tabOpen && (b.confirm !== true || b.continueInBam !== true)) return json(res, 409, { error: tr('sys.switch.tabConfirm'), confirm: true, tabOpen: true });
         if (!await switchSession(s, to, tr('sys.switch.byUser'), b.continueInBam === true)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s.name, pids: claudePids(s).join(', ') }) });
         return json(res, 200, { ok: true, configDir: to });
@@ -3057,21 +3183,23 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // Run /compact on the saved chat of a closed session in the background, then optionally wake it.
         const b = await readBody(req);
         const s = store.session(id);
-        if (reviving.has(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
+        const holder = sessionHolder(s);
+        if (holder.where === 'bam') throw new StoreError(409, sessionHolderError(s, holder));
         const dirty = await dirtyUnlessForced(s, b.force === true);
         if (dirty) return json(res, 409, dirty);
         const left = b.force === true ? (await worktreeState(s.cwd, { fresh: true })).dirty : 0;
-        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
         // An open tab is not killed to compact it (the editor shows "process exited with code 1" and the agent stays down):
         // type /compact in the tab, or pass closeTab to stop it first.
         let reopenTab = false;
-        if (!s.ended && s.status !== 'offline') {
-          if (b.closeTab !== true) return json(res, 409, { error: tr('sys.compact.tabOpen', { name: s.name }), tabOpen: true });
+        const tabOpen = holder.where !== 'none' && holder.where !== 'bam';
+        if (tabOpen || (!s.ended && s.status !== 'offline')) {
+          if (b.closeTab !== true) return json(res, 409, { error: sessionHolderError(s, holder), tabOpen: true });
           // An IDE tab dies with "exited with code 1" and is reopened after: the caller (the UI, never an agent) must confirm that.
           if (s.ide && b.confirm !== true) return json(res, 409, { error: tr('sys.compact.tabConfirm', { name: s.name }), tabOpen: true, confirm: true });
           if (!await terminateSession(s)) return json(res, 409, { error: tr('sys.terminate.stuck', { name: s.name, pids: claudePids(s).join(', ') }) });
           reopenTab = !!s.ide;
         }
+        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to compact`);
         const apiP = apiProfileOf(s);
         let apiRun: ReturnType<typeof apiJob> | undefined;
         if (apiP) { try { apiRun = apiJob(apiP, loadSettings(opts.dir, envCap), s.id); } catch (e) { throw new StoreError(409, (e as Error).message); } }
@@ -3099,9 +3227,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           return json(res, 200, { ok: true });
         }
         if (liveChat.has(s.id)) return json(res, 200, { running: true, started: false });
+        const holder = sessionHolder(s);
+        if (holder.count > 0 || isBackground(s.id)) throw new StoreError(409, sessionHolderError(s, holder));
         if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to continue`);
-        if (liveKinds(s.pids).tab || (waiters.has(s.id) && !waiters.get(s.id)!.headless)) throw new StoreError(409, `${s.name} is open in an editor tab: close the tab first (one chat lives in one place)`);
-        if (reviving.has(s.id) || isBackground(s.id)) throw new StoreError(409, `${s.name} is busy in the background`);
         if (copilotHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
         const cfg = loadSettings(opts.dir, envCap), model = cfg.agentModel[normAgent(s.name)];
         if (countBackgroundWith(reviving) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);
