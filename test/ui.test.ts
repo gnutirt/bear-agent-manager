@@ -284,7 +284,7 @@ test('UI tabs have their views', async () => {
   const { hub } = await makeHub();
   try {
     const html = await (await fetch(hub.url + '/')).text();
-    for (const t of ['rooms', 'workers', 'tokens', 'flow', 'office', 'skills', 'settings']) {
+    for (const t of ['rooms', 'workers', 'tokens', 'logs', 'flow', 'office', 'skills', 'settings']) {
       assert.ok(html.includes(`data-tab="${t}"`), `missing tab ${t}`);
       assert.ok(html.includes(`id="view-${t}"`), `missing view ${t}`);
     }
@@ -372,6 +372,32 @@ test('token tab: range, KPIs, stacked chart with a table view, Claude Pro usage 
   try {
     const html = await (await fetch(hub.url + '/')).text();
     for (const s of ['function renderTokensView', 'id="tkChart"', "'/api/tokens?days='", "'/api/claude-usage'", 'function claudeProBlock', 'id="cuRefresh"', 'function acctChip', 'Asia/Ho_Chi_Minh', "t('tokens.asTable')", '--c-free', '--c-paid']) assert.ok(html.includes(s), `missing ${s}`);
+  } finally { await hub.close(); }
+});
+
+test('Log tab: filters query GET /api/logs, a row opens its data, raw output loads, and SSE only feeds the open tab', async () => {
+  const { hub, call } = await makeHub();
+  try {
+    const html = await (await fetch(hub.url + '/')).text();
+    for (const s of [
+      'data-tab="logs"', 'id="view-logs"', 'function renderLogPage()', 'function loadLogs()',
+      'data-log-${kind}="${esc(value)}"', 'data-log-range="${r}"',
+      'function logKeep(e)', "es.addEventListener('log'", "if (S.tab !== 'logs' || !S.logLive) return;",
+      'data-log-row="${esc(key)}"', 'aria-expanded="${open}"', 'data-log-run="${esc(e.runLog)}"',
+      "'/api/logs?' + logQuery()", "'/api/logs/run/' + encodeURIComponent(name)", "p.set('limit', '300')",
+      'function openAgentLog', 'data-log-agent="${esc(selected.name)}"', 'S.logs.length > 500',
+    ]) assert.ok(html.includes(s), `missing ${s}`);
+    assert.ok(html.indexOf("es.addEventListener('log'") > html.indexOf('function connect()'), 'the log line arrives on the existing SSE stream');
+    for (const key of [
+      'tab.logs', 'logs.title', 'logs.lede', 'logs.level', 'logs.area', 'logs.agent', 'logs.allAgents', 'logs.q',
+      'logs.range', 'logs.range.hour', 'logs.range.today', 'logs.range.week', 'logs.live', 'logs.refresh', 'logs.count',
+      'logs.empty', 'logs.error', 'logs.data', 'logs.runLog', 'logs.runTitle', 'logs.openFor',
+    ]) assert.ok(key in en && key in vi, `missing log translation ${key}`);
+    // the tab talks to the real route: newest-first list, q that matches nothing is empty, run names cannot escape logs/runs
+    assert.ok(Array.isArray(await call('/api/logs?limit=5')), 'GET /api/logs returns a list');
+    assert.deepEqual(await call('/api/logs?q=no-such-log-line-xyz'), []);
+    const bad = await fetch(hub.url + '/api/logs/run/' + encodeURIComponent('../state.json'), { headers: { 'x-room-token': hub.token } });
+    assert.equal(bad.status, 400, 'the UI can only ask for a run log, never another file');
   } finally { await hub.close(); }
 });
 
@@ -1220,4 +1246,83 @@ test('#272 Tasks tab: auto-assign tier option in owner select and pool badge on 
     assert.ok(k in vi, `vi missing ${k}`);
     assert.ok(k in en, `en missing ${k}`);
   }
+});
+
+test('#290 claude-api model picker: options with ctx and price, datalist per provider, warnings', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const k of ['ac.api.modelsLoading', 'ac.api.modelsFailed', 'ac.api.modelUnknown', 'ac.api.priceFree', 'ac.api.priceUnknown']) {
+    assert.ok(k in vi, `vi missing ${k}`);
+    assert.ok(k in en, `en missing ${k}`);
+  }
+
+  // T3 dialog elements and placeholder/warning wiring
+  for (const s of [
+    'list="agentSpawnModels"',
+    'id="agentSpawnModels"',
+    'id="agentSpawnModelsMsg"',
+    'id="agentSpawnModelWarn"',
+    'buildModelListOptions',
+    'formatModelOption',
+    'loadProviderModels',
+  ]) assert.ok(html.includes(s), `missing T3 wiring in ui/index.html: ${s}`);
+
+  // T4 drawer datalist per provider
+  assert.ok(html.includes('list="${a.profile?.provider === \'claude-api\' ? \'agentProviderModels\' : \'modelList\'}"'), 'drawer missing agentProviderModels for claude-api');
+  assert.ok(html.includes('id="agentProviderModels"'), 'drawer missing datalist agentProviderModels');
+  assert.ok(html.includes('id="agentModelWarn"'), 'drawer missing agentModelWarn');
+
+  // Verify formatModelOption and buildModelListOptions logic
+  const fnCtx = {
+    esc: (s: string) => s,
+    t: (k: string, p?: Record<string, string>) => {
+      let text = vi[k as keyof typeof vi] || k;
+      if (p) for (const [key, val] of Object.entries(p)) text = text.replace(`{${key}}`, val);
+      return text;
+    },
+  };
+  const code = html.slice(html.indexOf('function formatModelOption(m)'), html.indexOf('async function loadProviderModels'));
+  const runner = new Function('esc', 't', `
+    ${code}
+    return { formatModelOption, buildModelListOptions };
+  `)(fnCtx.esc, fnCtx.t);
+
+  const opt1 = runner.formatModelOption({
+    id: 'deepseek-flash',
+    ctx: 128000,
+    inPerM: 0.3,
+    outPerM: 1.2,
+    priceSrc: 'table',
+    source: 'api-docs.deepseek.com',
+    asOf: '2026-10-21',
+  });
+  assert.ok(opt1.includes('value="deepseek-flash"'));
+  assert.ok(opt1.includes('128k'));
+  assert.ok(opt1.includes('$0.30/$1.20'));
+  assert.ok(opt1.includes('title="2026-10-21 api-docs.deepseek.com"'));
+
+  const optFree = runner.formatModelOption({
+    id: 'free-chat',
+    ctx: 64000,
+    inPerM: 0,
+    outPerM: 0,
+    priceSrc: 'live',
+  });
+  assert.ok(optFree.includes('free-chat · 64k · free'));
+
+  const optNone = runner.formatModelOption({
+    id: 'ollama-llama',
+    priceSrc: 'none',
+  });
+  assert.ok(optNone.includes('ollama-llama · giá ?'));
+
+  // buildModelListOptions puts configured models first, then live models, deduplicated
+  const opts = runner.buildModelListOptions(
+    ['model-b', 'model-a'],
+    [
+      { id: 'model-a', ctx: 32000, inPerM: 1, outPerM: 2, priceSrc: 'live' },
+      { id: 'model-c', ctx: 64000, inPerM: 0.5, outPerM: 1, priceSrc: 'live' },
+    ]
+  );
+  const valMatches = [...opts.matchAll(/value="([^"]+)"/g)].map((m: any) => m[1]);
+  assert.deepEqual(valMatches, ['model-b', 'model-a', 'model-c']);
 });

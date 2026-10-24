@@ -800,6 +800,42 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 .seg button[aria-pressed=true]{background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .verr{margin:0 0 16px;padding:12px 14px;border-radius:12px;border:1px solid color-mix(in srgb,#E5484D 45%,var(--line));background:color-mix(in srgb,#E5484D 8%,var(--panel));font-size:13.5px}
 .vempty{padding:18px;border:1px dashed var(--line);border-radius:12px;color:var(--mute);font-size:13px}
+/* #285: Log tab — filters, a newest-first list coloured by level, and the data / raw-run detail */
+.logbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.logbar .lg-lab{font-size:12px;color:var(--mute);font-weight:600}
+.logchips{display:flex;flex-wrap:wrap;gap:4px}
+.logchip{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;color:var(--mute);background:var(--panel)}
+.logchip[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.logchip.lv-warn[aria-pressed=true]{border-color:#A16207;color:#A16207;background:color-mix(in srgb,#F5A524 12%,var(--panel))}
+.logchip.lv-error[aria-pressed=true]{border-color:#E5484D;color:#E5484D;background:color-mix(in srgb,#E5484D 10%,var(--panel))}
+.logareas{margin:0 0 10px}
+.logareas summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--mute)}
+.logareas .logchips{margin-top:6px}
+.loglist{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.logrow{display:grid;grid-template-columns:92px 58px 74px minmax(70px,130px) minmax(0,1fr);gap:10px;align-items:baseline;width:100%;padding:6px 12px;border-top:1px solid var(--line);text-align:left;font-size:12.5px}
+.logrow:first-child{border-top:0}
+.logrow:hover{background:var(--hover)}
+.logrow[aria-expanded=true]{background:var(--hover)}
+.logrow .lt{color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#logLive[aria-pressed=true]{border-color:#22C55E;color:#15803D}
+.logrow .ll{font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-radius:5px;padding:0 5px;text-align:center}
+.logrow .ll.info{color:#2563EB;background:color-mix(in srgb,#2563EB 12%,transparent)}
+.logrow .ll.debug{color:var(--mute);background:var(--hover)}
+.logrow .ll.warn{color:#A16207;background:color-mix(in srgb,#F5A524 18%,transparent)}
+.logrow .ll.error{color:#fff;background:#E5484D}
+.logrow .la,.logrow .lg{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.logrow .lm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logrow.warn{box-shadow:inset 3px 0 0 #F5A524}
+.logrow.error{box-shadow:inset 3px 0 0 #E5484D}
+:root[data-theme=dark] .logrow .ll.info{color:#93C5FD}
+:root[data-theme=dark] .logrow .ll.warn{color:#FBBF24}
+.logdetail{margin:0 0 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.logdetail h3{margin:10px 0 6px}
+.logdetail pre{margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;font-family:var(--mono);background:var(--bg);border-radius:8px;padding:10px 12px}
+.logdetail .logdhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
+.logdetail .logdhead b{color:var(--text)}
+#logQ{min-width:180px}
+@media(max-width:700px){.logrow{grid-template-columns:66px 52px minmax(0,1fr);gap:8px}.logrow .la,.logrow .lg{display:none}#logQ{flex:1 1 100%;min-width:0}}
 .btn.danger.armed,.btn.danger:hover{background:#E5484D;border-color:#E5484D;color:#fff}
 
 .kpis{display:flex;flex-wrap:wrap;gap:28px;margin:20px 0 4px}
@@ -977,6 +1013,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
   <button role="tab" data-tab="workers">Worker <span class="cap" id="tabWkCount"></span></button>
   <button role="tab" data-tab="folders" data-i18n="tab.folders">Thư mục</button>
   <button role="tab" data-tab="tokens" data-i18n="tab.usage">Usage</button>
+  <button role="tab" data-tab="logs" data-i18n="tab.logs">Log</button>
   <button role="tab" data-tab="flow" data-i18n="tab.flow">Flow</button>
   <button role="tab" data-tab="office" data-i18n="tab.office">Office</button>
   <button role="tab" data-tab="skills">Skill</button>
@@ -1025,6 +1062,7 @@ section.view{flex:1;min-height:0;overflow-y:auto;padding:22px 28px 48px}
 <section id="view-workers" class="view" hidden aria-label="Worker"></section>
 <section id="view-folders" class="view" hidden aria-label="Folders" data-i18n-aria="tab.folders"></section>
 <section id="view-tokens" class="view" hidden aria-label="Token"></section>
+<section id="view-logs" class="view" hidden aria-label="Log" data-i18n-aria="tab.logs"></section>
 <section id="view-flow" class="view" hidden aria-label="Luồng agent" data-i18n-aria="flow.title"></section>
 <section id="view-office" class="view" hidden aria-label="Office 3D"><div id="officeRoot"></div><div id="officeVer" role="group"><button type="button" data-v="1"></button><button type="button" data-v="0"></button></div></section>
 <section id="view-skills" class="view" hidden aria-label="Skill"></section>
@@ -2095,6 +2133,15 @@ function connect() {
     } else if (!(m.sys?.type === 'relay' && m.fromId && dmOf(m.fromId))) { S.unread[m.room] = (S.unread[m.room] || 0) + 1; renderRooms(); }
   });
   es.addEventListener('tasks', (e) => { const d = JSON.parse(e.data); S.tasks[d.room] = d.tasks || []; renderTasks(); renderRooms(); renderFlow(); });
+  es.addEventListener('log', (e) => {
+    // #285: only the open Log tab with "Trực tiếp" on takes the line; every other tab ignores it.
+    if (S.tab !== 'logs' || !S.logLive) return;
+    let entry; try { entry = JSON.parse(e.data); } catch { return; }
+    if (!entry || !logKeep(entry)) return;
+    S.logs.unshift(entry);
+    if (S.logs.length > 500) S.logs.length = 500;
+    renderLogList(true);
+  });
   es.addEventListener('console', (e) => {
     const d = JSON.parse(e.data), list = S.console[d.session]; if (!list) return;
     const i = list.findIndex((x) => x.id === d.id); if (i < 0) list.push(d); else list[i] = d;
@@ -2559,7 +2606,7 @@ $('resume').onclick = () => api(`/api/rooms/${enc(S.current)}/resume`, {}).catch
 $('menuBtn').onclick = $('tabsMenu').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
-const TABS = ['rooms', 'tasks', 'workers', 'folders', 'tokens', 'flow', 'office', 'skills', 'settings'];
+const TABS = ['rooms', 'tasks', 'workers', 'folders', 'tokens', 'logs', 'flow', 'office', 'skills', 'settings'];
 let officeAssetsPromise = null, officeStylePromise = null, officeInstance = null;
 const officeScriptLoads = new Map();
 function loadOfficeStylesheet() {
@@ -2659,7 +2706,7 @@ function showTab(name) {
   syncChatTabs();
   if (location.hash !== '#' + name && !location.hash.startsWith('#' + name + '/')) history.replaceState(null, '', location.pathname + location.search + '#' + name);
   try { localStorage.setItem('bear-agent-manager:tab', name); } catch {}
-  ({ tasks: () => loadTasks(), workers: loadWorkersView, folders: loadFoldersView, tokens: loadTokens, flow: loadFlow, office: openOffice, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
+  ({ tasks: () => loadTasks(), workers: loadWorkersView, folders: loadFoldersView, tokens: loadTokens, logs: () => { renderLogPage(); loadLogs(); }, flow: loadFlow, office: openOffice, skills: () => { loadSettingsView(); loadSkillLib(); }, settings: loadSettingsView })[name]?.();
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 $('tabs').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const b = e.target.closest('[data-tab=dm]'); if (b) { e.preventDefault(); showTab('dm'); } } });
@@ -2897,7 +2944,7 @@ function renderFlow() {
     : `<button type="button" data-flow-task-open>${t('flow.taskAssign')}</button>`) : '';
   const status = sid ? flowStatusAt(selected, events, cursor, live) : 'idle';
   const info = sid
-    ? `<h2><i class="flow-swatch" style="background:${flowColor(sid)}"></i>${esc(selected.name)}</h2><div><span class="flow-pill" style="background:${FLOW_STATES[status][1]}">${t(FLOW_STATES[status][0])}</span>${roomInfo?.lead === sid ? ' ★' : ''}</div>${session?.activity ? `<p>${esc(session.activity)}</p>` : ''}${session?.ide ? `<p>${esc(IDE[session.ide] || session.ide)}</p>` : ''}${session?.limited?.until > now ? `<p>${t('flow.limited')}</p>` : ''}<label class="flow-tier-select">${t('flow.moveTier')}<select data-flow-tier-select aria-label="${esc(t('flow.moveTier'))}">${tierOptions}</select></label>${taskForm}<h3>${t('flow.partners')}</h3><ul>${[...partners.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([id,count])=>`<li><i class="flow-swatch" style="background:${flowColor(id)}"></i><b>${esc(nodeBy.get(id)?.name || id)}</b> · ${count}</li>`).join('') || `<li>${t('flow.noPartners')}</li>`}</ul><h3>${t('flow.recent')}</h3><ul class="flow-feed">${recent.map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1]===sid?e[2]:e[1])}"></i><b>${e[1]===sid?'→ '+(nodeBy.get(e[2])?.name||''):'← '+(nodeBy.get(e[1])?.name||'')}</b> ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul><h3>${t('flow.tasksTitle')}</h3><ul>${tasks.map((x) => `<li>${esc(x.title)} · ${t(`task.${x.status}`)}</li>`).join('') || `<li>${t('flow.noTasks')}</li>`}</ul>`
+    ? `<h2><i class="flow-swatch" style="background:${flowColor(sid)}"></i>${esc(selected.name)} <button type="button" class="btn" data-log-agent="${esc(selected.name)}" title="${esc(t('logs.openFor', { name: selected.name }))}">${t('tab.logs')}</button></h2><div><span class="flow-pill" style="background:${FLOW_STATES[status][1]}">${t(FLOW_STATES[status][0])}</span>${roomInfo?.lead === sid ? ' ★' : ''}</div>${session?.activity ? `<p>${esc(session.activity)}</p>` : ''}${session?.ide ? `<p>${esc(IDE[session.ide] || session.ide)}</p>` : ''}${session?.limited?.until > now ? `<p>${t('flow.limited')}</p>` : ''}<label class="flow-tier-select">${t('flow.moveTier')}<select data-flow-tier-select aria-label="${esc(t('flow.moveTier'))}">${tierOptions}</select></label>${taskForm}<h3>${t('flow.partners')}</h3><ul>${[...partners.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([id,count])=>`<li><i class="flow-swatch" style="background:${flowColor(id)}"></i><b>${esc(nodeBy.get(id)?.name || id)}</b> · ${count}</li>`).join('') || `<li>${t('flow.noPartners')}</li>`}</ul><h3>${t('flow.recent')}</h3><ul class="flow-feed">${recent.map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1]===sid?e[2]:e[1])}"></i><b>${e[1]===sid?'→ '+(nodeBy.get(e[2])?.name||''):'← '+(nodeBy.get(e[1])?.name||'')}</b> ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul><h3>${t('flow.tasksTitle')}</h3><ul>${tasks.map((x) => `<li>${esc(x.title)} · ${t(`task.${x.status}`)}</li>`).join('') || `<li>${t('flow.noTasks')}</li>`}</ul>`
     : `<h2>${t('flow.justHappened')}</h2><ul class="flow-feed">${events.slice(-8).reverse().map((e) => `<li class="${cursor-e[0]<1.5?'new':''}"><i class="flow-swatch" style="background:${flowColor(e[1])}"></i><b>${esc(nodeBy.get(e[1])?.name || '')}</b> → ${esc(nodeBy.get(e[2])?.name || '')}: ${esc(flowShort(e[4],90))}</li>`).join('') || `<li>${t('flow.noMessages')}</li>`}</ul>`;
   const themeLabel = t(`flow.theme${S.flowTheme[0].toUpperCase()}${S.flowTheme.slice(1)}`);
   const seek = live ? 300000 : Math.max(0, Math.min(300000, S.flowReplayAt - (now - 300000)));
@@ -2961,6 +3008,8 @@ $('view-flow').addEventListener('click', (e) => {
   if (e.target.closest('[data-flow-task-cancel]')) { S.flowTaskForm = false; S.flowTaskDraft = null; renderFlow(); return; }
   const permission = e.target.closest('[data-flow-permission]');
   if (permission) { api(`/api/permissions/${enc(permission.dataset.flowPermission)}`, { allow: permission.dataset.allow === '1' }).then(() => permDone({ id: permission.dataset.flowPermission }), (err) => toast(err.message)); return; }
+  const logAgent = e.target.closest('[data-log-agent]');
+  if (logAgent) { openAgentLog(logAgent.dataset.logAgent); return; }
   const filter = e.target.closest('[data-flow-filter]');
   if (filter) { const id = filter.dataset.flowFilter; S.flowSelected = S.flowSelected === id ? null : id; renderFlow(); return; }
   const mark = e.target.closest('[data-flow-message]');
@@ -3285,6 +3334,180 @@ $('view-workers').addEventListener('click', (e) => {
   if (sw) armed(sw, t('rc.sweepAgain'), () => api('/api/room-chat/sweep', { apply: true }).then((r) => { S.swept = null; toast(t('rc.swept', { n: r.length })); loadWorkersView(); }, (err) => toast(err.message)));
 });
 
+/* ---------- Log tab (#285; spec docs/superpowers/specs/2026-10-24-bam-logging.md L5/T5) ---------- */
+// GET /api/logs answers newest-first; the SSE 'log' event adds one line while this tab is open and "Trực tiếp" is on.
+const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
+const LOG_AREAS = ['hub', 'wake', 'revive', 'compact', 'turn', 'provider', 'copilot', 'agy', 'browser', 'duck', 'hook', 'settings', 'ide', 'guard', 'account', 'task', 'mcp'];
+const LOG_RANGES = ['hour', 'today', 'week'];
+S.logs = []; S.logErr = ''; S.logOpenKey = null; S.logRun = null; S.logLive = true; S.logQTimer = null;
+S.logFilters = { level: [], area: [], agent: '', q: '', range: 'today' };
+try {
+  const saved = JSON.parse(localStorage.getItem('bear-agent-manager:logFilters') || 'null') || {};
+  S.logFilters = {
+    level: Array.isArray(saved.level) ? saved.level.filter((x) => LOG_LEVELS.includes(x)) : [],
+    area: Array.isArray(saved.area) ? saved.area.filter((x) => LOG_AREAS.includes(x)) : [],
+    agent: typeof saved.agent === 'string' ? saved.agent : '',
+    q: typeof saved.q === 'string' ? saved.q : '',
+    range: LOG_RANGES.includes(saved.range) ? saved.range : 'today',
+  };
+} catch {}
+function saveLogFilters() { try { localStorage.setItem('bear-agent-manager:logFilters', JSON.stringify(S.logFilters)); } catch {} }
+/** Start of the selected window: the current hour, local midnight, or 7 days back. */
+function logFrom() {
+  const now = Date.now();
+  if (S.logFilters.range === 'hour') return new Date(now - 3600_000);
+  if (S.logFilters.range === 'week') return new Date(now - 7 * 86_400_000);
+  const d = new Date(now); d.setHours(0, 0, 0, 0); return d;
+}
+const logKey = (e) => `${e.ts}|${e.level}|${e.area}|${e.msg}`;
+function logTime(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(+d)) return String(ts);
+  const today = d.toDateString() === new Date().toDateString();
+  return (today ? '' : d.toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' }) + ' ') + d.toLocaleTimeString(loc(), { hour12: false });
+}
+/** The same filters GET /api/logs applies, applied to a line that arrives over SSE. */
+function logKeep(e) {
+  const f = S.logFilters;
+  if (f.level.length && !f.level.includes(e.level)) return false;
+  if (f.area.length && !f.area.includes(e.area)) return false;
+  if (f.agent && String(e.agent || '').toLowerCase() !== f.agent.toLowerCase()) return false;
+  const from = logFrom().getTime();
+  if (Number.isFinite(from) && Date.parse(e.ts) < from) return false;
+  const q = f.q.trim().toLowerCase();
+  if (q) {
+    const hay = [e.msg, e.agent, e.sid, e.room, e.data === undefined ? '' : JSON.stringify(e.data)].map((x) => String(x || '').toLowerCase());
+    if (!hay.some((x) => x.includes(q))) return false;
+  }
+  return true;
+}
+function logQuery() {
+  const f = S.logFilters, p = new URLSearchParams();
+  if (f.level.length) p.set('level', f.level.join(','));
+  if (f.area.length) p.set('area', f.area.join(','));
+  if (f.agent) p.set('agent', f.agent);
+  if (f.q.trim()) p.set('q', f.q.trim());
+  p.set('from', logFrom().toISOString());
+  p.set('limit', '300');
+  return p.toString();
+}
+function logRowHtml(e) {
+  const key = logKey(e), open = key === S.logOpenKey;
+  return `<button type="button" class="logrow ${esc(e.level)}" data-log-row="${esc(key)}" aria-expanded="${open}"><span class="lt">${esc(logTime(e.ts))}</span><span class="ll ${esc(e.level)}">${esc(e.level)}</span><span class="la">${esc(e.area)}</span><span class="lg">${esc(e.agent || e.sid || '')}</span><span class="lm" title="${esc(e.msg)}">${esc(e.msg)}</span></button>`;
+}
+function logDetailHtml() {
+  const e = S.logs.find((x) => logKey(x) === S.logOpenKey);
+  if (!e) return '';
+  const run = S.logRun
+    ? `<h3>${esc(t('logs.runTitle', { name: S.logRun.name }))}</h3>${S.logRun.error ? `<p class="small" style="color:#E5484D">${esc(S.logRun.error)}</p>` : `<pre>${esc(S.logRun.text)}</pre>`}`
+    : '';
+  return `<div class="logdetail"><div class="logdhead"><b>${esc(e.area)}</b> · ${esc(e.ts)}${e.room ? ` · #${esc(e.room)}` : ''}${e.sid ? ` · ${esc(String(e.sid).slice(0, 8))}` : ''}${e.runLog ? ` <button type="button" class="btn" data-log-run="${esc(e.runLog)}">${t('logs.runLog')}</button>` : ''}<button type="button" class="btn" data-log-close>${t('common.close')}</button></div>${e.data !== undefined ? `<h3>${t('logs.data')}</h3><pre>${esc(JSON.stringify(e.data, null, 2))}</pre>` : ''}${run}</div>`;
+}
+function logPaintErr() {
+  const el = $('logErr');
+  if (!el) return;
+  el.hidden = !S.logErr;
+  el.textContent = S.logErr ? `${t('logs.error')} ${S.logErr}` : '';
+}
+/** The list, count and detail only: typing in the search box must not rebuild (and blur) the inputs. */
+function renderLogList(keepScroll = false) {
+  if (S.tab !== 'logs') return;
+  const list = $('logList');
+  if (!list) return renderLogPage();
+  const top = list.scrollTop, height = list.scrollHeight;
+  list.innerHTML = S.logs.length ? S.logs.map(logRowHtml).join('') : `<div class="vempty">${t('logs.empty')}</div>`;
+  if (keepScroll && top > 0) list.scrollTop = top + (list.scrollHeight - height);   // rows were added above: keep the same lines in view
+  const count = $('logCount');
+  if (count) count.textContent = t('logs.count', { n: S.logs.length });
+  const detail = $('logDetail');
+  if (detail) detail.innerHTML = logDetailHtml();
+  logPaintErr();
+}
+function renderLogPage() {
+  if (S.tab !== 'logs') return;
+  const f = S.logFilters;
+  const chip = (kind, value) => `<button type="button" class="logchip${kind === 'level' ? ' lv-' + value : ''}" data-log-${kind}="${esc(value)}" aria-pressed="${f[kind].includes(value)}">${esc(value)}</button>`;
+  const names = [...new Set(Object.values(S.sessions || {}).map((s) => s.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (f.agent && !names.includes(f.agent)) names.unshift(f.agent);   // a name that left the room still filters
+  $('view-logs').innerHTML = `<div class="vw">
+    <h1>${t('logs.title')}</h1><p class="lede">${t('logs.lede')}</p>
+    <div class="logbar">
+      <span class="lg-lab">${t('logs.level')}</span><span class="logchips">${LOG_LEVELS.map((l) => chip('level', l)).join('')}</span>
+      <span class="seg" role="group" aria-label="${esc(t('logs.range'))}">${[['hour', 'logs.range.hour'], ['today', 'logs.range.today'], ['week', 'logs.range.week']].map(([r, key]) => `<button type="button" data-log-range="${r}" aria-pressed="${f.range === r}">${t(key)}</button>`).join('')}</span>
+      <select id="logAgent" aria-label="${esc(t('logs.agent'))}"><option value="">${t('logs.allAgents')}</option>${names.map((n) => `<option${n === f.agent ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <input id="logQ" type="search" placeholder="${esc(t('logs.q'))}" value="${esc(f.q)}" aria-label="${esc(t('logs.q'))}">
+      <button type="button" class="btn" id="logLive" aria-pressed="${S.logLive}">${t('logs.live')}</button>
+      <button type="button" class="btn" id="logRefresh">${t('logs.refresh')}</button>
+    </div>
+    <details class="logareas"><summary>${esc(t('logs.area'))}${f.area.length ? ` (${f.area.length})` : ''}</summary><div class="logchips">${LOG_AREAS.map((a) => chip('area', a)).join('')}</div></details>
+    <p class="verr" id="logErr" hidden></p>
+    <p class="small muted" id="logCount">${esc(t('logs.count', { n: S.logs.length }))}</p>
+    <div id="logDetail"></div>
+    <div class="loglist" id="logList"></div>
+  </div>`;
+  renderLogList();
+}
+function loadLogs() {
+  if (S.tab !== 'logs') return;
+  api('/api/logs?' + logQuery()).then((rows) => {
+    S.logs = Array.isArray(rows) ? rows : []; S.logErr = '';
+    renderLogList();
+  }, (err) => { S.logErr = err.message; logPaintErr(); });
+}
+/** From an agent name in the Flow panel: open Log already filtered to that agent (spec L5). */
+function openAgentLog(name) {
+  S.logFilters.agent = name || ''; S.logFilters.q = '';
+  saveLogFilters();
+  showTab('logs');
+}
+$('view-logs').addEventListener('click', (e) => {
+  const lv = e.target.closest('[data-log-level]');
+  if (lv) {
+    const v = lv.dataset.logLevel, list = S.logFilters.level, i = list.indexOf(v);
+    if (i >= 0) list.splice(i, 1); else list.push(v);
+    lv.setAttribute('aria-pressed', String(i < 0)); saveLogFilters(); loadLogs(); return;
+  }
+  const ar = e.target.closest('[data-log-area]');
+  if (ar) {
+    const v = ar.dataset.logArea, list = S.logFilters.area, i = list.indexOf(v);
+    if (i >= 0) list.splice(i, 1); else list.push(v);
+    ar.setAttribute('aria-pressed', String(i < 0)); saveLogFilters();
+    const sum = document.querySelector('#view-logs .logareas summary');
+    if (sum) sum.textContent = `${t('logs.area')}${list.length ? ` (${list.length})` : ''}`;
+    loadLogs(); return;
+  }
+  const rg = e.target.closest('[data-log-range]');
+  if (rg) {
+    if (S.logFilters.range === rg.dataset.logRange) return;
+    S.logFilters.range = rg.dataset.logRange; saveLogFilters();
+    document.querySelectorAll('#view-logs [data-log-range]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.logRange === S.logFilters.range)));
+    loadLogs(); return;
+  }
+  if (e.target.closest('#logLive')) { S.logLive = !S.logLive; $('logLive').setAttribute('aria-pressed', String(S.logLive)); return; }
+  if (e.target.closest('#logRefresh')) { loadLogs(); return; }
+  if (e.target.closest('[data-log-close]')) { S.logOpenKey = null; S.logRun = null; renderLogList(); return; }
+  const run = e.target.closest('[data-log-run]');
+  if (run) {
+    const name = run.dataset.logRun;
+    S.logRun = { name, text: '' }; renderLogList();
+    fetch('/api/logs/run/' + encodeURIComponent(name), { headers: { accept: 'text/plain', 'x-room-token': TOKEN } })
+      .then((r) => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+      .then((text) => { S.logRun = { name, text }; renderLogList(); }, (err) => { S.logRun = { name, error: err.message }; renderLogList(); });
+    return;
+  }
+  const row = e.target.closest('[data-log-row]');
+  if (row) { const key = row.dataset.logRow; S.logOpenKey = S.logOpenKey === key ? null : key; S.logRun = null; renderLogList(); }
+});
+$('view-logs').addEventListener('change', (e) => {
+  if (e.target.id !== 'logAgent') return;
+  S.logFilters.agent = e.target.value; saveLogFilters(); loadLogs();
+});
+$('view-logs').addEventListener('input', (e) => {
+  if (e.target.id !== 'logQ') return;
+  S.logFilters.q = e.target.value; saveLogFilters();
+  clearTimeout(S.logQTimer);
+  S.logQTimer = setTimeout(loadLogs, 300);
+});
 /* ---------- Token tab ---------- */
 S.tkDays = 7; S.tokens = null;
 try { S.tkDays = Number(localStorage.getItem('bear-agent-manager:tkDays')) || 7; } catch {}
@@ -4190,6 +4413,54 @@ function showAgentDialogError(message) {
   if (!error) { error = document.createElement('p'); error.className = 'aspawn-error'; error.setAttribute('role', 'alert'); box.querySelector('h2')?.after(error); }
   error.textContent = message;
 }
+const providerModelsClientCache = new Map();
+function formatModelOption(m) {
+  const id = typeof m === 'string' ? m : m.id;
+  const ctx = typeof m === 'object' && m.ctx ? (m.ctx >= 1e6 ? (m.ctx / 1e6).toFixed(1) + 'M' : Math.round(m.ctx / 1e3) + 'k') : '';
+  let price = '';
+  if (typeof m === 'object') {
+    if (m.free || (m.inPerM === 0 && m.outPerM === 0)) price = t('ac.api.priceFree');
+    else if (m.priceSrc === 'none' || m.inPerM == null || m.outPerM == null) price = t('ac.api.priceUnknown');
+    else {
+      const inStr = (m.inPerM < 0.01 && m.inPerM > 0) ? m.inPerM.toFixed(3) : m.inPerM.toFixed(2);
+      const outStr = (m.outPerM < 0.01 && m.outPerM > 0) ? m.outPerM.toFixed(3) : m.outPerM.toFixed(2);
+      price = `$${inStr}/$${outStr}`;
+    }
+  }
+  const label = [id, ctx, price].filter(Boolean).join(' · ');
+  let title = '';
+  if (typeof m === 'object' && m.priceSrc === 'table') {
+    title = [m.asOf, m.source].filter(Boolean).join(' ');
+  }
+  return `<option value="${esc(id)}"${label && label !== id ? ` label="${esc(label)}"` : ''}${title ? ` title="${esc(title)}"` : ''}>${esc(label || id)}</option>`;
+}
+function buildModelListOptions(configured = [], models = []) {
+  const modelMap = new Map();
+  for (const m of models) if (m && m.id) modelMap.set(m.id, m);
+  const seen = new Set();
+  const ordered = [];
+  for (const cid of configured) {
+    if (!cid || seen.has(cid)) continue;
+    seen.add(cid);
+    ordered.push(modelMap.get(cid) || { id: cid, priceSrc: 'none' });
+  }
+  for (const m of models) {
+    if (!m || !m.id || seen.has(m.id)) continue;
+    seen.add(m.id);
+    ordered.push(m);
+  }
+  return ordered.map(formatModelOption).join('');
+}
+async function loadProviderModels(providerId, force = false) {
+  if (!providerId) return null;
+  if (!force && providerModelsClientCache.has(providerId)) {
+    return providerModelsClientCache.get(providerId);
+  }
+  const url = '/api/providers/' + enc(providerId) + '/models' + (force ? '?refresh=1' : '');
+  const res = await api(url);
+  providerModelsClientCache.set(providerId, res);
+  return res;
+}
 function renderAgentDialog() {
   const state = S.agentDialog;
   if (!state) return;
@@ -4234,6 +4505,7 @@ function renderAgentDialog() {
         <input name="cwd" required value="${esc(cwd)}" placeholder="${t('ac.profile.cwd')}" aria-label="${t('ac.profile.cwd')}" spellcheck="false">
         <select name="providerId" required aria-label="${t('ac.api.provider')}"><option value="">${t('ac.api.pickProvider')}</option>${providerOptions}</select>
         <input name="model" list="agentSpawnModels" maxlength="80" placeholder="${t('ac.api.model')}" aria-label="${t('ac.api.model')}" spellcheck="false"><datalist id="agentSpawnModels"></datalist>
+        <p class="small muted" id="agentSpawnModelsMsg" hidden></p><p class="small pwarn" id="agentSpawnModelWarn" hidden></p>
         <label class="inline"><input name="edit" type="checkbox">${t('ac.api.edit')}</label><p class="small muted">${t('agent.spawn.editNote')}</p>
         ${providerOptions ? '' : `<p class="small pwarn">${t('agent.spawn.needProvider')}</p><button type="button" class="btn sm" data-agent-goto="accounts">${t('agent.spawn.openAccounts')}</button>`}
         <div class="row"><button type="button" class="btn" data-agent-back>${t('agent.spawn.back')}</button><button class="btn primary"${providerOptions ? '' : ' disabled'}>${t('agent.spawn.start')}</button></div>
@@ -4349,20 +4621,90 @@ function renderAgentDialog() {
   });
   const apiForm = zoom.querySelector('[data-agent-api]');
   if (apiForm) {
-    const provider = apiForm.elements.namedItem('providerId'), edit = apiForm.elements.namedItem('edit'), modelList = zoom.querySelector('#agentSpawnModels');
+    const provider = apiForm.elements.namedItem('providerId'), edit = apiForm.elements.namedItem('edit');
+    const modelInput = apiForm.elements.namedItem('model'), modelList = zoom.querySelector('#agentSpawnModels');
+    const modelsMsg = zoom.querySelector('#agentSpawnModelsMsg'), modelWarn = zoom.querySelector('#agentSpawnModelWarn');
+    let currentReqId = 0;
+    const checkModelWarn = (data) => {
+      const val = modelInput.value.trim();
+      const p = providers.find((x) => x.id === provider.value);
+      if (data && data.source === 'live' && val) {
+        const known = (data.configured && data.configured.includes(val)) || (data.models && data.models.some((m) => m.id === val));
+        if (!known) {
+          if (modelWarn) {
+            modelWarn.textContent = t('ac.api.modelUnknown', { model: val, provider: p?.label || p?.id || '' });
+            modelWarn.hidden = false;
+          }
+          return;
+        }
+      }
+      if (modelWarn) modelWarn.hidden = true;
+    };
+    modelInput.addEventListener('input', () => {
+      const data = providerModelsClientCache.get(provider.value);
+      checkModelWarn(data);
+    });
     const syncApiOptions = () => {
       const p = providers.find((x) => x.id === provider.value), canEdit = p?.tier === 'local' || p?.tier === 'paid';
       edit.disabled = !canEdit; if (!canEdit) edit.checked = false;
-      const models = [...new Set([...(p?.models?.read || []), ...(edit.checked ? p?.models?.edit || [] : [])])];
-      modelList.innerHTML = models.map((m) => `<option value="${esc(m)}"></option>`).join('');
+      if (!p) {
+        modelList.innerHTML = '';
+        modelInput.placeholder = t('ac.api.model');
+        if (modelsMsg) modelsMsg.hidden = true;
+        if (modelWarn) modelWarn.hidden = true;
+        return;
+      }
+      const reqId = ++currentReqId;
+      if (modelsMsg) modelsMsg.hidden = true;
+      if (modelWarn) modelWarn.hidden = true;
+      const cached = providerModelsClientCache.get(p.id);
+      if (cached) {
+        modelList.innerHTML = buildModelListOptions(cached.configured, cached.models);
+        modelInput.placeholder = t('ac.api.model');
+        if (cached.source === 'config' && cached.error && modelsMsg) {
+          modelsMsg.textContent = t('ac.api.modelsFailed');
+          modelsMsg.hidden = false;
+        }
+        checkModelWarn(cached);
+        return;
+      }
+      modelInput.placeholder = t('ac.api.modelsLoading');
+      loadProviderModels(p.id).then((data) => {
+        if (reqId !== currentReqId || !apiForm.isConnected) return;
+        modelInput.placeholder = t('ac.api.model');
+        if (!data || (data.source === 'config' && data.error)) {
+          if (modelsMsg) { modelsMsg.textContent = t('ac.api.modelsFailed'); modelsMsg.hidden = false; }
+        }
+        if (data) {
+          modelList.innerHTML = buildModelListOptions(data.configured, data.models);
+          checkModelWarn(data);
+        }
+      }).catch(() => {
+        if (reqId !== currentReqId || !apiForm.isConnected) return;
+        modelInput.placeholder = t('ac.api.model');
+        if (modelsMsg) { modelsMsg.textContent = t('ac.api.modelsFailed'); modelsMsg.hidden = false; }
+      });
     };
-    provider.addEventListener('change', syncApiOptions); edit.addEventListener('change', syncApiOptions); syncApiOptions();
+    provider.addEventListener('change', syncApiOptions);
+    edit.addEventListener('change', () => {
+      const p = providers.find((x) => x.id === provider.value), canEdit = p?.tier === 'local' || p?.tier === 'paid';
+      edit.disabled = !canEdit; if (!canEdit) edit.checked = false;
+    });
+    syncApiOptions();
     apiForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const f = e.currentTarget, get = (name) => f.elements.namedItem(name).value.trim();
       const name = get('name'), id = newProfileId(name, profiles), cwd = get('cwd'), providerId = get('providerId'), model = get('model'), p = providers.find((x) => x.id === providerId);
       if (!/^[\w.-]{1,40}$/.test(name) || !/^(?:[A-Za-z]:[\\/]|\/(?!\/))/.test(cwd) || !p || (model && !/^[\w.:\/-]{1,80}$/.test(model))) return showAgentDialogError(t('ac.profile.invalid'));
       if (edit.checked && p.tier === 'free') return showAgentDialogError(t('agent.spawn.editNote'));
+      const cached = providerModelsClientCache.get(providerId);
+      if (cached && cached.source === 'live' && model) {
+        const known = (cached.configured && cached.configured.includes(model)) || (cached.models && cached.models.some((m) => m.id === model));
+        if (!known && modelWarn) {
+          modelWarn.textContent = t('ac.api.modelUnknown', { model, provider: p.label || p.id });
+          modelWarn.hidden = false;
+        }
+      }
       submitAgentProfile({ id, provider: 'claude-api', name, cwd, providerId, ...(model ? { model } : {}), ...(edit.checked ? { edit: true } : {}) });
     });
   }
@@ -4525,6 +4867,24 @@ function saveAgentModel(a, model) {
       if (model) next.model = model; else delete next.model;
       return next;
     });
+    if (a.profile.provider === 'claude-api') {
+      const res = providerModelsClientCache.get(a.profile.providerId);
+      const warnEl = zoom.querySelector('#agentModelWarn');
+      if (res && res.source === 'live' && model) {
+        const known = (res.configured && res.configured.includes(model)) || (res.models && res.models.some((m) => m.id === model));
+        if (!known) {
+          const prov = (S.providers || []).find((x) => x.id === a.profile.providerId);
+          if (warnEl) {
+            warnEl.textContent = t('ac.api.modelUnknown', { model, provider: prov?.label || a.profile.providerId });
+            warnEl.hidden = false;
+          }
+        } else if (warnEl) {
+          warnEl.hidden = true;
+        }
+      } else if (warnEl) {
+        warnEl.hidden = true;
+      }
+    }
     return saveCopilotProfiles(profiles).then(() => { if (S.agentOpen) paintAgentSettings(); });
   }
   if (!a.id) return toast(t('agent.noSession'));
@@ -4547,7 +4907,8 @@ function paintAgentSettings() {
   zoom.innerHTML = `<div class="zbox agent-settings" role="dialog" aria-modal="true" aria-label="${esc(a.name)}"><div class="pfh"><h2>${esc(a.name)}</h2><span class="lic">${AGENT_KIND[a.kind]}</span><span style="flex:1"></span><button type="button" class="btn sm" data-agent-close>${t('common.close')}</button></div>
     <div class="small mono">${esc(a.cwd || '')}</div><p class="small muted">${esc(a.runWith)} · ${esc(status)}${extra ? ` · ${esc(extra)}` : ''}</p>
     <section class="mblk"><h4>${t('agent.blk.basic')}</h4>
-      <label class="setrow"><span><b>${t('agent.model')}</b></span><input class="txtin" id="agentModelInput" list="modelList" value="${esc(agentModel(a))}" placeholder="${t('common.default')}" spellcheck="false"></label>
+      <label class="setrow"><span><b>${t('agent.model')}</b></span><input class="txtin" id="agentModelInput" list="${a.profile?.provider === 'claude-api' ? 'agentProviderModels' : 'modelList'}" value="${esc(agentModel(a))}" placeholder="${t('common.default')}" spellcheck="false">${a.profile?.provider === 'claude-api' ? '<datalist id="agentProviderModels"></datalist>' : ''}</label>
+      ${a.profile?.provider === 'claude-api' ? `<p class="small pwarn" id="agentModelWarn" hidden></p>` : ''}
       <label class="setrow"><span><b>${t('agent.tier')}</b><small>${esc(room)}</small></span><select id="agentTier">${tierOpts}</select></label>
     </section>
     ${isWebChat ? '' : `<section class="mblk"><h4>${t('perm.title')}</h4>${permRadios(rule.mode, a.key, true)}${permLists(a.key, rule)}<p class="small muted">${t('perm.list.hint')}</p></section>
@@ -4560,6 +4921,51 @@ function paintAgentSettings() {
     <section class="mblk"><h4>${t('agent.blk.activity')}</h4><p class="small muted">${esc(status)}${a.session?.ide ? ` · ${esc(a.session.ide)}` : ''}</p></section></div>`;
   const box = zoom.querySelector('.agent-settings');
   if (!box) return;
+  if (a.profile?.provider === 'claude-api' && a.profile?.providerId) {
+    const provId = a.profile.providerId;
+    const modelInput = box.querySelector('#agentModelInput');
+    const modelDatalist = box.querySelector('#agentProviderModels');
+    const modelWarn = box.querySelector('#agentModelWarn');
+    const prov = (S.providers || []).find((x) => x.id === provId);
+    const checkDrawerWarn = (data) => {
+      const val = (modelInput ? modelInput.value : agentModel(a)).trim();
+      if (data && data.source === 'live' && val) {
+        const known = (data.configured && data.configured.includes(val)) || (data.models && data.models.some((m) => m.id === val));
+        if (!known) {
+          if (modelWarn) {
+            modelWarn.textContent = t('ac.api.modelUnknown', { model: val, provider: prov?.label || provId });
+            modelWarn.hidden = false;
+          }
+          return;
+        }
+      }
+      if (modelWarn) modelWarn.hidden = true;
+    };
+    const cached = providerModelsClientCache.get(provId);
+    if (cached) {
+      if (modelDatalist) modelDatalist.innerHTML = buildModelListOptions(cached.configured, cached.models);
+      checkDrawerWarn(cached);
+    } else {
+      if (modelInput) modelInput.placeholder = t('ac.api.modelsLoading');
+      loadProviderModels(provId).then((data) => {
+        if (!box.isConnected) return;
+        if (modelInput) modelInput.placeholder = t('common.default');
+        if (data && modelDatalist) {
+          modelDatalist.innerHTML = buildModelListOptions(data.configured, data.models);
+          checkDrawerWarn(data);
+        }
+      }).catch(() => {
+        if (!box.isConnected) return;
+        if (modelInput) modelInput.placeholder = t('common.default');
+      });
+    }
+    if (modelInput) {
+      modelInput.addEventListener('input', () => {
+        const data = providerModelsClientCache.get(provId);
+        checkDrawerWarn(data);
+      });
+    }
+  }
   box.addEventListener('click', (e) => {
     if (e.target.closest('[data-agent-close]')) return closeZoom();
     const pm = e.target.closest('[data-pmode]');
