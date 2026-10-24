@@ -10,6 +10,7 @@
 | GET | `/` |  | không |
 | GET | `/api/health` |  | không |
 | POST | `/api/log` |  | có |
+| GET | `/api/logs` |  | có |
 | GET | `/api/agy/check` |  | có |
 | GET | `/api/browser` |  | có |
 | GET | `/api/muse/status` |  | có |

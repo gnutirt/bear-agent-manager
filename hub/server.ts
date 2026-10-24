@@ -22,7 +22,7 @@ import { autostartState, setAutostart } from './autostart.ts';
 import { CopilotAgent, CopilotAuthError, type CopilotClientFactory, type CopilotQuotaLimit, type CopilotStatus } from './copilot.ts';
 import { listModels, probeProvider, workerBrief } from './brief.ts';
 import { loadSettings, isWideWorkspace, resolveWorkspace, normAgent, type AgentProfile, patchSettings, permFor, saveSettings, simplifiedUa, validateAgentProfiles, validateFlowTiers } from './settings.ts';
-import { initLog, log, type LogArea, type LogLevel } from './log.ts';
+import { initLog, log, queryLogs, readRunLog, RUN_FILE_NAME, type LogArea, type LogLevel } from './log.ts';
 import { dateLocale, loadDicts, resolveLang, systemLang, t, type Lang } from '../shared/i18n.ts';
 import { filterSkills, installedIn, installSkill, loadLibrary, packPatch, removeSkill } from './skilllib.ts';
 import { editedFiles, MAX_FILES, ownDirtyFiles, worktreeState } from './gitstate.ts';
@@ -2559,6 +2559,38 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         ...(body?.data === undefined ? {} : { data: body.data }),
       });
       return json(res, 200, { ok: true, ...(entry ? { ts: entry.ts } : {}) });
+    }
+
+    // #284 (log T4): query JSONL logs with filters (level, area, agent, sid, q, from, to, limit)
+    if (m === 'GET' && p === '/api/logs') {
+      const q = {
+        from: url.searchParams.get('from') ?? undefined,
+        to: url.searchParams.get('to') ?? undefined,
+        level: url.searchParams.get('level') ?? undefined,
+        area: url.searchParams.get('area') ?? undefined,
+        agent: url.searchParams.get('agent') ?? undefined,
+        sid: url.searchParams.get('sid') ?? undefined,
+        q: url.searchParams.get('q') ?? undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined,
+      };
+      return json(res, 200, queryLogs(opts.dir, q));
+    }
+
+    // #284 (log T4): fetch a raw run log from logs/runs/ (never logs/ or ..)
+    const runLogMatch = p.match(/^\/api\/logs\/run\/(.+)$/);
+    if (m === 'GET' && (runLogMatch || p === '/api/logs/state.json' || (p.startsWith('/api/logs/') && p !== '/api/logs' && !runLogMatch) || req.url?.includes('/api/logs/run/..'))) {
+      const rawFile = runLogMatch ? runLogMatch[1] : '';
+      const decoded = decodeURIComponent(rawFile);
+      if (!runLogMatch || decoded.includes('..') || req.url?.includes('..') || !RUN_FILE_NAME.test(decoded)) {
+        return json(res, 400, { error: 'invalid log file name' });
+      }
+      const data = readRunLog(opts.dir, decoded);
+      if (!data) return json(res, 404, { error: 'log file not found' });
+      if (req.headers.accept?.includes('text/plain')) {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-cache' });
+        return res.end(data.text);
+      }
+      return json(res, 200, data);
     }
 
     if (m === 'GET' && p === '/api/agy/check') {

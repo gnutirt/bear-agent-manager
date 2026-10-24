@@ -199,6 +199,130 @@ export function moveLegacy(dir = home): string[] {
   return moved;
 }
 
+export const RUN_FILE_NAME = /^[a-z]+-[0-9a-f-]+-[0-9TZ-]+\.log$/;
+const MAX_RUN_READ = 256 * 1024;
+
+export type LogQuery = {
+  from?: string;
+  to?: string;
+  level?: string;
+  area?: string;
+  agent?: string;
+  sid?: string;
+  q?: string;
+  limit?: number;
+};
+
+/**
+ * Query JSONL log entries (L5). Reads backwards from newest files up to 1000 lines total,
+ * stopping once `limit` (default 200) matching entries are found.
+ */
+export function queryLogs(dir = home, query: LogQuery = {}): LogEntry[] {
+  const targetDir = logDir(dir);
+  const files: { name: string; day: string; index: number; file: string }[] = [];
+  for (const name of readdir(targetDir)) {
+    const m = name.match(/^bam-(\d{4}-\d{2}-\d{2})(?:\.(\d+))?\.jsonl$/);
+    if (!m) continue;
+    files.push({
+      name,
+      day: m[1],
+      index: m[2] ? parseInt(m[2], 10) : 1,
+      file: path.join(targetDir, name),
+    });
+  }
+  // Sort reverse: newest day first, highest index first for same day
+  files.sort((a, b) => b.day.localeCompare(a.day) || b.index - a.index);
+
+  const limit = Math.min(1000, Math.max(1, typeof query.limit === 'number' && Number.isFinite(query.limit) ? Math.floor(query.limit) : 200));
+  const fromMs = query.from ? Date.parse(query.from) : NaN;
+  const toMs = query.to ? Date.parse(query.to) : NaN;
+  const levels = query.level ? new Set(query.level.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)) : null;
+  const areas = query.area ? new Set(query.area.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)) : null;
+  const agents = query.agent ? new Set(query.agent.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)) : null;
+  const sid = query.sid ? query.sid.trim() : null;
+  const search = query.q ? query.q.toLowerCase() : null;
+
+  let scanned = 0;
+  const results: LogEntry[] = [];
+
+  for (const item of files) {
+    if (scanned >= 1000 || results.length >= limit) break;
+    let content = '';
+    try { content = fs.readFileSync(item.file, 'utf8'); } catch { continue; }
+    const lines = content.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      scanned++;
+      if (scanned > 1000) break;
+      let entry: LogEntry;
+      try { entry = JSON.parse(line); } catch { continue; }
+
+      const entryMs = Date.parse(entry.ts);
+      if (Number.isFinite(fromMs) && Number.isFinite(entryMs) && entryMs < fromMs) continue;
+      if (Number.isFinite(toMs) && Number.isFinite(entryMs) && entryMs > toMs) continue;
+      if (levels && !levels.has(entry.level.toLowerCase())) continue;
+      if (areas && !areas.has(entry.area.toLowerCase())) continue;
+      if (agents && !agents.has((entry.agent ?? '').toLowerCase())) continue;
+      if (sid && entry.sid !== sid) continue;
+
+      if (search) {
+        const matchMsg = entry.msg.toLowerCase().includes(search);
+        const matchAgent = entry.agent ? entry.agent.toLowerCase().includes(search) : false;
+        const matchSid = entry.sid ? entry.sid.toLowerCase().includes(search) : false;
+        const matchRoom = entry.room ? entry.room.toLowerCase().includes(search) : false;
+        const matchData = entry.data !== undefined ? JSON.stringify(entry.data).toLowerCase().includes(search) : false;
+        if (!matchMsg && !matchAgent && !matchSid && !matchRoom && !matchData) continue;
+      }
+
+      entry.msg = redact(entry.msg);
+      if (entry.data !== undefined) entry.data = redactValue(entry.data);
+      results.push(entry);
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Read raw run log file (L5). Only accepts files matching RUN_FILE_NAME without '..',
+ * decodes as utf-8, redacts secrets, and returns at most the last 256 KB.
+ */
+export function readRunLog(dir = home, fileName: string): { name: string; text: string; content: string; size: number } | null {
+  if (!fileName || fileName.includes('..') || !RUN_FILE_NAME.test(fileName)) {
+    return null;
+  }
+  const file = path.join(runsDir(dir), fileName);
+  let size = 0;
+  try {
+    const st = fs.statSync(file);
+    if (!st.isFile()) return null;
+    size = st.size;
+  } catch {
+    return null;
+  }
+  let raw = '';
+  if (size <= MAX_RUN_READ) {
+    try { raw = fs.readFileSync(file, 'utf8'); } catch { return null; }
+  } else {
+    try {
+      const fd = fs.openSync(file, 'r');
+      try {
+        const buf = Buffer.alloc(MAX_RUN_READ);
+        fs.readSync(fd, buf, 0, MAX_RUN_READ, size - MAX_RUN_READ);
+        raw = buf.toString('utf8');
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      return null;
+    }
+  }
+  const text = redact(raw);
+  return { name: fileName, text, content: text, size };
+}
+
 function readdir(dir: string): string[] {
   try { return fs.readdirSync(dir); } catch { return []; }
 }
