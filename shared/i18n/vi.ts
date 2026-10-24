@@ -908,6 +908,8 @@ export const vi: Record<string, string> = {
   'sys.move.doneIde': 'Đã mở tab cho {name} ở {ide}.',
   'sys.move.ideAccountMismatch': 'Lưu ý: {ide} gần nhất chạy tài khoản {ideAccount}, có thể khác tài khoản yêu cầu ({targetAccount}).',
   'sys.move.notLoggedIn': 'Tài khoản {account} chưa đăng nhập.',
+  'sys.move.bgStuck': 'Không dừng được tiến trình nền của {name} để chuyển nơi chạy (pid còn sống).',
+  'sys.move.reviveFailed': 'Đã chuyển {name} sang BAM nhưng chưa khởi động lại được (chưa có transcript hoặc tài khoản bị giới hạn).',
   'sys.compact.blocked': '{name}: chưa compact được. {why}',
   'sys.compact.limit': '{name}: compact không chạy vì tài khoản hết hạn mức giữa chừng; chat chưa được thu gọn.',
   'sys.relay': '@you ↪ {name} trả lời trong chat riêng, không đăng vào phòng (hub chuyển nguyên văn):\n{text}',

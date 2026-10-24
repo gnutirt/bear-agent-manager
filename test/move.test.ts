@@ -233,3 +233,208 @@ test('T4 move: từ tab sang nền: quá hạn thì huỷ', async () => {
     await hub.close();
   }
 });
+
+test('T4 move audit (1): bg chưa chết sau 30s timeout → 409 bgStuck, moving nhả, không đổi nơi chạy', async () => {
+  const alivePids = new Set<number>([601]);
+  let openedUrl = false;
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    openUrl: () => { openedUrl = true; },
+    isAlive: (pid: number) => alivePids.has(pid),
+    bgKillTimeoutMs: 100,
+  });
+
+  try {
+    const tr = path.join(dir, 'transcript.jsonl');
+    fs.writeFileSync(tr, '{"type":"assistant"}\n');
+    await call('/api/rooms', { name: 'r-stuck' });
+    await call('/api/sessions/register', {
+      id: 'm-stuck',
+      name: 'worker-stuck',
+      cwd: dir,
+      pid: 601,
+      headless: true,
+      transcript: tr,
+    });
+    await call('/api/rooms/r-stuck/join', { sessionId: 'm-stuck' });
+
+    await assert.rejects(
+      call('/api/sessions/m-stuck/move', { to: 'vscode' }),
+      (err: any) => err.status === 409 && /Không dừng được tiến trình nền|Could not stop background process/i.test(err.message),
+    );
+
+    const s = hub.store.session('m-stuck');
+    assert.equal(s.moving, false, 'moving must be released on bgStuck');
+    assert.notEqual(s.ide, 'vscode', 'destination must not be executed when bg is stuck');
+    assert.equal(openedUrl, false);
+
+    const history = hub.store.history('r-stuck');
+    assert.ok(
+      history.some((m) => /Không dừng được tiến trình nền|Could not stop background process/i.test(m.text)),
+      'bgStuck error message must be broadcast to room',
+    );
+  } finally {
+    await hub.close();
+  }
+});
+
+test('T4 move audit (2): compactTaskOwner bỏ qua session khi moving = true', async () => {
+  const compacts: string[] = [];
+  const { hub, dir, call } = await makeHub(undefined, () => {}, {
+    autoRevive: false,
+    compactRevive: async (job: any) => {
+      compacts.push(job.id);
+      return 0;
+    },
+  });
+
+  try {
+    const tr = path.join(dir, 'transcript-compact.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5-5', usage: { input_tokens: 10_000 } } }) + '\n');
+    await call('/api/rooms', { name: 'r-compact' });
+    await call('/api/sessions/register', { id: 'm-compact', name: 'coder', cwd: dir, transcript: tr });
+    await call('/api/rooms/r-compact/join', { sessionId: 'm-compact' });
+    await fetch(`${hub.url}/hooks/end`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 'm-compact' }),
+    });
+
+    await call('/api/sessions/register', { id: 'lead-compact', name: 'lead', cwd: dir });
+    await call('/api/rooms/r-compact/join', { sessionId: 'lead-compact' });
+    await call('/api/rooms/r-compact/lead', { sessionId: 'lead-compact' });
+
+    // Mark coder as moving
+    const coder = hub.store.session('m-compact');
+    coder.moving = true;
+    hub.store.save();
+
+    const task = await call<any>('/api/rooms/r-compact/tasks', { sessionId: 'lead-compact', title: 'Task while moving', owner: 'coder' });
+    await call(`/api/rooms/r-compact/tasks/${task.id}`, {
+      sessionId: 'lead-compact',
+      status: 'done',
+      commit: 'abc1234',
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual(compacts, [], 'compact must not be triggered when session is moving');
+  } finally {
+    await hub.close();
+  }
+});
+
+test('T4 move audit (3): đặt moving = true trước await auth để chặn concurrent move', async () => {
+  const home = path.join(os.tmpdir(), 'move-race-' + Math.random().toString(36).slice(2));
+  fs.mkdirSync(home, { recursive: true });
+  let fakeNow = Date.now();
+  let delayAuth = false;
+  let authResolve: (() => void) | undefined;
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    usageHome: home,
+    now: () => fakeNow,
+    authStatus: async () => {
+      if (delayAuth) {
+        await new Promise<void>((r) => { authResolve = r; });
+      }
+      return { loggedIn: true, email: 'user@test.org' };
+    },
+  });
+
+  try {
+    const accPrimary = path.join(home, '.claude');
+    const accOther = path.join(home, '.claude-other');
+    fs.mkdirSync(path.join(accPrimary, 'projects'), { recursive: true });
+    fs.mkdirSync(path.join(accOther, 'projects'), { recursive: true });
+    fs.writeFileSync(path.join(accPrimary, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'a@x.org' } }));
+    fs.writeFileSync(path.join(accOther, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'b@x.org' } }));
+
+    await call('/api/sessions/register', { id: 'm-race', cwd: dir, configDir: accPrimary });
+    await call('/api/accounts/share', { on: true, confirm: true });
+
+    // Advance time past 60s cache and enable delay
+    fakeNow += 70_000;
+    delayAuth = true;
+
+    // First move call starts and hangs in authStatus
+    const p1 = call('/api/sessions/m-race/move', { to: 'bam', account: accOther });
+
+    // Wait until authResolve is set
+    while (!authResolve) await new Promise((r) => setTimeout(r, 10));
+
+    // Session must already be moving: true
+    assert.equal(hub.store.session('m-race').moving, true);
+
+    // Second concurrent call must be immediately rejected with 409
+    await assert.rejects(
+      call('/api/sessions/m-race/move', { to: 'vscode' }),
+      (err: any) => err.status === 409 && /currently moving/i.test(err.message),
+    );
+
+    // Unblock first call
+    authResolve();
+    const res1 = await p1;
+    assert.equal((res1 as any).ok, true);
+    assert.equal(hub.store.session('m-race').moving, false);
+  } finally {
+    await hub.close();
+  }
+});
+
+test('T4 move audit (4): xét kết quả revive: nếu revive false/thất bại thì báo warn reviveFailed', async () => {
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    revive: () => undefined,
+  });
+
+  try {
+    await call('/api/rooms', { name: 'r-revive-fail' });
+    await call('/api/sessions/register', { id: 'm-revive-fail', name: 'worker-fail', cwd: dir });
+    await call('/api/rooms/r-revive-fail/join', { sessionId: 'm-revive-fail' });
+
+    const res = await call<any>('/api/sessions/m-revive-fail/move', { to: 'bam' });
+    assert.equal(res.ok, true);
+
+    const history = hub.store.history('r-revive-fail');
+    const failMsg = history.find((m) => /chưa khởi động lại được|could not resume it yet/i.test(m.text));
+    assert.ok(failMsg, 'reviveFailed message must be broadcast to room');
+    assert.equal(failMsg.sys?.level, 'warn');
+  } finally {
+    await hub.close();
+  }
+});
+
+test('T4 move audit (5): lastIdeAccount chọn tiến trình có p.at lớn nhất thay vì phần tử đầu', async () => {
+  const home = path.join(os.tmpdir(), 'move-ide-mismatch-' + Math.random().toString(36).slice(2));
+  fs.mkdirSync(home, { recursive: true });
+  const accOld = path.join(home, '.claude-old');
+  const accNew = path.join(home, '.claude-new');
+
+  const { hub, dir, call } = await makeHub(undefined, undefined, {
+    usageHome: home,
+    authStatus: async () => ({ loggedIn: true, email: 'user@test.org' }),
+  });
+
+  try {
+    await call('/api/rooms', { name: 'r-mismatch' });
+    await call('/api/sessions/register', { id: 'm-target', name: 'target-sess', cwd: dir, configDir: accOld });
+    await call('/api/rooms/r-mismatch/join', { sessionId: 'm-target' });
+
+    // Register session with two IDE processes: old one with at=1000, newer one with at=5000 and accNew
+    const otherSess = hub.store.register({ id: 'other-sess', cwd: dir, name: 'other' });
+    otherSess.pids = [
+      { pid: 701, headless: false, ide: 'vscode', configDir: accOld, at: 1000 },
+      { pid: 702, headless: false, ide: 'vscode', configDir: accNew, at: 5000 },
+    ];
+    hub.store.save();
+
+    // Moving m-target to vscode with accOld (targetAccount is accOld).
+    // Because lastIdeAccount looks at max p.at, it will pick accNew (at=5000), which mismatches accOld -> warning!
+    const res = await call<any>('/api/sessions/m-target/move', { to: 'vscode' });
+    assert.equal(res.ok, true);
+
+    const history = hub.store.history('r-mismatch');
+    const warnMsg = history.find((m) => /gần nhất chạy tài khoản|was last running on account/i.test(m.text));
+    assert.ok(warnMsg, 'ideAccountMismatch warning must be broadcast when latest at differs');
+    assert.ok(warnMsg.text.includes(path.basename(accNew)), 'must refer to latest account .claude-new');
+  } finally {
+    await hub.close();
+  }
+});

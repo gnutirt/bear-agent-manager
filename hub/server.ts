@@ -378,7 +378,7 @@ const WORKER_POLL_MS = 5000;
 const WORKER_HISTORY_MS = 24 * 3600_000;
 const IDLE_COMPACT_EVERY_MS = 10 * 60_000;
 const API_RETRY_MS = [30_000, 2 * 60_000, 5 * 60_000];
-const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.includes('unrecognized_model')).pop()?.slice(0, 160) ?? '';
+const lastOutputLine = (output: string) => output.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop()?.slice(0, 160) ?? '';
 
 export async function startHub(opts: HubOptions): Promise<Hub> {
   const ideBridge = new IdeBridge();
@@ -1514,7 +1514,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   async function compactTaskOwner(room: string, task: Task, committedDone = false) {
     const cfg = loadSettings(opts.dir, envCap);
     const s = store.members(room).find((x) => x.name.toLowerCase() === (task.owner ?? '').toLowerCase());
-    if (!cfg.compact.onTaskDone || !s || !hasTranscript(s) || liveChat.has(s.id)) return;
+    if (!cfg.compact.onTaskDone || !s || s.moving || !hasTranscript(s) || liveChat.has(s.id)) return;
     const ctx = readContextTokens(s.transcript);
     if (!committedDone && (!cfg.compact.thresholds.enabled || !ctx || ctx < cfg.compact.thresholds[wakeRole(s)])) return;
     const holder = sessionHolder(s);
@@ -1549,7 +1549,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const cfg = loadSettings(opts.dir, envCap);
     if (!cfg.compact.thresholds.enabled) return;
     for (const s of Object.values(store.state.sessions)) {
-      if (s.status !== 'offline' || !s.ended || !hasTranscript(s) || isConn(s.id) || sessionHolder(s).count > 0 || copilotHolding(s.id)) continue;
+      if (s.moving || s.status !== 'offline' || !s.ended || !hasTranscript(s) || isConn(s.id) || sessionHolder(s).count > 0 || copilotHolding(s.id)) continue;
       const ctx = readContextTokens(s.transcript);
       if (!ctx || ctx <= cfg.compact.thresholds[wakeRole(s)]) continue;
       const api = apiProfileOf(s);
@@ -1561,7 +1561,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           continue;
         }
       }
-      if (isConn(s.id) || sessionHolder(s).count > 0) continue;
+      if (s.moving || isConn(s.id) || sessionHolder(s).count > 0) continue;
       reviving.add(s.id);
       void compactSaved(s, 0, apiRun).catch((error) => {
         console.error(`[compact] idle compact failed for ${s.id}:`, error);
@@ -3355,56 +3355,72 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const s = store.session(id);
         if (s.moving) throw new StoreError(409, `${s.name} is currently moving`);
 
-        const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
-        let targetAccount = s.configDir || primary;
-        if (b.account) {
-          const matched = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase());
-          if (!matched) throw new StoreError(400, tr('ac.auth.unknownAccount'));
-          targetAccount = matched;
-        }
-
-        const currentAccount = s.configDir || primary;
-        const changingAccount = path.resolve(targetAccount).toLowerCase() !== path.resolve(currentAccount).toLowerCase();
-
-        if (changingAccount) {
-          if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
-          const authSt = await accountAuthStatus(targetAccount);
-          if (authSt.loggedIn !== true) {
-            throw new StoreError(409, tr('sys.move.notLoggedIn', { account: path.basename(targetAccount) }));
-          }
-        }
-
-        const holder = sessionHolder(s);
-        // Step 1: holder check. If target matches current holder and same account, no-op
-        if (holder.where === to && !changingAccount) {
-          return json(res, 200, { ok: true, noop: true });
-        }
-
-        // Account mismatch warning for IDE destinations
-        if (to === 'vscode' || to === 'antigravity') {
-          let lastIdeAccount: string | undefined;
-          for (const sess of Object.values(store.state.sessions)) {
-            for (const p of sess.pids ?? []) {
-              if (p.ide === to && p.configDir) {
-                lastIdeAccount = p.configDir;
-                break;
-              }
-            }
-            if (lastIdeAccount) break;
-          }
-          if (lastIdeAccount && path.resolve(lastIdeAccount).toLowerCase() !== path.resolve(targetAccount).toLowerCase()) {
-            tellSessionRooms(s, tr('sys.move.ideAccountMismatch', {
-              ide: to,
-              ideAccount: path.basename(lastIdeAccount),
-              targetAccount: path.basename(targetAccount),
-            }), 'warn');
-          }
-        }
-
-        // Lock session as moving
+        // Lock session as moving immediately before any await
         s.moving = true;
         store.save();
         emitSession(s);
+
+        const releaseMoving = () => {
+          const cur = store.session(s.id);
+          cur.moving = false;
+          store.save();
+          emitSession(cur);
+        };
+
+        const dirs = machineAccountDirs(), primary = path.join(usageHome, '.claude');
+        let targetAccount = s.configDir || primary;
+        const currentAccount = s.configDir || primary;
+        let changingAccount = false;
+        let holder = sessionHolder(s);
+
+        try {
+          if (b.account) {
+            const matched = dirs.find((d) => path.resolve(d).toLowerCase() === path.resolve(String(b.account)).toLowerCase());
+            if (!matched) throw new StoreError(400, tr('ac.auth.unknownAccount'));
+            targetAccount = matched;
+          }
+
+          changingAccount = path.resolve(targetAccount).toLowerCase() !== path.resolve(currentAccount).toLowerCase();
+
+          if (changingAccount) {
+            if (!listConfigAccounts(dirs, primary).shared) throw new StoreError(409, tr('sys.switch.notShared'));
+            const authSt = await accountAuthStatus(targetAccount);
+            if (authSt.loggedIn !== true) {
+              throw new StoreError(409, tr('sys.move.notLoggedIn', { account: path.basename(targetAccount) }));
+            }
+          }
+
+          holder = sessionHolder(s);
+          // Step 1: holder check. If target matches current holder and same account, no-op
+          if (holder.where === to && !changingAccount) {
+            releaseMoving();
+            return json(res, 200, { ok: true, noop: true });
+          }
+
+          // Account mismatch warning for IDE destinations
+          if (to === 'vscode' || to === 'antigravity') {
+            let lastIdeAccount: string | undefined;
+            let latestAt = -1;
+            for (const sess of Object.values(store.state.sessions)) {
+              for (const p of sess.pids ?? []) {
+                if (p.ide === to && p.configDir && (p.at ?? 0) > latestAt) {
+                  latestAt = p.at ?? 0;
+                  lastIdeAccount = p.configDir;
+                }
+              }
+            }
+            if (lastIdeAccount && path.resolve(lastIdeAccount).toLowerCase() !== path.resolve(targetAccount).toLowerCase()) {
+              tellSessionRooms(s, tr('sys.move.ideAccountMismatch', {
+                ide: to,
+                ideAccount: path.basename(lastIdeAccount),
+                targetAccount: path.basename(targetAccount),
+              }), 'warn');
+            }
+          }
+        } catch (err) {
+          releaseMoving();
+          throw err;
+        }
 
         const executeDestination = (sess: Session) => {
           if (changingAccount) {
@@ -3417,11 +3433,17 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             sess.moving = false;
             store.save();
             emitSession(sess);
-            revive(sess.id);
-            tellSessionRooms(sess, tr('sys.move.doneBam', {
-              name: sess.name,
-              account: path.basename(sess.configDir || primary),
-            }));
+            const ok = revive(sess.id);
+            if (ok) {
+              tellSessionRooms(sess, tr('sys.move.doneBam', {
+                name: sess.name,
+                account: path.basename(sess.configDir || primary),
+              }));
+            } else {
+              tellSessionRooms(sess, tr('sys.move.reviveFailed', {
+                name: sess.name,
+              }), 'warn');
+            }
           } else {
             sess.ide = to as Ide;
             sess.moving = false;
@@ -3447,6 +3469,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             const bgLiving = (store.session(s.id).pids ?? []).filter((p) => p.headless && isAlive(p.pid));
             if (!bgLiving.length && !isBackground(s.id)) break;
             await sleep(100);
+          }
+          const stillAlive = (store.session(s.id).pids ?? []).filter((p) => p.headless && isAlive(p.pid));
+          if (stillAlive.length || isBackground(s.id)) {
+            releaseMoving();
+            tellSessionRooms(store.session(s.id), tr('sys.move.bgStuck', { name: s.name }), 'error');
+            return json(res, 409, { error: tr('sys.move.bgStuck', { name: s.name }) });
           }
           executeDestination(store.session(s.id));
           return json(res, 200, { ok: true, done: true });

@@ -908,6 +908,8 @@ export const en: Record<string, string> = {
   'sys.move.doneIde': 'Opened tab for {name} in {ide}.',
   'sys.move.ideAccountMismatch': 'Notice: {ide} was last running on account {ideAccount}, which may differ from requested ({targetAccount}).',
   'sys.move.notLoggedIn': 'Account {account} is not logged in.',
+  'sys.move.bgStuck': 'Could not stop background process of {name} to move (pid still alive).',
+  'sys.move.reviveFailed': 'Moved {name} to BAM but could not resume it yet (no transcript or account is blocked).',
   'sys.compact.blocked': '{name}: could not compact. {why}',
   'sys.compact.limit': '{name}: the compaction did not run, the account ran out of usage; the chat was not shrunk.',
   'sys.relay': '@you ↪ {name} answered in its own chat, not in the room (relayed by the hub):\n{text}',
