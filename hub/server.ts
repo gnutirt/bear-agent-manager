@@ -2069,6 +2069,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,
+      windowsVerbatimArguments: true,
     });
     child.unref();
     await new Promise<void>((resolve, reject) => {

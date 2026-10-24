@@ -183,6 +183,7 @@ test('account login/logout/new validate accounts and open an isolated auth conso
       assert.equal(launch.options.detached, true);
       assert.equal(launch.options.stdio, 'ignore');
       assert.equal(launch.options.windowsHide, false);
+      assert.equal(launch.options.windowsVerbatimArguments, true);
       assert.equal(Object.hasOwn(launch.options.env, 'CLAUDE_CODE_OAUTH_TOKEN'), false);
       assert.ok(launch.args[3].includes('claude auth'));
       assert.ok(!launch.args.join(' ').includes('setup-token'));
