@@ -151,6 +151,45 @@ test('Copilot reconnects quietly unless it was offline for more than ten minutes
   }
 });
 
+test('#280 a kicked Copilot stays out of the room after a restart until the Join button brings it back', async () => {
+  const { hub, dir } = await makeHub();
+  const make = () => new CopilotAgent({
+    dir,
+    profile: { id: 'kicked', name: 'CopilotKicked', cwd: process.cwd() },
+    port: () => hub.port,
+    store: hub.store,
+    settings: () => defaultSettings(),
+    onChange: () => {},
+    onRoom: () => {},
+    onRooms: () => {},
+    onMessage: () => {},
+    createClient: fakeFactory().factory,
+  });
+  let agent = make();
+  try {
+    await agent.start();
+    const id = agent.hubSessionId();
+    assert.ok(id);
+    assert.equal('bear-agent-manager' in hub.store.session(id).rooms, true);
+    hub.store.leave(id, 'bear-agent-manager');   // the user kicks it from the room
+    await agent.stop();
+
+    agent = make();
+    await agent.start();
+    assert.equal(agent.hubSessionId(), id, 'the same hub identity comes back');
+    assert.equal('bear-agent-manager' in hub.store.session(id).rooms, false, 'a restart must not join the kicked agent back');
+    await agent.stop();
+
+    hub.store.join(id, 'bear-agent-manager');   // the room's Join button
+    agent = make();
+    await agent.start();
+    assert.equal('bear-agent-manager' in hub.store.session(id).rooms, true, 'joining on purpose sticks across restarts');
+  } finally {
+    await agent.stop();
+    await hub.close();
+  }
+});
+
 test('#216 Copilot receives the hub browser as an MCP server when Settings > Browser is on', async () => {
   const { hub, dir } = await makeHub();
   const browserMcp = mcpServerFor('http://127.0.0.1:9333', process.platform, hub.port);

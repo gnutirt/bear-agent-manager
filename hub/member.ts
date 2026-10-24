@@ -151,7 +151,8 @@ export class HubMember<K extends string = string> {
     }
     const session = this.opts.store.register({ id: identity.hubId, name: this.opts.name, cwd: this.opts.cwd, source: this.opts.kind });
     if (session.name !== this.opts.name) throw new Error(`Could not reserve the hub identity ${this.opts.name}.`);
-    this.opts.store.join(identity.hubId, this.room);
+    // #280: the user may have removed this agent from the room; a restart must not join it back (only the room's Join button does).
+    if (!this.opts.store.wasRemoved(identity.hubId, this.room)) this.opts.store.join(identity.hubId, this.room);
     this.opts.store.setStatus(identity.hubId, 'idle', `Starting ${this.opts.kind}`);
     this.opts.onChange(this.snapshot());
     this.opts.onRoom(this.room);

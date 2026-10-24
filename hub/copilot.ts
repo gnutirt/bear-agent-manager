@@ -343,7 +343,8 @@ export class CopilotAgent {
     }
     const session = this.opts.store.register({ id: identity.hubId, name: this.name, cwd: this.cwd, source: 'copilot' });
     if (session.name !== this.name) throw new Error(`Could not reserve the hub identity ${this.name}.`);
-    this.opts.store.join(identity.hubId, ROOM);
+    // #280: the user may have removed this agent from the room; a restart must not join it back (only the room's Join button does).
+    if (!this.opts.store.wasRemoved(identity.hubId, ROOM)) this.opts.store.join(identity.hubId, ROOM);
     if (LEGACY_ROOM in session.rooms) this.opts.store.leave(identity.hubId, LEGACY_ROOM);
     this.opts.store.setStatus(identity.hubId, 'idle', 'Starting Copilot SDK');
     this.opts.onChange(this.snapshot());

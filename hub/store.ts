@@ -5,6 +5,13 @@ import { LOOP_LIMIT, parseMentions, wakes, type Message, type SysMeta } from './
 import { renameRetry } from './atomic.ts';
 
 export type Status = 'busy' | 'idle' | 'waiting' | 'offline';
+export type ProcessInfo = {
+  pid: number;
+  headless: boolean;
+  ide?: Ide;
+  configDir?: string;
+  at: number;
+};
 export type Session = {
   id: string;
   name: string;
@@ -39,7 +46,8 @@ export type Session = {
   turnTopic?: Record<string, string>;   // per room: topic of the last message handed to it (its answer without a topic goes there)
   pid?: number;                  // pid of the claude process, sent by the hooks (T-A); kept when a later register has none
   rulesKey?: string;             // #200/#202: which context already got the fixed rules (agentComms | lead rooms | compaction mark)
-  pids?: { pid: number; headless: boolean; at: number }[];   // every claude that registered for this chat (a tab and a background wake can both exist); End kills all of them
+  pids?: ProcessInfo[];          // every claude that registered for this chat (a tab and a background wake can both exist); End kills all of them
+  left?: string[];               // #280: rooms the user removed this chat from (kick/leave); a restart of a hub member must not join it back
 };
 const TOPIC = /^[a-z0-9-]{1,32}$/;
 export type Ide = '' | 'vscode' | 'antigravity' | 'cursor' | 'cli';
@@ -569,8 +577,18 @@ export class Store {
     if (room.startsWith('pm-') && !this.pmIds(existing).includes(s.id)) throw new StoreError(403, `#${room} là PM giữa hai agent, không vào được / #${room} is a private message room between two agents`);
     this.createRoom(room);
     if (!(room in s.rooms)) s.rooms[room] = this.lastId();
+    // #280: joining is a deliberate act (the room's Join button, an agent added to a room), so it clears the "removed" mark.
+    if (s.left?.includes(room)) {
+      s.left = s.left.filter((name) => name !== room);
+      if (!s.left.length) delete s.left;
+    }
     this.save();
     return s;
+  }
+
+  /** #280: true when the user removed this chat from the room and nobody has joined it back since. */
+  wasRemoved(id: string, room: string): boolean {
+    return (this.state.sessions[this.resolve(id)]?.left ?? []).includes(room);
   }
 
   /** The private 1:1 chat between the user and one agent: room `dm-<session id>` (by id, so a rename keeps it). Idempotent; reopening unhides it. */
@@ -620,6 +638,9 @@ export class Store {
   leave(id: string, room: string): Session {
     const s = this.session(id);
     delete s.rooms[room];
+    // #280: a removal is remembered per chat + room. Hub members (Copilot/agy/duck) join their room again on every start,
+    // so without this mark a kick only lasted until the next restart.
+    if (!s.left?.includes(room)) s.left = [...(s.left ?? []), room].slice(-20);
     const r = this.state.rooms[room];
     if (r && r.lead === s.id) r.lead = null;
     this.save();
