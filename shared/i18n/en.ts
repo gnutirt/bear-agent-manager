@@ -353,6 +353,7 @@ export const en: Record<string, string> = {
   'agent.spawn.started': 'Started {name}.',
   'agent.spawn.error': 'Could not start the agent: {err}',
   'agent.profile.invalid': 'One or more agent profiles are invalid.',
+  'agent.profile.confirmRemove': 'Confirm removal of these agent profiles: {ids}',
   'agent.badge.bam': 'Running in BAM',
   'agent.badge.copilot': 'Copilot',
   'agent.badge.apiEdit': '{provider} paid API · may edit files',

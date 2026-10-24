@@ -154,6 +154,62 @@ test('Flow settings validate room members and its task form can assign without a
   } finally { await hub.close(); }
 });
 
+test('settings profile removal requires exact confirmation and logs profile ID changes', async () => {
+  const { hub, dir, call } = await makeHub();
+  const originalLog = console.log;
+  const settingsLogs: string[] = [];
+  console.log = (...args: any[]) => {
+    const line = args.map(String).join(' ');
+    if (line.startsWith('[settings]')) settingsLogs.push(line);
+    else originalLog(...args);
+  };
+  const put = (body: unknown, userAgent = 'settings-test') => fetch(`${hub.url}/api/settings`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'x-room-token': hub.token, 'user-agent': userAgent },
+    body: JSON.stringify(body),
+  });
+  try {
+    await call('/api/settings', {
+      agents: { profiles: [
+        { id: 'deepseek', provider: 'claude-api', providerId: 'deepseek', name: 'deepseek', cwd: process.cwd(), enabled: false, key: 'must-not-be-logged' },
+        { id: 'agy', provider: 'agy', name: 'agy', cwd: process.cwd(), enabled: false },
+      ] },
+    }, { method: 'PUT' });
+
+    const keepAgy = [{ id: 'agy', provider: 'agy', name: 'agy', cwd: process.cwd(), enabled: false }];
+    const missing = await put({ agents: { profiles: keepAgy } });
+    assert.equal(missing.status, 400);
+    assert.deepEqual((await missing.json() as any).removedProfileIds, ['deepseek']);
+    assert.deepEqual((await call<any>('/api/settings')).agents.profiles.map((profile: any) => profile.id), ['deepseek', 'agy'], 'a rejected removal leaves settings unchanged');
+
+    const mismatch = await put({ agents: { profiles: keepAgy }, confirmRemove: ['deepseek', 'other'] });
+    assert.equal(mismatch.status, 400, 'confirmation must match the exact removed ID set');
+    assert.deepEqual((await mismatch.json() as any).removedProfileIds, ['deepseek']);
+
+    await call('/api/copilot/profiles/agy', { on: false, confirm: true }, { method: 'POST' });
+    assert.deepEqual((await call<any>('/api/settings')).agents.profiles.map((profile: any) => profile.id), ['deepseek', 'agy'], 'toggling agy preserves claude-api profiles');
+    await call('/api/copilot', { on: false, confirm: true }, { method: 'POST' });
+    const withCopilot = await call<any>('/api/settings');
+    assert.deepEqual(withCopilot.agents.profiles.map((profile: any) => profile.id), ['deepseek', 'agy', 'copilot'], 'toggling Copilot preserves claude-api profiles');
+    const confirmed = await put({ agents: { profiles: withCopilot.agents.profiles.filter((profile: any) => profile.id !== 'deepseek') }, confirmRemove: ['deepseek'] }, 'profile-removal-test');
+    assert.equal(confirmed.status, 200);
+    assert.deepEqual((await confirmed.json() as any).agents.profiles.map((profile: any) => profile.id), ['agy', 'copilot']);
+    assert.ok(settingsLogs.some((line) =>
+      line.includes('["deepseek","agy","copilot"] -> ["agy","copilot"]') && line.includes('source="PUT /api/settings"') && line.includes('profile-removal-test')),
+    'profile ID changes log the route, before/after IDs and user-agent');
+    assert.ok(settingsLogs.some((line) =>
+      line.includes('["deepseek","agy"] -> ["deepseek","agy","copilot"]') && line.includes('source="POST /api/copilot"')),
+    'profile changes from the Copilot route are logged too');
+    assert.ok(settingsLogs.every((line) => !line.includes('must-not-be-logged')), 'settings audit logs never include profile keys');
+    const audit = fs.readFileSync(path.join(dir, 'settings-changes.log'), 'utf8');
+    assert.match(audit, /\["deepseek","agy","copilot"\] -> \["agy","copilot"\].*profile-removal-test/);
+    assert.ok(!audit.includes('must-not-be-logged'), 'persistent settings audit logs never include profile keys');
+  } finally {
+    console.log = originalLog;
+    await hub.close();
+  }
+});
+
 test('archive switch pauses archiving without forgetting the folder', async () => {
   let s = patchSettings(defaultSettings(4), { archive: { dir: 'X:\mem' } });
   assert.equal(s.archive.enabled, undefined, 'unset = on whenever a folder is set');

@@ -353,6 +353,7 @@ export const vi: Record<string, string> = {
   'agent.spawn.started': 'Đã chạy {name}.',
   'agent.spawn.error': 'Không thể chạy agent: {err}',
   'agent.profile.invalid': 'Có agent profile không hợp lệ.',
+  'agent.profile.confirmRemove': 'Hãy xác nhận xoá các profile agent: {ids}',
   'agent.badge.bam': 'Chạy trong BAM',
   'agent.badge.copilot': 'Copilot',
   'agent.badge.apiEdit': '{provider} API trả phí · được sửa file',

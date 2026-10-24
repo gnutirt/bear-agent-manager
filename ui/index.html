@@ -3928,9 +3928,9 @@ function switchBlock(st) {
   return `<div class="pmodes" role="radiogroup" aria-label="${t('sw.mode')}">${modes.map((m) => `<button type="button" class="pmode" role="radio" aria-checked="${sw_.mode === m}" data-swmode="${m}">${SWM[m]}</button>`).join('')}</div><p class="small muted">${SWH[sw_.mode]}</p>
     ${num('accountSwitch.atPct', sw_.atPct)}${num('accountSwitch.minOtherLeftPct', sw_.minOtherLeftPct)}`;
 }
-async function saveCopilotProfiles(profiles) {
+async function saveCopilotProfiles(profiles, confirmRemove) {
   try {
-    S.settings = await api('/api/settings', { agents: { profiles } }, 'PUT');
+    S.settings = await api('/api/settings', { agents: { profiles }, ...(confirmRemove ? { confirmRemove } : {}) }, 'PUT');
     await loadCopilotProfiles();
     toast(t('settings.saved'));
     renderSettingsView();
@@ -4917,7 +4917,10 @@ for (const sv of [$('view-settings'), $('view-skills')]) {
     if (e.target.closest('#copilotCancel')) { S.copilotAsk = null; return renderSettingsView(); }
     if (e.target.closest('#copilotConfirm')) return api('/api/copilot', { on: S.copilotAsk.on, confirm: true }).then((d) => { S.copilot = d; S.copilotAsk = null; loadCopilotProfiles().then(renderSettingsView); toast(t(d.enabled ? 'ac.copilot.enabled' : 'ac.copilot.disabled')); renderSettingsView(); }, (err) => { if (err.data?.status) S.copilot = err.data.status; S.copilotAsk = null; toast(err.message); renderSettingsView(); });
     const profileRemove = e.target.closest('[data-profile-remove]');
-    if (profileRemove) return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== profileRemove.dataset.profileRemove));
+    if (profileRemove) {
+      const id = profileRemove.dataset.profileRemove;
+      return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== id), [id]);
+    }
     const profileRetry = e.target.closest('[data-profile-retry]');
     if (profileRetry) {
       const id = profileRetry.dataset.profileRetry, agy = (S.settings.agents?.profiles || []).find((profile) => profile.id === id)?.provider === 'agy';

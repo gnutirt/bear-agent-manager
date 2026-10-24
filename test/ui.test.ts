@@ -457,7 +457,7 @@ test('Copilot profile settings: list, add, enable/disable, remove, and separate 
       'data-profile-enabled="${esc(p.id)}"',
       'data-profile-remove="${esc(p.id)}"',
       "submitAgentProfile({ id, provider: 'copilot', name, cwd",
-      "api('/api/settings', { agents: { profiles } }, 'PUT')",
+      "api('/api/settings', { agents: { profiles }, ...(confirmRemove ? { confirmRemove } : {}) }, 'PUT')",
       "api('/api/agent-profiles')",
       "status?.auth === 'ok'",
       "status?.auth === 'no'",
@@ -795,6 +795,8 @@ test('#237 every agent is listed in one table and its settings are edited only i
     }
     // The agent group opens with the table, and the group keeps spec §3 cards ≤ 5.
     assert.ok(script.includes('agent: `${agentTableBlock(st)}'), 'the agent group does not start with the table');
+    assert.ok(script.includes('saveCopilotProfiles(profiles, confirmRemove)') && script.includes('return saveCopilotProfiles((S.settings.agents?.profiles || []).filter((p) => p.id !== id), [id]);'), 'profile removal must send its exact ID in confirmRemove');
+    for (const key of ['agent.profile.invalid', 'agent.profile.confirmRemove']) assert.ok(key in vi && key in en, `missing translation ${key}`);
     const group = script.slice(script.indexOf('agent: `${agentTableBlock(st)}'), script.indexOf('accounts: `${account.accounts}'));
     assert.ok((group.match(/<h2>/g) || []).length <= 5, 'the agent group has more than five cards');
     for (const key of ['agent.table.title', 'agent.col.name', 'agent.col.kind', 'agent.col.runs', 'agent.col.model', 'agent.col.tier', 'agent.col.status', 'agent.settings', 'agent.noSession', 'agent.tierDefault', 'agent.blk.basic', 'agent.blk.context', 'agent.blk.activity']) {

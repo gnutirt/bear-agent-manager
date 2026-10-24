@@ -498,6 +498,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       },
     };
   }
+  function logProfileIdChanges(before: AgentProfile[], after: AgentProfile[], source: string, rawUserAgent?: unknown): void {
+    const beforeIds = before.map((profile) => profile.id), afterIds = after.map((profile) => profile.id);
+    if (JSON.stringify(beforeIds) === JSON.stringify(afterIds)) return;
+    const userAgent = (typeof rawUserAgent === 'string' ? rawUserAgent : '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 160) || 'unknown';
+    const line = `[settings] ${new Date().toISOString()} profiles ${JSON.stringify(beforeIds)} -> ${JSON.stringify(afterIds)} source=${JSON.stringify(source)} user-agent=${JSON.stringify(userAgent)}`;
+    try { fs.appendFileSync(path.join(opts.dir, 'settings-changes.log'), line + '\n'); }
+    catch (error) { console.error(`[settings] could not append profile ID audit log: ${error instanceof Error ? error.message : String(error)}`); }
+    console.log(line);
+  }
   async function handleCopilotQuota(profileId: string, limit: CopilotQuotaLimit): Promise<number | false> {
     const source = copilots.get(profileId)?.agent;
     const sourceId = source?.hubSessionId();
@@ -677,11 +686,16 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const copilotAgents = () => [...copilots.values()].map((c) => c.agent);
   const copilotHolding = (sid: string) => copilotAgents().find((c) => c.hasSession(sid));
   /** Writes profile.enabled (and the legacy copilot.autoStart for the default profile) so a restart and old clients agree. */
-  function setCopilotEnabled(id: string, on: boolean): void {
+  function setCopilotEnabled(id: string, on: boolean, source = 'internal', userAgent?: unknown): void {
     const current = loadSettings(opts.dir, envCap);
-    const profiles = copilotProfiles().map((p) => (p.id === id ? { ...p, enabled: on } : p));
+    const profiles = current.agents.profiles.map((p) => (p.id === id ? { ...p, enabled: on } : p));
+    if (!profiles.some((p) => p.id === id)) {
+      if (id !== 'copilot') return;
+      profiles.push({ id: 'copilot', provider: 'copilot', name: 'Copilot', cwd: ROOT, enabled: on });
+    }
     const next = patchSettings(current, { agents: { profiles }, ...(id === 'copilot' ? { copilot: { autoStart: on } } : {}) });
     saveSettings(opts.dir, next);
+    logProfileIdChanges(current.agents.profiles, next.agents.profiles, source, userAgent);
     broadcast('settings', publicSettings());
     broadcast('copilot', copilotStatus(id));
   }
@@ -707,7 +721,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   }
 
   /** on = true/false: save enabled and start/stop; undefined = retry (start again, which re-checks the login). */
-  async function copilotToggle(res: http.ServerResponse, id: string, on: boolean | undefined) {
+  async function copilotToggle(res: http.ServerResponse, id: string, on: boolean | undefined, source = 'internal', userAgent?: unknown) {
     const prof = copilotProfiles().find((x) => x.id === id)!;
     if (prof.provider === 'duck' && on === true) {
       if (!prof.useHubDuck2api && !prof.baseUrl) throw new StoreError(400, 'choose Duck2api from the hub or configure a base URL before enabling');
@@ -718,13 +732,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (on !== false && agent.snapshot().state === 'off' && copilotAgents().filter((a) => a.snapshot().state !== 'off').length >= cap) {
       return json(res, 429, { error: `${cap} headless agents already run (settings agents.maxBackground)`, status: copilotStatus(id) });
     }
-    if (on !== undefined) setCopilotEnabled(id, on);
+    if (on !== undefined) setCopilotEnabled(id, on, source, userAgent);
     if (on === undefined) agent.resetQuotaLimit();
     try {
       if (on === false) await agent.stop();
       else await agent.start();
     } catch (error) {
-      if (error instanceof CopilotAuthError) setCopilotEnabled(id, false);
+      if (error instanceof CopilotAuthError) setCopilotEnabled(id, false, source, userAgent);
       return json(res, 503, { error: error instanceof Error ? error.message : String(error), status: copilotStatus(id) });
     }
     return json(res, 200, { ...copilotStatus(id), done: true });
@@ -2697,7 +2711,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const b = await readBody(req);
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus('copilot'), done: false });
       if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
-      return copilotToggle(res, 'copilot', b.on);
+      return copilotToggle(res, 'copilot', b.on, 'POST /api/copilot', req.headers['user-agent']);
     }
     if (m === 'GET' && p === '/api/copilot/profiles') return json(res, 200, copilotProfiles().map((x) => copilotStatus(x.id)));
     // S4: the permission prompt tool of a live chat asks here and waits for the person's answer (or the timeout = deny)
@@ -2756,10 +2770,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       const prof = copilotProfiles().find((x) => x.id === cp[1]);
       if (!prof) return json(res, 404, { error: `unknown profile ${cp[1]}` });
       const b = await readBody(req);
-      if (cp[2]) return copilotToggle(res, prof.id, undefined);
+      if (cp[2]) return copilotToggle(res, prof.id, undefined, `POST /api/copilot/profiles/${prof.id}`, req.headers['user-agent']);
       if (b.confirm !== true) return json(res, 200, { ...copilotStatus(prof.id), done: false });
       if (typeof b.on !== 'boolean') throw new StoreError(400, 'on must be true or false');
-      return copilotToggle(res, prof.id, b.on);
+      return copilotToggle(res, prof.id, b.on, `POST /api/copilot/profiles/${prof.id}`, req.headers['user-agent']);
     }
     if (m === 'POST' && p === '/api/pm') {
       // #160: room_pm(to, text): the PM room of the two agents (made on first use), then the message in it. The sender is the caller's own session.
@@ -2854,6 +2868,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     }
     if (m === 'PUT' && p === '/api/settings') {
       const patch = await readBody(req);
+      const current = loadSettings(opts.dir, envCap);
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'flowTiers')) {
         const members = Object.fromEntries(Object.keys(store.state.rooms).map((room) => [room, store.members(room).map((member) => member.name)]));
         const flowTierErrors = validateFlowTiers(patch.flowTiers, members);
@@ -2866,8 +2881,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           return json(res, 400, { error: `${tr('agent.profile.invalid')} ${details}`, profileErrors });
         }
       }
-      const next = patchSettings(loadSettings(opts.dir, envCap), patch);
+      const next = patchSettings(current, patch);
+      const beforeProfileIds = current.agents.profiles.map((profile) => profile.id);
+      const afterProfileIds = next.agents.profiles.map((profile) => profile.id);
+      const afterProfileIdSet = new Set(afterProfileIds);
+      const removedProfileIds = beforeProfileIds.filter((id) => !afterProfileIdSet.has(id));
+      if (removedProfileIds.length) {
+        const confirmRemove = patch?.confirmRemove;
+        const confirmed = Array.isArray(confirmRemove) && confirmRemove.length === removedProfileIds.length &&
+          confirmRemove.every((id: unknown) => typeof id === 'string') &&
+          new Set(confirmRemove).size === confirmRemove.length &&
+          removedProfileIds.every((id) => confirmRemove.includes(id));
+        if (!confirmed) return json(res, 400, {
+          error: tr('agent.profile.confirmRemove', { ids: removedProfileIds.join(', ') }),
+          removedProfileIds,
+        });
+      }
       saveSettings(opts.dir, next);
+      logProfileIdChanges(current.agents.profiles, next.agents.profiles, 'PUT /api/settings', req.headers['user-agent']);
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
       if (patch && (Object.prototype.hasOwnProperty.call(patch, 'duck') ||
         (patch.agents && Object.prototype.hasOwnProperty.call(patch.agents, 'profiles')))) await applyDuck();
