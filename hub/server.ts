@@ -1844,6 +1844,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   // ---- Claude Pro usage (T10a): read only, cached 5 min, polled every 15 min while an account is logged in ----
   const usageHome = opts.usageHome ?? os.homedir();
   const accountAuthCache = new Map<string, { at: number; status: Promise<ReturnType<typeof publicAuthStatus>> }>();
+  // #277: email per config dir, kept from the T1 auth cache (a token is never part of it), so GET /api/workspaces can
+  // show the account of a folder without running `claude auth status` on its own request path.
+  const accountEmails = new Map<string, string>();
   const accountAuthStatus = async (dir: string, force = false) => {
     const key = path.resolve(dir).toLowerCase(), now = (opts.now ?? Date.now)();
     const cached = accountAuthCache.get(key);
@@ -1862,8 +1865,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
     })();
     accountAuthCache.set(key, entry);
-    void entry.status.then(() => {
+    void entry.status.then((status) => {
       if (accountAuthCache.get(key) === entry) entry.at = (opts.now ?? Date.now)();
+      if (status?.email) accountEmails.set(key, status.email); else accountEmails.delete(key);   // logged out: no stale email
     });
     return entry.status;
   };
@@ -2854,11 +2858,15 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       return json(res, 200, { done: true });
     }
     // T3 (#274): chats grouped by their folder (junctions resolved, case-insensitive on Windows). Transcripts are
-    // counted, never opened. T1/T2 will also pass emailOf and holderOf here once those land.
+    // counted, never opened. #277 wires the two facts the other tabs already know: holderOf (#276) says who holds the
+    // chat right now, and the email comes from the T1 auth cache — a GET never runs `claude auth status` by itself.
     if (m === 'GET' && p === '/api/workspaces') {
       return json(res, 200, buildWorkspaces({
         sessions: Object.values(store.state.sessions),
         configDirs: [...new Set([path.join(usageHome, '.claude'), ...accountDirs()])],
+        holderOf: (s) => sessionHolder(s as Session),
+        // a session without a configDir runs on the default account (~/.claude), the same rule the auth screen uses
+        emailOf: (configDir) => accountEmails.get(path.resolve(configDir || path.join(usageHome, '.claude')).toLowerCase()),
       }));
     }
     if (m === 'POST' && p === '/api/accounts/share') {
@@ -3256,6 +3264,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const hasReportedPendingMessage = s.deafSince !== undefined && store.pending(s.id).messages.some((msg) => msg.wake.some((w) => store.resolve(w) === s.id));
         const holder = sessionHolder(s);
         if (holder.count > 0 && !hasReportedPendingMessage) return json(res, 409, { error: sessionHolderError(s, holder) });
+        if ((s.status !== 'offline' && !s.ended) && !hasReportedPendingMessage) return json(res, 409, { error: `${s.name} is online; mention it instead` });
         if (Date.now() - (tabOpened.get(s.id) ?? 0) < 2 * 60_000) return json(res, 409, { error: `a tab of ${s.name} was opened less than 2 minutes ago: press Enter in it` });
         endBackground(s.id);   // never two claude processes on one session
         openTab(s);
@@ -3356,9 +3365,9 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           return json(res, 200, { ok: true });
         }
         if (liveChat.has(s.id)) return json(res, 200, { running: true, started: false });
+        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to continue`);
         const holder = sessionHolder(s);
         if (holder.count > 0 || isBackground(s.id)) throw new StoreError(409, sessionHolderError(s, holder));
-        if (!hasTranscript(s)) throw new StoreError(409, `${s.name} has no saved conversation to continue`);
         if (copilotHolding(s.id) || apiProfileOf(s)) throw new StoreError(409, `${s.name} is not a Claude Code chat the hub can stream`);
         const cfg = loadSettings(opts.dir, envCap), model = cfg.agentModel[normAgent(s.name)];
         if (countBackgroundWith(reviving) + liveChat.count() >= cfg.agents.maxBackground) throw new StoreError(429, `${cfg.agents.maxBackground} background agents already run (settings agents.maxBackground)`);

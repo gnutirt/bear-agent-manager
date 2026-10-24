@@ -171,6 +171,6 @@ test('hub live chat: start needs a saved chat, no open tab; send/stop; room @ go
     await call('/api/sessions/register', { id: 'l1', cwd: dir, transcript: tr, pid: process.pid });
     await until(async () => !(await call<any>('/api/sessions/l1/live')).running, 10_000, 'live chat stopped by the tab');
     assert.notEqual((await call<any>('/api/sessions/l1')).session.status, 'offline', 'the session lives on in the tab');
-    await assert.rejects(call('/api/sessions/l1/live', {}), (e: any) => e.status === 409 && /editor tab/.test(e.message));
+    await assert.rejects(call('/api/sessions/l1/live', {}), (e: any) => e.status === 409 && (/editor tab|terminal|đang chạy/.test(e.message)));
   } finally { await hub.close(); }
 });

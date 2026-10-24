@@ -104,6 +104,9 @@ test('T2 table test: 1 tab VS Code bằng ~/.claude + 1 nền bằng ~/.claude-a
     // Write email in the test's usageHome (.claude.json)
     fs.writeFileSync(path.join(dir, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'tester@acme.corp' } }));
 
+    const tr = path.join(dir, 'sess-t2.jsonl');
+    fs.writeFileSync(tr, JSON.stringify({ type: 'assistant' }) + '\n');
+
     // Register tab VS Code with primary configDir ~/.claude
     await call('/api/sessions/register', {
       id: 'sess-t2',
@@ -113,6 +116,7 @@ test('T2 table test: 1 tab VS Code bằng ~/.claude + 1 nền bằng ~/.claude-a
       headless: false,
       ide: 'vscode',
       configDir: path.join(dir, '.claude'),
+      transcript: tr,
     });
 
     // Register second process: background wake with ~/.claude-antigravity
@@ -123,6 +127,7 @@ test('T2 table test: 1 tab VS Code bằng ~/.claude + 1 nền bằng ~/.claude-a
       pid: 102,
       headless: true,
       configDir: path.join(dir, '.claude-antigravity'),
+      transcript: tr,
     });
 
     // Verify session state has 2 live pids

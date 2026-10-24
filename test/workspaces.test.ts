@@ -66,3 +66,23 @@ test('T3 workspaces: GET /api/workspaces groups the hub sessions by folder and h
     for (const s of ['data-tab="folders"', 'id="view-folders"', "folders: loadFoldersView", "'/api/workspaces'"]) assert.ok(html.includes(s), `missing ${s}`);
   } finally { await hub.close(); }
 });
+
+// #277: the route must not carry a second copy of "who holds this chat" or of the account list: both come from the hub.
+test('#277 the folder screen uses the hub holder (#276) and the account email from the T1 cache', async () => {
+  const { hub, call } = await makeHub(undefined, undefined, {
+    authStatus: async () => ({ loggedIn: true, email: 'dev@example.test', subscriptionType: 'pro', orgName: '', authMethod: 'oauth' }),
+  });
+  try {
+    const cwd = tmp();
+    await call('/api/sessions/register', { id: 'w2', cwd, pid: process.pid, ide: 'antigravity' });
+    const before = await call<any[]>('/api/workspaces');
+    const held = before.find((x) => x.key === normCwd(cwd))!.sessions[0];
+    assert.equal(held.holder.where, 'antigravity', 'who holds the chat comes from holderOf, not the local fallback');
+    assert.equal(held.holder.pid, process.pid);
+    assert.equal(held.email, undefined, 'a GET of the folders never runs `claude auth status` by itself');
+    await call('/api/accounts?refresh=1');   // the accounts screen fills the cache; no token is read for this
+    const after = await call<any[]>('/api/workspaces');
+    assert.equal(after.find((x) => x.key === normCwd(cwd))!.sessions[0].email, 'dev@example.test', 'the cached email shows on the folder');
+    assert.ok(!JSON.stringify(after).includes(hub.token));
+  } finally { await hub.close(); }
+});
