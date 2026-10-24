@@ -1181,3 +1181,19 @@ test('#271 Agent drawer: hides Claude-only blocks (permissions, context/compact,
   assert.ok(paint.includes("<section class=\"mblk\"><h4>${t('agent.blk.activity')}</h4>"), 'activity block missing');
 });
 
+test('#272 Tasks tab: auto-assign tier option in owner select and pool badge on task card', async () => {
+  const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+  for (const s of [
+    'roomTiers.map((n) => `<option value="tier:${n}"',
+    "t('task.poolOpt', { n })",
+    'x.pool ? `<span class="town"',
+    "t('task.pool', { n: x.pool })",
+    "x.owner || t('task.poolNone')",
+  ]) assert.ok(html.includes(s), `missing #272 wiring: ${s}`);
+  for (const k of ['task.pool', 'task.poolNone', 'task.poolOpt', 'sys.task.tierEmpty']) {
+    assert.ok(k in vi, `vi missing ${k}`);
+    assert.ok(k in en, `en missing ${k}`);
+  }
+});
+
+

@@ -67,12 +67,12 @@ test('#266 T2 tier-auto-assign: round-robin tie-break by oldest assignedAt', asy
   } finally { await hub.close(); }
 });
 
-test('#266 T2 tier-auto-assign: skips offline/ended, disabled profiles, out of budget, or recent error in 30min', async () => {
+test('#266 T2 tier-auto-assign: skips offline/ended, disabled profiles, out of budget, or recent error in 30min; warn is kept', async () => {
   const { hub, dir, call } = await makeHub();
   try {
     await call('/api/sessions/register', { id: 'l1', cwd: 'C:/lead' });
     await call('/api/sessions/l1/rename', { name: 'boss' });
-    for (const name of ['offline-agent', 'error-agent', 'good-agent']) {
+    for (const name of ['offline-agent', 'error-agent', 'warn-agent', 'good-agent']) {
       await call('/api/sessions/register', { id: name, cwd: `C:/${name}` });
       await call(`/api/sessions/${name}/rename`, { name });
       await call('/api/rooms/r/join', { sessionId: name });
@@ -80,19 +80,28 @@ test('#266 T2 tier-auto-assign: skips offline/ended, disabled profiles, out of b
     await call('/api/rooms/r/join', { sessionId: 'l1' });
     await call('/api/rooms/r/lead', { sessionId: 'l1' });
     await call('/api/settings', {
-      flowTiers: { r: { 'offline-agent': 5, 'error-agent': 5, 'good-agent': 5 } },
+      flowTiers: { r: { 'offline-agent': 5, 'error-agent': 5, 'warn-agent': 5, 'good-agent': 5 } },
     }, { method: 'PUT' });
 
     // 1. offline-agent is offline
     hub.store.state.sessions['offline-agent'].status = 'offline';
 
-    // 2. error-agent has a recent error in room r within 30 min
+    // 2. error-agent has a recent error in room r within 30 min (must be skipped)
     hub.store.postSystem('r', 'Something failed', undefined, { type: 'error', level: 'error', agent: 'error-agent' });
 
-    // Pool task should skip offline-agent and error-agent, picking good-agent
+    // 3. warn-agent has a recent warn (e.g. usage warning) in room r within 30 min (must NOT be skipped)
+    hub.store.postSystem('r', 'Usage warning', undefined, { type: 'usage', level: 'warn', agent: 'warn-agent' });
+
+    // Pool task should skip offline-agent and error-agent.
+    // Between good-agent and warn-agent, alphabetically 'good-agent' comes before 'warn-agent'.
     const t = await call<any>('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Filtered pick', owner: 'tier:5' });
     const task = listTasks(dir, 'r').find((x) => x.id === t.id);
     assert.equal(task?.owner, 'good-agent');
+
+    // Second task: good-agent now has 1 task, so warn-agent (0 tasks, not skipped by warn) gets picked!
+    const t2 = await call<any>('/api/rooms/r/tasks', { sessionId: 'l1', title: 'Warn agent pick', owner: 'tier:5' });
+    const task2 = listTasks(dir, 'r').find((x) => x.id === t2.id);
+    assert.equal(task2?.owner, 'warn-agent');
   } finally { await hub.close(); }
 });
 

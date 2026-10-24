@@ -3528,7 +3528,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       m.room === room &&
       (m.kind === 'system' || !!m.sys) &&
       normAgent(m.sys?.agent ?? '') === normAgent(mem.name) &&
-      (m.sys?.level === 'error' || m.sys?.level === 'warn') &&
+      (m.sys?.level === 'error') &&
       now - m.ts < TIER_COOLDOWN_MS
     );
     if (hasRecentError) return false;
