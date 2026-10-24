@@ -514,6 +514,15 @@ header .spacer{flex:1}
 /* ---------- popover menu + toast ---------- */
 #menu{position:fixed;z-index:50;min-width:230px;max-width:320px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none;max-height:calc(100vh - 16px);overflow-y:auto}
 #menu.open{display:block}
+@media (prefers-reduced-motion:no-preference){
+  section.view:not([hidden]){animation:bamFade .18s ease-out}
+  #menu.open{animation:bamPop .14s ease-out;transform-origin:top left}
+  #zoom:not([hidden]){animation:bamFade .16s ease-out}#zoom:not([hidden])>.zbox{animation:bamPop .18s ease-out}
+  .side-scroll,section.view,#menu,.zbox{scroll-behavior:smooth}
+}
+@keyframes bamFade{from{opacity:0}}
+@keyframes bamPop{from{opacity:0;transform:translateY(-4px) scale(.98)}}
+.side-scroll,section.view,#log,#menu,.zbox{overscroll-behavior:contain}
 #menu:has(.mlist){width:min(340px,calc(100vw - 16px));max-width:none}#menu .mlist{display:grid;gap:2px;max-height:min(60vh,460px);overflow-y:auto}
 #menu .sess,#menu .wk{--side-text:var(--text);--side-strong:var(--text);--side-mute:var(--mute);--side-2:var(--hover);--side-line:var(--line);--side:var(--panel);cursor:pointer}
 #menu .smhead{display:flex;align-items:center;gap:10px;padding:8px 10px}#menu .smhead b{font-size:15px}
@@ -1042,10 +1051,15 @@ const S = { workers: { running: [], recent: [], cap: 4 }, showRecent: false, roo
 // sending and switching rooms), instead of measuring "at bottom" on the old DOM before each render.
 S.stick = true; S.expanded = new Set(); S.seen = {}; S.setSub = 'general'; S.setQuery = ''; S.setFocusRow = undefined;   // seen[room] = message count when the user last was at the bottom
 const logEl = document.getElementById('log'), logBody = document.getElementById('logBody');   // $ is declared below
-const pinBottom = () => { if (S.stick) logEl.scrollTop = logEl.scrollHeight; };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let smoothPinUntil = 0;   // a smooth pin passes through "not at the bottom": the scroll handler must not read that as the user scrolling up
+const pinBottom = (smooth) => {
+  if (!S.stick) return;
+  if (smooth && !reduceMotion.matches) { smoothPinUntil = Date.now() + 700; logEl.scrollTo({ top: logEl.scrollHeight, behavior: 'smooth' }); } else logEl.scrollTop = logEl.scrollHeight;
+};
 logEl.addEventListener('scroll', () => {
   // A hidden webview reports 0 height and clamps scrollTop: that is not the user scrolling up.
-  if (!logEl.clientHeight) return;
+  if (!logEl.clientHeight || Date.now() < smoothPinUntil) return;
   S.stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
   newBtn();
 }, { passive: true });
@@ -1968,10 +1982,11 @@ function renderLog() {
   });
   el.querySelectorAll('[data-wake]').forEach((b) => b.onclick = () => reviveSession(b.dataset.wake));
   el.querySelectorAll('[data-rename]').forEach((b) => b.onclick = () => renameSessionForm(b, b.dataset.rename));
-  if (el.dataset.room !== S.current) S.stick = true;   // switching rooms always lands at the bottom
+  const sameRoom = el.dataset.room === S.current;
+  if (!sameRoom) S.stick = true;   // switching rooms always lands at the bottom
   el.dataset.room = S.current;
   lastLogSig = logSigOf();
-  pinBottom();
+  pinBottom(sameRoom);   // new messages in the open room glide in; a room switch jumps
   newBtn();
 }
 
