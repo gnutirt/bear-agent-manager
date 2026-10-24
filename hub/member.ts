@@ -174,34 +174,48 @@ export class HubMember<K extends string = string> {
         this.setStatus({ state: 'idle', error: undefined });
         return;
       }
-      const batch = pending.messages;
-      const upTo = batch[batch.length - 1].id;
-      const room = batch[batch.length - 1].room;
-      if (this.opts.kind === 'duck') {
-        const myName = this.opts.name.toLowerCase();
-        const hasMention = batch.some((m) => m.mentions.includes(myName));
-        if (!hasMention) {
-          this.opts.store.consume(id, upTo);
-          this.opts.store.setStatus(id, 'idle');
-          this.setStatus({ state: 'idle', error: undefined });
+      const all = pending.messages;
+      // #293: one batch can hold several rooms (a user DM plus the shared room). Answer each room in its own turn and
+      // post the answer back to that room, as the Copilot agent does (#40); the user's DM goes first so it is not lost
+      // behind a long shared-room turn.
+      const byRoom = new Map<string, Message[]>();
+      for (const m of all) {
+        const list = byRoom.get(m.room);
+        if (list) list.push(m); else byRoom.set(m.room, [m]);
+      }
+      const rooms = [...byRoom.keys()].sort((a, b) =>
+        Number(b.startsWith('dm-')) - Number(a.startsWith('dm-')) ||
+        byRoom.get(a)!.at(-1)!.id - byRoom.get(b)!.at(-1)!.id);
+      for (const room of rooms) {
+        const batch = byRoom.get(room)!;
+        const upToRoom = batch[batch.length - 1].id;
+        if (this.opts.kind === 'duck') {
+          const myName = this.opts.name.toLowerCase();
+          const hasMention = batch.some((m) => m.mentions.includes(myName));
+          if (!hasMention) {
+            this.opts.store.consumeIn(id, room, upToRoom);
+            continue;
+          }
+        }
+        const prompt = this.opts.format(id, batch);
+        this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
+        this.setStatus({ state: 'busy', error: undefined });
+
+        const finishBoard = workerBoard(this.opts.dir, id, this.opts.cwd, this.opts.kind, this.opts.workerModel?.() ?? '', prompt.length, this.now);
+        const turn = await this.opts.turn(id, room, prompt, batch);
+        finishBoard(turn);
+        if (!turn.ok || !turn.text.trim()) {
+          // Rooms already answered keep their own cursors; this one stays pending and is retried on the next wake.
+          this.failedTurn(id, turn.error || `${this.opts.kind} returned an empty response`, turn.kind ?? turn.error);
           return;
         }
+        this.failureKinds.clear();
+        const posted = this.opts.store.post(room, id, cutResponse(turn.text), undefined, undefined, undefined, undefined, undefined, turn.research);
+        this.opts.onMessage(room, posted.message);
+        this.opts.store.consumeIn(id, room, upToRoom);
       }
-      const prompt = this.opts.format(id, batch);
-      this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
-      this.setStatus({ state: 'busy', error: undefined });
-
-      const finishBoard = workerBoard(this.opts.dir, id, this.opts.cwd, this.opts.kind, this.opts.workerModel?.() ?? '', prompt.length, this.now);
-      const turn = await this.opts.turn(id, room, prompt, batch);
-      finishBoard(turn);
-      if (!turn.ok || !turn.text.trim()) {
-        this.failedTurn(id, turn.error || `${this.opts.kind} returned an empty response`, turn.kind ?? turn.error);
-        return;
-      }
-      this.failureKinds.clear();
-      const posted = this.opts.store.post(room, id, cutResponse(turn.text), undefined, undefined, undefined, undefined, undefined, turn.research);
-      this.opts.onMessage(room, posted.message);
-      this.opts.store.consume(id, upTo);
+      // Every room of this batch was handled: move the global cursor past it, so the next pending() starts clean.
+      this.opts.store.consume(id, all[all.length - 1].id);
       this.opts.store.setStatus(id, 'idle');
       this.setStatus({ state: 'idle', error: undefined });
     }

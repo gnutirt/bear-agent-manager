@@ -119,6 +119,51 @@ test('messages arriving mid-turn are handled as the next batch without parallel 
   assert.match(calls[1], /second batch two/);
 });
 
+// #293: the user DMs the agent and also writes in the shared room between two wakes. The batch used to be answered once,
+// in the room of its newest message, so the DM never got a reply. Each room now gets its own turn and its own answer.
+test('#293 a user DM and a shared-room message get one answer each, in their own room', async (t) => {
+  const calls: string[] = [];
+  const h = await setup(t, async (_exe, _args, _cwd, text) => { calls.push(text); return good(`reply ${calls.length}`, `c-${calls.length}`); });
+  const dm = h.store.dmRoom(h.sid);
+  const dmMessage = h.store.post(dm.name, null, '@AgyAgent trả lời riêng nhé').message;
+  const roomMessage = h.send('@AgyAgent đây là phòng chung');
+  await h.agent.wake(h.sid);
+  assert.equal(calls.length, 2, 'one turn per room');
+  assert.match(calls[0], /trả lời riêng/);
+  assert.doesNotMatch(calls[0], /phòng chung/);
+  assert.match(calls[1], /phòng chung/);
+  assert.doesNotMatch(calls[1], /trả lời riêng/);
+  assert.equal(h.store.pending(h.sid).messages.length, 0, 'both rooms are read');
+  const dmAnswer = h.store.history(dm.name).find((message) => message.fromId === h.sid);
+  const roomAnswer = h.store.history(ROOM).find((message) => message.fromId === h.sid);
+  assert.equal(dmAnswer?.text, 'reply 1', 'the user DM is answered first');
+  assert.equal(roomAnswer?.text, 'reply 2');
+  assert.ok(dmAnswer && dmAnswer.id > dmMessage.id);
+  assert.ok(roomAnswer && roomAnswer.id > roomMessage.id);
+});
+
+test('#293 a room answered before a failed one is not answered twice on the retry', async (t) => {
+  const calls: string[] = [];
+  const h = await setup(t, async (_exe, _args, _cwd, text) => {
+    calls.push(text);
+    return text.includes('phòng chung') && calls.length === 2 ? bad('turn broke') : good(`reply ${calls.length}`, `c-${calls.length}`);
+  });
+  const dm = h.store.dmRoom(h.sid);
+  h.store.post(dm.name, null, '@AgyAgent trả lời riêng nhé');
+  h.send('@AgyAgent đây là phòng chung');
+  await h.agent.wake(h.sid);
+  assert.equal(calls.length, 2);
+  assert.equal(h.store.history(dm.name).filter((message) => message.fromId === h.sid).length, 1, 'the DM answer is kept');
+  assert.equal(h.store.history(ROOM).filter((message) => message.fromId === h.sid).length, 0);
+  const unread = () => h.store.pending(h.sid).messages.filter((message) => message.kind !== 'system');   // the failure notice is not work
+  assert.equal(unread().length, 1, 'only the failed room stays unread');
+  assert.match(unread()[0].text, /phòng chung/);
+  await h.agent.wake(h.sid);
+  assert.equal(h.store.history(dm.name).filter((message) => message.fromId === h.sid).length, 1, 'no second answer to the DM');
+  assert.equal(h.store.history(ROOM).filter((message) => message.fromId === h.sid).length, 1);
+  assert.equal(unread().length, 0);
+});
+
 test('a stale conversation retries once without it and does not post the failed attempt', async (t) => {
   const calls: string[][] = [];
   const h = await setup(t, async (_exe, args) => {

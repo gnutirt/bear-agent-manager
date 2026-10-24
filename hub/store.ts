@@ -998,6 +998,26 @@ export class Store {
     this.save();
   }
 
+  /**
+   * #293: one room's share of a batch. Moves only that room's cursor (`Session.rooms[room]`, the same mark `pending()`
+   * filters on), so a turn in the shared room can neither swallow nor re-answer a user DM that arrived in between.
+   * The global cursor still moves once the whole batch is done (`consume`).
+   */
+  consumeIn(id: string, room: string, upTo: number): void {
+    const s = this.session(id);
+    if (!(room in s.rooms)) return;
+    let woke: string | undefined, seen: string | undefined;
+    for (const m of this.messages) {
+      // mirror = one of the agent's own tab turns copied into its private chat: same rule as consume().
+      if (m.room !== room || m.id <= s.rooms[room] || m.id > upTo || m.fromId === s.id || m.kind === 'system' || m.kind === 'mirror') continue;
+      seen = m.topic ?? 'chung';
+      if (m.wake.some((w) => this.resolve(w) === s.id)) woke = m.topic ?? 'chung';
+    }
+    if (seen) (s.turnTopic ??= {})[room] = woke ?? seen;
+    s.rooms[room] = Math.max(s.rooms[room], upTo);
+    this.save();
+  }
+
   history(room: string, after = 0, limit = 100, topic?: string): Message[] {
     if (!this.state.rooms[room]) throw new StoreError(404, `unknown room ${room}`);
     return this.messages.filter((m) => m.room === room && m.id > after && (!topic || (m.topic ?? 'chung') === topic)).slice(-Math.max(1, Math.min(limit, 500)));
