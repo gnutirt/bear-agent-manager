@@ -47,8 +47,19 @@ export type HubMemberOptions<K extends string = string> = {
   failureKey?: string;
   dedupeFailures?: boolean;
   startError?: (message: string) => string;
+  /** #295: the gap between two duck turns in a shared room, in ms (default 180 s; 0 = no gap). A direct @ skips it. */
+  roomCooldownMs?: () => number;
   now?: () => number;
 };
+
+/** #295: another agent's BAMshort status line ("✅ #12 …", "⏳ #13 …") is not worth a duck turn. */
+const STATUS_EMOJI = ['✅', '❌', '⚠️', '⏳', '🚫', '👀', '❓', '🔁'];
+function statusOnly(m: Message, self: string): boolean {
+  if (m.fromId === null || m.fromId === self || m.kind) return false;   // the user, its own words, system/mirror/done notices
+  const lines = m.text.split(/\r?\n/).map((line) => line.trim().replace(/^~/, '').trim()).filter(Boolean);
+  if (!lines.length || !lines.some((line) => /#\d+/.test(line))) return false;
+  return lines.every((line) => STATUS_EMOJI.some((emoji) => line.startsWith(emoji)));
+}
 
 type Identity = { hubId: string };
 
@@ -93,6 +104,7 @@ export class HubMember<K extends string = string> {
   private wakeTask?: Promise<void>;
   private stopping = false;
   private failureKinds = new Set<string>();
+  private lastRoomTurnAt?: number;   // #295: when the duck last took a turn in a shared room
   private status: MemberStatus<K>;
 
   constructor(opts: HubMemberOptions<K>) {
@@ -189,28 +201,46 @@ export class HubMember<K extends string = string> {
       for (const room of rooms) {
         const batch = byRoom.get(room)!;
         const upToRoom = batch[batch.length - 1].id;
+        let promptBatch = batch;
         if (this.opts.kind === 'duck') {
           const myName = this.opts.name.toLowerCase();
-          // #293b: the mention rule is per room — the duck's own private chat is addressed at it, so a DM needs no @.
-          const hasMention = room.startsWith('dm-') || batch.some((m) => m.mentions.includes(myName));
-          if (!hasMention) {
-            this.opts.store.consumeIn(id, room, upToRoom);
-            continue;
+          // #295: the duck reads the conversation; only a DM or an explicit @ skips the shared-room gap. Its own quiet
+          // answer is the word SKIP (hub/duck.ts asks for it), so it is not forced to say something in every batch.
+          const direct = room.startsWith('dm-') || batch.some((m) => m.mentions.includes(myName));
+          if (!direct) {
+            const gap = this.opts.roomCooldownMs?.() ?? 0;
+            if (gap > 0 && this.lastRoomTurnAt !== undefined && this.now() - this.lastRoomTurnAt < gap) {
+              this.opts.store.consumeIn(id, room, upToRoom);   // too soon: read it, do not spend a turn
+              continue;
+            }
+            // Other agents' BAMshort status lines are checklist noise, not conversation.
+            promptBatch = batch.filter((m) => !statusOnly(m, id));
+            if (!promptBatch.length) {
+              this.opts.store.consumeIn(id, room, upToRoom);
+              continue;
+            }
           }
         }
-        const prompt = this.opts.format(id, batch);
+        const prompt = this.opts.format(id, promptBatch);
         this.opts.store.setStatus(id, 'busy', `Working in #${room}`);
         this.setStatus({ state: 'busy', error: undefined });
 
         const finishBoard = workerBoard(this.opts.dir, id, this.opts.cwd, this.opts.kind, this.opts.workerModel?.() ?? '', prompt.length, this.now);
-        const turn = await this.opts.turn(id, room, prompt, batch);
+        const turn = await this.opts.turn(id, room, prompt, promptBatch);
         finishBoard(turn);
-        if (!turn.ok || !turn.text.trim()) {
+        const reply = turn.text.trim();
+        const quiet = this.opts.kind === 'duck' && (turn.ok ? !reply || reply.toUpperCase() === 'SKIP' : turn.kind === 'empty');
+        if (!turn.ok && !quiet) {
           // Rooms already answered keep their own cursors; this one stays pending and is retried on the next wake.
           this.failedTurn(id, turn.error || `${this.opts.kind} returned an empty response`, turn.kind ?? turn.error);
           return;
         }
         this.failureKinds.clear();
+        if (this.opts.kind === 'duck' && !room.startsWith('dm-')) this.lastRoomTurnAt = this.now();   // a turn in a shared room starts the gap
+        if (quiet) {
+          this.opts.store.consumeIn(id, room, upToRoom);   // SKIP is a deliberate quiet answer: no post, no "empty" error
+          continue;
+        }
         const posted = this.opts.store.post(room, id, cutResponse(turn.text), undefined, undefined, undefined, undefined, undefined, turn.research);
         this.opts.onMessage(room, posted.message);
         this.opts.store.consumeIn(id, room, upToRoom);

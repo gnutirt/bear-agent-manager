@@ -68,6 +68,11 @@ export function flatten(o: {
     : 'I am working with a software development team and would like your advice.';
   const contextLabel = isVi ? 'Bối cảnh ngắn:' : 'Brief context:';
   const questionLabel = isVi ? 'Câu hỏi:' : 'Question:';
+  // #295: the duck now reads the shared room too and decides whether to speak; SKIP is the quiet answer (nothing is posted).
+  const skipHint = isVi
+    ? 'Nếu tin này không cần bạn góp ý, chỉ trả lời đúng một chữ: SKIP'
+    : 'If this message needs no advice from you, reply with exactly one word: SKIP';
+  const budget = MAX_PROMPT - skipHint.length - 2;   // the hint always fits in the prompt
 
   const contextParts: string[] = [];
 
@@ -94,30 +99,31 @@ export function flatten(o: {
   }
 
   const questionPart = `${questionLabel}\n${query}`;
+  const hint = `\n\n${skipHint}`;
 
-  if (`${intro}\n\n${questionPart}`.length > MAX_PROMPT) {
+  if (`${intro}\n\n${questionPart}`.length > budget) {
     const head = `${intro}\n\n${questionLabel}\n`;
-    const available = Math.max(0, MAX_PROMPT - head.length);
+    const available = Math.max(0, budget - head.length);
     const clipped = query.length > available ? `${query.slice(0, Math.max(0, available - 1))}…` : query;
-    return `${head}${clipped}`;
+    return `${head}${clipped}${hint}`;
   }
 
   if (!contextParts.length) {
-    return `${intro}\n\n${questionPart}`;
+    return `${intro}\n\n${questionPart}${hint}`;
   }
 
   let contextBody = contextParts.join('\n\n');
   let result = `${intro}\n\n${contextLabel}\n${contextBody}\n\n${questionPart}`;
-  if (result.length <= MAX_PROMPT) return result;
+  if (result.length <= budget) return `${result}${hint}`;
 
-  while (contextParts.length && result.length > MAX_PROMPT) {
+  while (contextParts.length && result.length > budget) {
     contextParts.shift();
     contextBody = contextParts.join('\n\n');
     result = contextParts.length
       ? `${intro}\n\n${contextLabel}\n${contextBody}\n\n${questionPart}`
       : `${intro}\n\n${questionPart}`;
   }
-  return result;
+  return `${result}${hint}`;
 }
 
 function historyLength(history: ChatHistory): number {

@@ -8,16 +8,18 @@ import { Store } from '../hub/store.ts';
 import type { Message } from '../hub/routing.ts';
 
 const ROOM = 'bear-agent-manager';
+const GAP_MS = 180_000;
 
-// #293b: the duck's mention rule is per room. A DM is addressed at the duck by construction (nobody else can be in that
-// room), so the user does not have to type "@duck-ga"; the shared room keeps the old "only when named" rule.
-// The test proves both halves: the wake flag the store records at post time (wakes()) and the drain's own mention filter.
-test('#293b a duck answers its own DM without an @, and still ignores untagged shared-room chatter', async (t) => {
+// #293b/#295: the duck's own DM needs no @; the shared room is read too, the duck answers SKIP when it has nothing to
+// add, and it takes at most one shared-room turn per duck.roomCooldownSec (a direct @ skips the gap).
+// The hub wires the gap from settings (server.ts), the member only asks for the number.
+async function setup(t: { after: (fn: () => void) => void }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'duck-dm-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const store = new Store(path.join(dir, 'store'));
+  let clock = 1_000_000;
   const calls: { room: string; text: string }[] = [];
-  const posted: Message[] = [];
+  const replies: string[] = [];
   const member = new HubMember({
     dir,
     id: 'duck-1',
@@ -26,36 +28,85 @@ test('#293b a duck answers its own DM without an @, and still ignores untagged s
     kind: 'duck',
     store,
     format: (_sid, messages) => messages.map((message) => message.text).join('\n\n'),
-    turn: async (_sid, room, text) => { calls.push({ room, text }); return { ok: true, text: `answer for #${room}`, error: '' }; },
+    turn: async (_sid, room, text) => { calls.push({ room, text }); return { ok: true, text: replies.shift() ?? '', error: '' }; },
+    roomCooldownMs: () => GAP_MS,
+    now: () => clock,
     onChange: () => {},
     onRoom: () => {},
     onRooms: () => {},
-    onMessage: (_room, message) => posted.push(message),
+    onMessage: (_room, _message: Message) => {},
   });
   await member.start();
-  const sid = member.hubSessionId()!;
+  return { dir, store, member, sid: member.hubSessionId()!, calls, replies, tick: (ms: number) => { clock += ms; } };
+}
 
-  const dm = store.dmRoom(sid);
-  const dmMessage = store.post(dm.name, null, 'chào DuckGa, xem giúp mình câu này').message;
-  assert.deepEqual(dmMessage.wake, [sid], 'a DM wakes the duck without a mention');
-  await member.wake(sid);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].room, dm.name);
-  assert.match(calls[0].text, /xem giúp mình/);
-  assert.equal(store.history(dm.name).find((message) => message.fromId === sid)?.text, `answer for #${dm.name}`);
-  assert.equal(store.pending(sid).messages.length, 0, 'the DM is read');
+const answers = (h: { store: Store; sid: string }, room: string) => h.store.history(room).filter((m) => m.fromId === h.sid);
 
-  const untagged = store.post(ROOM, null, 'chuyện chung, không gọi ai').message;
-  assert.deepEqual(untagged.wake, [], 'untagged chatter in the shared room still wakes nobody');
-  await member.wake(sid);
-  assert.equal(calls.length, 1, 'the duck stays quiet in the shared room');
+test('#293b a DM is addressed at the duck: no @ needed, and the answer goes back to the DM', async (t) => {
+  const h = await setup(t);
+  const dm = h.store.dmRoom(h.sid);
+  const dmMessage = h.store.post(dm.name, null, 'chào DuckGa, xem giúp mình câu này').message;
+  assert.deepEqual(dmMessage.wake, [h.sid], 'a DM wakes the duck without a mention');
+  h.replies.push(`answer for #${dm.name}`);
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].room, dm.name);
+  assert.equal(answers(h, dm.name)[0]?.text, `answer for #${dm.name}`);
+  assert.equal(h.store.pending(h.sid).messages.length, 0, 'the DM is read');
+  await h.member.stop();
+});
 
-  const named = store.post(ROOM, null, '@DuckGa cho mình hỏi').message;
-  assert.deepEqual(named.wake, [sid], 'a shared-room @ still wakes the duck');
-  await member.wake(sid);
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].room, ROOM);
-  assert.equal(store.history(ROOM).find((message) => message.fromId === sid)?.text, `answer for #${ROOM}`);
-  assert.equal(store.pending(sid).messages.length, 0);
-  await member.stop();
+test('#295 the shared room: SKIP is silent, the gap is respected, and an @ skips the gap', async (t) => {
+  const h = await setup(t);
+  const first = h.store.post(ROOM, null, 'mọi người nghĩ gì về kế hoạch này?').message;
+  assert.ok(first.wake.includes(h.sid), 'an untagged user message now reaches the duck');
+  h.replies.push('SKIP');
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 1, 'the duck reads it and decides');
+  assert.equal(answers(h, ROOM).length, 0, 'SKIP posts nothing');
+  assert.equal(h.store.pending(h.sid).messages.length, 0, 'the batch is read');
+
+  h.tick(60_000);
+  h.store.post(ROOM, null, 'thêm một tin nữa');
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 1, 'inside the 3 minute gap no turn runs');
+  assert.equal(h.store.pending(h.sid).messages.length, 0);
+
+  h.replies.push('mình nghĩ nên thử');
+  const named = h.store.post(ROOM, null, '@DuckGa bạn thấy sao?').message;
+  assert.ok(named.wake.includes(h.sid));
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 2, 'a direct @ skips the gap');
+  assert.equal(answers(h, ROOM)[0]?.text, 'mình nghĩ nên thử');
+
+  h.tick(30_000);
+  h.store.post(ROOM, null, 'còn ý kiến gì không?');
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 2, 'the answered @ restarted the gap');
+  await h.member.stop();
+});
+
+test('#295 status lines from other agents are not handed to the duck; an empty answer is silent too', async (t) => {
+  const h = await setup(t);
+  const other = h.store.register({ id: 'other-agent', name: 'OtherAgent', cwd: h.dir });
+  h.store.join(other.id, ROOM);
+  h.store.post(ROOM, other.id, '✅ #12 ^abc1234: xong rồi');
+  const user = h.store.post(ROOM, null, 'mọi người kiểm tra giúp mình nhé').message;
+  assert.ok(user.wake.includes(h.sid));
+  h.replies.push('được, để mình xem');
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 1);
+  assert.doesNotMatch(h.calls[0].text, /✅ #12/, 'the checklist line is filtered out of the prompt');
+  assert.match(h.calls[0].text, /kiểm tra giúp mình/);
+  assert.equal(answers(h, ROOM).length, 1);
+
+  h.tick(10 * 60_000);
+  h.store.post(ROOM, null, 'một tin nữa');
+  h.replies.push('');   // the model has nothing to say
+  await h.member.wake(h.sid);
+  assert.equal(h.calls.length, 2);
+  assert.equal(answers(h, ROOM).length, 1, 'an empty answer posts nothing and is not an error');
+  assert.equal(h.store.history(ROOM).filter((m) => m.sys?.type === 'error').length, 0);
+  assert.equal(h.store.pending(h.sid).messages.length, 0);
+  await h.member.stop();
 });

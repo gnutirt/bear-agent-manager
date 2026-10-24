@@ -63,11 +63,13 @@ test('paused room: agent messages wake nobody, user messages still wake', () => 
   assert.equal(wakes(msg({ mentions: ['web'] }), web, true), true);
 });
 
-test('Duck member is never woken by @all or untagged user message, only by direct mention', () => {
+test('#295 the duck reads user messages and mentions; agent traffic only when @-ed', () => {
   const duck = { id: 's-duck', name: 'duck-ga', kind: 'duck' };
-  assert.equal(wakes(msg({}), duck, false), false, 'untagged user message does not wake duck');
-  assert.equal(wakes(msg({ mentions: ['all'] }), duck, false), false, 'user @all does not wake duck');
+  assert.equal(wakes(msg({}), duck, false), true, 'an untagged user message now reaches the duck (it decides: SKIP or a thought)');
+  assert.equal(wakes(msg({ mentions: ['all'] }), duck, false), false, 'a user @all is not aimed at the duck');
+  assert.equal(wakes(msg({ mentions: ['web'] }), duck, false), false, "a user message aimed at another agent does not wake the duck");
   assert.equal(wakes(msg({ mentions: ['duck-ga'] }), duck, false), true, 'user @duck-ga wakes duck');
+  assert.equal(wakes(msg({ fromId: 's-fw' }), duck, false), false, "another agent's report does not wake the duck");
   assert.equal(wakes(msg({ fromId: 's-fw', mentions: ['duck-ga'] }), duck, false), true, 'agent @duck-ga wakes duck');
   // #293b: a private chat is addressed at the duck; the shared-room mention rule does not apply there.
   assert.equal(wakes(msg({ room: 'dm-s-duck' }), duck, false), true, 'untagged user message in the duck own DM wakes it');

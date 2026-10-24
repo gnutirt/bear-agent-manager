@@ -39,9 +39,10 @@ export function wakes(msg: Message, member: { id: string; name: string; kind?: s
   if (msg.fromId === member.id) return false;
   const name = member.name.toLowerCase();
   if (member.kind === 'duck') {
-    // #293b: a private chat is addressed at its owner by construction, so the user need not @ the duck there;
-    // in shared rooms the duck still speaks only when named.
-    return msg.mentions.includes(name) || msg.room.startsWith('dm-');
+    // #293b/#295: a private chat is addressed at its owner by construction; in a shared room the duck also reads an
+    // untagged user message (it decides whether to speak, hub/member.ts, #295). A user message aimed at another agent
+    // or at @all is not for the duck, and agent traffic reaches it only when @-ed.
+    return msg.room.startsWith('dm-') || msg.mentions.includes(name) || (msg.fromId === null && msg.mentions.length === 0);
   }
   const all = msg.mentions.includes('all');
   if (msg.fromId === null) return msg.mentions.length === 0 || all || msg.mentions.includes(name);

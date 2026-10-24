@@ -64,7 +64,9 @@ test('Duck flatten formats natural advice request, places question at end, and o
   assert.ok(promptVi.includes('[M5 research'));
   assert.ok(promptVi.includes('Bối cảnh dự án ngắn gọn'));
   assert.ok(promptVi.includes('Người dùng: turn 2 câu hỏi trước đó\nDuck: turn 2 câu trả lời trước đó'));
-  assert.ok(promptVi.endsWith('Câu hỏi:\nDự án này nên cấu hình backup thế nào?'));
+  assert.ok(promptVi.includes('Câu hỏi:\nDự án này nên cấu hình backup thế nào?'));
+  // #295: the duck may stay quiet with one word instead of writing a filler answer.
+  assert.ok(promptVi.trimEnd().endsWith('Nếu tin này không cần bạn góp ý, chỉ trả lời đúng một chữ: SKIP'));
   assert.ok(!promptVi.includes('[Hệ thống]'));
   assert.ok(!promptVi.includes('sys.'));
   assert.ok(!promptVi.includes('Không đánh thức được'));
@@ -75,7 +77,8 @@ test('Duck flatten formats natural advice request, places question at end, and o
     text: 'What is the recommended database backup strategy?',
   });
   assert.ok(promptEn.startsWith('I am working with a software development team and would like your advice.'));
-  assert.ok(promptEn.endsWith('Question:\nWhat is the recommended database backup strategy?'));
+  assert.ok(promptEn.includes('Question:\nWhat is the recommended database backup strategy?'));
+  assert.ok(promptEn.trimEnd().endsWith('If this message needs no advice from you, reply with exactly one word: SKIP'));
   assert.ok(!promptEn.includes('[Hệ thống]'));
 
   // Over budget: cuts oldest context and keeps question intact at the end
@@ -89,7 +92,8 @@ test('Duck flatten formats natural advice request, places question at end, and o
     text: 'Cần giải pháp gì cho caching?',
   });
   assert.ok(trimmed.length <= 8000);
-  assert.ok(trimmed.endsWith('Câu hỏi:\nCần giải pháp gì cho caching?'));
+  assert.ok(trimmed.includes('Câu hỏi:\nCần giải pháp gì cho caching?'));
+  assert.ok(trimmed.trimEnd().endsWith('SKIP'), 'the hint stays at the end even when context is cut');
   assert.ok(!trimmed.includes('[Hệ thống]'));
   assert.ok(trimmed.includes('turn 19 content'));
 });

@@ -22,10 +22,12 @@ test('browser defaults on; invalid port keeps the current value', () => {
   assert.deepEqual(patchSettings(d, { browser: { port: 65536 } }).browser, d.browser);
 });
 
-test('legacy duck settings are ignored in patch and omitted from default settings', () => {
+test('legacy duck settings are ignored; only the #295 shared-room cooldown is kept', () => {
   const d = defaultSettings();
-  assert.equal((d as any).duck, undefined);
-  assert.equal((patchSettings(d, { duck: { exePath: 'C:\\tools\\duck2api.exe', port: 8089 } }) as any).duck, undefined);
+  assert.deepEqual(d.duck, { roomCooldownSec: 180 });
+  assert.deepEqual(patchSettings(d, { duck: { exePath: 'C:\\tools\\duck2api.exe', port: 8089 } }).duck, { roomCooldownSec: 180 }, 'duck2api leftovers are ignored');
+  assert.deepEqual(patchSettings(d, { duck: { roomCooldownSec: 0 } }).duck, { roomCooldownSec: 0 });
+  assert.deepEqual(patchSettings(d, { duck: { roomCooldownSec: 9999 } }).duck, { roomCooldownSec: 3600 }, 'clamped');
 });
 
 test('API agents get all tools by default; the switch validates and migrates older settings', () => {

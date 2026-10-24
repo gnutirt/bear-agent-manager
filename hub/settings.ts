@@ -53,6 +53,7 @@ export type Settings = {
   updates: { check: boolean };   // V1: look for a newer GitHub release every 6 hours
   browser: BrowserCfg;
   autoJobs: AutoJobs; allowPaidFallback: boolean; workerCap: number; roomChat: { autoSweep: boolean }; archive: { dir: string; enabled?: boolean };   // enabled unset = on whenever dir is set
+  duck: { roomCooldownSec: number };   // #295: at most one duck turn per this many seconds in a shared room (0 = no gap); a direct @ skips it
 };
 
 const FILE = 'settings.json';
@@ -200,6 +201,7 @@ export function defaultSettings(envCap = 4): Settings {
     skills: { worker: { enabled: true }, osin: { enabled: true } }, agentSkills: {}, agentCompact: {}, flowTiers: {}, compact: { thresholds: { enabled: true, lead: 200_000, member: 100_000, background: 100_000 }, onTaskDone: true }, permissions: { default: { mode: 'bypass', allow: [], deny: [] }, perAgent: { copilot: { mode: 'acceptEdits' } } }, apiAgents: { allTools: true }, autoUpdatePlugin: true, agents: { maxBackground: 4, profiles: [], autoRevive: true }, copilot: { autoStart: false }, localSummarize: { enabled: false, host: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', numCtx: 8192, timeoutSec: 120, maxChars: 24000 }, reviveTools: {}, agentModel: {}, lead: { wake: { enabled: true, atPct: 90, afterResetMin: 2 }, delegate: true, distribute: true, handoffOnDone: true, idleMin: 30, fallback: '', monitor: { on: true, staleMin: 60, nudgeMin: 15 } }, workerRoutes: { read: autoRoute(), edit: autoRoute(), osin: autoRoute() }, autoLead: 'off', mirrorTabs: true, relayChat: true, agentComms: 'off', closeLimitedTab: true, accountSwitch: { mode: 'ask', atPct: 90, minOtherLeftPct: 20, autoOnWake: true }, language: 'auto', openTabOnWake: false, updates: { check: true },
     autoJobs: { handoff: { enabled: false, thresholdK: 300 }, digest: { enabled: false, minChars: 4000 }, notes: { enabled: false, minNotes: 15 }, maxRunsPerDay: 10 },
     allowPaidFallback: false, workerCap: envCap, roomChat: { autoSweep: false }, archive: { dir: '' }, browser: { enabled: true, port: 9333, chromePath: '' },
+    duck: { roomCooldownSec: 180 },
   };
 }
 
@@ -364,6 +366,7 @@ export function patchSettings(s: Settings, p: any): Settings {
       dir: typeof p?.archive?.dir === 'string' ? p.archive.dir.trim() : s.archive.dir,
       ...(typeof p?.archive?.enabled === 'boolean' ? { enabled: p.archive.enabled } : s.archive.enabled === undefined ? {} : { enabled: s.archive.enabled }),
     },
+    duck: { roomCooldownSec: int(p?.duck?.roomCooldownSec, s.duck?.roomCooldownSec ?? 180, 0, 3600) },
   };
 }
 

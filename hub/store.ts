@@ -777,7 +777,9 @@ export class Store {
     // untagged agent messages (progress, "done") are routed to the lead.
     const lead = members.find((m) => m.id === room.lead && m.status !== 'offline');
     if (lead && message.mentions.length === 0) {
-      if (!sender) wake = [lead.id];
+      // #295: an untagged user message is still read by the duck (the lead answers; the duck may add a thought).
+      const ducks = sender ? [] : members.filter((m) => m.kind === 'duck' && wake.includes(m.id)).map((m) => m.id);
+      if (!sender) wake = [lead.id, ...ducks];
       else if (sender.id !== lead.id && !room.paused) wake = [lead.id];
     }
     // A report that only wakes the lead does not count: the lead's own replies still do, so a lead↔agent loop stays bounded.
