@@ -130,15 +130,19 @@ test('revive and compact spawn Claude with an isolated executable and append run
     assert.match(compactOut, /COMPACT=1/, '#243: a compact turn says it is headless');
     assert.match(compactOut, /HEADLESS=\s*(?:\r?\n|$)/, '#243: and does not opt into the Stop-hook waiter (it must exit)');
     assert.ok(!isBackground('compact-fixture'));
-    const log = fs.readFileSync(path.join(dir, 'revive.log'), 'utf8');
-    assert.match(log, /revive revive-fixture/);
-    assert.match(log, /provider-fixture/);
-    assert.match(log, /compact compact-fixture/);
-    assert.match(log, /revive-stdout/);
-    assert.match(log, /revive-stderr/);
-    const runLog = fs.readdirSync(dir).find((name) => name.startsWith('revive-revive-fixture-'));
-    assert.ok(runLog, 'the attempt has a session-and-time-specific log');
-    assert.match(fs.readFileSync(path.join(dir, runLog), 'utf8'), /revive-stderr/);
+    assert.ok(!fs.existsSync(path.join(dir, 'revive.log')), 'revive.log must not be created');
+    const runsDir = path.join(dir, 'logs', 'runs');
+    const runFiles = fs.existsSync(runsDir) ? fs.readdirSync(runsDir) : [];
+    const safeReviveId = 'revive-fixture'.toLowerCase().replace(/[^0-9a-f-]/g, '') || '0';
+    const runLog = runFiles.find((name) => name.startsWith('revive-' + safeReviveId + '-'));
+    assert.ok(runLog, 'the attempt has a session-and-time-specific log in logs/runs');
+    assert.match(fs.readFileSync(path.join(runsDir, runLog), 'utf8'), /revive-stderr/);
+    assert.match(fs.readFileSync(path.join(runsDir, runLog), 'utf8'), /revive-stdout/);
+    const safeCompactId = 'compact-fixture'.toLowerCase().replace(/[^0-9a-f-]/g, '') || '0';
+    const compactLog = runFiles.find((name) => name.startsWith('compact-' + safeCompactId + '-'));
+    assert.ok(compactLog, 'compact run log exists in logs/runs');
+    const rootLogs = fs.readdirSync(dir).filter((name) => name.startsWith('revive-') || name.startsWith('compact-') || name.startsWith('new-'));
+    assert.equal(rootLogs.length, 0, 'no run logs in root dir');
 
     const grandchildMs = 15000;   // wide: under a loaded full suite cmd.exe + node start slowly (#176)
     fs.writeFileSync(command, process.platform === 'win32'
@@ -149,10 +153,11 @@ test('revive and compact spawn Claude with an isolated executable and append run
     const started = Date.now();
     assert.equal(await spawnRevive({ id: 'grandchild-fixture', cwd: dir, text: 'synthetic prompt', logDir: dir }), 0);
     assert.ok(Date.now() - started < grandchildMs / 2, 'a descendant holding the inherited log handle must not delay the exited CLI');
-    grandchildLog = fs.readdirSync(dir).find((name) => name.startsWith('revive-grandchild-fixture-'));
+    const safeGrandchildId = 'grandchild-fixture'.toLowerCase().replace(/[^0-9a-f-]/g, '') || '0';
+    grandchildLog = fs.readdirSync(runsDir).find((name) => name.startsWith('revive-' + safeGrandchildId + '-'));
     assert.ok(grandchildLog);
-    assert.doesNotMatch(fs.readFileSync(path.join(dir, grandchildLog), 'utf8'), /grandchild-finished/, 'the descendant still holds the log handle after the CLI exits');
-    while (!fs.readFileSync(path.join(dir, grandchildLog), 'utf8').includes('grandchild-finished')) {
+    assert.doesNotMatch(fs.readFileSync(path.join(runsDir, grandchildLog), 'utf8'), /grandchild-finished/, 'the descendant still holds the log handle after the CLI exits');
+    while (!fs.readFileSync(path.join(runsDir, grandchildLog), 'utf8').includes('grandchild-finished')) {
       if (Date.now() > grandchildUntil + 15000) throw new Error('the log-holding descendant did not finish');
       await new Promise((resolve) => setTimeout(resolve, 50));
     }

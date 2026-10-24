@@ -2,6 +2,7 @@ import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:c
 import fs from 'node:fs';
 import path from 'node:path';
 import { claudeArgs, killTree, type Perm } from './revive.ts';
+import { log, runsDir } from './log.ts';
 
 // S2 (docs/superpowers/specs/2026-10-20-bam-standalone-app.md): a chat opened inside BAM is ONE long-lived `claude -p --input-format stream-json
 // --output-format stream-json` process (what the VS Code extension runs). BAM writes the user's lines to stdin and reads text, tool calls and
@@ -100,9 +101,14 @@ export class LiveChat {
     delete env.BEAR_AGENT_HEADLESS;   // no Stop-hook waiter here: this process is driven by the chat, not by room messages
     delete env.BEAR_AGENT_IDLE_MIN;
     env.BEAR_AGENT_LIVE = '1';   // SessionStart tells the agent it runs in a BAM chat
-    fs.mkdirSync(job.logDir, { recursive: true });
-    const errLog = fs.openSync(path.join(job.logDir, 'revive.log'), 'a');
+    const runs = runsDir(job.logDir);
+    try { fs.mkdirSync(runs, { recursive: true }); } catch { /* ignore */ }
+    const safeId = job.id.toLowerCase().replace(/[^0-9a-f-]/g, '') || '0';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const runName = `live-${safeId}-${stamp}.log`;
+    const errLog = fs.openSync(path.join(runs, runName), 'a');
     fs.writeSync(errLog, `\n${new Date().toISOString()} live ${job.id} in ${job.cwd} [perm: ${job.perm?.mode ?? 'default'}]\n`);
+    log('info', 'turn', 'live chat started', { sid: job.id, runLog: runName, data: { perm: job.perm?.mode, cwd: job.cwd, model: job.model } });
     const child = this.spawnFn('claude', [...liveArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
       cwd: fs.existsSync(job.cwd) ? job.cwd : undefined, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', 'pipe', errLog],
     });
@@ -124,6 +130,7 @@ export class LiveChat {
       const stillMine = this.procs.get(job.id) === child;
       if (stillMine) this.procs.delete(job.id);
       try { fs.closeSync(errLog); } catch { /* already closed */ }
+      log('info', 'turn', `live chat ended${code != null ? ` with code ${code}` : ''}`, { sid: job.id, runLog: runName, data: { code } });
       // Stopped and started again while this process was exiting: its events (and its death) belong to the old chat.
       // Emitting 'stopped' here would make the hub mark the running chat ended and cancel its open permission requests.
       if (!stillMine && this.procs.has(job.id)) return;

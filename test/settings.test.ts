@@ -193,15 +193,20 @@ test('settings profile removal requires exact confirmation and logs profile ID c
     assert.equal(confirmed.status, 200);
     assert.deepEqual((await confirmed.json() as any).agents.profiles.map((profile: any) => profile.id), ['agy', 'copilot']);
     assert.ok(settingsLogs.some((line) =>
-      line.includes('["deepseek","agy","copilot"] -> ["agy","copilot"]') && line.includes('source="PUT /api/settings"') && line.includes('profile-removal-test')),
-    'profile ID changes log the route, before/after IDs and user-agent');
+      line.includes('["deepseek","agy","copilot"] -> ["agy","copilot"]') && line.includes('source="PUT /api/settings"') && line.includes('user-agent="cli"')),
+    'profile ID changes log the route, before/after IDs and simplified user-agent');
     assert.ok(settingsLogs.some((line) =>
       line.includes('["deepseek","agy"] -> ["deepseek","agy","copilot"]') && line.includes('source="POST /api/copilot"')),
     'profile changes from the Copilot route are logged too');
     assert.ok(settingsLogs.every((line) => !line.includes('must-not-be-logged')), 'settings audit logs never include profile keys');
-    const audit = fs.readFileSync(path.join(dir, 'settings-changes.log'), 'utf8');
-    assert.match(audit, /\["deepseek","agy","copilot"\] -> \["agy","copilot"\].*profile-removal-test/);
-    assert.ok(!audit.includes('must-not-be-logged'), 'persistent settings audit logs never include profile keys');
+    const logsDir = path.join(dir, 'logs');
+    const jsonlLogs = fs.existsSync(logsDir)
+      ? fs.readdirSync(logsDir).filter((f) => f.startsWith('bam-')).map((f) => fs.readFileSync(path.join(logsDir, f), 'utf8')).join('\n')
+      : '';
+    const entries = jsonlLogs.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(entries.some((e) => e.msg === 'profiles changed: ["deepseek","agy","copilot"] -> ["agy","copilot"]'));
+    assert.ok(!jsonlLogs.includes('must-not-be-logged'), 'persistent settings audit logs never include profile keys');
+    assert.ok(!fs.existsSync(path.join(dir, 'settings-changes.log')), 'settings-changes.log is deprecated');
   } finally {
     console.log = originalLog;
     await hub.close();

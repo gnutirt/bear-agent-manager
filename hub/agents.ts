@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { adoptBackground, claudeArgs, forgetBackground, killTree, openRunLog, type Perm } from './revive.ts';
+import { log } from './log.ts';
 
 // D3 (docs/superpowers/specs/2026-10-19-ide-independence-design.md): a new agent without any editor. The hub starts
 // `claude -p --session-id <uuid>` in the agent's folder with the intro on stdin; the Stop hook's waiter keeps it alive
@@ -24,9 +25,15 @@ export function spawnAgent(job: AgentJob): Promise<number> {
     delete env.ANTHROPIC_BASE_URL;
     delete env.ANTHROPIC_AUTH_TOKEN;
   }
-  const log = openRunLog(job.logDir, job.id, 'new', job.cwd, job.perm);
+  const logFile = openRunLog(job.logDir, job.id, 'new', job.cwd, job.perm);
+  const startAt = Date.now();
+  log('info', 'revive', 'new agent started', {
+    sid: job.id,
+    runLog: logFile.name,
+    data: { perm: job.perm?.mode, cwd: job.cwd, model: job.model },
+  });
   const child = spawn('claude', [...agentArgs(job.id, job.perm, job.model), ...(job.args ?? [])].map(shellArg), {
-    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', log.outputFd, log.outputFd],
+    cwd: job.cwd, env, shell: process.platform === 'win32', windowsHide: true, stdio: ['pipe', logFile.outputFd, logFile.outputFd],
   });
   // A claude that dies at once (bad key, provider down) closes its stdin first; the write then emits 'error',
   // and an unhandled one takes the whole hub down, every room with it.
@@ -43,9 +50,15 @@ export function spawnAgent(job: AgentJob): Promise<number> {
       ended = true;
       clearTimeout(timer);
       forgetBackground(job.id, child);   // only this child: a newer agent for the same id keeps running
-      const result = await log.finish();
+      const result = await logFile.finish();
       if (result.output) job.onOutput?.(result.output);
       if (result.error) job.onOutput?.(`\n[hub could not write revive logs: ${result.error.message}]\n`);
+      const durationMs = Date.now() - startAt;
+      log(code === 0 ? 'info' : 'warn', 'revive', `new agent exited with code ${code}`, {
+        sid: job.id,
+        runLog: logFile.name,
+        data: { code, durationMs },
+      });
       resolve(result.error ? 1 : code);
     };
     child.on('exit', (code) => { void done(code ?? 1); });

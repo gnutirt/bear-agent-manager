@@ -424,6 +424,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   };
   const emitSession = (s: Session) => { broadcast('session', publicSession(s)); autoCheckSession(s); };
 
+  const initialCfg = loadSettings(opts.dir, envCap);
+  initLog(opts.dir, {
+    level: (initialCfg as any).logLevel,
+    keepDays: (initialCfg as any).logKeepDays,
+    onEntry: (entry) => broadcast('log', entry),
+  });
+
   for (const s of Object.values(store.state.sessions)) {
     if (s.moving) {
       s.moving = false;
@@ -533,7 +540,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   ];
   const sysMeta = (text: string): SysMeta => { const k = keyOf.get(text) ?? ''; return { ...(SYS_BY_KEY.find(([p]) => k.startsWith(p))?.[1] ?? { type: 'info', level: 'info' }) }; };
   /** A hub notice with its sys meta (from the key of its text unless given). */
-  const postSys = (room: string, text: string, topic?: string, meta?: SysMeta) => store.postSystem(room, text, topic, meta ?? sysMeta(text));
+  const postSys = (room: string, text: string, topic?: string, meta?: SysMeta) => {
+    const m = meta ?? sysMeta(text);
+    const area: LogArea = m.type === 'compact' ? 'compact' : m.type === 'wake' ? 'wake' : m.type === 'task' ? 'task' : 'hub';
+    const lvl: LogLevel = m.level === 'error' ? 'error' : m.level === 'warn' ? 'warn' : 'info';
+    log(lvl, area, text, { room, agent: m.agent, data: { meta: m, topic } });
+    return store.postSystem(room, text, topic, m);
+  };
   const clock = (ms: number, more: Intl.DateTimeFormatOptions = {}) => new Date(ms).toLocaleString(dateLocale(lang()), { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', ...more });
   const vnDay = (ms: number) => {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(ms);
@@ -600,11 +613,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   function logProfileIdChanges(before: AgentProfile[], after: AgentProfile[], source: string, rawUserAgent?: unknown): void {
     const beforeIds = before.map((profile) => profile.id), afterIds = after.map((profile) => profile.id);
     if (JSON.stringify(beforeIds) === JSON.stringify(afterIds)) return;
-    const userAgent = (typeof rawUserAgent === 'string' ? rawUserAgent : '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 160) || 'unknown';
-    const line = `[settings] ${new Date().toISOString()} profiles ${JSON.stringify(beforeIds)} -> ${JSON.stringify(afterIds)} source=${JSON.stringify(source)} user-agent=${JSON.stringify(userAgent)}`;
-    try { fs.appendFileSync(path.join(opts.dir, 'settings-changes.log'), line + '\n'); }
-    catch (error) { console.error(`[settings] could not append profile ID audit log: ${error instanceof Error ? error.message : String(error)}`); }
+    const ua = simplifiedUa(rawUserAgent);
+    const line = `[settings] ${new Date().toISOString()} profiles ${JSON.stringify(beforeIds)} -> ${JSON.stringify(afterIds)} source=${JSON.stringify(source)} user-agent=${JSON.stringify(ua)}`;
     console.log(line);
+    log('info', 'settings', `profiles changed: ${JSON.stringify(beforeIds)} -> ${JSON.stringify(afterIds)}`, {
+      data: { before: beforeIds, after: afterIds, source, ua },
+    });
   }
   async function handleCopilotQuota(profileId: string, limit: CopilotQuotaLimit): Promise<number | false> {
     const source = copilots.get(profileId)?.agent;
@@ -1265,6 +1279,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     // store.deaf() owns the "already reported" marker (Session.deafSince): one notice per deaf stretch. A map here used to
     // forget a session as soon as one sweep found it busy/asleep, and the same stretch was reported again, sweep after sweep.
     for (const { session: s, msg } of store.deaf(isConn, opts.deafMs ?? DEAF_MS)) {
+      log('warn', 'turn', `session deaf: ${s.name}`, { sid: s.id, agent: s.name, room: msg.room });
       try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: s.name }), undefined, { type: 'tab', level: 'warn', agent: s.name })); emitRoom(msg.room); } catch { /* room gone */ }
     }
   }
@@ -1272,15 +1287,25 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   const isConn = (id: string) => waiters.has(id) || reviving.has(id) || bgRunning(id) || copilotAgents().some((c) => c.isRunning(id)) || liveChat.has(id);
   function deliver(sid: string, directUser = false) {
     const st = store.session(sid);
-    if (st.moving) return;
+    if (st.moving) {
+      log('info', 'wake', 'wake skipped: session is moving', { sid: st.id, agent: st.name, data: { reason: 'moving' } });
+      return;
+    }
     const api = apiProfileOf(st);
-    if (api && apiBudgetUntil(api)) return;
+    if (api && apiBudgetUntil(api)) {
+      log('info', 'wake', 'wake skipped: api budget paused', { sid: st.id, agent: st.name, data: { reason: 'apiBudget' } });
+      return;
+    }
     const cop = copilotHolding(st.id);
     if (cop) {
+      log('info', 'wake', 'wake delegated to copilot', { sid: st.id, agent: st.name });
       void cop.wake(st.id).catch((error) => cop.reportError(error));
       return;
     }
-    if (!directUser && !apiProfileOf(st) && accountUsageBlocked(st) && (!st.ended || waiters.has(sid) || !usage)) return;
+    if (!directUser && !apiProfileOf(st) && accountUsageBlocked(st) && (!st.ended || waiters.has(sid) || !usage)) {
+      log('info', 'wake', 'wake skipped: account usage blocked', { sid: st.id, agent: st.name, data: { reason: 'usageBlocked' } });
+      return;
+    }
     // The chat is open inside BAM: the room messages go into that same claude as one more user turn.
     if (liveChat.has(st.id)) {
       const p = store.pending(st.id);
@@ -1300,7 +1325,10 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     if (!waiters.has(sid)) {
       // No live waiter: a session whose tab was closed (SessionEnd seen) may be resumed in the background.
       if ((autoRevive || apiProfileOf(st)) && st.ended && !revive(sid) && !reviving.has(sid)) {   // a provider agent has no tab to fall back on: an @ always wakes it
-        if (accountUsageBlocked(st)) return;
+        if (accountUsageBlocked(st)) {
+          log('info', 'wake', 'wake skipped: account usage blocked', { sid: st.id, agent: st.name, data: { reason: 'usageBlocked' } });
+          return;
+        }
         autoOpenTab(sid);
         // C4: no transcript to resume and no tab will be opened for the user: say so once instead of staying silent.
         if (!hasTranscript(st) && !loadSettings(opts.dir, envCap).openTabOnWake && !cannotTold.has(sid)) {
@@ -1315,6 +1343,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // otherwise every DM typed while the agent works would raise a false alarm. The floor is -Infinity: `deaf` reports
         // a message older than the floor, and this message is brand new.
         for (const { session: ds, msg } of store.deaf(isConn, -Infinity, undefined, st.id, true)) {
+          log('warn', 'turn', `session deaf: ${ds.name}`, { sid: ds.id, agent: ds.name, room: msg.room });
           try { broadcast('msg', postSys(msg.room, tr('sys.tab.deaf', { name: ds.name }), undefined, { type: 'tab', level: 'warn', agent: ds.name })); emitRoom(msg.room); } catch { /* room gone */ }
         }
       }
@@ -1428,15 +1457,25 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
   /** Runs `claude --resume <id> -p` with the pending room messages; at most one per session. */
   function revive(sid: string): boolean {
     const s = store.session(sid);
-    if (s.moving) return false;
+    if (s.moving) {
+      log('info', 'revive', 'revive skipped: session is moving', { sid: s.id, agent: s.name, data: { reason: 'moving' } });
+      return false;
+    }
     const profile = apiProfileOf(s);
     if (profile) attachTranscript(s);
-    if (!profile && accountUsageBlocked(s) && !usage) return false;
+    if (!profile && accountUsageBlocked(s) && !usage) {
+      log('info', 'revive', 'revive skipped: account usage blocked', { sid: s.id, agent: s.name, data: { reason: 'usageBlocked' } });
+      return false;
+    }
     // A claude the hub spawned itself (provider agents, no hooks, hence no waiter) is already writing this transcript; a
     // second `claude --resume` on the same session would give the JSONL two writers. The alias check matters: a turn
     // started before a clear/resume lives under the old id, and looking only at the new one started a twin agent.
     const holder = sessionHolder(s);
-    if (holder.count > 0 || bgRunning(s.id) || !hasTranscript(s)) return false;
+    if (holder.count > 0 || bgRunning(s.id) || !hasTranscript(s)) {
+      const reason = holder.count > 0 ? 'holder' : bgRunning(s.id) ? 'bgRunning' : 'noTranscript';
+      log('info', 'revive', `revive skipped: ${reason}`, { sid: s.id, agent: s.name, data: { reason, holder: holder.where, count: holder.count } });
+      return false;
+    }
     // #246(c): the same cap the routes use for spawning applies to a wake. Queue it (true: it will run) rather than refuse:
     // the caller must not mark the chat ended or fall back to a tab, and the pending messages stay unread until it starts.
     if (countBackgroundWith(reviving) >= loadSettings(opts.dir, envCap).agents.maxBackground) { enqueueWake(s.id); return true; }
@@ -1516,6 +1555,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (tick) clearInterval(tick);
         const replaced = replacedByTab.delete(s.id);   // killed by tabCameUp: the tab reads the rewound messages, nothing failed
         if (failure) {
+          log(replaced ? 'info' : 'warn', 'revive', `revive ${replaced ? 'stopped' : 'failed'}: ${failure}`, {
+            sid: s.id,
+            agent: s.name,
+            data: { failure, replaced },
+          });
           const cur = store.session(s.id);
           cur.cursor = Math.min(cur.cursor, cursorBefore);
           store.save();
@@ -1555,13 +1599,24 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
     const configuredModel = cfg.agentModel[normAgent(s.name)];
     const model = apiRun?.model ?? cliModelFor(s.name, configuredModel, cfg);
     emitSession(store.setStatus(s.id, 'busy', tr('sys.act.compact')));
+    log('info', 'compact', `compact started for ${s.name}`, { sid: s.id, agent: s.name, data: { beforeTokens: before } });
     const say = (text: string) => { for (const r of Object.keys(s.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
     // Same account choice as a wake: an account out of usage cannot compact (2026-10-19: "compacted 748k -> not measured" was a run that
     // died on the limit with exit 0); the other account takes it when chats are shared, else the button says why.
     const cjob = { id: s.id, cwd: s.cwd, configDir: s.configDir, logDir: opts.dir, ...(apiRun?.model ?? model ? { model: apiRun?.model ?? model } : {}), ...(apiRun ? { env: apiRun.env, args: apiRun.args } : {}) };
     const blocked = apiRun ? '' : await blockedAccount(s, cjob);
-    if (blocked) { say(tr('sys.compact.blocked', { name: s.name, why: blocked })); return; }
+    if (blocked) {
+      log('info', 'compact', `compact skipped for ${s.name}: account blocked`, { sid: s.id, agent: s.name, data: { why: blocked } });
+      say(tr('sys.compact.blocked', { name: s.name, why: blocked }));
+      return;
+    }
     const code = await Promise.resolve(runCompact(cjob)).catch(() => 1);
+    const after = readContextTokens(s.transcript);
+    log(code === 0 ? 'info' : 'warn', 'compact', `compact ${code === 0 ? 'finished' : 'failed'} for ${s.name}`, {
+      sid: s.id,
+      agent: s.name,
+      data: { code, beforeTokens: before, afterTokens: after },
+    });
     if (code !== 0 && tabHolds(store.session(s.id))) return;   // the tab took the chat over while compaction ran
     if (code === 0 && endedOnLimit(s.transcript)) { say(tr('sys.compact.limit', { name: s.name })); return; }
     if (code === 0) store.resetRules(s.id);   // #200: the compaction dropped the context that held the fixed rules; the next delivery reprints them
@@ -1828,7 +1883,13 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         const rule = loadSettings(opts.dir, envCap).agentCompact[normAgent(sess.name)];
         const tr = String(b.transcript_path ?? sess.transcript ?? '');
         const turn = String(b.prompt_id ?? '');
-        const d = compactDecision({ trigger: String(b.trigger ?? ''), rule, ctx: readContextTokens(tr), model: readModel(tr), retry: !!turn && heldTurns.has(turn) });
+        const ctxTokens = readContextTokens(tr);
+        const d = compactDecision({ trigger: String(b.trigger ?? ''), rule, ctx: ctxTokens, model: readModel(tr), retry: !!turn && heldTurns.has(turn) });
+        log('info', 'compact', `pre-compact decision: ${d.decision} (${d.reason})`, {
+          sid: sess.id,
+          agent: sess.name,
+          data: { decision: d.decision, reason: d.reason, trigger: b.trigger, ctx: ctxTokens },
+        });
         if (d.decision === 'block') {
           heldTurns.add(turn);
           if (heldTurns.size > 200) heldTurns.delete(heldTurns.values().next().value!);
@@ -1842,6 +1903,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         // A turn woken by room messages that ended without any post to the room: the answer stayed in the agent's own
         // chat, where nobody in the room sees it. Post it as a hub notice to @you (wakes nobody). Short texts are skipped.
         const sess = store.session(id), w = relayWatch.get(sess.id);
+        log('info', 'turn', `turn stopped for ${sess.name}`, { sid: sess.id, agent: sess.name });
         clearAccountLimitsAfterSuccessfulSession(sess);
         relayWatch.delete(sess.id);
         sess.apiRetry = undefined;
@@ -1860,6 +1922,12 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       case 'stop-failure': {
         // A turn that ended in an API error never reaches the Stop hook, so the agent is in no waiter: say why and book the wake.
         const sess = store.session(id), err = String(b.error ?? '');
+        const lvl: LogLevel = (err === 'server_error' || err === 'overloaded') ? 'warn' : 'error';
+        log(lvl, 'turn', `turn failed: ${err || 'unknown'}`, {
+          sid: sess.id,
+          agent: sess.name,
+          data: { error: err },
+        });
         const say = (text: string) => { for (const r of Object.keys(sess.rooms)) { try { broadcast('msg', postSys(r, text)); emitRoom(r); } catch { /* room gone */ } } };
         if (err === 'server_error' || err === 'overloaded') {
           // #159: a transient error: wake the same chat again after a backoff; only the last failure goes to @you
@@ -1869,9 +1937,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
             (store.state.wakeAt ??= {})[`r:${sess.id}`] = { at: Date.now() + waits[n], tries: 0 };
             store.save();
             scheduleWake(`r:${sess.id}`);
+            log('info', 'turn', `turn retry scheduled for ${sess.name} in ${Math.round(waits[n] / 1000)}s (#159)`, {
+              sid: sess.id,
+              agent: sess.name,
+              data: { error: err, attempt: n + 1, max: waits.length, waitMs: waits[n] },
+            });
             say(tr('sys.stop.apiRetry', { name: sess.name, err, sec: Math.round(waits[n] / 1000), n: n + 1, max: waits.length }));
           } else {
             sess.apiRetry = undefined;
+            log('warn', 'turn', `turn retry giveup for ${sess.name} after ${waits.length} attempts (#159)`, {
+              sid: sess.id,
+              agent: sess.name,
+              data: { error: err, max: waits.length },
+            });
             say(tr('sys.stop.apiGiveup', { name: sess.name, err, max: waits.length }));
           }
           status('idle', '');
@@ -1880,6 +1958,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         if (err !== 'rate_limit') { say(tr('sys.stop.api', { name: sess.name, err: err || tr('sys.stop.unknown') })); status('idle', ''); break; }
         const q = quotaResetFromTranscript(String(b.transcript_path ?? sess.transcript ?? ''));
         const hhmm = q ? clock(q.until) : '';
+        log('warn', 'turn', `turn rate limited for ${sess.name}`, {
+          sid: sess.id,
+          agent: sess.name,
+          data: { resetAt: q?.until },
+        });
         if (q) {
           sess.limited = q;
           const have = (store.state.wakeAt ??= {});
@@ -2608,7 +2691,7 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
         }
         safeArgs = { cwd: root };
       }
-      fs.appendFileSync(path.join(opts.dir, 'revive.log'), `${new Date().toISOString()} ide ${session.id} ${op}\n`);
+      log('info', 'ide', `ide ${session.name} ${op}`, { sid: session.id, agent: session.name, data: { op, cwd } });
       const data = await ideBridge.request(cwd, op as IdeOp, safeArgs);
       if (op === 'selection') {
         if (!data || typeof data !== 'object' || Array.isArray(data)) throw new StoreError(502, 'VS Code returned an invalid selection');
@@ -3003,7 +3086,11 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
           : settings.apiAgents.allTools ? { allow: true }
             : prov.tier !== 'local' ? pathGuard(api.cwd, String(b.tool ?? ''), b.input, remoteCanEdit(api, prov))
               : { allow: false, message: 'not guarded here' };
-        try { fs.appendFileSync(path.join(opts.dir, 'revive.log'), `${new Date().toISOString()} guard ${s.name} ${String(b.tool ?? '').slice(0, 40)} ${d.allow ? 'allow' : `deny: ${d.message}`}\n`); } catch { /* log only */ }
+        log(d.allow ? 'info' : 'warn', 'guard', `guard ${s.name} ${String(b.tool ?? '').slice(0, 40)} ${d.allow ? 'allow' : `deny: ${d.message}`}`, {
+          sid: s.id,
+          agent: s.name,
+          data: { tool: b.tool, allow: d.allow, message: d.message },
+        });
         return json(res, 200, d);
       }
       if (!liveChat.has(s.id)) throw new StoreError(409, `${s.name} has no live chat`);
@@ -3176,6 +3263,19 @@ export async function startHub(opts: HubOptions): Promise<Hub> {
       }
       saveSettings(opts.dir, next);
       logProfileIdChanges(current.agents.profiles, next.agents.profiles, 'PUT /api/settings', req.headers['user-agent']);
+      log('info', 'settings', 'settings updated', {
+        data: {
+          keys: patch && typeof patch === 'object' ? Object.keys(patch) : [],
+          ua: simplifiedUa(req.headers['user-agent']),
+        },
+      });
+      if (patch && (patch.logLevel !== undefined || patch.logKeepDays !== undefined)) {
+        initLog(opts.dir, {
+          level: (next as any).logLevel,
+          keepDays: (next as any).logKeepDays,
+          onEntry: (entry) => broadcast('log', entry),
+        });
+      }
       if (patch && Object.prototype.hasOwnProperty.call(patch, 'browser')) await applyBrowser();
       void syncCopilots();
       syncApiAgents();

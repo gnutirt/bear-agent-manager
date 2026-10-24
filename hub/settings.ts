@@ -60,6 +60,14 @@ const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, lo: number, hi: number) => (v == null || !Number.isFinite(Number(v)) ? d : Math.min(hi, Math.max(lo, Math.round(Number(v)))));
 export const normAgent = (name: string) => String(name ?? '').trim().toLowerCase();
 
+/** L3: settings changes simplify user-agent to browser | vscode-webview | cli. */
+export function simplifiedUa(ua: unknown): 'browser' | 'vscode-webview' | 'cli' {
+  const s = String(ua ?? '').toLowerCase();
+  if (s.includes('vscode') || s.includes('code') || s.includes('electron')) return 'vscode-webview';
+  if (s.includes('mozilla') || s.includes('chrome') || s.includes('safari') || s.includes('browser')) return 'browser';
+  return 'cli';
+}
+
 export type FlowTierError = { room: string; agent?: string; reason: string };
 export function validateFlowTiers(raw: unknown, rooms: Record<string, string[]>): FlowTierError[] {
   const errors: FlowTierError[] = [];

@@ -239,15 +239,20 @@ test('claude-api real CLI integration: the hub permission prompt blocks outside 
       } finally { await fake.close(); }
     };
 
+    const readLogs = () => {
+      const logsDir = path.join(dir, 'logs');
+      if (!fs.existsSync(logsDir)) return '';
+      return fs.readdirSync(logsDir).filter((f) => f.startsWith('bam-')).map((f) => fs.readFileSync(path.join(logsDir, f), 'utf8')).join('\n');
+    };
+
     const read = await run([{ tool: 'Read', input: { file_path: outside } }]);
-    assert.match(fs.readFileSync(path.join(dir, 'revive.log'), 'utf8'), new RegExp(`guard ${profile.name} Read deny: .*outside the agent folder`));
+    assert.ok(!fs.existsSync(path.join(dir, 'revive.log')), 'revive.log is not created');
+    assert.match(readLogs(), new RegExp(`guard ${profile.name} Read deny: .*outside the agent folder`));
     assert.ok(!JSON.stringify(read.requests).includes(marker), 'the outside file contents never reach the provider');
 
-    fs.writeFileSync(path.join(dir, 'revive.log'), '');
     const noMode = await run([{ tool: 'Read', input: { file_path: outside } }], true);
     assert.ok(JSON.stringify(noMode.requests).includes(marker), 'negative control: omitting --permission-mode inherits auto and reads outside cwd');
 
-    fs.writeFileSync(path.join(dir, 'revive.log'), '');
     const edit = await call<any>('/api/permissions/ask', {
       session: read.id,
       tool: 'Edit',
@@ -255,7 +260,7 @@ test('claude-api real CLI integration: the hub permission prompt blocks outside 
     });
     assert.equal(edit.allow, false);
     assert.match(edit.message, /outside the agent folder/);
-    assert.match(fs.readFileSync(path.join(dir, 'revive.log'), 'utf8'), new RegExp(`guard ${profile.name} Edit deny: .*outside the agent folder`));
+    assert.match(readLogs(), new RegExp(`guard ${profile.name} Edit deny: .*outside the agent folder`));
     assert.equal(fs.readFileSync(outside, 'utf8'), `${marker}\n`, 'the outside file stays unchanged');
   } finally {
     await hub.close();
