@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Add: Claude account management in BAM (#275–#278, #292, #300): inspect sign-in status per config directory, open isolated login/logout consoles, create accounts, view the account and session holder for each workspace, and safely move a session between BAM, an IDE tab and another account. Moves lock the session, wait for the old process to exit, skip compaction while moving and report when a move cannot safely continue. Needs hub restart.
+- Add: one structured hub log in `logs/`, with rotation, retention and shared secret redaction (#281, #291). Wake/revive, agent turns, compaction, settings, guard, IDE and provider activity now have structured log events; raw process output is stored per run under `logs/runs/`, and hooks retain a redacted fallback log when the hub is unavailable. Needs hub restart.
+- Add: authenticated log APIs and a live Log tab (#282–#285, #299): filter and inspect JSONL entries, follow new events, and download filtered entries as JSONL or text; raw run output can also be downloaded. Run-log reads are restricted to validated run-log filenames and redacted.
+- Add: provider model discovery and model-aware pricing (#288–#290): list models from compatible APIs (including OpenRouter tool-capable models and the Ollama fallback), cache results, show context and prices in the `claude-api` model pickers, and use live/reviewed model prices for usage and daily-budget calculations. Needs hub restart.
+- Add: Duck can answer user DMs without an @-mention and join shared-room conversations at a controlled pace (#293, #295, #297). It may quietly skip a shared-room message, ignores unmentioned agent traffic, and does not let an unrelated room batch swallow a DM. Needs hub restart.
+- Add: account and workspace APIs report configured Claude accounts and the current session holder without launching an authentication command; a per-room cursor keeps multi-room member replies independent (#277, #293). Needs hub restart.
+- Add: BAM-owned memory for rooms, projects and users, with authenticated memory routes and a Settings view; Duck and Muse can use the shared memory while keeping their conversation histories separate (#217–#222, #227, #230).
+- Add: Antigravity (agy) as a hub-managed room agent, with profile setup, sign-in/model checks and UI support (#208–#210, #231). Needs hub restart.
+- Add: a single background Chrome managed by the hub for agents, with browser settings, status and a shared Playwright connection; requests from that browser are blocked from opening the hub UI (#204–#206, #216, #223, #228). Needs hub restart.
+- Add: automatic workflow tiers and assignment (#263, #265–#266, #272): tasks can be assigned to a tier, and the hub selects an available member from that tier; the Flow and task views expose tier assignment and pool status. Needs hub restart.
+- Fix: removing an agent from a room remains effective after a hub restart (#280); the hub no longer silently rejoins a member the user removed.
+- Fix: Antigravity agent turns now treat the timeout as an idle timeout that resets when output arrives, while retaining a 60-minute hard cap and the conversation after a failed turn (#264). Needs hub restart.
+- Add: Flow shows only current room members and draws user-to-agent DM relationships; profile agents without an assigned tier appear in the bottom tier (#252, #259).
+- Fix: the Settings page no longer displays `undefined` while account data is loading, including when the user is on a different Settings section (#298).
+- Fix: account login/logout consoles now preserve Windows command-line quoting, avoiding a failed `cmd.exe` launch (#300).
+- Fix: a session move no longer proceeds while its background process is still alive, skips compaction during the move, serializes concurrent move requests and reports a failed revive instead of claiming success (#278, #292). Needs hub restart.
+- Fix: Duck's login state and web-chat flow use BAM's hidden browser; bot checks stop the turn with a clear error rather than retrying indefinitely, and provider response reads are bounded (#257–#270).
+- Add: reusable agent search, room-member management and improvements to the Settings agent table/drawer, including per-agent permissions and skill/MCP controls (#234–#248, #265, #271).
+
 ## 0.13.0 - 2026-10-23
 
 - Add: a per-agent KPI panel in the Việc tab (`GET /api/rooms/:room/kpi`, 1/7/30 days) shows done/doing counts, median wait and work time, reopened count, stuck count and commit rate; clicking a row filters the task list to that owner. A doing card older than `lead.monitor.staleMin` shows a red "stuck N phút" badge, and the lead instruction now checks `room_tasks` for stuck work on every wake and reassigns a silent owner (#195, #196). Needs hub restart.
