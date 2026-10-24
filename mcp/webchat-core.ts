@@ -192,7 +192,7 @@ export async function ask(
   const tab = await findTab(cdp, site), page = await cdp.attach(tab);
   try {
     let termsAccepted = false, lastTermRes: any = false;
-    const waitForReady = async (maxMs = 15_000): Promise<boolean> => {
+    const waitForReady = async (maxMs = 15_000, requireEmpty = false): Promise<boolean> => {
       const tStart = now();
       while (now() - tStart < maxMs) {
         if (site.js.botCheck && (await page.eval(site.js.botCheck))) {
@@ -203,7 +203,9 @@ export async function ask(
           if (accepted === true) termsAccepted = true;
           else lastTermRes = accepted;
         }
-        if (await page.eval(site.js.hasInput)) return true;
+        const hasInput = !!(await page.eval(site.js.hasInput));
+        const count = site.js.count ? Number(await page.eval(site.js.count)) || 0 : 0;
+        if (hasInput && (!requireEmpty || count === 0)) return true;
         await sleep(250);
       }
       if (lastTermRes === 'needs-user') throw new WebChatError('needs-user');
@@ -214,7 +216,8 @@ export async function ask(
     if (site.newChatUrl) {
       const navigated = await page.eval(`(()=>{if(window.location.href!==${JSON.stringify(site.newChatUrl)}||document.querySelectorAll('[data-testid=user-message],[data-activeresponse]').length>0){window.location.href=${JSON.stringify(site.newChatUrl)};return true;}return false;})()`);
       if (navigated) {
-        await waitForReady(15_000);
+        await sleep(300);
+        await waitForReady(15_000, true);
       }
     }
 
